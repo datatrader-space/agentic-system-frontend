@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // The Let's Code chat is the SAME chat as the main agent chat (owner, 2026-11-06): the shared store streams it and
 // ChatMessageList draws it. This panel only points the store at the project (its socket and the shared Coding
-// Agent), sends through it, and adds a project turn's own cards under the answer.
+// Agent), sends through it, and adds a project turn's own lines under the answer: the files it changed (which open
+// Source control) and the running app. There is no diff card: the person commits and pushes in Source control.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -31,8 +32,7 @@ const ChatMessageList = {
   setup: () => ({ chat }),
   template: `<div><div v-for="m in chat.messages" :key="m.id" class="row">{{ m.content }}<slot name="after-message" :message="m" /></div></div>`,
 }
-const stubs = { Icon: true, HITLModal: true, PermissionCard: true, ProposedChangesCard: { props: ['task'], template: '<div class="diff">{{ task.proposed_diff_id }}</div>' },
-                AgentModelPicker: true, ChatMessageList }
+const stubs = { Icon: true, HITLModal: true, PermissionCard: true, AgentModelPicker: true, ChatMessageList }
 
 async function mountChat() {
   const Chat = (await import('./UnifiedAgentChat.vue')).default
@@ -70,16 +70,39 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 
-  it('puts a diff and the running app under the answer they belong to, and leaves other frames to the chat', async () => {
+  it('puts the changed files and the running app under the answer they belong to, and leaves other frames to the chat', async () => {
     const w = await mountChat()
     chat.messages = [{ id: 'u1', role: 'user', content: 'run it' }, { id: 'a1', role: 'assistant', content: 'done' }]
     await flushPromises()
-    expect(chat.surfaceHandler({ type: 'proposed_diff', proposed_diff_id: 9, diff_text: 'diff --git a/x b/x' })).toBe(true)
+    const files = [{ path: 'app/page.tsx', status: 'modified' }, { path: 'app/new.tsx', status: 'added' }]
+    expect(chat.surfaceHandler({ type: 'lets_code_changes', files, total: 2 })).toBe(true)
     expect(chat.surfaceHandler({ type: 'lets_code_preview', port: 3000 })).toBe(true)
     expect(chat.surfaceHandler({ type: 'assistant_message_chunk', chunk: 'x' })).toBe(false)
+    expect(chat.surfaceHandler({ type: 'proposed_diff', proposed_diff_id: 9 })).toBe(false)
     await flushPromises()
-    expect(w.find('.diff').text()).toBe('9')
+    expect(w.find('.ai-changes-text').text()).toBe('Changed 2 files: page.tsx, new.tsx')
     expect(w.text()).toContain('The app is running on port 3000')
+    expect(w.emitted('changes')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('says when earlier changes are still waiting to be committed, and opens Source control on View changes', async () => {
+    const w = await mountChat()
+    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [{ path: 'README.md', status: 'modified' }], total: 4 })
+    await flushPromises()
+    expect(w.find('.ai-changes-text').text()).toBe('Changed 1 file: README.md · 3 more changes not committed')
+    await w.find('.ai-changes-open').trigger('click')
+    expect(w.emitted('view-changes')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('says a turn changed no files when it wrote nothing', async () => {
+    const w = await mountChat()
+    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [], total: 0 })
+    await flushPromises()
+    expect(w.find('.ai-changes-text').text()).toBe('No files changed in this turn')
     w.unmount()
   })
 
@@ -98,30 +121,6 @@ describe('UnifiedAgentChat on the shared chat', () => {
     expect(win.opener).toBe(null)
     expect(win.location.href).toBe('https://3000-abcdefgh12345678.proxy.x')
     open.mockRestore()
-    w.unmount()
-  })
-
-  it('says why an action failed, with an error mark, never a check', async () => {
-    const w = await mountChat()
-    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
-    chat.surfaceHandler({ type: 'proposed_diff', proposed_diff_id: 9, diff_text: 'diff --git a/x b/x' })
-    chat.surfaceHandler({ type: 'proposed_diff_resolved', proposed_diff_id: 9, outcome: 'error', error: 'No changes to export.' })
-    await flushPromises()
-    const line = w.find('.ai-resolved')
-    expect(line.classes()).toContain('err')
-    expect(line.attributes('role')).toBe('alert')
-    expect(line.text()).toContain('No changes to export.')
-    expect(line.text()).not.toContain('Action failed')
-    w.unmount()
-  })
-
-  it('sends diff actions on the project socket', async () => {
-    const w = await mountChat()
-    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
-    chat.surfaceHandler({ type: 'proposed_diff', proposed_diff_id: 9, diff_text: 'diff --git a/x b/x' })
-    await flushPromises()
-    w.findComponent(stubs.ProposedChangesCard).vm.$emit('discard')
-    expect(chat.sendRaw).toHaveBeenCalledWith({ type: 'diff_discard', proposed_diff_id: 9 })
     w.unmount()
   })
 })

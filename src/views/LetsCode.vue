@@ -123,7 +123,7 @@
         <div class="ide-left">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="retryProject(active)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :decorations="proposalDecorations" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed }">
             <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" />
@@ -139,7 +139,7 @@
           <UnifiedAgentChat
             :key="active.repo_id"
             :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
-            @changed="onChanged" @activity="onActivity" @proposal="onProposal"
+            @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges"
           />
         </div>
       </div>
@@ -225,7 +225,6 @@ const loadingRepos = ref(false)
 const repos = ref([])
 const repoQuery = ref('')
 const cloningUrl = ref('')
-const proposalDecorations = ref({})
 
 const filteredRepos = computed(() => {
   const q = repoQuery.value.trim().toLowerCase()
@@ -281,7 +280,6 @@ function openProject(p) {
   active.value = { ...p }
   pipelineLog.value = p.log || []
   activity.value = []
-  proposalDecorations.value = {}
   browserKey.value++
   pollStatus()
   connectWs()
@@ -365,7 +363,6 @@ function pollStatus() {
 function closeProject() {
   statusPoller.stop()
   closeWs()
-  proposalDecorations.value = {}
   active.value = null
   loadProjects()
 }
@@ -401,46 +398,11 @@ async function removeProject(p) {
   catch (e) { notify.error(e?.response?.data?.error || 'Could not remove the project') }
 }
 
-// After a change is kept, discarded or reverted: the files, Source control and open tabs reload in place.
-function onChanged() { codeBrowser.value?.refresh?.() }
+// A turn changed files: the tree, Source control and open tabs reload in place.
+function onChanges() { codeBrowser.value?.refresh?.() }
+// "View changes" under an answer: the Source control list, where each file opens its diff.
+function onViewChanges() { codeBrowser.value?.showSourceControl?.() }
 function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
-
-// Inline decorations: map a proposal's diff → per-file added-line ranges for the editor.
-// A turn proposed a change: highlight its lines and show the files it wrote at once.
-function onProposal(task) {
-  proposalDecorations.value = task ? decorationsFromDiff(task) : {}
-  if (task) codeBrowser.value?.refresh?.()
-}
-function decorationsFromDiff(task) {
-  const text = task?.diff_text || ''
-  if (!text) return {}
-  const added = {}
-  let path = null, newLine = 0
-  for (const raw of text.split('\n')) {
-    if (raw.startsWith('diff --git')) { const m = raw.match(/ b\/(.+)$/); path = m ? m[1] : null; continue }
-    if (!path) continue
-    if (raw.startsWith('@@')) { const m = raw.match(/\+(\d+)/); newLine = m ? parseInt(m[1], 10) : 0; continue }
-    if (raw.startsWith('+++') || raw.startsWith('---')) continue
-    if (raw.startsWith('+')) { (added[path] = added[path] || []).push(newLine); newLine++ }
-    else if (raw.startsWith('-')) { /* deletion — no new-file line */ }
-    else { newLine++ }   // context line
-  }
-  const out = {}
-  for (const p in added) out[p] = toRanges(added[p])
-  return out
-}
-function toRanges(lines) {
-  const s = [...new Set(lines)].sort((a, b) => a - b)
-  const ranges = []
-  let start = null, prev = null
-  for (const n of s) {
-    if (start === null) { start = prev = n; continue }
-    if (n === prev + 1) { prev = n; continue }
-    ranges.push({ start, end: prev }); start = prev = n
-  }
-  if (start !== null) ranges.push({ start, end: prev })
-  return ranges
-}
 
 onMounted(async () => { await loadProjects(); loadGithubRepos() })
 onBeforeUnmount(() => {

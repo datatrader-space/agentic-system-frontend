@@ -500,6 +500,15 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
   getSourceControlDiff: (systemId, repoId, path) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, { params: { path } }),
+  // The person's own git actions (owner, 2026-11-09): the agent never commits, pushes or opens a pull request.
+  discardSourceControlFile: (systemId, repoId, path) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard/`, { path }),
+  commitSourceControl: (systemId, repoId, body) =>   // { message, branch (on the default branch) }
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/commit/`, body),
+  pushSourceControl: (systemId, repoId) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/push/`, {}),
+  openPullRequest: (systemId, repoId, body) =>       // { title, body }
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull-request/`, body),
 
   // Knowledge
   getKnowledge: (systemId) => api.get(`/systems/${systemId}/knowledge/`),

@@ -621,10 +621,6 @@ samp {
   animation: vmFlow 8s linear infinite;
 }
 
-/* Let's Code — inline diff decorations (Monaco renders outside scoped styles, so global). */
-.lc-add-line { background: rgba(34, 197, 94, .16); }
-.lc-add-gutter { background: #22c55e; width: 3px !important; margin-left: 3px; }
-
 /* status orb: green ring opacity pulse (live) / soft fade (idle) */
 .vm-orb { width: 8px; height: 8px; border-radius: 50%; position: relative; flex: 0 0 auto; }
 .vm-orb.is-live { background: var(--vm-green); }

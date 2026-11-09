@@ -46,6 +46,29 @@ describe('CodeBrowser: refresh after a change', () => {
     expect(st.openTabs.find((t) => t.path === 'src/page.tsx').content).toBe('v2')
     w.unmount()
   })
+
+  it('an open diff tab shows the change as it is after the next turn', async () => {
+    const api = (await import('../services/api')).default
+    api.getRepositoryFiles.mockImplementation(() => Promise.resolve({ data: { entries: [] } }))
+    api.getSourceControlDiff.mockResolvedValueOnce({ data: { path: 'a.py', original: 'x = 1\n', modified: 'x = 2\n' } })
+    const w = await browser()
+    await w.vm.$.setupState.openDiff({ path: 'a.py' })
+    await flushPromises()
+    api.getSourceControlDiff.mockResolvedValueOnce({ data: { path: 'a.py', original: 'x = 1\n', modified: 'x = 3\n' } })
+    await w.vm.refresh()
+    await flushPromises()
+    expect(w.find('.monaco-stub').text()).toBe('x = 1\n|x = 3\n|python')
+    w.unmount()
+  })
+
+  it('"View changes" from the chat opens the Source control list', async () => {
+    const w = await browser()
+    w.vm.showSourceControl()
+    await flushPromises()
+    expect(w.vm.$.setupState.sidebarTab).toBe('scm')
+    expect(w.find('.scm-stub').exists()).toBe(true)
+    w.unmount()
+  })
 })
 
 describe('CodeBrowser: a change opens as a diff tab', () => {

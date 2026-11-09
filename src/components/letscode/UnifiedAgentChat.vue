@@ -1,8 +1,8 @@
 <!--
   UnifiedAgentChat: the Let's Code coding chat. It is the SAME chat as the main agent chat, the Super Agent and
   Video Studio (owner, 2026-11-06): the shared chat store streams the turn and ChatMessageList draws it (the step
-  timeline, the answer, tokens, approvals). What is Let's Code's own stays here: the chat history of this project, and the cards a project turn adds under its answer (the proposed diff, a permission ask,
-  the running app's preview). The agent is the one shared Coding Agent; the socket is the project's
+  timeline, the answer, tokens, approvals). What is Let's Code's own stays here: the chat history of this project, and the lines a project turn adds under
+  its answer (the files it changed, linking to Source control; a permission ask; the running app's preview). The agent is the one shared Coding Agent; the socket is the project's
   (ws/chat/repository/<id>/, the store's `repoId`). No native dialogs: useNotify only.
 -->
 <template>
@@ -45,18 +45,10 @@
       <ChatMessageList v-else>
         <template #after-message="{ message }">
           <div v-if="message.lcCard" class="uac-cards">
-            <ProposedChangesCard
-              v-if="message.lcCard.task && (message.lcCard.task.diff_text || (message.lcCard.task.diff_summary && message.lcCard.task.diff_summary.files))"
-              :task="message.lcCard.task" :busy="message.lcCard.busy" :exporting="message.lcCard.exporting"
-              @accept="onExport(message.lcCard)" @keep="onKeep(message.lcCard)" @discard="onDiscard(message.lcCard)"
-              @copy="onCopy(message.lcCard)"
-              @revert-file="onRevertFile(message.lcCard, $event)" @revert-hunk="onRevertHunk(message.lcCard, $event)"
-            />
-            <div v-if="message.lcCard.resolved" class="ai-resolved" :class="{ err: message.lcCard.resolved === 'error' }"
-                 :role="message.lcCard.resolved === 'error' ? 'alert' : null">
-              <Icon :icon="{ exported: 'lucide:git-pull-request', discarded: 'lucide:trash-2', error: 'lucide:circle-alert' }[message.lcCard.resolved] || 'lucide:check'" />
-              {{ resolvedLabel(message.lcCard) }}
-              <a v-if="message.lcCard.task && message.lcCard.task.pr_url" :href="message.lcCard.task.pr_url" target="_blank" rel="noopener">View PR</a>
+            <div v-if="message.lcCard.changes" class="ai-changes">
+              <Icon icon="lucide:file-diff" aria-hidden="true" />
+              <span class="ai-changes-text">{{ changesText(message.lcCard.changes) }}</span>
+              <button type="button" class="ai-changes-open" @click="emit('view-changes')">View changes</button>
             </div>
             <div v-if="message.lcCard.preview" class="ai-preview">
               <Icon icon="lucide:monitor-play" aria-hidden="true" />
@@ -128,13 +120,11 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 import api from '@/services/api'
-import { notify } from '@/composables/useNotify'
 import { usePermission } from '@/composables/usePermission'
 import { useChatStore } from '@/stores/useChatStore'
 import ChatMessageList from '@/components/chat/ChatMessageList.vue'
 import HITLModal from '@/components/HITLModal.vue'
 import PermissionCard from '@/components/letscode/PermissionCard.vue'
-import ProposedChangesCard from '@/components/letscode/ProposedChangesCard.vue'
 import AgentModelPicker from '@/components/agent/AgentModelPicker.vue'
 
 const props = defineProps({
@@ -142,7 +132,7 @@ const props = defineProps({
   repoId: { type: [String, Number], required: true },
   crsReady: { type: Boolean, default: false },
 })
-const emit = defineEmits(['changed', 'proposal', 'activity'])
+const emit = defineEmits(['changes', 'activity', 'view-changes'])
 
 const chat = useChatStore()
 const input = ref('')
@@ -178,14 +168,9 @@ function lastAssistant() {
 }
 function cardFor(message) {
   if (!message) return null
-  if (!message.lcCard) message.lcCard = { task: null, busy: false, exporting: false, resolved: '', error: '', preview: null }
+  if (!message.lcCard) message.lcCard = { changes: null, preview: null }
   return message.lcCard
 }
-function cardByDiff(diffId) {
-  const m = chat.messages.find((x) => x.lcCard && x.lcCard.task && x.lcCard.task.proposed_diff_id === diffId)
-  return m ? m.lcCard : null
-}
-
 // Frames only a project turn sends. Everything else (the stream, the steps, approvals) is the shared chat's.
 function onProjectFrame(d) {
   const t = d?.type
@@ -200,30 +185,12 @@ function onProjectFrame(d) {
     if (c) c.preview = { port: d.port, opening: false, error: '' }
     scrollDown(); return true
   }
-  if (t === 'proposed_diff') {
+  if (t === 'lets_code_changes') {
+    // What this turn changed: paths and status only. The person reviews, commits and pushes in Source control.
     const c = cardFor(lastAssistant())
-    if (c) {
-      c.task = { proposed_diff_id: d.proposed_diff_id, diff_text: d.diff_text || '', diff_summary: d.diff_summary || {},
-                 export_enabled: d.can_export !== false, pr_url: '' }
-      emit('proposal', c.task)
-    }
+    if (c) c.changes = { files: d.files || [], total: d.total || 0 }
+    emit('changes')
     scrollDown(); return true
-  }
-  if (t === 'proposed_diff_updated') {
-    const c = cardByDiff(d.proposed_diff_id)
-    if (c) { c.task.diff_text = d.diff_text || ''; c.task.diff_summary = d.diff_summary || {}; c.busy = false; emit('proposal', c.task) }
-    emit('changed'); return true
-  }
-  if (t === 'proposed_diff_resolved') {
-    const c = cardByDiff(d.proposed_diff_id)
-    if (c) {
-      c.busy = false; c.exporting = false; c.resolved = d.outcome; c.error = d.error || ''
-      if (d.pr_url) c.task.pr_url = d.pr_url
-      if (d.outcome === 'discarded') c.task = { ...c.task, diff_text: '', diff_summary: {} }
-    }
-    if (d.outcome === 'error') notify.error(d.error || 'Diff action failed')
-    else notify.success(`Change ${d.outcome}`)
-    emit('proposal', null); emit('changed'); return true
   }
   return false
 }
@@ -300,22 +267,14 @@ function relTime(ts) {
   return new Date(ts).toLocaleDateString()
 }
 
-// ── diff card actions → the project socket ──
-function onKeep(c) { c.busy = true; chat.sendRaw({ type: 'diff_accept', proposed_diff_id: c.task.proposed_diff_id }) }
-function onDiscard(c) { c.busy = true; chat.sendRaw({ type: 'diff_discard', proposed_diff_id: c.task.proposed_diff_id }) }
-function onRevertFile(c, path) { c.busy = true; chat.sendRaw({ type: 'diff_revert_file', proposed_diff_id: c.task.proposed_diff_id, path }) }
-function onRevertHunk(c, payload) {
-  c.busy = true
-  chat.sendRaw({ type: 'diff_revert_hunk', proposed_diff_id: c.task.proposed_diff_id, path: payload.path, hunk: payload.h ?? payload.hunk })
-}
-function onExport(c) { c.exporting = true; chat.sendRaw({ type: 'diff_export', proposed_diff_id: c.task.proposed_diff_id }) }
-async function onCopy(c) {
-  try { await navigator.clipboard.writeText(c.task.diff_text || ''); notify.success('Patch copied') }
-  catch { notify.error('Could not copy') }
-}
-function resolvedLabel(c) {
-  if (c.resolved === 'error') return c.error || 'The action did not complete.'
-  return { accepted: 'Kept locally', discarded: 'Discarded', exported: 'PR opened' }[c.resolved] || c.resolved
+// "Changed 2 files: page.tsx, layout.tsx", "and 3 more changes not committed" when earlier work is waiting too.
+function changesText(ch) {
+  const files = ch.files || []
+  const names = files.map((f) => f.path.split('/').pop())
+  const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? `, +${names.length - 3} more` : '')
+  const head = files.length ? `Changed ${files.length} ${files.length === 1 ? 'file' : 'files'}: ${shown}` : 'No files changed in this turn'
+  const others = (ch.total || 0) - files.length
+  return others > 0 ? `${head} · ${others} more ${others === 1 ? 'change' : 'changes'} not committed` : head
 }
 
 async function openPreview(c) {
@@ -410,10 +369,12 @@ defineExpose({ send })
 .uac-stream :deep(.hitl-modal) { width: 100%; min-width: 0; max-height: none; }
 
 .uac-cards { display: flex; flex-direction: column; gap: 8px; margin: -6px 0 14px 30px; }
-.ai-resolved { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vm-ink-soft); }
-.ai-resolved :deep(svg) { width: 14px; height: 14px; }
-.ai-resolved a { color: var(--vm-violet); margin-left: 6px; }
-.ai-resolved.err { color: var(--vm-red-ink); }
+.ai-changes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--vm-line); border-radius: 10px; background: var(--vm-surface); font-size: 12.5px; color: var(--vm-ink-soft); }
+.ai-changes :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); flex: 0 0 auto; }
+.ai-changes-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ai-changes-open { min-height: 32px; padding: 0 12px; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); color: var(--vm-ink); font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: background-color .15s; }
+.ai-changes-open:hover { background: var(--vm-surface-soft); }
+.ai-changes-open:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
 .ai-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--vm-line); border-radius: 10px; background: var(--vm-surface); font-size: 12.5px; color: var(--vm-ink-soft); }
 .ai-preview :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); flex: 0 0 auto; }
 .ai-preview-text { flex: 1 1 auto; min-width: 0; }
@@ -458,6 +419,7 @@ defineExpose({ send })
   .uac-hbtn, .uac-mic { width: 44px; height: 44px; }
   .uac-circle { width: 44px; height: 44px; }
   .uac-hint > span:last-child { display: none; }
+  .ai-changes-open, .ai-preview-open { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {

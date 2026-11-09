@@ -68,7 +68,7 @@
             </template>
             <!-- Lazy directory tree -->
             <template v-else>
-              <div v-if="loading" class="loading">Loading files</div>
+              <div v-if="loading" class="loading" role="status" aria-live="polite">{{ treeWaiting ? `The project's sandbox is starting. Trying again in ${treeWaiting}s…` : 'Loading files' }}</div>
               <div v-else-if="treeError" class="tree-error" role="alert">
                 <Icon icon="lucide:cloud-off" class="tree-error-ic" aria-hidden="true" />
                 <p class="tree-error-t">{{ treeError }}</p>
@@ -90,7 +90,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" @changed="refreshAfterScm" />
         </div>
 
         <!-- Artifact Tree -->
@@ -226,6 +226,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { useTheme } from '@/composables/useTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
+import { whileSandboxStarts } from '@/utils/sandboxStarting'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -279,11 +280,6 @@ const props = defineProps({
   editable: {
     type: Boolean,
     default: false
-  },
-  // Inline diff highlights from the current proposal: { 'rel/path': [{start,end}], … } (new-file added line ranges)
-  decorations: {
-    type: Object,
-    default: () => ({})
   }
 })
 
@@ -296,6 +292,10 @@ const artifactSearch = ref('')
 const rootNodes = ref([])             // lazy tree: top-level entries; dirs load children on expand
 const loading = ref(false)
 const treeError = ref('')             // why the files could not be listed (e.g. the project's sandbox is off)
+// Seconds until the next try while the project's sandbox wakes (the server answers "starting" at once, 4101aaa3).
+const treeWaiting = ref(0)
+let unmounted = false
+const _wait = { onWaiting: (s) => { treeWaiting.value = s }, isCancelled: () => unmounted }
 const searchResults = ref([])         // flat results when the search box is non-empty
 const searching = ref(false)
 const searchTruncated = ref(false)
@@ -343,9 +343,14 @@ async function openDiff({ path }) {
   }
   openTabs.value.push(tab)
   activeTabId.value = tab.id
-  const live = openTabs.value.find(t => t.id === tab.id)
+  await loadDiffInto(openTabs.value.find(t => t.id === tab.id))
+}
+async function loadDiffInto(live) {
+  live.loading = true
+  live.note = ''
+  live.noteIcon = ''
   try {
-    const { data } = await api.getSourceControlDiff(props.systemId, props.repositoryId, path)
+    const { data } = await whileSandboxStarts(() => api.getSourceControlDiff(props.systemId, props.repositoryId, live.path), _wait)
     if (data.redacted) { live.note = 'This file holds secrets, so its values are not shown.'; live.noteIcon = 'lucide:lock' }
     else if (data.binary) { live.note = 'Binary file. There is no text to compare.' }
     else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
@@ -388,25 +393,9 @@ function onKeydown(e) {
   }
 }
 
-// ── Inline diff decorations (proposed added lines highlighted green) ──
-let editorInst = null
-let decoIds = []
-function onEditorMount(ed) {
-  editorInst = ed
+function onEditorMount() {
   try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
-  applyDecorations()
 }
-function applyDecorations() {
-  if (!editorInst || !monacoNs) return
-  const ranges = (activeTab.value && props.decorations[activeTab.value.path]) || []
-  const decos = ranges.map(r => ({
-    range: new monacoNs.Range(r.start, 1, r.end, 1),
-    options: { isWholeLine: true, className: 'lc-add-line', linesDecorationsClassName: 'lc-add-gutter' },
-  }))
-  try { decoIds = editorInst.deltaDecorations(decoIds, decos) } catch { /* editor not ready */ }
-}
-watch(activeTabId, () => applyDecorations())
-watch(() => props.decorations, () => applyDecorations(), { deep: true })
 
 // Computed
 const activeTab = computed(() => {
@@ -431,7 +420,7 @@ async function expandDir(node) {
   if (node.expanded && !node.loaded && !node.loading) {
     node.loading = true
     try {
-      const res = await api.getRepositoryFiles(props.systemId, props.repositoryId, { path: node.path })
+      const res = await whileSandboxStarts(() => api.getRepositoryFiles(props.systemId, props.repositoryId, { path: node.path }), _wait)
       node.children = (res.data.entries || []).map(makeNode)
       node.loaded = true
     } catch (e) {
@@ -483,7 +472,7 @@ async function loadFiles() {
   loading.value = true
   treeError.value = ''
   try {
-    const response = await api.getRepositoryFiles(props.systemId, props.repositoryId, { path: '' })
+    const response = await whileSandboxStarts(() => api.getRepositoryFiles(props.systemId, props.repositoryId, { path: '' }), _wait)
     rootNodes.value = (response.data.entries || response.data.files || []).map(makeNode)
   } catch (error) {
     console.error('Failed to load files:', error, error.response?.data)
@@ -499,6 +488,18 @@ async function loadFiles() {
 // reloads, and an open file without unsaved edits shows its new content (a remount closed every tab).
 const scmPanel = ref(null)
 async function refresh() {
+  await reloadTree()
+  try { scmPanel.value?.refresh?.() } catch { /* the Source control tab is not open */ }
+  await reloadOpenTabs()
+}
+// After the person's own action in Source control (a discard, a commit): the files and open tabs reload; Source
+// control already holds its new state.
+async function refreshAfterScm() {
+  await reloadTree()
+  await reloadOpenTabs()
+}
+// The tree again, with the same folders open.
+async function reloadTree() {
   const open = new Set()
   const walk = (nodes) => { for (const n of nodes || []) if (n.type === 'directory' && n.expanded) { open.add(n.path); walk(n.children) } }
   walk(rootNodes.value)
@@ -509,8 +510,11 @@ async function refresh() {
     }
   }
   await reopen(rootNodes.value)
-  try { scmPanel.value?.refresh?.() } catch { /* the Source control tab is not open */ }
+}
+// Open files without unsaved edits show their new content; an open diff shows the change as it is now.
+async function reloadOpenTabs() {
   for (const tab of openTabs.value) {
+    if (tab.type === 'diff') { await loadDiffInto(tab); continue }
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
@@ -519,7 +523,12 @@ async function refresh() {
     } catch { /* a file the change removed keeps its last content in its tab */ }
   }
 }
-defineExpose({ refresh })
+// "View changes" from the chat: the Source control list, as VS Code's Source Control view.
+function showSourceControl() {
+  sidebarTab.value = 'scm'
+  try { scmPanel.value?.refresh?.() } catch { /* the panel mounts with fresh state */ }
+}
+defineExpose({ refresh, showSourceControl })
 
 async function openFile(filePath) {
   // Check if already open
@@ -531,7 +540,7 @@ async function openFile(filePath) {
 
   try {
     // Load file content
-    const response = await api.getFileContent(props.systemId, props.repositoryId, filePath)
+    const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, props.repositoryId, filePath), _wait)
     const content = response.data.content
     const language = detectLanguage(filePath)
     
@@ -666,6 +675,7 @@ onMounted(() => {
   if (props.editable) window.addEventListener('keydown', onKeydown)
 })
 onBeforeUnmount(() => {
+  unmounted = true
   if (props.editable) window.removeEventListener('keydown', onKeydown)
 })
 
