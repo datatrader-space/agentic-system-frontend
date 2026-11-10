@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 // The Terminal tab of a Let's Code project (ADM-1196, Phase 3): the person's shells in the project's sandbox through
 // AADML, and the Coding Agent's commands. xterm and the socket are stand-ins: what is checked is what this code does.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+
+// Every terminal is unmounted when its test ends. A mounted one whose xterm import resolved after the file finished got
+// the real xterm (the mocks were gone) and threw "matchMedia is not a function" in CI (run 42811128067, 2026-11-10).
+enableAutoUnmount(afterEach)
 
 const terms = []
 class FakeTerminal {
