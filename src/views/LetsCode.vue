@@ -160,6 +160,7 @@
         <a v-if="active.github_url" class="ide-gh" :href="githubWebUrl(active.github_url)" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub">
           <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">Open on GitHub</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
         </a>
+        <DeployButton :class="{ 'ide-deploy-end': !active.github_url }" :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
       <div ref="ideMainEl" class="ide-main">
@@ -203,6 +204,7 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
+import DeployButton from '../components/letscode/DeployButton.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
 import { isReady, phaseTone, relativeTime, githubWebUrl } from '../components/letscode/projectStatus'
@@ -716,6 +718,8 @@ onBeforeUnmount(() => {
 .ide-gh:hover { border-color: var(--vm-violet); background: var(--vm-violet-soft); }
 .ide-gh :deep(svg) { width: 15px; height: 15px; }
 .ide-gh .ext { width: 13px; height: 13px; color: var(--vm-ink-faint); }
+/* With no GitHub link the Deploy button takes the link's place at the end of the bar. */
+.ide-deploy-end { margin-left: auto; }
 
 .ide-main { flex: 1; min-height: 0; display: flex; }
 .ide-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }

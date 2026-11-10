@@ -830,6 +830,23 @@ export default {
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
 
+  // Let's Code — deploy to the person's own Vercel account (ADM-1203). The token never reaches the browser.
+  getVercelConnection: () => api.get('/lets-code/vercel/connection/', { noCache: true }),   // { configured, connected, account_name, is_team, needs_reconnect }
+  startVercelConnect: () => api.post('/lets-code/vercel/connect/'),   // { url } for the connect popup
+  disconnectVercel: () => api.delete('/lets-code/vercel/connection/'),   // { disconnected, removed_on_vercel }
+  deployToVercel: (repoId, body) => api.post(`/lets-code/projects/${repoId}/vercel/deploy/`, body),   // { target, confirm } → 202 deploy
+  getVercelDeployments: (repoId) => api.get(`/lets-code/projects/${repoId}/vercel/deployments/`, { noCache: true }),   // { deployments, connection }
+  getVercelDeployment: (repoId, depId, { log = false } = {}) => api.get(`/lets-code/projects/${repoId}/vercel/deployments/${depId}/`, { params: log ? { log: 1 } : {}, noCache: true }),
+  cancelVercelDeployment: (repoId, depId) => api.post(`/lets-code/projects/${repoId}/vercel/deployments/${depId}/cancel/`),
+  getVercelDomains: (repoId) => api.get(`/lets-code/projects/${repoId}/vercel/domains/`, { noCache: true }),   // { domains: [{ name, verified, configured, dns, verification }] }
+  addVercelDomain: (repoId, name) => api.post(`/lets-code/projects/${repoId}/vercel/domains/`, { name }),
+  verifyVercelDomain: (repoId, name) => api.post(`/lets-code/projects/${repoId}/vercel/domains/${encodeURIComponent(name)}/`),
+  removeVercelDomain: (repoId, name) => api.delete(`/lets-code/projects/${repoId}/vercel/domains/${encodeURIComponent(name)}/`),
+  getVercelEnv: (repoId) => api.get(`/lets-code/projects/${repoId}/vercel/env/`, { noCache: true }),   // { env: [{ id, key, target, type }] } (never a value)
+  setVercelEnv: (repoId, items) => api.post(`/lets-code/projects/${repoId}/vercel/env/`, { items }),   // [{ key, value, target }] → { saved, failed }
+  deleteVercelEnv: (repoId, envId) => api.delete(`/lets-code/projects/${repoId}/vercel/env/${encodeURIComponent(envId)}/`),
+  importVercelEnv: (repoId, path, target) => api.post(`/lets-code/projects/${repoId}/vercel/env/import/`, { path, target }),   // keys only back
+
   // Context Files
   getConversations: (params) => api.get('/conversations/', { params }),
   getConversation: (id) => api.get(`/conversations/${id}/`),
