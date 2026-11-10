@@ -107,6 +107,7 @@ import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
+import { projectCache } from '@/services/projectCache'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -158,7 +159,16 @@ function apply(data) {
     has_remote: data.has_remote !== false, has_commit: data.has_commit !== false,
     changes: data.changes || [], untracked: data.untracked || [],
   })
+  projectCache.status.set(props.repoId, data)
   emit('count', status.changes.length + status.untracked.length)
+}
+
+// Opened again: the status last read shows at once while it is read again (ADM-1196; it took 4.6 s on prod).
+function showKept() {
+  const kept = projectCache.status.get(props.repoId)
+  if (!kept) return
+  apply(kept)
+  fetched.value = true
 }
 
 async function load() {
@@ -242,9 +252,9 @@ function openDiff(it) {
   emit('open-diff', { path: it.path, status: it.status })
 }
 
-onMounted(load)
+onMounted(() => { showKept(); load() })
 onBeforeUnmount(() => { gone = true })
-watch(() => [props.systemId, props.repoId], () => { prUrl.value = ''; load() })
+watch(() => [props.systemId, props.repoId], () => { prUrl.value = ''; fetched.value = false; showKept(); load() })
 defineExpose({ refresh: load })
 </script>
 

@@ -337,16 +337,56 @@ function applyStatus(data) {
 // Live pipeline progress over WebSocket (polling below is the fallback). Reconnects after a drop; one
 // socket, for the open project only.
 const ws = reconnectingSocket({
+  onOpen: () => sendWatch(),
   onMessage: (ev) => {
     try {
       const msg = JSON.parse(ev.data)
-      if (msg.event === 'status' && active.value && msg.data) applyStatus(msg.data)
+      if (msg.event === 'status' && active.value && msg.data) { applyStatus(msg.data); sendWatch() }
+      else if (msg.event === 'fs_changed' && msg.data) codeBrowser.value?.onFilesChanged?.(msg.data)
+      else if (msg.event === 'watch' && msg.data) onWatchState(msg.data)
     } catch { /* ignore malformed frames */ }
   },
+})
+
+// LIVE FILE CHANGES (ADM-1196, Phase 2). While the editor is shown, the socket asks AADML to watch the project's
+// files, and the editor reads again only what changed. Hidden tab: no watching. The person working says so at most
+// once a minute; after 30 minutes without them AADML pauses watching (`paused`), and their next move resumes it. A
+// watch never counts as use of the sandbox.
+const watchState = ref('')
+let lastActiveSent = 0
+let saidWatchError = ''
+function wantWatch() { return !!active.value && isReady(active.value) && !document.hidden }
+function sendWatch() { ws.send(JSON.stringify({ type: wantWatch() ? 'watch' : 'unwatch' })) }
+function onWatchState({ state, error }) {
+  watchState.value = state || ''
+  // Said once per project, in words: the editor still works and Refresh still reads the files.
+  if (state === 'stopped' && error && saidWatchError !== `${active.value?.repo_id}:${error}`) {
+    saidWatchError = `${active.value?.repo_id}:${error}`
+    notify.warning(error)
+  }
+}
+function onPersonActive() {
+  if (!wantWatch()) return
+  if (watchState.value === 'paused' || watchState.value === 'stopped') { lastActiveSent = Date.now(); sendWatch(); return }
+  if (Date.now() - lastActiveSent < 60000) return
+  lastActiveSent = Date.now()
+  ws.send(JSON.stringify({ type: 'active' }))
+}
+function onVisibilityForWatch() { sendWatch() }
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityForWatch)
+  window.addEventListener('pointerdown', onPersonActive, { passive: true })
+  window.addEventListener('keydown', onPersonActive, { passive: true })
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityForWatch)
+  window.removeEventListener('pointerdown', onPersonActive)
+  window.removeEventListener('keydown', onPersonActive)
 })
 function connectWs() {
   if (!active.value) { ws.close(); return }
   const repoId = active.value.repo_id
+  watchState.value = ''
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = import.meta.env.VITE_WS_HOST || window.location.host
   ws.connect(() => `${proto}//${host}/ws/lets-code/${repoId}/`)

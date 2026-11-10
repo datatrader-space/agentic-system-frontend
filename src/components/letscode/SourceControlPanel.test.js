@@ -30,6 +30,7 @@ vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn(() => Promise.resolv
 import api from '@/services/api'
 import { confirm } from '@/composables/useConfirm'
 import SourceControlPanel from './SourceControlPanel.vue'
+import { projectCache } from '@/services/projectCache'
 
 const mountPanel = async () => {
   const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 }, global: { stubs: { Icon: true } } })
@@ -39,6 +40,7 @@ const mountPanel = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  projectCache.clearAll()               // what an earlier test read is not this test's status
   api.getSourceControlStatus.mockResolvedValue(dirty())
 })
 
@@ -242,5 +244,44 @@ describe('SourceControlPanel', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('SourceControlPanel: the last status shows at once (ADM-1196)', () => {
+  it('opened again, it shows what it last read while it reads again, then the fresh status', async () => {
+    const first = await mountPanel()
+    expect(first.text()).toContain('app.py')
+    first.unmount()
+    let resolve
+    api.getSourceControlStatus.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 }, global: { stubs: { Icon: true } } })
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('app.py')                 // at once, from the last read
+    expect(w.text()).not.toContain('Loading changes')
+    resolve(dirty({ changes: [{ path: 'other.py', status: 'modified' }], untracked: [] }))
+    await flushPromises()
+    expect(w.text()).toContain('other.py')
+    expect(w.text()).not.toContain('app.py')
+    expect(w.emitted('count').at(-1)).toEqual([1])
+    w.unmount()
+  })
+
+  it('another project shows nothing kept for this one', async () => {
+    ;(await mountPanel()).unmount()
+    api.getSourceControlStatus.mockImplementationOnce(() => new Promise(() => {}))
+    const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 99 }, global: { stubs: { Icon: true } } })
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('Loading changes')
+    expect(w.text()).not.toContain('app.py')
+    w.unmount()
+  })
+
+  it('a failed read says so instead of showing the kept list', async () => {
+    ;(await mountPanel()).unmount()
+    api.getSourceControlStatus.mockRejectedValueOnce({ response: { status: 500, data: { error: 'git failed' } } })
+    const w = await mountPanel()
+    expect(w.find('[role="alert"]').text()).toContain('git failed')
+    expect(w.text()).not.toContain('app.py')
+    w.unmount()
   })
 })

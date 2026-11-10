@@ -229,6 +229,7 @@ import { confirm } from '@/composables/useConfirm'
 import { useTheme } from '@/composables/useTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
+import { projectCache } from '@/services/projectCache'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -343,12 +344,16 @@ const diffOptions = computed(() => ({
   wordWrap: 'on',
 }))
 
+// A tab's id. `Date.now()` alone gave two tabs opened in the same millisecond one id (a kept file opens at once).
+let _tabSeq = 0
+const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
+
 // A change from Source control opens as its own tab ("app.py (changes)"), like VS Code's diff editor.
 async function openDiff({ path }) {
   const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path)
   if (existing) { activeTabId.value = existing.id; return }
   const tab = {
-    id: Date.now(), type: 'diff', path, name: `${path.split('/').pop()} (changes)`,
+    id: nextTabId(), type: 'diff', path, name: `${path.split('/').pop()} (changes)`,
     language: detectLanguage(path), loading: true, note: '', noteIcon: '', originalText: '', modified: '',
   }
   openTabs.value.push(tab)
@@ -392,6 +397,7 @@ async function saveActive() {
   try {
     await api.saveFileContent(props.systemId, props.repositoryId, tab.path, tab.content)
     tab.original = tab.content
+    projectCache.file.set(props.repositoryId, tab.path, tab.content)
     notify.success(`Saved ${tab.name}`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to save file')
@@ -425,25 +431,62 @@ function makeNode(e) {
   }
 }
 
-// Toggle a directory; first expand lazily fetches its immediate children (one level). The backend
-// returns EVERYTHING (incl. node_modules/venv/.git) — we just don't read a dir until it's opened.
+// Fresh entries into the nodes already shown, matched by path: a folder keeps its open state and its children, so a
+// refresh never collapses what the person opened.
+function mergeNodes(old, entries) {
+  const byPath = new Map((old || []).map(n => [n.path, n]))
+  return (entries || []).map(e => {
+    const n = byPath.get(e.path)
+    if (n && n.type === e.type) { n.name = e.name; n.size = e.size; n.gitignored = !!e.gitignored; return n }
+    return makeNode(e)
+  })
+}
+
+// One folder's entries from the project, kept for the next open (ADM-1196). Asking for a folder already on its way
+// (a hover, then the click) waits for that answer instead of asking twice.
+const _dirInflight = new Map()
+function fetchDir(path) {
+  if (_dirInflight.has(path)) return _dirInflight.get(path)
+  const repoId = props.repositoryId
+  const p = whileSandboxStarts(() => api.getRepositoryFiles(props.systemId, repoId, { path }), _wait)
+    .then((res) => {
+      const entries = res.data.entries || res.data.files || []
+      projectCache.dir.set(repoId, path, entries)
+      return entries
+    })
+    .finally(() => { _dirInflight.delete(path) })
+  _dirInflight.set(path, p)
+  return p
+}
+
+// A folder the pointer rests on is read before the click, so the click finds it ready.
+function prefetchDir(path) {
+  if (projectCache.dir.get(props.repositoryId, path) || _dirInflight.has(path)) return
+  fetchDir(path).catch(() => { /* the click asks again and says why */ })
+}
+
+// Toggle a directory. A folder read before shows at once and is refreshed in the background; one never read shows
+// its spinner until it arrives. The backend returns EVERYTHING (node_modules, venv): a folder is read when opened.
 async function expandDir(node) {
   if (node.type !== 'directory') return
   node.expanded = !node.expanded
-  if (node.expanded && !node.loaded && !node.loading) {
-    node.loading = true
-    try {
-      const res = await whileSandboxStarts(() => api.getRepositoryFiles(props.systemId, props.repositoryId, { path: node.path }), _wait)
-      node.children = (res.data.entries || []).map(makeNode)
-      node.loaded = true
-    } catch (e) {
-      console.error('Failed to load directory:', node.path, e)
-      node.children = []
-      node.expanded = false
-      notify.error(e?.response?.data?.error || 'Could not open this folder')
-    } finally {
-      node.loading = false
-    }
+  if (!node.expanded) return
+  if (!node.loaded) {
+    const kept = projectCache.dir.get(props.repositoryId, node.path)
+    if (kept) { node.children = mergeNodes(node.children, kept); node.loaded = true }
+  }
+  node.loading = !node.loaded
+  try {
+    node.children = mergeNodes(node.children, await fetchDir(node.path))
+    node.loaded = true
+  } catch (e) {
+    console.error('Failed to load directory:', node.path, e)
+    node.children = []
+    node.expanded = false
+    node.loaded = false
+    notify.error(e?.response?.data?.error || 'Could not open this folder')
+  } finally {
+    node.loading = false
   }
 }
 
@@ -481,15 +524,19 @@ const filteredArtifacts = computed(() => {
 })
 
 // Methods
+// The tree: the project's last-read top level at once, then the fresh one (ADM-1196).
 async function loadFiles() {
-  loading.value = true
   treeError.value = ''
+  const kept = projectCache.dir.get(props.repositoryId, '')
+  if (kept && !rootNodes.value.length) rootNodes.value = kept.map(makeNode)
+  loading.value = !rootNodes.value.length
   try {
-    const response = await whileSandboxStarts(() => api.getRepositoryFiles(props.systemId, props.repositoryId, { path: '' }), _wait)
-    rootNodes.value = (response.data.entries || response.data.files || []).map(makeNode)
+    rootNodes.value = mergeNodes(rootNodes.value, await fetchDir(''))
   } catch (error) {
     console.error('Failed to load files:', error, error.response?.data)
     rootNodes.value = []
+    // "Not found" / "not yours": nothing kept for this project is shown again.
+    if ([403, 404].includes(error?.response?.status)) projectCache.forget(props.repositoryId)
     // A Let's Code project's files are in its sandbox: when that is off or cannot start, say so (ADM-1128).
     treeError.value = error?.response?.data?.error || 'The files could not be loaded.'
   } finally {
@@ -497,12 +544,28 @@ async function loadFiles() {
   }
 }
 
+// Source control's change count, read with the tree rather than when its tab is first opened. The panel shows the
+// same status at once when opened (projectCache), then reads it again.
+async function loadScmCount() {
+  const kept = projectCache.status.get(props.repositoryId)
+  if (kept) scmCount.value = (kept.changes || []).length + (kept.untracked || []).length
+  try {
+    const { data } = await whileSandboxStarts(() => api.getSourceControlStatus(props.systemId, props.repositoryId),
+      { isCancelled: () => unmounted })
+    if (data && typeof data === 'object' && 'clean' in data) {
+      projectCache.status.set(props.repositoryId, data)
+      scmCount.value = (data.changes || []).length + (data.untracked || []).length
+    }
+  } catch { /* the badge only: the Source control tab says what went wrong when it is opened */ }
+}
+
 // What the agent changed shows at once, as in VS Code: the tree reloads with the same folders open, Source control
 // reloads, and an open file without unsaved edits shows its new content (a remount closed every tab).
 const scmPanel = ref(null)
 async function refresh() {
   await reloadTree()
-  try { scmPanel.value?.refresh?.() } catch { /* the Source control tab is not open */ }
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()                       // the tab is closed: its count still follows the change
   await reloadOpenTabs()
 }
 // After the person's own action in Source control (a discard, a commit): the files and open tabs reload; Source
@@ -511,18 +574,24 @@ async function refreshAfterScm() {
   await reloadTree()
   await reloadOpenTabs()
 }
-// The tree again, with the same folders open.
+// The tree again, with the same folders open: each open folder is read again and merged into what is shown. A
+// folder that is gone closes. A closed folder read before is read again when next opened.
 async function reloadTree() {
-  const open = new Set()
-  const walk = (nodes) => { for (const n of nodes || []) if (n.type === 'directory' && n.expanded) { open.add(n.path); walk(n.children) } }
-  walk(rootNodes.value)
   await loadFiles()
-  const reopen = async (nodes) => {
+  const again = async (nodes) => {
     for (const n of nodes || []) {
-      if (n.type === 'directory' && open.has(n.path)) { await expandDir(n); await reopen(n.children) }
+      if (n.type !== 'directory' || !n.expanded) continue
+      try {
+        n.children = mergeNodes(n.children, await fetchDir(n.path))
+        n.loaded = true
+      } catch {
+        n.children = []; n.expanded = false; n.loaded = false
+        continue
+      }
+      await again(n.children)
     }
   }
-  await reopen(rootNodes.value)
+  await again(rootNodes.value)
 }
 // Open files without unsaved edits show their new content; an open diff shows the change as it is now.
 async function reloadOpenTabs() {
@@ -533,15 +602,83 @@ async function reloadOpenTabs() {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
       tab.content = data.content
       tab.original = data.content
+      projectCache.file.set(props.repositoryId, tab.path, data.content)
     } catch { /* a file the change removed keeps its last content in its tab */ }
   }
 }
+// THE PROJECT SAID WHAT CHANGED (ADM-1196, Phase 2): a watcher in the project's sandbox reports the folders whose
+// contents changed, from the editor, the Coding Agent or a command. Only those are read again: an open folder is
+// merged, a closed one is read on its next open, a file open in it without unsaved edits shows its new content, and
+// Source control reads its status. A burst of reports is applied once. `reset`: the watcher restarted and cannot say
+// what changed meanwhile, so everything open is read again.
+let _changedDirs = new Set()
+let _changedReset = false
+let _changeTimer = null
+function findNode(path) {
+  let nodes = rootNodes.value
+  let found = null
+  const parts = path.split('/')
+  for (let i = 0; i < parts.length; i++) {
+    const want = parts.slice(0, i + 1).join('/')
+    found = (nodes || []).find(n => n.path === want && n.type === 'directory') || null
+    if (!found) return null
+    nodes = found.children
+  }
+  return found
+}
+function onFilesChanged({ dirs = [], reset = false } = {}) {
+  for (const d of dirs) if (typeof d === 'string') _changedDirs.add(d)
+  if (reset) _changedReset = true
+  clearTimeout(_changeTimer)
+  _changeTimer = setTimeout(applyFileChanges, 250)
+}
+const dirOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '')
+async function applyFileChanges() {
+  _changeTimer = null
+  if (unmounted) return
+  const dirs = [..._changedDirs]
+  const reset = _changedReset
+  _changedDirs = new Set()
+  _changedReset = false
+  if (reset) {
+    await refresh()
+    return
+  }
+  for (const d of dirs) {
+    projectCache.dir.drop(props.repositoryId, d)
+    if (d === '') { if (!treeError.value) await loadFiles(); continue }
+    const node = findNode(d)
+    if (!node) continue
+    if (!node.expanded) { node.loaded = false; continue }
+    try {
+      node.children = mergeNodes(node.children, await fetchDir(d))
+      node.loaded = true
+    } catch {
+      node.children = []; node.expanded = false; node.loaded = false
+    }
+  }
+  const changed = new Set(dirs)
+  for (const tab of openTabs.value) {
+    if (!changed.has(dirOf(tab.path || ''))) continue
+    if (tab.type === 'diff') { await loadDiffInto(tab); continue }
+    if (tab.type !== 'file' || isDirty(tab)) continue
+    try {
+      const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
+      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content }
+      projectCache.file.set(props.repositoryId, tab.path, data.content)
+    } catch { /* removed: its tab keeps its last content */ }
+  }
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+}
+onBeforeUnmount(() => clearTimeout(_changeTimer))
+
 // "View changes" from the chat: the Source control list, as VS Code's Source Control view.
 function showSourceControl() {
   sidebarTab.value = 'scm'
   try { scmPanel.value?.refresh?.() } catch { /* the panel mounts with fresh state */ }
 }
-defineExpose({ refresh, showSourceControl })
+defineExpose({ refresh, showSourceControl, onFilesChanged })
 
 async function openFile(filePath) {
   // Check if already open
@@ -551,26 +688,47 @@ async function openFile(filePath) {
     return
   }
 
+  const repoId = props.repositoryId
+  const newTab = (content) => ({
+    id: nextTabId(),
+    name: filePath.split('/').pop(),
+    path: filePath,
+    content,
+    original: content,   // baseline for dirty tracking (editable mode)
+    language: detectLanguage(filePath),
+    type: 'file'
+  })
+  // A file read before opens at once with what it held then, and is read again (ADM-1196).
+  const kept = projectCache.file.get(repoId, filePath)
+  let id = null
+  if (kept !== null && kept !== undefined) {
+    const tab = newTab(kept)
+    openTabs.value.push(tab)
+    activeTabId.value = id = tab.id
+  }
   try {
-    // Load file content
-    const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, props.repositoryId, filePath), _wait)
+    const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, repoId, filePath), _wait)
     const content = response.data.content
-    const language = detectLanguage(filePath)
-    
-    const newTab = {
-      id: Date.now(),
-      name: filePath.split('/').pop(),
-      path: filePath,
-      content,
-      original: content,   // baseline for dirty tracking (editable mode)
-      language,
-      type: 'file'
+    projectCache.file.set(repoId, filePath, content)
+    const live = id !== null ? openTabs.value.find(t => t.id === id) : null
+    if (id === null) {
+      const tab = newTab(content)
+      openTabs.value.push(tab)
+      activeTabId.value = tab.id
+    } else if (live && live.original !== content) {
+      // Changed since it was last read. Unsaved edits are never replaced: the person is told instead.
+      if (!isDirty(live)) { live.content = content; live.original = content }
+      else notify.warning(`${live.name} changed in the project since you opened it. Save to keep your version.`)
     }
-
-    openTabs.value.push(newTab)
-    activeTabId.value = newTab.id
   } catch (error) {
     console.error('Failed to load file:', error)
+    const live = id !== null ? openTabs.value.find(t => t.id === id) : null
+    if (live && [404, 400].includes(error?.response?.status)) {
+      // Kept from before, gone now: the tab closes rather than show a file that is not there.
+      openTabs.value = openTabs.value.filter(t => t.id !== id)
+      if (activeTabId.value === id) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
+      projectCache.file.set(repoId, filePath, null)
+    }
     notify.error(error?.response?.data?.error || 'Could not open the file')
   }
 }
@@ -587,7 +745,7 @@ function openArtifact(artifact) {
   const language = 'python' // Most artifacts are Python
   
   const newTab = {
-    id: Date.now(),
+    id: nextTabId(),
     name: artifact.name,
     path: artifact.file || artifact.name,
     content,
@@ -685,6 +843,7 @@ function stopResize() {
 // Lifecycle
 onMounted(() => {
   loadFiles()
+  loadScmCount()                            // alongside the tree, not after it (ADM-1196)
   if (props.editable) window.addEventListener('keydown', onKeydown)
 })
 onBeforeUnmount(() => {
@@ -704,6 +863,15 @@ const FileTreeNode = {
         emit('select', props.file.path)
       }
     }
+    // A closed folder the pointer (or keyboard focus) rests on for a moment is read before the click (ADM-1196).
+    let hoverTimer = null
+    const warm = () => {
+      if (props.file.type !== 'directory' || props.file.expanded || props.file.loaded) return
+      clearTimeout(hoverTimer)
+      hoverTimer = setTimeout(() => prefetchDir(props.file.path), 120)
+    }
+    const cool = () => { clearTimeout(hoverTimer); hoverTimer = null }
+    onBeforeUnmount(cool)
 
     const renderChildren = () => {
       if (props.file.type === 'directory' && props.file.expanded && props.file.children) {
@@ -727,6 +895,10 @@ const FileTreeNode = {
         tabindex: 0,
         'aria-expanded': props.file.type === 'directory' ? String(!!props.file.expanded) : undefined,
         onClick: handleClick,
+        onMouseenter: warm,
+        onMouseleave: cool,
+        onFocus: warm,
+        onBlur: cool,
         onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } },
       }, [
         props.file.type === 'directory'

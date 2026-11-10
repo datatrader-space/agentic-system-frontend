@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios'
+import { projectCache } from './projectCache'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
@@ -244,7 +245,7 @@ for (const m of ['post', 'put', 'patch', 'delete']) {
 
 // Exposed so auth flows (login/logout), workspace switches and OAuth completions can hard-reset cached
 // user/reference data. Bumps the generation so a GET already in flight cannot write old data back.
-export function clearApiCache() { _generation++; _cache.clear(); _inflight.clear() }
+export function clearApiCache() { _generation++; _cache.clear(); _inflight.clear(); projectCache.clearAll() }
 
 // True when a request was cancelled through its AbortSignal (route leave / unmount / superseded).
 export function isAbortError(err) {
