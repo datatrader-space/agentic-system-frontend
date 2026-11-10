@@ -88,3 +88,19 @@ test('the calls: list, add, remove, projects, each to its own route with the CSR
   assert.deepEqual(JSON.parse(seen[3].init.body), { projects: [3] });
   assert.equal(seen[2].init.headers['X-CSRFToken'], 'tok');
 });
+
+test('only Git Bash gets MSYS_NO_PATHCONV=1; cmd, PowerShell, the Docker terminal and Linux or Mac get the command as written', async () => {
+  const { commandForShell, defaultShell, SHELLS } = await import('../src/api/machines.js');
+  const plain = commandFor(added, true);
+  for (const shell of ['powershell', 'cmd', 'docker', 'unix']) {
+    assert.equal(commandForShell(plain, shell), plain, shell);                   // in cmd and PowerShell the prefix is an error
+  }
+  assert.equal(commandForShell(plain, 'gitbash'), `MSYS_NO_PATHCONV=1 ${plain}`);  // 2026-11-10: the socket path was rewritten
+  assert.ok(!/[\r\n]/.test(commandForShell(plain, 'powershell')));   // one line: no continuation characters to differ
+  assert.equal(commandForShell('', 'gitbash'), '');
+  assert.deepEqual(SHELLS.map(s => s.value), ['powershell', 'cmd', 'docker', 'gitbash', 'unix']);
+  assert.equal(defaultShell('Win32'), 'powershell');
+  assert.equal(defaultShell('Windows'), 'powershell');
+  assert.equal(defaultShell('MacIntel'), 'unix');
+  assert.equal(defaultShell('Linux x86_64'), 'unix');
+});

@@ -76,6 +76,31 @@ export function commandFor(added, gpu = true) {
   return text;
 }
 
+// The terminals the command is shown for. Git Bash on Windows (MSYS) rewrites every argument that looks like a Unix
+// path into a Windows one, so `-v /var/run/docker.sock:/var/run/docker.sock` reached Docker as a path under Git's own
+// folder and the agent found no Docker socket and restarted forever (2026-11-10). MSYS_NO_PATHCONV=1 stops that for the
+// one command; PowerShell, cmd, Linux and macOS pass the paths as written, and in PowerShell the prefix is an error.
+// Checked on Windows 2026-11-10 by printing what each terminal hands to the program: cmd, PowerShell (and the Docker
+// Desktop terminal, which opens one of them) pass the paths as written; Git Bash rewrites them unless the prefix is
+// there, and in cmd or PowerShell the prefix itself is an error ("not recognized"). Linux and Mac shells pass them
+// as written.
+export const SHELLS = [
+  { value: 'powershell', label: 'PowerShell', hint: 'Windows' },
+  { value: 'cmd', label: 'Command Prompt (cmd)', hint: 'Windows' },
+  { value: 'docker', label: 'Docker Desktop terminal', hint: 'Windows or Mac' },
+  { value: 'gitbash', label: 'Git Bash', hint: 'Windows' },
+  { value: 'unix', label: 'Terminal', hint: 'Linux or Mac' },
+];
+export function commandForShell(command, shell) {
+  const text = String(command || '').trim();
+  if (!text) return '';
+  return shell === 'gitbash' ? `MSYS_NO_PATHCONV=1 ${text}` : text;
+}
+// The terminal to start on: PowerShell on Windows, the usual terminal elsewhere. The person can change it.
+export function defaultShell(platform = globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '') {
+  return /win/i.test(String(platform)) ? 'powershell' : 'unix';
+}
+
 // The projects a machine works for, in words.
 export function projectsLine(machine) {
   const names = (machine?.projects || []).map(p => p?.name).filter(Boolean);
