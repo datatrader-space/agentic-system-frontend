@@ -1042,7 +1042,7 @@
 import { ref, reactive, computed, onMounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
-import { connectOAuth } from '@/composables/useOAuthConnect'
+import { connectGithubService } from '@/composables/useGithubConnect'
 import { confirm } from '@/composables/useConfirm'
 import CRSPipelineDashboard from '../components/CRSPipelineDashboard.vue'
 import RepositoryChat from '../components/RepositoryChat.vue'
@@ -1468,14 +1468,14 @@ const loadGithubRepos = async () => {
   }
 }
 
-// Connect (or switch) the GitHub account via the SAME connector OAuth popup the Connectors
+// Connect (or switch) the GitHub account through the GitHub service's own sign-in, as the Connectors
 // page uses, then load this account's repositories.
 const connectGithub = async () => {
   try {
     connectingGithub.value = true
     // Re-running the connector OAuth lets the user authorize a different GitHub account
     // (whichever account is signed in on github.com) and updates the stored connection.
-    await connectOAuth(api, 'github')
+    await connectGithubService(api)
     notify('GitHub connected', 'success')
     githubNotConnected.value = false
     githubRepos.value = []

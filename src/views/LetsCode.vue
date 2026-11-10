@@ -173,7 +173,7 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
-import { connectOAuth } from '@/composables/useOAuthConnect'
+import { connectGithubService } from '@/composables/useGithubConnect'
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import CodeBrowser from '../components/CodeBrowser.vue'
@@ -296,7 +296,7 @@ async function loadGithubRepos() {
 async function connectGithub() {
   connecting.value = true
   try {
-    await connectOAuth(api, 'github')
+    await connectGithubService(api)
     notify.success('GitHub connected')
     repos.value = []
     await loadGithubRepos()

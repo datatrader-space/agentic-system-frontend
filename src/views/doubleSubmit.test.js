@@ -17,7 +17,7 @@ vi.mock('../services/api', () => ({ default: api, isAbortError: () => false }))
 vi.mock('vue-router', () => ({ useRouter: () => router, useRoute: () => ({ params: { id: '7' }, query: {} }) }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn() }))
-vi.mock('@/composables/useOAuthConnect', () => ({ connectOAuth: vi.fn() }))
+vi.mock('@/composables/useGithubConnect', () => ({ connectGithubService: vi.fn() }))
 // SystemDetail's heavy children are irrelevant here (and pull Monaco / pdf.js).
 for (const c of ['CRSPipelineDashboard', 'RepositoryChat', 'PlannerChat', 'ArtifactViewer', 'BlueprintViewer',
   'RelationshipViewer', 'SessionTrace', 'RepositoryDocs', 'CodeBrowser']) {
