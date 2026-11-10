@@ -657,10 +657,12 @@ onBeforeUnmount(() => {
 
 /* The connected GitHub account: who, then Switch account and Disconnect. */
 .gh-acct { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--vm-line); border-radius: var(--vm-r); background: var(--vm-surface); }
-.gh-acct-id { flex: 1 1 160px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+/* The account name is shown in full: when it and the buttons do not fit on one line, the buttons move to
+   their own line, right-aligned (it was cut to "sajid-the-backend-engin..." live, 2026-11-10). */
+.gh-acct-id { flex: 1 1 auto; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
 .gh-acct-k { font-size: 12px; line-height: 1.3; color: var(--vm-ink-soft); }
-.gh-acct-name { font: 600 14px/1.3 var(--vm-font-mono); color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gh-acct-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.gh-acct-name { font: 600 14px/1.3 var(--vm-font-mono); color: var(--vm-ink); overflow-wrap: anywhere; }
+.gh-acct-actions { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
 
 /* Repo search + rows */
 .lc-search { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 0 12px; min-height: 40px; background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: var(--vm-r); cursor: text; transition: border-color .15s, box-shadow .15s; }
