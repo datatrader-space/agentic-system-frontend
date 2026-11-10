@@ -20,6 +20,7 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { useTheme } from '@/composables/useTheme'
+import { loadXterm } from './loadXterm'
 
 const props = defineProps({
   mode: { type: String, default: 'shell' },          // 'shell' | 'agent'
@@ -111,10 +112,8 @@ watch(() => props.entries.length, writeEntries)
 watch(() => props.active, (on) => { if (on) nextTick(() => { fitNow(); if (props.mode === 'shell') term?.focus() }) })
 
 onMounted(async () => {
-  // xterm is loaded only when a terminal is first shown: every other page keeps its bundle (budget, Lighthouse).
-  const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all([
-    import('@xterm/xterm'), import('@xterm/addon-fit'), import('@xterm/addon-web-links'), import('@xterm/xterm/css/xterm.css'),
-  ])
+  // xterm is loaded only when a terminal is first shown (loadXterm.js): every other page keeps its bundle.
+  const { Terminal, FitAddon, WebLinksAddon } = await loadXterm()
   if (gone) return
   term = new Terminal({
     fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--vm-font-mono').trim() || 'monospace',

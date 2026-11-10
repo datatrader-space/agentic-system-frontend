@@ -4,8 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 
-// Every terminal is unmounted when its test ends. A mounted one whose xterm import resolved after the file finished got
-// the real xterm (the mocks were gone) and threw "matchMedia is not a function" in CI (run 42811128067, 2026-11-10).
+// Every terminal is unmounted when its test ends.
 enableAutoUnmount(afterEach)
 
 const terms = []
@@ -20,10 +19,11 @@ class FakeTerminal {
   reset() { this.written = [] }
   dispose() { this.disposed = true }
 }
-vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }))
-vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }))
-vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }))
-vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
+// xterm comes through the app's own loader. Mocking the package's dynamic import sometimes gave the real xterm on the
+// CI runner ("matchMedia is not a function", runs 42811128067 and 42815825100, 2026-11-10).
+vi.mock('./loadXterm', () => ({
+  loadXterm: async () => ({ Terminal: FakeTerminal, FitAddon: class { fit() {} }, WebLinksAddon: class {} }),
+}))
 vi.mock('@/composables/useTheme', async () => { const { ref } = await import('vue'); return { useTheme: () => ({ isDark: ref(false) }) } })
 
 const sockets = []
