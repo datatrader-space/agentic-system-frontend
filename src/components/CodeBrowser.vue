@@ -27,7 +27,7 @@
             :class="{ active: sidebarTab === 'scm' }"
             class="sidebar-tab" title="Source control">
             <Icon icon="lucide:git-branch" aria-hidden="true" />
-            Source control
+            <span class="sidebar-tab-label">Source control</span>
             <span v-if="scmCount > 0" class="scm-tabcount" :aria-label="`${scmCount} changes`">{{ scmCount }}</span>
           </button>
         </div>
@@ -170,6 +170,31 @@
             class="monaco-editor"
           />
         </template>
+        <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
+             also be opened as its code. -->
+        <div v-else-if="activeTab && activeTab.type === 'image'" class="image-view">
+          <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
+            <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the picture…' }}</p>
+          </div>
+          <div v-else-if="activeTab.error" class="empty-editor" role="alert">
+            <Icon icon="lucide:image-off" class="empty-editor-ic" aria-hidden="true" />
+            <p class="empty-editor-t">{{ activeTab.path }}</p>
+            <p class="empty-editor-s">{{ activeTab.error }}</p>
+          </div>
+          <template v-else>
+            <div class="image-stage">
+              <img :src="activeTab.url" :alt="activeTab.name" class="image-img" @load="onImageLoad(activeTab, $event)" />
+            </div>
+            <div class="image-meta">
+              <span>{{ activeTab.name }}</span>
+              <span v-if="activeTab.width">{{ activeTab.width }} × {{ activeTab.height }} px</span>
+              <span>{{ formatBytes(activeTab.size) }}</span>
+              <button v-if="activeTab.canCode" type="button" class="image-code-btn" @click="openFile(activeTab.path, { asCode: true })">
+                <Icon icon="lucide:code" aria-hidden="true" /> Open as code
+              </button>
+            </div>
+          </template>
+        </div>
         <MonacoEditor
           v-else-if="activeTab"
           :value="activeTab.content"
@@ -597,6 +622,7 @@ async function reloadTree() {
 async function reloadOpenTabs() {
   for (const tab of openTabs.value) {
     if (tab.type === 'diff') { await loadDiffInto(tab); continue }
+    if (tab.type === 'image') { await loadImageInto(tab); continue }
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
@@ -661,6 +687,7 @@ async function applyFileChanges() {
   for (const tab of openTabs.value) {
     if (!changed.has(dirOf(tab.path || ''))) continue
     if (tab.type === 'diff') { await loadDiffInto(tab); continue }
+    if (tab.type === 'image') { await loadImageInto(tab); continue }
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
@@ -680,9 +707,67 @@ function showSourceControl() {
 }
 defineExpose({ refresh, showSourceControl, onFilesChanged })
 
-async function openFile(filePath) {
-  // Check if already open
-  const existing = openTabs.value.find(t => t.path === filePath)
+// PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
+// bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a
+// picture too, and "Open as code" opens its text.
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg'])
+function extOf(p) {
+  const name = (p || '').split('/').pop()
+  return name.includes('.') ? name.split('.').pop().toLowerCase() : ''
+}
+function formatBytes(n) {
+  if (!n && n !== 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+function onImageLoad(tab, ev) {
+  const live = openTabs.value.find(t => t.id === tab.id)
+  if (live) { live.width = ev.target.naturalWidth; live.height = ev.target.naturalHeight }
+}
+// A picture's error body arrives as a Blob: read it, so "starting" is waited for and an error says its words.
+function fetchImage(path) {
+  return api.getFileImage(props.systemId, props.repositoryId, path).catch(async (e) => {
+    const d = e?.response?.data
+    if (typeof Blob !== 'undefined' && d instanceof Blob) {
+      try { e.response.data = JSON.parse(await d.text()) } catch { e.response.data = {} }
+    }
+    throw e
+  })
+}
+async function loadImageInto(live) {
+  live.loading = !live.url
+  live.error = ''
+  try {
+    const res = await whileSandboxStarts(() => fetchImage(live.path),
+      { onWaiting: (s) => { live.waiting = s }, isCancelled: () => unmounted })
+    const old = live.url
+    live.url = URL.createObjectURL(res.data)
+    live.size = res.data.size
+    if (old) URL.revokeObjectURL(old)
+  } catch (e) {
+    if (!live.url) live.error = e?.response?.data?.error || 'The picture could not be shown.'
+  } finally {
+    live.loading = false
+  }
+}
+async function openImage(filePath) {
+  const existing = openTabs.value.find(t => t.path === filePath && t.type === 'image')
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = {
+    id: nextTabId(), type: 'image', path: filePath, name: filePath.split('/').pop(), url: '', size: 0,
+    width: 0, height: 0, loading: true, waiting: 0, error: '', canCode: extOf(filePath) === 'svg',
+  }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+  await loadImageInto(openTabs.value.find(t => t.id === tab.id))
+}
+onBeforeUnmount(() => { for (const t of openTabs.value) if (t.type === 'image' && t.url) URL.revokeObjectURL(t.url) })
+
+async function openFile(filePath, { asCode = false } = {}) {
+  if (!asCode && IMAGE_EXT.has(extOf(filePath))) return openImage(filePath)
+  // Check if already open (as text: a picture tab or a changes tab of the same path is another tab)
+  const existing = openTabs.value.find(t => t.path === filePath && t.type === 'file')
   if (existing) {
     activeTabId.value = existing.id
     return
@@ -773,7 +858,8 @@ async function closeTab(tabId) {
   }
 
   openTabs.value.splice(index, 1)
-  
+  if (tab.type === 'image' && tab.url) URL.revokeObjectURL(tab.url)     // the picture's memory goes with its tab
+
   // Switch to another tab if closing active tab
   if (activeTabId.value === tabId) {
     if (openTabs.value.length > 0) {
@@ -1011,7 +1097,11 @@ const ArtifactTreeNode = {
   color: var(--vm-ink);
   border-bottom-color: var(--vm-violet);
 }
+/* The count never shrinks: in a narrow sidebar the label gives way (ellipsis), never a digit of the count ("23"
+   showed as "2", 2026-11-10). */
+.sidebar-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .scm-tabcount {
+  flex: 0 0 auto;
   margin-left: 2px; background: var(--vm-violet); color: var(--cb-on-solid); font-size: 10px; font-weight: 700;
   border-radius: 8px; padding: 0 5px; line-height: 16px; min-width: 16px; text-align: center;
 }
@@ -1200,6 +1290,33 @@ const ArtifactTreeNode = {
   width: 100%;
   height: 100%;
 }
+
+/* A picture tab: the picture centred on a checkerboard (transparency reads), never scaled above its own size. */
+.image-view { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.image-stage {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto;
+  background-color: var(--vm-surface-soft);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--vm-ink) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--vm-ink) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--vm-ink) 6%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--vm-ink) 6%, transparent) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+.image-img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; }
+.image-meta {
+  display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--vm-line);
+  font: 500 12px var(--vm-font-sans); color: var(--vm-ink-soft); font-variant-numeric: tabular-nums;
+}
+.image-code-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border: 1px solid var(--vm-line); border-radius: 6px; background: transparent; color: var(--vm-ink);
+  font: 600 12px var(--vm-font-sans); cursor: pointer; transition: background-color .15s;
+}
+.image-code-btn:hover { background: color-mix(in srgb, var(--vm-ink) 5%, transparent); }
+.image-code-btn:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
+.image-code-btn :deep(svg) { width: 14px; height: 14px; }
 
 .empty-editor {
   display: flex;

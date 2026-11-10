@@ -287,3 +287,70 @@ describe('CodeBrowser: the project says what changed (ADM-1196, Phase 2)', () =>
     }
   })
 })
+
+describe('CodeBrowser: a picture shows as itself (owner, 2026-11-10)', () => {
+  beforeEach(() => {
+    api.getFileImage = vi.fn(() => Promise.resolve({ data: new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }) }))
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:pic-1')
+    globalThis.URL.revokeObjectURL = vi.fn()
+  })
+
+  it('a .png opens as a picture, never as text, and its memory goes with its tab', async () => {
+    const w = await browser()
+    const st = w.vm.$.setupState
+    await st.openFile('public/logo.png')
+    await flushPromises()
+    expect(api.getFileContent).not.toHaveBeenCalled()
+    expect(api.getFileImage).toHaveBeenCalledWith(5, 4, 'public/logo.png')
+    const img = w.find('.image-img')
+    expect(img.attributes('src')).toBe('blob:pic-1')
+    expect(img.attributes('alt')).toBe('logo.png')
+    expect(w.find('.image-meta').text()).toContain('4 B')
+    expect(w.find('.image-code-btn').exists()).toBe(false)
+    await st.closeTab(st.openTabs[0].id)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:pic-1')
+    w.unmount()
+  })
+
+  it('an .svg opens as a picture and can be opened as code', async () => {
+    const w = await browser()
+    const st = w.vm.$.setupState
+    await st.openFile('public/globe.svg')
+    await flushPromises()
+    expect(w.find('.image-img').exists()).toBe(true)
+    await w.find('.image-code-btn').trigger('click')
+    await flushPromises()
+    expect(api.getFileContent).toHaveBeenCalledWith(5, 4, 'public/globe.svg')
+    expect(st.openTabs.map((t) => t.type)).toEqual(['image', 'file'])
+    w.unmount()
+  })
+
+  it('a picture that cannot be shown says why in its own words', async () => {
+    const body = new Blob([JSON.stringify({ error: 'This picture is 31 MB, too large to show here.' })], { type: 'application/json' })
+    api.getFileImage.mockRejectedValueOnce({ response: { status: 413, data: body } })
+    const w = await browser()
+    await w.vm.$.setupState.openFile('big.png')
+    await flushPromises()
+    expect(w.find('[role="alert"]').text()).toContain('too large to show here')
+    w.unmount()
+  })
+
+  it('a picture that changed in the project shows its new version', async () => {
+    vi.useFakeTimers()
+    try {
+      const w = await browser()
+      const st = w.vm.$.setupState
+      await st.openFile('logo.png')
+      await flushPromises()
+      URL.createObjectURL.mockReturnValueOnce('blob:pic-2')
+      w.vm.onFilesChanged({ dirs: [''] })
+      await vi.advanceTimersByTimeAsync(300)
+      await flushPromises()
+      expect(st.openTabs[0].url).toBe('blob:pic-2')
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:pic-1')
+      w.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

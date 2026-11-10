@@ -494,6 +494,11 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/files/content/`, {
       params: { path: filePath }
     }),
+  // A picture in a Let's Code project, as a Blob the editor shows (owner, 2026-11-10: "image still not preview").
+  getFileImage: (systemId, repoId, filePath) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/files/image/`, {
+      params: { path: filePath }, responseType: 'blob', noCache: true,
+    }),
   saveFileContent: (systemId, repoId, path, content) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, { path, content }),
   // Source Control (VS Code–style SCM over the repo clone)
