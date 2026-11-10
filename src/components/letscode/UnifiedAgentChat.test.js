@@ -135,4 +135,26 @@ describe('UnifiedAgentChat on the shared chat', () => {
     open.mockRestore()
     w.unmount()
   })
+
+  // ADM-1185 / ADM-1200: only the end-of-turn card for a protected file's values runs the request again on Allow;
+  // an action the agent is about to take pauses on the shared approval card and the same run goes on, never re-sent.
+  it('runs the request again on Allow only for a protected file card, never for an action card', async () => {
+    const w = await mountChat()
+    await w.find('textarea').setValue('read the config')
+    await w.find('button.send').trigger('click')
+    await flushPromises()
+    chat.sendMessage.mockClear()
+    const card = w.findComponent({ name: 'PermissionCard' })
+    card.vm.$emit('respond', { card: { capability: 'run_command', command: 'curl x' }, choice: 'allow_once' })
+    await flushPromises()
+    expect(chat.sendRaw).toHaveBeenCalledWith(expect.objectContaining({ type: 'permission_response' }))
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    card.vm.$emit('respond', { card: { capability: 'access_secret', path: '.env' }, choice: 'deny' })
+    await flushPromises()
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    card.vm.$emit('respond', { card: { capability: 'access_secret', path: '.env' }, choice: 'allow_project' })
+    await flushPromises()
+    expect(chat.sendMessage).toHaveBeenCalledWith('read the config')
+    w.unmount()
+  })
 })

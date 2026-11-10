@@ -319,29 +319,6 @@ export default {
   setTrainingConsent: (payload) => api.post('/run-trace/consent/', payload),
   pullTrainingCorpus: (format = 'sft') => api.get('/run-trace/corpus/', { params: { fmt: format } }),
 
-  // Systems
-  getSystems: () => api.get('/systems/'),
-  getSystem: (id) => api.get(`/systems/${id}/`),
-  createSystem: (data) => api.post('/systems/', data),
-  updateSystem: (id, data) => api.put(`/systems/${id}/`, data),
-  deleteSystem: (id) => api.delete(`/systems/${id}/`),
-
-  // Repositories
-  getRepositories: (systemId) => api.get(`/systems/${systemId}/repositories/`),
-  getRepository: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/`),
-  createRepository: (systemId, data) => api.post(`/systems/${systemId}/repositories/`, data),
-  deleteRepository: (systemId, repoId) => api.delete(`/systems/${systemId}/repositories/${repoId}/`),
-  analyzeRepository: (systemId, repoId, force = false) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/analyze/`, { force }),
-  getQuestions: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/questions/`),
-  submitAnswers: (systemId, repoId, answers) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/submit_answers/`, { answers }),
-
-  // Repository Documentation
-  getRepositoryRequirements: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/requirements/`),
-
   // Unified Connectors (P0 — read-only aggregation over Services + MCP)
   // scope: 'global' | 'agent:<id>'
   getConnectors: (scope = 'global') => api.get('/connectors/', { params: { scope } }),
@@ -520,17 +497,6 @@ export default {
   // A new project: create a repository on the person's GitHub and push the committed history (ADM-1183).
   publishProject: (systemId, repoId, body) =>        // { name, private }
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/publish/`, body),
-
-  // Knowledge
-
-  // Tasks
-  getTasks: (systemId) => api.get(`/systems/${systemId}/tasks/`),
-  getTask: (systemId, taskId) => api.get(`/systems/${systemId}/tasks/${taskId}/`),
-  createTask: (systemId, data) => api.post(`/systems/${systemId}/tasks/`, data),
-  approveTask: (systemId, taskId, notes = '') =>
-    api.post(`/systems/${systemId}/tasks/${taskId}/approve/`, { notes }),
-  rejectTask: (systemId, taskId, notes = '') =>
-    api.post(`/systems/${systemId}/tasks/${taskId}/reject/`, { notes }),
 
   // LLM
   getLlmStats: (params) => api.get('/llm/stats/', { params }),
@@ -853,14 +819,6 @@ export default {
   githubListRepos: () => api.get('/auth/github/repos'),
   githubGetRepoInfo: (githubUrl) => api.post('/auth/github/repo-info', { github_url: githubUrl }),
 
-  // CRS outputs
-  runCrs: (systemId, repoId) => api.post(`/systems/${systemId}/repositories/${repoId}/crs/run/`),
-  enrichCrs: (systemId, repoId, opts = {}) => api.post(`/systems/${systemId}/repositories/${repoId}/crs/enrich/`, opts),
-  getCrsSummary: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/summary/`),
-  getCrsBlueprints: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/blueprints/`),
-  getCrsArtifacts: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
-  getCrsRelationships: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`),
-
   // Let's Code IDE — projects (clone GitHub repo → index pipeline; hides systems/repos)
   unifiedConfig: (systemId = null) => api.get('/lets-code/unified-config/', systemId ? { params: { system: systemId } } : {}),   // { agent_id }
   listProjects: () => api.get('/lets-code/projects/', { noCache: true }),
@@ -871,22 +829,6 @@ export default {
   getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
-
-  // Combined CRS payloads
-  getCRSPayloads: async (systemId, repoId) => {
-    const [blueprints, artifacts, relationships] = await Promise.all([
-      api.get(`/systems/${systemId}/repositories/${repoId}/crs/blueprints/`),
-      api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
-      api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`)
-    ])
-    return {
-      data: {
-        blueprints: blueprints.data,
-        artifacts: artifacts.data.artifacts || [],
-        relationships: relationships.data.relationships || []
-      }
-    }
-  },
 
   // Context Files
   getConversations: (params) => api.get('/conversations/', { params }),

@@ -9,8 +9,6 @@ const api = vi.hoisted(() => ({
   getWorkflowGraphs: vi.fn(), getWorkflowGraph: vi.fn(), createWorkflowGraph: vi.fn(), importWorkflowGraph: vi.fn(),
   // SchedulesPage
   getAgentPicker: vi.fn(), getLlmModels: vi.fn(), listSchedules: vi.fn(), runSchedule: vi.fn(),
-  // SystemDetail
-  getSystem: vi.fn(), runCrs: vi.fn(), enrichCrs: vi.fn(),
 }))
 const router = vi.hoisted(() => ({ push: vi.fn(() => Promise.resolve()) }))
 vi.mock('../services/api', () => ({ default: api, isAbortError: () => false }))
@@ -18,11 +16,6 @@ vi.mock('vue-router', () => ({ useRouter: () => router, useRoute: () => ({ param
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn() }))
 vi.mock('@/composables/useGithubConnect', () => ({ connectGithubService: vi.fn() }))
-// SystemDetail's heavy children are irrelevant here (and pull Monaco / pdf.js).
-for (const c of ['CRSPipelineDashboard', 'RepositoryChat', 'PlannerChat', 'ArtifactViewer', 'BlueprintViewer',
-  'RelationshipViewer', 'SessionTrace', 'RepositoryDocs', 'CodeBrowser']) {
-  vi.doMock(`../components/${c}.vue`, () => ({ default: { name: c, render: () => null } }))
-}
 
 const stubs = { Icon: true, PageLoader: true, RouterLink: true, 'router-link': true }
 
@@ -101,22 +94,5 @@ describe('SchedulesPage', () => {
     await w.find('.load-error__retry').trigger('click')
     await flushPromises()
     expect(w.text()).toContain('Nightly')
-  })
-})
-
-describe('SystemDetail CRS', () => {
-  it('"Run CRS Analysis" clicked twice starts ONE pipeline', async () => {
-    const SystemDetail = (await import('./SystemDetail.vue')).default
-    api.getSystem.mockResolvedValue({ data: { id: 7, name: 'S', repositories: [{ id: 3, name: 'r', crs_status: 'not_started' }] } })
-    const d = deferred()
-    api.runCrs.mockReturnValue(d.p)
-    const w = mount(SystemDetail, { global: { stubs, provide: { notify: vi.fn() } } })
-    await flushPromises()
-    const btn = w.findAll('button').find((b) => b.text().includes('Run CRS Analysis'))
-    await btn.trigger('click')
-    await btn.trigger('click')
-    expect(api.runCrs).toHaveBeenCalledTimes(1)
-    d.resolve({ data: {} })
-    await flushPromises()
   })
 })

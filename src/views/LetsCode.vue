@@ -143,7 +143,7 @@
     <!-- ============================ WORKSPACE ============================ -->
     <div v-else class="lc-ide">
       <div class="ide-bar">
-        <button type="button" class="ide-back" @click="closeProject"><Icon icon="lucide:chevron-left" /> Projects</button>
+        <button type="button" class="ide-back" @click="onBackToProjects"><Icon icon="lucide:chevron-left" /> Projects</button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
         <span v-if="active.is_new" class="ide-branch off" title="Branches come with GitHub: publish the project from Source control">
           <Icon icon="lucide:git-branch" aria-hidden="true" /> {{ active.branch || 'main' }}
@@ -199,6 +199,7 @@ import { confirm } from '@/composables/useConfirm'
 import { connectGithubService, disconnectGithubService } from '@/composables/useGithubConnect'
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
+import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
@@ -497,6 +498,13 @@ const statusPoller = usePoller(async () => {
 function pollStatus() {
   statusPoller.stop()
   statusPoller.start()
+}
+
+// Unsaved edits are never lost without a question: leaving the project, another page, closing the tab (ADM-1200).
+const unsavedGuard = useUnsavedGuard(() => codeBrowser.value?.unsavedCount)
+
+async function onBackToProjects() {
+  if (await unsavedGuard.mayLeave()) closeProject()
 }
 
 function closeProject() {

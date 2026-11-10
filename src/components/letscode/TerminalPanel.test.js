@@ -46,7 +46,7 @@ import BottomPanel from './BottomPanel.vue'
 
 const status = (state, extra = {}) => ({ data: JSON.stringify({ type: 'status', state, ...extra }) })
 
-beforeEach(() => { terms.length = 0; sockets.length = 0 })
+beforeEach(() => { terms.length = 0; sockets.length = 0; localStorage.clear() })
 
 describe('ProjectTerminal: the person\'s shell', () => {
   async function shell() {
@@ -158,6 +158,44 @@ describe('TerminalPanel', () => {
     await flushPromises()
     expect(shell2.sent.map(d => (typeof d === 'string' ? JSON.parse(d) : null))).toContainEqual({ type: 'close' })
     expect(w.text()).not.toContain('Terminal 2')
+    w.unmount()
+  })
+
+  // ADM-1200: a shell keeps running on the server; after a reload only Terminal 1 came back.
+  // ADM-1200: a shell keeps running on the server; after a reload only Terminal 1 came back. The panel's part is
+  // which shells it opens (each ProjectTerminal reattaches by its number, tested above), so they are stand-ins here.
+  it('a reload reattaches every shell that was open, per project', async () => {
+    const Stub = { name: 'ProjectTerminal', props: ['mode', 'repoId', 'n', 'active', 'entries'], template: '<div />', methods: { end() {} } }
+    const opts = { global: { stubs: { Icon: true, ProjectTerminal: Stub } } }
+    const shellsOf = (w) => w.findAllComponents(Stub).filter(c => c.props('mode') === 'shell').map(c => c.props('n')).sort()
+
+    const first = mount(TerminalPanel, { props: { repoId: 16, ready: true }, ...opts })
+    await flushPromises()
+    await first.find('.tp-add').trigger('click')
+    await first.find('.tp-add').trigger('click')
+    await first.find('[aria-label="End terminal 1"]').trigger('click')
+    await flushPromises()
+    expect(shellsOf(first)).toEqual([2, 3])
+    first.unmount()
+
+    const again = mount(TerminalPanel, { props: { repoId: 16, ready: true }, ...opts })
+    await flushPromises()
+    expect(shellsOf(again)).toEqual([2, 3])
+    expect(again.text()).not.toContain('Terminal 1')
+    again.unmount()
+
+    const other = mount(TerminalPanel, { props: { repoId: 17, ready: true }, ...opts })
+    await flushPromises()
+    expect(shellsOf(other)).toEqual([1])                          // another project: its own terminals
+    other.unmount()
+  })
+
+  it('a broken or blocked store still opens Terminal 1', async () => {
+    localStorage.setItem('lets-code:terminals:16', 'not json')
+    const Stub = { name: 'ProjectTerminal', props: ['mode', 'repoId', 'n', 'active', 'entries'], template: '<div />' }
+    const w = mount(TerminalPanel, { props: { repoId: 16, ready: true }, global: { stubs: { Icon: true, ProjectTerminal: Stub } } })
+    await flushPromises()
+    expect(w.findAllComponents(Stub).filter(c => c.props('mode') === 'shell').map(c => c.props('n'))).toEqual([1])
     w.unmount()
   })
 

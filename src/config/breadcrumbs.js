@@ -46,7 +46,6 @@ export default {
   'dashboard-service-register': { label: 'Register service', parent: 'dashboard-home' },
   'dashboard-service-wizard': { label: 'Service wizard', parent: 'dashboard-home' },
   'dashboard-service-drafts': { label: 'Service drafts', parent: 'dashboard-home' },
-  'dashboard-system-detail': { label: 'System', parent: 'dashboard-home', dynamic: true },
   'dashboard-workspace': { label: 'Workspace', parent: 'dashboard-home', dynamic: true },
   'dashboard-workspace-tab': { label: 'Workspace', parent: 'dashboard-home', dynamic: true },
 

@@ -11,7 +11,6 @@ const api = vi.hoisted(() => ({
   getAgentPicker: vi.fn(),
   getLlmModels: vi.fn(),
   listSchedules: vi.fn(),
-  getSystems: vi.fn(),
 }))
 vi.mock('../services/api', () => ({
   default: api,
@@ -31,7 +30,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.getAgentPicker.mockResolvedValue({ data: [] })
   api.getLlmModels.mockResolvedValue({ data: [] })
-  api.getSystems.mockResolvedValue({ data: [] })
 })
 
 describe('WorkflowsList', () => {

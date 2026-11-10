@@ -206,8 +206,11 @@ async function send(text) {
 
 function onPermissionRespond({ card, choice }) {
   const decided = respondPermission(card, choice)
-  // A reveal_secret card is answered inline by the backend; re-sending would ask again or answer twice.
-  if (card?.capability === 'reveal_secret') return
+  // Only a protected file's card (`access_secret`) comes at the END of a turn: the turn went on without the values,
+  // so on Allow the request runs again and can read them. Every action the agent is about to take (a risky command,
+  // a protected-file change, a commit or push) pauses on the shared approval card instead, and the SAME run goes on
+  // when allowed: never re-sent (ADM-1185, ADM-1200).
+  if (card?.capability !== 'access_secret') return
   if (String(decided).startsWith('allow') && lastUserPrompt.value) chat.sendMessage(lastUserPrompt.value)
 }
 

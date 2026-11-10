@@ -41,8 +41,6 @@ axios.defaults.withCredentials = true
 // instead of one giant bundle; heavy deps (Monaco, pdf.js, highlight.js) only load
 // on the routes that need them.
 const LetsCode = () => import('./views/LetsCode.vue')
-const SystemDetail = () => import('./views/SystemDetail.vue')
-const RepositoryPage = () => import('./views/RepositoryPage.vue')
 const ForgotPassword = () => import('./views/ForgotPassword.vue')
 const ResetPassword = () => import('./views/ResetPassword.vue')
 const VerifyEmail = () => import('./views/VerifyEmail.vue')
@@ -301,8 +299,10 @@ const router = createRouter({
         { path: 'get-started', name: 'dashboard-get-started', redirect: '/dashboard/help-center/get-started' },
         { path: 'llm-context', name: 'dashboard-llm-context', redirect: '/admin-dashboard/llm-context' },
         // Phase 5: previously top-level authed pages, re-housed inside the single shell.
-        { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
-        { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
+        // The System and Repository pages were retired with the server clone (ADM-1200): code lives only in a
+        // Let's Code project's sandbox. An old link opens Let's Code.
+        { path: 'systems/:id', redirect: '/dashboard/lets-code' },
+        { path: 'systems/:systemId/repositories/:repoId', redirect: '/dashboard/lets-code' },
         { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistration },
         // Registering an OAuth provider is a platform admin's job and lives in the admin dashboard (ADM-1151).
         { path: 'connectors/oauth-provider/new', name: 'dashboard-oauth-provider-new', redirect: '/admin-dashboard/oauth-providers/new' },
@@ -409,8 +409,8 @@ const router = createRouter({
     },
     // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.
     //    Names are kept so name-based navigation keeps working; bookmarks/deep links too.
-    { path: '/systems/:id', name: 'system-detail', redirect: to => `/dashboard/systems/${to.params.id}` },
-    { path: '/systems/:systemId/repositories/:repoId', name: 'repository-detail', redirect: to => `/dashboard/systems/${to.params.systemId}/repositories/${to.params.repoId}` },
+    { path: '/systems/:id', redirect: '/dashboard/lets-code' },
+    { path: '/systems/:systemId/repositories/:repoId', redirect: '/dashboard/lets-code' },
     { path: '/ai-dashboard', name: 'ai-dashboard', redirect: '/dashboard/activity' },
     { path: '/tools', name: 'tools', redirect: '/dashboard' },
     { path: '/services', name: 'services', redirect: '/dashboard/services' },

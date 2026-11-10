@@ -59,10 +59,28 @@ function endShell(n) {
   if (current.value === n) current.value = shells.value.length ? shells.value[shells.value.length - 1] : 'agent'
 }
 
-// The first visit opens Terminal 1, as VS Code does; once the project is ready.
-watch(() => props.ready, (r) => { if (r && !shells.value.length) addShell() }, { immediate: true })
+// Which shells were open, per project, so a reload reattaches all of them: a shell keeps running on the server
+// (`lc-<repo>-<user>-<n>`) and only Terminal 1 came back, leaving 2 and 3 running with no tab (ADM-1200).
+const storeKey = (repo) => `lets-code:terminals:${repo}`
+function remembered(repo) {
+  try {
+    const v = JSON.parse(localStorage.getItem(storeKey(repo)) || 'null')
+    return Array.isArray(v) ? [...new Set(v.filter(n => [1, 2, 3].includes(n)))].sort() : null
+  } catch { return null }
+}
+function remember(repo, list) {
+  try { localStorage.setItem(storeKey(repo), JSON.stringify(list)) } catch { /* storage blocked: nothing kept */ }
+}
+watch(shells, (list) => remember(props.repoId, list))
+
+// Open what was open; the first visit opens Terminal 1, as VS Code does. Once the project is ready.
+function restore() {
+  const list = remembered(props.repoId)
+  if (list && list.length) { shells.value = list; current.value = list[0] } else addShell()
+}
+watch(() => props.ready, (r) => { if (r && !shells.value.length) restore() }, { immediate: true })
 // Another project: its own terminals.
-watch(() => props.repoId, () => { shells.value = []; current.value = 'agent'; if (props.ready) addShell() })
+watch(() => props.repoId, () => { shells.value = []; current.value = 'agent'; if (props.ready) restore() })
 
 defineExpose({ addShell })
 </script>

@@ -217,7 +217,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, h } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, h } from 'vue'
 import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //
@@ -233,17 +233,25 @@ import { lazyComponent } from '@/utils/lazyComponent'
 // `applyDecorations` is unreachable until `onEditorMount` fires, so by the time `Range` is needed the
 // namespace has resolved; the guard is there for the case where it has not.
 let monacoNs = null
+// Monaco's own language list, once it has loaded: every file opens in the language Monaco knows for it (ADM-1200).
+const monacoLanguages = shallowRef(null)
+function noteMonacoLoaded(ns) {
+  monacoNs = ns
+  if (!monacoLanguages.value) {
+    try { monacoLanguages.value = ns.languages.getLanguages() } catch { /* the fallback list stays */ }
+  }
+}
 // lazyComponent: an error state + one guarded reload when the chunk is stale (F-C1).
 const MonacoEditor = lazyComponent(async () => {
   await import('@/utils/monacoWorkers')        // before the editor starts: it asks for its workers at once
-  monacoNs = await import('monaco-editor')
+  noteMonacoLoaded(await import('monaco-editor'))
   const mod = await import('monaco-editor-vue3')
   return mod.default || mod
 })
 // The same lazy load, for a change's side-by-side diff (Source control).
 const MonacoDiffEditor = lazyComponent(async () => {
   await import('@/utils/monacoWorkers')
-  monacoNs = await import('monaco-editor')
+  noteMonacoLoaded(await import('monaco-editor'))
   const mod = await import('monaco-editor-vue3')
   return mod.DiffEditor
 })
@@ -255,6 +263,7 @@ import { useTheme } from '@/composables/useTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
+import { languageFor } from '@/utils/editorLanguage'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -336,6 +345,13 @@ const searchResults = ref([])         // flat results when the search box is non
 const searching = ref(false)
 const searchTruncated = ref(false)
 const openTabs = ref([])
+// A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
+watch(monacoLanguages, (langs) => {
+  if (!langs) return
+  for (const tab of openTabs.value) {
+    if (tab.path && tab.language != null) tab.language = languageFor(tab.path, langs)
+  }
+})
 const activeTabId = ref(null)
 const saving = ref(false)
 
@@ -705,7 +721,9 @@ function showSourceControl() {
   sidebarTab.value = 'scm'
   try { scmPanel.value?.refresh?.() } catch { /* the panel mounts with fresh state */ }
 }
-defineExpose({ refresh, showSourceControl, onFilesChanged })
+// How many open files have edits that are not saved: the IDE asks before leaving the project or the page (ADM-1200).
+const unsavedCount = computed(() => openTabs.value.filter(isDirty).length)
+defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount })
 
 // PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
 // bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a
@@ -871,27 +889,7 @@ async function closeTab(tabId) {
 }
 
 function detectLanguage(filePath) {
-  const ext = filePath.split('.').pop().toLowerCase()
-  const langMap = {
-    'py': 'python',
-    'js': 'javascript',
-    'vue': 'html',
-    'ts': 'typescript',
-    'tsx': 'typescript',
-    'jsx': 'javascript',
-    'json': 'json',
-    'md': 'markdown',
-    'html': 'html',
-    'css': 'css',
-    'scss': 'scss',
-    'yaml': 'yaml',
-    'yml': 'yaml',
-    'xml': 'xml',
-    'sql': 'sql',
-    'sh': 'shell',
-    'bash': 'shell'
-  }
-  return langMap[ext] || 'plaintext'
+  return languageFor(filePath, monacoLanguages.value)
 }
 
 function formatArtifactCode(artifact) {

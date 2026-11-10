@@ -188,7 +188,7 @@ const handleToggleTheme = () => {
 }
 
 // Layout computed properties
-const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
+const isFullScreen = computed(() => route.name === 'agent-playground')
 
 // v2 app shell routes (/dashboard/*), the separate admin dashboard (/admin-dashboard/*) and Video Studio's
 // dashboard (/video-studio/*) render full-bleed with their own sidebar/header.
