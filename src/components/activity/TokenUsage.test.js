@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TokenUsage from './TokenUsage.vue'
 import { normalizeUsage } from '../../composables/tokens'
-import { normalizeUsage } from '../../composables/tokens'
 
 describe('TokenUsage', () => {
   it('renders nothing without usage', () => {

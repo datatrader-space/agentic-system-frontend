@@ -31,6 +31,7 @@ const SAFE_URL = /^(?:https?:|mailto:|tel:|[#/?]|[^:]*$)/i
 export const isSafeUrl = (raw) => {
   // Control characters are the classic smuggling trick — `java\tscript:` and `java\nscript:` are
   // both parsed as `javascript:` by browsers, so strip them BEFORE testing the protocol.
+  // eslint-disable-next-line no-control-regex -- strips control characters on purpose (see above)
   const url = String(raw ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim()
   if (!url) return false
   return SAFE_URL.test(url)

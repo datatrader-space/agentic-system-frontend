@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Prerendered public pages (page-speed plan Phase 6, ADM-1079).
 //
 //   node scripts/prerender.mjs        (after `vite build`; `npm run build` runs both)

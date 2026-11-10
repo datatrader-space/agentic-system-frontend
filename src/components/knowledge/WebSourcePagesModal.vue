@@ -62,7 +62,7 @@
              class="text-[12px] text-slate-700 hover:text-indigo-600 truncate flex-1">{{ p.url }}</a>
           <span class="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">
             <template v-if="p.status === 'ready'">Indexed {{ relativeTime(p.indexed_at) }}</template>
-            <template v-else-if="p.status === 'failed'" class="text-red-500">Failed</template>
+            <span v-else-if="p.status === 'failed'" class="text-red-500">Failed</span>
             <template v-else>{{ p.status }}</template>
           </span>
         </div>

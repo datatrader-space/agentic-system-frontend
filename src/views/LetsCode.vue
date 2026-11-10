@@ -288,7 +288,7 @@ async function loadGithubRepos() {
     if (data.success) { repos.value = data.repositories || []; ghAccount.value = data.account || '' }
     else ghNotConnected.value = true
   } catch (e) {
-    if (e?.response?.data?.github_not_connected || e?.response?.status === 401) ghNotConnected.value = true
+    if (e?.response?.data?.github_not_connected) ghNotConnected.value = true
     else notify.error(e?.response?.data?.error || 'Could not load your GitHub repositories')
   } finally { loadingRepos.value = false }
 }

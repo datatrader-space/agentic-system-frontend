@@ -315,7 +315,7 @@ export function reviewColumn(batch) {
 
 // The header of a CSV file, as its columns are named (quoted names allowed), for the column choice of an upload.
 export function csvHeader(text) {
-  const line = String(text || '').replace(/^﻿/, '').split(/\r?\n/, 1)[0] || '';
+  const line = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/, 1)[0] || '';
   const out = []; let cell = ''; let quoted = false;
   for (let i = 0; i < line.length; i += 1) {
     const ch = line[i];

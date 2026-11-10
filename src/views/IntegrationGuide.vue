@@ -253,7 +253,7 @@ const wsChatUrl = computed(() => {
 const shareUrl = computed(() => (shareToken.value ? `${publicOrigin}/a/${publicSlug.value || shareToken.value}` : ''))
 const widgetSrc = computed(() => `${publicOrigin}/webchat/widget.js`)
 const embedCode = computed(() => shareToken.value
-  ? `<script src="${widgetSrc.value}"><\/script>\n<script>\n  AgentChat.init({ token: "${shareToken.value}", mode: "bubble" });\n<\/script>`
+  ? `<script src="${widgetSrc.value}"><\u002Fscript>\n<script>\n  AgentChat.init({ token: "${shareToken.value}", mode: "bubble" });\n<\u002Fscript>`
   : '')
 
 const pyWs = computed(() => `# pip install websocket-client

@@ -102,7 +102,6 @@
                 type="password"
                 :placeholder="storedSecrets.token ? 'Bearer Token — saved, leave blank to keep' : 'Bearer Token'"
                 class="form-input"
-                placeholder="Bearer token"
               />
             </div>
 
@@ -113,7 +112,6 @@
                 type="password"
                 :placeholder="storedSecrets.key ? 'API Key — saved, leave blank to keep' : 'API Key'"
                 class="form-input mb-2"
-                placeholder="API Key"
               />
               <input
                 v-model="formData.auth_config.header_name"
@@ -136,7 +134,6 @@
                 type="password"
                 :placeholder="storedSecrets.password ? 'Password — saved, leave blank to keep' : 'Password'"
                 class="form-input"
-                placeholder="Password"
               />
             </div>
 

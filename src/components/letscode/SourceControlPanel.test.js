@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // Source control is where the person reviews what the agent changed and decides what happens to it: a diff per file,
-// discard, commit (to a new branch when on the default branch), push and a pull request (owner, 2026-11-09).
+// discard, commit (on the branch it is on, or a new branch the person types), push and a pull request (owner,
+// 2026-11-09; branch rule 2026-11-10).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
@@ -77,28 +78,40 @@ describe('SourceControlPanel', () => {
     expect(w.text()).toContain('kept for 3 days')
   })
 
-  it('commits to a new branch when on the default branch, named from the message unless the person names it', async () => {
-    api.commitSourceControl.mockResolvedValueOnce(dirty({ branch: 'lets-code/add-a-footer', on_default: false, unpushed: 1,
-      on_remote: false, clean: true, changes: [], untracked: [] }))
+  // Owner, 2026-11-10: no branch the person did not ask for; a commit on main is pushed to main.
+  it('commits on main when no new branch is typed, then offers Push for main', async () => {
+    api.commitSourceControl.mockResolvedValueOnce(dirty({ unpushed: 1, clean: true, changes: [], untracked: [] }))
     const w = await mountPanel()
     expect(w.find('#scm-branch').exists()).toBe(true)
-    expect(w.text()).toContain('Commit to new branch')
+    expect(w.find('#scm-branch').attributes('placeholder')).toBe('Leave empty to commit on main')
+    expect(w.find('form.scm-commit button[type="submit"]').text()).toContain('Commit on main')
     await w.find('#scm-message').setValue('Add a footer')
-    expect(w.find('#scm-branch').attributes('placeholder')).toBe('lets-code/add-a-footer')
     await w.find('form.scm-commit').trigger('submit')
     await flushPromises()
-    expect(api.commitSourceControl).toHaveBeenCalledWith(5, 4, { message: 'Add a footer', branch: 'lets-code/add-a-footer' })
+    expect(api.commitSourceControl).toHaveBeenCalledWith(5, 4, { message: 'Add a footer' })
     expect(w.emitted('changed')).toHaveLength(1)
-    // Now on the new branch with one commit not pushed: Push is offered, a pull request is not yet.
     expect(w.text()).toContain('Push 1 commit')
     expect(w.text()).not.toContain('Open pull request')
   })
 
-  it('commits on a working branch without asking for a branch', async () => {
+  it('commits to a new branch only when the person types one', async () => {
+    api.commitSourceControl.mockResolvedValueOnce(dirty({ branch: 'add-footer', on_default: false, unpushed: 1,
+      on_remote: false, clean: true, changes: [], untracked: [] }))
+    const w = await mountPanel()
+    await w.find('#scm-message').setValue('Add a footer')
+    await w.find('#scm-branch').setValue('add-footer')
+    expect(w.find('form.scm-commit button[type="submit"]').text()).toContain('Commit to add-footer')
+    await w.find('form.scm-commit').trigger('submit')
+    await flushPromises()
+    expect(api.commitSourceControl).toHaveBeenCalledWith(5, 4, { message: 'Add a footer', branch: 'add-footer' })
+    expect(w.text()).toContain('Push 1 commit')
+  })
+
+  it('commits on a working branch when no new branch is typed', async () => {
     api.getSourceControlStatus.mockResolvedValueOnce(dirty({ branch: 'feature', on_default: false }))
     api.commitSourceControl.mockResolvedValueOnce(dirty({ branch: 'feature', on_default: false, unpushed: 1, clean: true, changes: [], untracked: [] }))
     const w = await mountPanel()
-    expect(w.find('#scm-branch').exists()).toBe(false)
+    expect(w.find('form.scm-commit button[type="submit"]').text()).toContain('Commit on feature')
     await w.find('#scm-message').setValue('Fix it')
     await w.find('form.scm-commit').trigger('submit')
     await flushPromises()

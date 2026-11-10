@@ -286,8 +286,8 @@ const wsChatUrl = computed(() => {
 const embedCode = computed(() => {
   if (!shareToken.value) return ''
   const mode = s.chat_interface === 'embedded' ? 'embedded' : 'bubble'
-  return `<script src="${widgetSrc.value}"><\/script>\n`
-    + `<script>\n  AgentChat.init({ token: "${shareToken.value}", mode: "${mode}" });\n<\/script>`
+  return `<script src="${widgetSrc.value}"><\u002Fscript>\n`
+    + `<script>\n  AgentChat.init({ token: "${shareToken.value}", mode: "${mode}" });\n<\u002Fscript>`
 })
 
 // Guide link — small render fn (just a styled router-link with an icon).

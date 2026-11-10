@@ -286,7 +286,7 @@ const canOpenInTab = computed(() => (usesPreviewUrl.value ? !!canvas.previewUrl 
 // Phase 5 click-to-select — a tiny bridge script injected into the previewed page. When "armed" by
 // the parent it outlines elements on hover and, on click, posts the clicked element's markup back to
 // this component (which stores it as the edit target). Kept self-contained; talks only via postMessage.
-// NOTE: `<\/script>` is escaped so the Vue SFC compiler doesn't treat it as the end of this block.
+// NOTE: `<\u002Fscript>` is escaped so the Vue SFC compiler doesn't treat it as the end of this block.
 const SELECT_BRIDGE = `
 <script data-cv-bridge>(function(){
   if (window.__cvBridge) return; window.__cvBridge = true;
@@ -307,7 +307,7 @@ const SELECT_BRIDGE = `
   document.addEventListener('mouseout', onOut, true);
   document.addEventListener('click', onClick, true);
   window.addEventListener('message', function(ev){ var d=ev.data||{}; if(d.type==='cv-arm'){ armed=!!d.armed; if(!armed) clearHover(); } else if(d.type==='cv-clear'){ setPicked(null); } });
-})();<\/script>`
+})();<\u002Fscript>`
 
 function injectBridge(html) {
   if (!html) return html

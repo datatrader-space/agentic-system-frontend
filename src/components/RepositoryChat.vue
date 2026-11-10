@@ -587,7 +587,7 @@ const handleWebSocketMessage = (data) => {
       }
       break
 
-    case 'assistant_message_chunk':
+    case 'assistant_message_chunk': {
       resumeStatus.value = ''   // real tokens are here; the resume snapshot is stale by definition
       // Append chunk to current streaming message
       currentStreamingMessage += data.chunk
@@ -606,8 +606,9 @@ const handleWebSocketMessage = (data) => {
 
       scrollToBottom()
       break
+    }
 
-    case 'assistant_message_complete':
+    case 'assistant_message_complete': {
       // Mark message as complete
       const completedMessage = messages.value[messages.value.length - 1]
       if (completedMessage && completedMessage.streaming) {
@@ -623,8 +624,9 @@ const handleWebSocketMessage = (data) => {
         attachTimelineSnapshot()
       }
       break
+    }
 
-    case 'tool_result':
+    case 'tool_result': {
       // When rich streaming is active, the rich step cards replace raw tool chips — skip the
       // duplicate raw chip in the visible area (raw events still arrive; we just don't re-render).
       if (richActive.value) break
@@ -640,6 +642,7 @@ const handleWebSocketMessage = (data) => {
         })
       }
       break
+    }
 
     case 'turn_resumed':
       // A turn is still running for this conversation (we returned mid-generation). Show the
@@ -690,7 +693,7 @@ const handleWebSocketMessage = (data) => {
       scrollToBottom()
       break
 
-    case 'tool_call':
+    case 'tool_call': {
       // Rich step cards replace raw tool chips when rich streaming is active.
       if (richActive.value) break
       const toolMsg = messages.value[messages.value.length - 1]
@@ -703,6 +706,7 @@ const handleWebSocketMessage = (data) => {
       }
       scrollToBottom()
       break
+    }
 
     default:
       console.log('Unknown message type:', data.type)

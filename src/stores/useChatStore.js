@@ -2656,9 +2656,6 @@ export const useChatStore = defineStore('chat', {
           }
           break
         }
-        case 'agent_session_complete':
-          this._endAssistant()
-          break
         case 'stop_acknowledged':
           this._endAssistant()
           break

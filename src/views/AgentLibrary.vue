@@ -335,10 +335,11 @@ const fetchAgents = async () => {
         agents.value = [];
     } finally {
         // A superseded load leaves the spinner to the load that replaced it.
-        if (signal.aborted) return;
-        loading.value = false;
-        barsReady.value = false;
-        requestAnimationFrame(() => requestAnimationFrame(() => { barsReady.value = true; }));
+        if (!signal.aborted) {
+            loading.value = false;
+            barsReady.value = false;
+            requestAnimationFrame(() => requestAnimationFrame(() => { barsReady.value = true; }));
+        }
     }
 };
 

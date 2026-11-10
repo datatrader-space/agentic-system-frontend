@@ -50,6 +50,11 @@ jobs:
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
 
+      # Correctness lint (ADM-1201): an error stops the image; warnings are shown. Its first run found a share that
+      # could not be revoked and a duplicate case in the chat store.
+      - name: Lint
+        run: npm run lint
+
       # Gate the image on the suite — a red build must never reach ECR.
       - name: Run tests
         run: npm test

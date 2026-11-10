@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Bundle-size budget (page-speed plan Phase 6, ADM-1079; report: Phase 0, ADM-1072).
 //
 //   node scripts/check-bundle-size.mjs [--dist dist] [--budget-kb 200] [--json dist-report/bundle-size.json]

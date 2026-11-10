@@ -18,18 +18,20 @@
     <div v-else-if="error" class="scm-empty err" role="alert">{{ error }}</div>
 
     <template v-else>
-      <!-- Commit: a message, and a new branch when on the default branch (it changes only through a pull request). -->
+      <!-- Commit: a message; on the branch the project is on, or on a new branch only when the person names one
+           (owner, 2026-11-10: "if user did not ask to create the branch he should not create"). -->
       <form v-if="!status.clean" class="scm-commit" @submit.prevent="commit">
         <label class="sr-only" for="scm-message">Commit message</label>
         <textarea id="scm-message" v-model="message" class="scm-input" rows="2" placeholder="Commit message"
                   :disabled="busy" @keydown.ctrl.enter.prevent="commit" @keydown.meta.enter.prevent="commit"></textarea>
-        <div v-if="status.on_default" class="scm-branchrow">
-          <label class="scm-label" for="scm-branch">New branch <span class="scm-hint">({{ status.default_branch }} changes through a pull request)</span></label>
+        <div v-if="status.has_remote" class="scm-branchrow">
+          <label class="scm-label" for="scm-branch">New branch <span class="scm-hint">(optional)</span></label>
           <input id="scm-branch" v-model="branch" class="scm-input" type="text" spellcheck="false" autocomplete="off"
-                 :placeholder="suggestedBranch" :disabled="busy" />
+                 :placeholder="`Leave empty to commit on ${status.branch || 'this branch'}`" :disabled="busy" />
         </div>
         <button type="submit" class="scm-btn primary" :disabled="busy || !message.trim()">
-          <Icon icon="lucide:check" aria-hidden="true" /> {{ action === 'commit' ? 'Committing…' : (status.on_default ? 'Commit to new branch' : 'Commit') }}
+          <Icon icon="lucide:check" aria-hidden="true" />
+          {{ action === 'commit' ? 'Committing…' : (branch.trim() ? `Commit to ${branch.trim()}` : `Commit on ${status.branch || 'this branch'}`) }}
         </button>
       </form>
 
@@ -141,13 +143,9 @@ const groups = computed(() => [
   { key: 'changes', label: 'Changes', items: status.changes || [] },
   { key: 'untracked', label: 'Untracked', items: status.untracked || [] },
 ])
-const canPush = computed(() => !status.on_default && status.branch && status.unpushed > 0)
+// Any branch is pushed, main included; a pull request is offered only from a branch other than the default one.
+const canPush = computed(() => status.has_remote && status.branch && status.unpushed > 0)
 const canOpenPr = computed(() => !status.on_default && status.branch && status.on_remote && !status.unpushed && !prUrl.value)
-// A branch name from the message, the way the platform names its branches; the person can change it.
-const suggestedBranch = computed(() => {
-  const slug = message.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-  return `lets-code/${slug || 'changes'}`
-})
 
 const _LETTER = { modified: 'M', added: 'A', deleted: 'D', renamed: 'R', untracked: 'U' }
 function letter(it) { return _LETTER[it.status] || '?' }
@@ -216,7 +214,7 @@ function publish() {
 function commit() {
   if (busy.value || !message.value.trim()) return
   const body = { message: message.value.trim() }
-  if (status.on_default) body.branch = (branch.value.trim() || suggestedBranch.value)
+  if (branch.value.trim()) body.branch = branch.value.trim()
   run('commit', () => api.commitSourceControl(props.systemId, props.repoId, body), () => {
     notify.success('Committed')
     message.value = ''
@@ -232,7 +230,8 @@ function push() {
 function openPullRequest() {
   run('pr', () => api.openPullRequest(props.systemId, props.repoId, { title: status.branch }), (data) => {
     prUrl.value = data.url
-    notify.success('Pull request opened')
+    // The branch already had its pull request (the Coding Agent opened it): that one is shown, never an error.
+    notify.success(data.existing ? 'This branch already has a pull request. It is linked below.' : 'Pull request opened')
   })
 }
 

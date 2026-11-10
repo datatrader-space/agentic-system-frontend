@@ -163,7 +163,7 @@ const handleRevoke = async (share) => {
   if (!(await confirm({ title: 'Revoke access?', message: `Revoke access for ${share.shared_with_username}?`, confirmText: 'Revoke', danger: true }))) return
   revoking.value = share.id
   try {
-    await api.revokeShare(props.service.id, share.id)
+    await api.revokeServiceShare(props.service.id, share.id)
     await loadShares()
     emit('updated')
   } catch (err) {

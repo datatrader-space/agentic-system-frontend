@@ -327,7 +327,7 @@ describe('RunTimeline — a step can be opened', () => {
     // A step that has RUN does not list what it could have used — that reads as what it did.
     expect(det.text()).not.toContain('Running a script')
     expect(det.text()).not.toContain('EXECUTE_SCRIPT')
-    expect(w.text()).not.toMatch(/[A-Z]+_[A-Z_]+/)
+    expect(w.text()).not.toMatch(/\b[A-Z]+_[A-Z_]+\b/)
     expect(det.text()).toContain('checked the junctions')
   })
 

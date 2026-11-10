@@ -341,6 +341,7 @@ function goNext(fallback = '/dashboard') {
   // Backslashes and control characters are refused too: browsers read `/\evil.test` as
   // `//evil.test`, which passed the old check and left the site after a real sign-in.
   const target = typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')
+    // eslint-disable-next-line no-control-regex -- refuses a redirect holding control characters on purpose
     && !/[\\\u0000-\u001F\u007F]/.test(next)
     ? next
     : fallback

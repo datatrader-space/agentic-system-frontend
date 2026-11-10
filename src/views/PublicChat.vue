@@ -68,7 +68,7 @@
       <footer class="pc-foot">
         <div class="pc-inwrap">
           <input v-model="input" @keydown.enter="send" :disabled="busy" placeholder="Type your message…" />
-          <button v-if="busy" class="pc-ib pc-stop" @click="stop" title="Stop">â– </button>
+          <button v-if="busy" class="pc-ib pc-stop" @click="stop" title="Stop" aria-label="Stop">■</button>
           <button v-else class="pc-ib pc-send" :disabled="!input.trim()" @click="send" title="Send">↑</button>
         </div>
         <div v-if="cfg.show_branding !== false" class="pc-brand">⚡ Powered by Aadml</div>

@@ -1458,7 +1458,7 @@ const loadGithubRepos = async () => {
   } catch (error) {
     console.error('Failed to load GitHub repos:', error)
     const data = error.response?.data || {}
-    if (data.github_not_connected || error.response?.status === 401) {
+    if (data.github_not_connected) {
       githubNotConnected.value = true   // show the Connect GitHub flow instead of an error
     } else {
       githubReposError.value = data.error || 'Failed to load repositories.'

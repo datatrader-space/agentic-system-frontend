@@ -354,7 +354,7 @@ const handleWebSocketMessage = (data) => {
       }
       break
 
-    case 'assistant_message_chunk':
+    case 'assistant_message_chunk': {
       // Real tokens are arriving, so the resume snapshot is stale by definition.
       resumeStatus.value = ''
       // Append chunk to current streaming message
@@ -374,8 +374,9 @@ const handleWebSocketMessage = (data) => {
 
       scrollToBottom()
       break
+    }
 
-    case 'assistant_message_complete':
+    case 'assistant_message_complete': {
       resumeStatus.value = ''
       // Mark message as complete
       const completedMessage = messages.value[messages.value.length - 1]
@@ -385,6 +386,7 @@ const handleWebSocketMessage = (data) => {
       }
       currentStreamingMessage = ''
       break
+    }
 
     case 'info':
       // System info message

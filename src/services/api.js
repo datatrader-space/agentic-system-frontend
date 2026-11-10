@@ -415,7 +415,9 @@ export default {
   // Service Sharing
   shareService: (serviceId, data) => api.post(`/services/${serviceId}/share/`, data),
   listShares: (serviceId) => api.get(`/services/${serviceId}/shares/`),
-  revokeShare: (serviceId, shareId) => api.post(`/services/${serviceId}/shares/${shareId}/revoke/`),
+  // Its own name: a second `revokeShare` (a chat share, by token) further down replaced this one, so revoking a
+  // service share sent DELETE /shares/<service id>/ and revoked nothing (found by ESLint no-dupe-keys, ADM-1201).
+  revokeServiceShare: (serviceId, shareId) => api.post(`/services/${serviceId}/shares/${shareId}/revoke/`),
   getSharedWithMe: () => api.get('/services/shared-with-me/'),
 
   // Service Draft Management
@@ -520,7 +522,6 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/publish/`, body),
 
   // Knowledge
-  getKnowledge: (systemId) => api.get(`/systems/${systemId}/knowledge/`),
 
   // Tasks
   getTasks: (systemId) => api.get(`/systems/${systemId}/tasks/`),
