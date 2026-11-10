@@ -12,7 +12,7 @@ vi.mock('@/composables/useOAuthPopup', () => ({
   }),
 }))
 
-import { connectGithubService, findGithubService } from './useGithubConnect'
+import { connectGithubService, disconnectGithubService, findGithubService } from './useGithubConnect'
 
 const rows = [
   { kind: 'mcp', id: 3, slug: 'github' },
@@ -53,6 +53,23 @@ describe('connectGithubService', () => {
     await expect(connectGithubService(apiWith(rows))).rejects.toThrow('access_denied')
     popup.result = { ok: false, status: 'cancelled' }
     await expect(connectGithubService(apiWith(rows))).rejects.toThrow('cancelled')
+  })
+
+  it('Switch account asks GitHub for its account picker; a plain connect does not', async () => {
+    await connectGithubService(apiWith(rows), { switchAccount: true })
+    expect(new URL(popup.url).searchParams.get('prompt')).toBe('select_account')
+    expect(new URL(popup.url).searchParams.get('s')).toBe('21')
+    await connectGithubService(apiWith(rows))
+    expect(new URL(popup.url).searchParams.get('prompt')).toBeNull()
+  })
+
+  it('Disconnect removes the GitHub service credential, as the Connectors page does', async () => {
+    const api = { ...apiWith(rows), disconnectOAuth: vi.fn(async () => ({ data: { disconnected: true } })) }
+    await disconnectGithubService(api)
+    expect(api.disconnectOAuth).toHaveBeenCalledWith(21)
+    const failing = { ...apiWith(rows), disconnectOAuth: vi.fn(async () => { throw { response: { data: { error: 'Service not found' } } } }) }
+    await expect(disconnectGithubService(failing)).rejects.toThrow('Service not found')
+    await expect(disconnectGithubService(apiWith([]))).rejects.toThrow('GitHub is not set up')
   })
 
   it('finds the service in a plain list too', async () => {

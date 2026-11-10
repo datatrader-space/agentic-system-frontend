@@ -8,18 +8,15 @@
             <h1 class="lc-title">Let's Code</h1>
             <p class="lc-sub">Start a new project or clone a GitHub repository, and build it with the coding agent.</p>
           </div>
-          <div v-if="ghAccount && !ghNotConnected" class="lc-account">
-            <span class="lc-account-name"><Icon icon="lucide:github" aria-hidden="true" /> GitHub: <b>{{ ghAccount }}</b></span>
-            <button type="button" class="lc-textbtn" :disabled="connecting" @click="connectGithub">
-              {{ connecting ? 'Connecting' : 'Switch account' }}
-            </button>
-          </div>
         </header>
 
         <div class="lc-cols">
           <!-- Your projects -->
           <section class="lc-col" aria-labelledby="lc-projects-h">
-            <h2 id="lc-projects-h" class="lc-col-h">Your projects</h2>
+            <div class="lc-col-head">
+              <h2 id="lc-projects-h" class="lc-col-h">Your projects</h2>
+              <span v-if="!projectsLoading && projects.length" class="lc-count" :aria-label="`${projects.length} projects`">{{ projects.length }}</span>
+            </div>
 
             <!-- A new project needs no GitHub repository: it is published from Source control when the person wants. -->
             <form class="lc-new" @submit.prevent="createNewProject">
@@ -40,7 +37,10 @@
               <li v-for="n in 3" :key="n" class="lc-skel-row"><span class="lc-skel w40"></span><span class="lc-skel w15"></span><span class="lc-skel w12 pill"></span></li>
             </ul>
 
-            <p v-else-if="!projects.length" class="lc-empty">No projects yet. Start a new one above, or clone a repository.</p>
+            <div v-else-if="!projects.length" class="lc-empty">
+              <Icon icon="lucide:folder-code" class="lc-empty-ic" aria-hidden="true" />
+              <p>No projects yet. Name one above to start empty, or clone a repository.</p>
+            </div>
 
             <ul v-else class="lc-list">
               <li v-for="p in projects" :key="p.repo_id" class="proj" :class="{ failed: isFailed(p) }" @click="openProject(p)">
@@ -69,19 +69,42 @@
 
           <!-- Clone from GitHub -->
           <section class="lc-col" aria-labelledby="lc-clone-h">
-            <h2 id="lc-clone-h" class="lc-col-h">Clone from GitHub</h2>
+            <div class="lc-col-head">
+              <h2 id="lc-clone-h" class="lc-col-h">Clone from GitHub</h2>
+              <span v-if="!ghNotConnected && !loadingRepos && repos.length" class="lc-count" :aria-label="`${repos.length} repositories`">{{ repos.length }}</span>
+            </div>
 
             <div v-if="ghNotConnected" class="gh-connect">
-              <Icon icon="lucide:github" class="gh-connect-ic" aria-hidden="true" />
-              <p class="gh-t">Connect GitHub to see your repositories</p>
-              <p class="gh-s">Let's Code lists the repositories of the GitHub account you connect, private ones included.</p>
-              <button type="button" class="lc-btn primary" :disabled="connecting" @click="connectGithub">
-                <Icon :icon="connecting ? 'lucide:loader-2' : 'lucide:github'" :class="{ spin: connecting }" />
-                {{ connecting ? 'Connecting' : 'Connect GitHub' }}
-              </button>
+              <span class="gh-mark" aria-hidden="true"><Icon icon="lucide:github" /></span>
+              <div class="gh-connect-body">
+                <p class="gh-t">Connect GitHub to see your repositories</p>
+                <p class="gh-s">Let's Code lists the repositories of the account you connect, private ones included. You can disconnect at any time.</p>
+                <button type="button" class="lc-btn primary" :disabled="!!ghBusy" @click="connectGithub">
+                  <Icon :icon="ghBusy === 'connect' ? 'lucide:loader-2' : 'lucide:github'" :class="{ spin: ghBusy === 'connect' }" />
+                  {{ ghBusy === 'connect' ? 'Connecting' : 'Connect GitHub' }}
+                </button>
+              </div>
             </div>
 
             <template v-else>
+              <!-- The connected account, with the two things a person does with it. -->
+              <div v-if="ghAccount" class="gh-acct">
+                <span class="gh-mark sm" aria-hidden="true"><Icon icon="lucide:github" /></span>
+                <p class="gh-acct-id">
+                  <span class="gh-acct-k">Connected as</span>
+                  <span class="gh-acct-name" :title="ghAccount">{{ ghAccount }}</span>
+                </p>
+                <div class="gh-acct-actions">
+                  <button type="button" class="lc-btn sm" :disabled="!!ghBusy" @click="switchGithubAccount">
+                    <Icon :icon="ghBusy === 'switch' ? 'lucide:loader-2' : 'lucide:repeat'" :class="{ spin: ghBusy === 'switch' }" />
+                    {{ ghBusy === 'switch' ? 'Switching' : 'Switch account' }}
+                  </button>
+                  <button type="button" class="lc-btn sm quiet-danger" :disabled="!!ghBusy" @click="disconnectGithub">
+                    <Icon :icon="ghBusy === 'disconnect' ? 'lucide:loader-2' : 'lucide:unplug'" :class="{ spin: ghBusy === 'disconnect' }" />
+                    {{ ghBusy === 'disconnect' ? 'Disconnecting' : 'Disconnect' }}
+                  </button>
+                </div>
+              </div>
               <label class="lc-search">
                 <span class="sr-only">Search repositories</span>
                 <Icon icon="lucide:search" aria-hidden="true" />
@@ -173,7 +196,7 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
-import { connectGithubService } from '@/composables/useGithubConnect'
+import { connectGithubService, disconnectGithubService } from '@/composables/useGithubConnect'
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import CodeBrowser from '../components/CodeBrowser.vue'
@@ -242,7 +265,7 @@ function onResizeKey(e) {
 // ── GitHub repositories ──
 const ghNotConnected = ref(false)
 const ghAccount = ref('')
-const connecting = ref(false)
+const ghBusy = ref('')            // 'connect' | 'switch' | 'disconnect' while one runs
 const loadingRepos = ref(false)
 const repos = ref([])
 const repoQuery = ref('')
@@ -293,15 +316,47 @@ async function loadGithubRepos() {
   } finally { loadingRepos.value = false }
 }
 
-async function connectGithub() {
-  connecting.value = true
+// Connect, or switch to another account (GitHub shows its account picker). Both go through the GitHub
+// service's own sign-in, as the Connectors page does. The popup must open inside the click: nothing awaits first.
+async function signInGithub(kind) {
+  if (ghBusy.value) return
+  ghBusy.value = kind
+  const before = ghAccount.value
   try {
-    await connectGithubService(api)
-    notify.success('GitHub connected')
+    await connectGithubService(api, { switchAccount: kind === 'switch' })
     repos.value = []
     await loadGithubRepos()
+    if (kind === 'switch') {
+      notify.success(ghAccount.value && ghAccount.value !== before
+        ? `Switched to ${ghAccount.value}` : `Still connected as ${ghAccount.value || before}`)
+    } else {
+      notify.success(ghAccount.value ? `GitHub connected as ${ghAccount.value}` : 'GitHub connected')
+    }
   } catch (e) { notify.error(e?.message || 'GitHub connection failed') }
-  finally { connecting.value = false }
+  finally { ghBusy.value = '' }
+}
+const connectGithub = () => signInGithub('connect')
+const switchGithubAccount = () => signInGithub('switch')
+
+async function disconnectGithub() {
+  if (ghBusy.value) return
+  const ok = await confirm({
+    title: 'Disconnect GitHub?',
+    message: `Let's Code stops using ${ghAccount.value || 'this account'}: no repository list, and the coding agent `
+      + 'cannot push or open pull requests until you connect again. Your projects and their files stay.',
+    confirmText: 'Disconnect', cancelText: 'Cancel', danger: true,
+  })
+  if (!ok) return
+  ghBusy.value = 'disconnect'
+  try {
+    await disconnectGithubService(api)
+    repos.value = []
+    ghAccount.value = ''
+    repoQuery.value = ''
+    ghNotConnected.value = true
+    notify.success('GitHub disconnected')
+  } catch (e) { notify.error(e?.message || 'Could not disconnect GitHub') }
+  finally { ghBusy.value = '' }
 }
 
 async function cloneRepo(r) {
@@ -530,22 +585,18 @@ onBeforeUnmount(() => {
 .lc-head-text { min-width: 0; }
 .lc-title { margin: 0; font: 700 30px/1.15 var(--vm-font-display); letter-spacing: -.02em; color: var(--vm-ink); }
 .lc-sub { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--vm-ink-soft); }
-.lc-account { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; font-size: 13.5px; color: var(--vm-ink-soft); }
-.lc-account-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
-.lc-account-name b { font-weight: 600; color: var(--vm-ink); }
-.lc-account-name :deep(svg) { width: 16px; height: 16px; flex: 0 0 auto; }
-.lc-textbtn { border: none; background: transparent; padding: 6px 2px; color: var(--vm-violet-d); font: 600 13.5px var(--vm-font-sans); cursor: pointer; border-radius: 6px; }
-.lc-textbtn:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
-.lc-textbtn:disabled { opacity: .6; cursor: progress; }
-[data-theme="dark"] .lc-textbtn { color: color-mix(in srgb, var(--vm-violet) 55%, var(--vm-ink)); }
-
-.lc-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; margin-top: 28px; }
-@media (min-width: 1024px) { .lc-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; } }
-.lc-col { min-width: 0; }
-.lc-col-h { margin: 0 0 12px; font: 700 16px/1.3 var(--vm-font-sans); color: var(--vm-ink); }
+.lc-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; margin-top: 28px; }
+@media (min-width: 1024px) { .lc-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; } }
+.lc-col { min-width: 0; display: flex; flex-direction: column; }
+/* Column header: the title, and how many there are. Both columns line up on it. */
+.lc-col-head { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 14px; }
+.lc-col-h { margin: 0; font: 700 17px/1.3 var(--vm-font-display); letter-spacing: -.01em; color: var(--vm-ink); }
+.lc-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--vm-surface-soft); border: 1px solid var(--vm-line); font: 600 12px/1 var(--vm-font-sans); font-variant-numeric: tabular-nums; color: var(--vm-ink-soft); }
 .lc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--vm-line); border-radius: var(--vm-r); background: var(--vm-surface); overflow: hidden; }
 .lc-list > li + li { border-top: 1px solid var(--vm-line); }
-.lc-empty { margin: 0; padding: 20px 16px; border: 1px dashed var(--vm-line-2); border-radius: var(--vm-r); font-size: 14px; color: var(--vm-ink-soft); }
+.lc-empty { margin: 0; display: flex; align-items: center; gap: 12px; padding: 18px 16px; border: 1px dashed var(--vm-line-2); border-radius: var(--vm-r); font-size: 14px; line-height: 1.5; color: var(--vm-ink-soft); }
+.lc-empty p { margin: 0; }
+.lc-empty-ic { width: 22px; height: 22px; flex: 0 0 auto; color: var(--vm-ink-faint); }
 
 /* Buttons */
 .lc-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 13px; border: 1px solid var(--vm-line-2); border-radius: var(--vm-r); background: var(--vm-surface); color: var(--vm-ink); font: 600 13px var(--vm-font-sans); cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
@@ -556,6 +607,12 @@ onBeforeUnmount(() => {
 .lc-btn.danger:hover:not(:disabled) { border-color: var(--vm-danger); background: color-mix(in srgb, var(--vm-danger) 8%, transparent); }
 .lc-btn.primary { background: var(--vm-violet); border-color: var(--vm-violet); color: var(--lc-on-solid); }
 .lc-btn.primary:hover:not(:disabled) { background: var(--vm-violet-d); border-color: var(--vm-violet-d); }
+.lc-btn:focus-visible, .proj-name:focus-visible, .proj-del:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.lc-btn.sm { min-height: 32px; padding: 0 11px; font-size: 12.5px; }
+.lc-btn.sm :deep(svg) { width: 14px; height: 14px; }
+/* Disconnect: quiet until pointed at, so it never competes with the account's main action. */
+.lc-btn.quiet-danger { color: var(--vm-ink-soft); }
+.lc-btn.quiet-danger:hover:not(:disabled) { color: var(--vm-danger); border-color: var(--vm-danger); background: color-mix(in srgb, var(--vm-danger) 8%, transparent); }
 
 /* Project rows */
 .proj { padding: 12px 14px; cursor: pointer; transition: background-color .15s; }
@@ -589,10 +646,21 @@ onBeforeUnmount(() => {
 .proj-fail-actions { display: flex; gap: 8px; }
 
 /* GitHub connect */
-.gh-connect { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 22px 20px; border: 1px solid var(--vm-line); border-radius: var(--vm-r); background: var(--vm-surface); }
-.gh-connect-ic { width: 26px; height: 26px; color: var(--vm-ink); margin-bottom: 4px; }
+.gh-mark { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; background: var(--vm-ink); color: var(--vm-surface); }
+.gh-mark :deep(svg) { width: 22px; height: 22px; }
+.gh-mark.sm { width: 34px; height: 34px; border-radius: 9px; }
+.gh-mark.sm :deep(svg) { width: 17px; height: 17px; }
+.gh-connect { display: flex; align-items: flex-start; gap: 16px; padding: 22px 20px; border: 1px solid var(--vm-line); border-radius: var(--vm-r); background: var(--vm-surface); }
+.gh-connect-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .gh-t { margin: 0; font: 600 15px/1.35 var(--vm-font-sans); color: var(--vm-ink); }
-.gh-s { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: var(--vm-ink-soft); max-width: 46ch; }
+.gh-s { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: var(--vm-ink-soft); max-width: 52ch; }
+
+/* The connected GitHub account: who, then Switch account and Disconnect. */
+.gh-acct { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--vm-line); border-radius: var(--vm-r); background: var(--vm-surface); }
+.gh-acct-id { flex: 1 1 160px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.gh-acct-k { font-size: 12px; line-height: 1.3; color: var(--vm-ink-soft); }
+.gh-acct-name { font: 600 14px/1.3 var(--vm-font-mono); color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-acct-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 
 /* Repo search + rows */
 .lc-search { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 0 12px; min-height: 40px; background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: var(--vm-r); cursor: text; transition: border-color .15s, box-shadow .15s; }
@@ -665,7 +733,9 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) {
   .lc-wrap { padding: 24px 16px 48px; }
   .lc-title { font-size: 26px; }
-  .lc-btn, .lc-textbtn, .ide-back, .ide-gh, .ide-branch { min-height: 44px; }
+  .lc-btn, .ide-back, .ide-gh, .ide-branch { min-height: 44px; }
+  .gh-acct-actions { width: 100%; }
+  .gh-acct-actions .lc-btn { flex: 1; }
   .proj-del { width: 44px; height: 44px; }
   .proj-row { flex-wrap: wrap; }
   .proj-name { flex-basis: 100%; }

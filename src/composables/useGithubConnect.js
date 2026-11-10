@@ -15,21 +15,35 @@ export async function findGithubService(api) {
   return github.find((c) => c.is_builtin) || github[0] || null
 }
 
+const NOT_SET_UP = 'GitHub is not set up on this platform. Ask an administrator to add the GitHub connector.'
+
+// GitHub's own account picker: without it GitHub silently reuses the account signed in on github.com, so
+// "Switch account" would reconnect the same one.
+function withAccountPicker(url) {
+  try {
+    const u = new URL(url)
+    u.searchParams.set('prompt', 'select_account')
+    return u.toString()
+  } catch { return url }
+}
+
 // Resolves when GitHub is connected; rejects with an Error whose message can be shown to the person.
-// Call it BEFORE any await in the click handler: the popup opens synchronously (see useOAuthPopup.js).
-export async function connectGithubService(api) {
+// `switchAccount` shows GitHub's account picker. Call it BEFORE any await in the click handler: the popup
+// opens synchronously (see useOAuthPopup.js).
+export async function connectGithubService(api, { switchAccount = false } = {}) {
   let serviceId = null
   const result = await runOAuthPopup(async () => {
     const svc = await findGithubService(api)
-    if (!svc) throw new Error('GitHub is not set up on this platform. Ask an administrator to add the GitHub connector.')
+    if (!svc) throw new Error(NOT_SET_UP)
     serviceId = svc.id
+    let url
     try {
-      const { data } = await api.startOAuth(serviceId)
-      return data?.redirect_url
+      url = (await api.startOAuth(serviceId)).data?.redirect_url
     } catch (e) {
       const err = e?.response?.data
       throw new Error(err?.detail || err?.error || 'Could not start the GitHub sign-in')
     }
+    return url && switchAccount ? withAccountPicker(url) : url
   }, {
     name: 'oauth_popup',
     messageTypes: ['oauth_result'],
@@ -41,4 +55,16 @@ export async function connectGithubService(api) {
   if (result.ok) return true
   if (result.status === 'cancelled') throw new Error('GitHub sign-in was cancelled')
   throw new Error(result.error || 'GitHub connection failed')
+}
+
+// Disconnects GitHub the way the Connectors page does: the service's credential is removed and revoked on
+// GitHub. Rejects with an Error whose message can be shown to the person.
+export async function disconnectGithubService(api) {
+  const svc = await findGithubService(api)
+  if (!svc) throw new Error(NOT_SET_UP)
+  try {
+    await api.disconnectOAuth(svc.id)
+  } catch (e) {
+    throw new Error(e?.response?.data?.error || 'Could not disconnect GitHub')
+  }
 }
