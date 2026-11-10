@@ -146,7 +146,7 @@
             <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed }">
-            <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" />
+            <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" @toggle="bottomCollapsed = !bottomCollapsed" />
           </div>
         </div>
         <div class="ide-rightpane" :style="{ '--rp-w': rightPaneWidth + 'px' }">
@@ -191,6 +191,8 @@ const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
 const pipelineLog = ref([])
 const activity = ref([])
+// The commands the Coding Agent ran in this project, for the Terminal tab's "Coding Agent" entry (ADM-1196).
+const agentCommands = ref([])
 const branches = ref([])
 const switchingBranch = ref(false)
 const retryingId = ref(null)
@@ -320,6 +322,7 @@ function openProject(p) {
   active.value = { ...p }
   pipelineLog.value = p.log || []
   activity.value = []
+  agentCommands.value = []
   browserKey.value++
   pollStatus()
   connectWs()
@@ -344,6 +347,7 @@ const ws = reconnectingSocket({
       if (msg.event === 'status' && active.value && msg.data) { applyStatus(msg.data); sendWatch() }
       else if (msg.event === 'fs_changed' && msg.data) codeBrowser.value?.onFilesChanged?.(msg.data)
       else if (msg.event === 'watch' && msg.data) onWatchState(msg.data)
+      else if (msg.event === 'agent_command' && msg.data) agentCommands.value = [...agentCommands.value, msg.data]
     } catch { /* ignore malformed frames */ }
   },
 })

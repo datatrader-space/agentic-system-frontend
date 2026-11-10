@@ -9,9 +9,13 @@
         <Icon :icon="collapsed ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
     </div>
-    <div v-show="!collapsed" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
+    <div v-show="!collapsed && tab !== 'terminal'" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
       <pre v-if="lines.length"><span v-for="(l, i) in lines" :key="i" class="ln" :class="lineClass(l)">{{ l }}</span></pre>
       <div v-else class="bp-empty">{{ tab === 'activity' ? 'The coding agent has not run a tool yet.' : 'No log lines yet.' }}</div>
+    </div>
+    <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
+    <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
+      <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" />
     </div>
   </div>
 </template>
@@ -19,24 +23,33 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
+import TerminalPanel from './TerminalPanel.vue'
 
 const props = defineProps({
   pipelineLog: { type: Array, default: () => [] },
   activity: { type: Array, default: () => [] },
   collapsed: { type: Boolean, default: false },
+  // The Terminal tab (ADM-1196, Phase 3): the project, whether it is ready, and the Coding Agent's commands.
+  repoId: { type: Number, default: 0 },
+  ready: { type: Boolean, default: false },
+  agentCommands: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['toggle'])
 
-// Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls.
-const tabs = [
+// Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls; Terminal = shells in the
+// project's sandbox and the commands the Coding Agent ran.
+const tabs = computed(() => [
   { id: 'log', label: 'Log' },
   { id: 'activity', label: 'Activity' },
-]
+  ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }] : []),
+])
 const tab = ref('log')
 const body = ref(null)
+const terminalOpened = ref(false)
 
 function selectTab(id) {
   tab.value = id
+  if (id === 'terminal') terminalOpened.value = true
   if (props.collapsed) emit('toggle')
 }
 
@@ -64,5 +77,6 @@ watch(lines, () => nextTick(() => { const e = body.value; if (e) e.scrollTop = e
 .ln.ok { color: color-mix(in srgb, var(--vm-green) 62%, var(--vm-ink)); }
 .ln.err { color: var(--vm-danger); }
 .bp-empty { color: var(--vm-ink-faint); font-size: 13px; }
+.bp-term { flex: 1; min-height: 0; }
 @media (max-width: 640px) { .bp-tab { min-height: 44px; } .bp-collapse { width: 44px; height: 44px; } }
 </style>

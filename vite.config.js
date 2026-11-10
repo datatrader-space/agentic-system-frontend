@@ -83,6 +83,8 @@ export default defineConfig(({ mode, isSsrBuild }) => {
             if (id.includes('chart.js') || id.includes('vue-chartjs')) return 'charts'
             if (id.includes('/uqr/')) return 'qr'
             if (id.includes('web-vitals')) return 'rum'
+            // xterm (Let's Code's Terminal tab, ~400 kB) is imported when a terminal is first shown (ADM-1196).
+            if (id.includes('@xterm')) return 'terminal'
             // KaTeX is imported lazily (utils/mathRenderer.js) for chat answers that contain math. Without its own
             // chunk the catch-all below put it, and its fonts' CSS, in `vendor`, which EVERY page preloads.
             if (id.includes('/katex/')) return 'katex'
