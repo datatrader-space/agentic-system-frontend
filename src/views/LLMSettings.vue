@@ -756,13 +756,12 @@ const operationDefs = [
   { key: 'ask_llm_model_id', label: 'ASK_LLM', help: "Model the agent's ASK_LLM tool uses." },
   { key: 'summarize_model_id', label: 'Compact & summarization', help: 'Model that summarizes / compacts long conversation history.' },
   { key: 'artifact_summarize_model_id', label: 'Artifact summarization', help: 'Model that summarizes large tool outputs (else fast deterministic head/tail).' },
-  { key: 'turn_router_model_id', label: 'Turn router / manager', help: 'Fast model that pre-routes each turn (greeting vs tool task vs deep task). Leave as Agent default to use a built-in fast model (Haiku) on the agent\'s own provider.' },
   { key: 'enrichment_model_id', label: 'CRS Enrichment Pipeline', help: 'Model for the CRS code-artifact enrichment pipeline AND connector/service schema enrichment. Leave unset to skip enrichment. CRS (a background task) uses the repository owner\'s pick.' },
   { key: 'verifier_model_id', label: 'Final verifier / LLM judge', help: 'Model for the final-answer grounding judge (catches fabrication / ungrounded claims). Leave as Agent default to fall back to the summarize model.' },
   { key: 'rag_contextual_model_id', label: 'RAG Contextual LLM', help: 'Model that writes per-chunk retrieval context (contextual retrieval) and extracts facts for complete-document answers. Leave as Agent default to use the agent\'s own model.' },
   { key: 'planning_model_id', label: 'Planning LLM', help: 'Model used for PLANNING — the triage (plan depth) and detailed-planner calls when the agent drafts a plan. Leave as Agent default to plan with the agent\'s main model; pick a stronger model for better plans or a cheaper one to save cost.' },
 ]
-const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, enrichment_model_id: null, verifier_model_id: null, rag_contextual_model_id: null, planning_model_id: null, embedding_model_id: null })
+const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, enrichment_model_id: null, verifier_model_id: null, rag_contextual_model_id: null, planning_model_id: null, embedding_model_id: null })
 const embeddingDirty = ref(false)
 const reindexing = ref(false)
 // Persistent embedding-health (independent of a just-made change): how many stored chunks were
@@ -777,7 +776,7 @@ const loadEmbeddingHealth = async () => {
 
 // Active operation tab + the provider chosen for each operation (provider → model → save).
 const opActiveTab = ref('ask_llm_model_id')
-const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, enrichment_model_id: null, verifier_model_id: null, rag_contextual_model_id: null, planning_model_id: null })
+const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, enrichment_model_id: null, verifier_model_id: null, rag_contextual_model_id: null, planning_model_id: null })
 const embProvider = ref(null)
 // Embedding models for the selected provider. If the provider has any models flagged is_embedding
 // (OpenRouter/OpenAI sync tags them), show ONLY those so the user isn't hunting through hundreds of
@@ -835,7 +834,7 @@ const currentLabel = (key) => {
 }
 // After the saved selections load, pre-select the provider that owns each chosen model.
 const deriveOpProviders = () => {
-  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'turn_router_model_id', 'enrichment_model_id', 'verifier_model_id', 'rag_contextual_model_id', 'planning_model_id']) {
+  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'enrichment_model_id', 'verifier_model_id', 'rag_contextual_model_id', 'planning_model_id']) {
     const m = modelIndex.value[opModels.value[key]]
     opProvider.value[key] = m ? m.provider : null
   }
@@ -858,7 +857,6 @@ const loadOperationModels = async () => {
       ask_llm_model_id: r.data.ask_llm_model_id ?? null,
       summarize_model_id: r.data.summarize_model_id ?? null,
       artifact_summarize_model_id: r.data.artifact_summarize_model_id ?? null,
-      turn_router_model_id: r.data.turn_router_model_id ?? null,
       enrichment_model_id: r.data.enrichment_model_id ?? null,
       verifier_model_id: r.data.verifier_model_id ?? null,
       rag_contextual_model_id: r.data.rag_contextual_model_id ?? null,
