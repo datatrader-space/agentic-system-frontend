@@ -1,7 +1,7 @@
 <template>
   <div class="code-browser">
     <!-- Left Sidebar: File Tree -->
-    <div class="sidebar" :style="{ width: sidebarWidth + 'px' }">
+    <div class="cb-sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="sidebar-header">
         <div class="sidebar-tabs" role="tablist" aria-label="Browser views">
           <button
@@ -178,6 +178,7 @@
             :theme="monacoTheme"
             :options="diffOptions"
             class="monaco-editor"
+            @editorDidMount="onDiffMount"
           />
         </template>
         <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
@@ -269,7 +270,7 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
-import { useTheme } from '@/composables/useTheme'
+import { useIdeTheme } from '@/composables/useIdeTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
 import ExplorerMenu from '@/components/letscode/ExplorerMenu.vue'
 import ContentSearch from '@/components/letscode/ContentSearch.vue'
@@ -364,8 +365,9 @@ watch(monacoLanguages, (langs) => {
 const activeTabId = ref(null)
 const saving = ref(false)
 
-// The editor follows the app theme (useTheme → <html data-theme>): light 'vs', dark 'vs-dark'.
-const { isDark } = useTheme()
+// Monaco follows the editor's own theme (useIdeTheme: the app's until the person picks one): light 'vs', dark
+// 'vs-dark'.
+const { isDark } = useIdeTheme()
 const monacoTheme = computed(() => (isDark.value ? 'vs-dark' : 'vs'))
 watch(monacoTheme, (t) => { try { monacoNs && monacoNs.editor.setTheme(t) } catch { /* editor not loaded */ } })
 
@@ -380,7 +382,11 @@ const editorOptions = computed(() => ({
   fontSize: 14,
   wordWrap: 'on',
   folding: true,
-  renderWhitespace: 'selection'
+  renderWhitespace: 'selection',
+  // As VS Code: matching brackets in matching colours, and their guides.
+  bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
+  guides: { bracketPairs: 'active', indentation: true, highlightActiveIndentation: true },
+  'semanticHighlighting.enabled': true,
 }))
 
 const diffOptions = computed(() => ({
@@ -392,6 +398,7 @@ const diffOptions = computed(() => ({
   scrollBeyondLastLine: false,
   fontSize: 14,
   wordWrap: 'on',
+  bracketPairColorization: { enabled: true },
 }))
 
 // A tab's id. `Date.now()` alone gave two tabs opened in the same millisecond one id (a kept file opens at once).
@@ -464,16 +471,42 @@ function onKeydown(e) {
 
 // The text editor itself, once Monaco has made it: a search result opens its file at the matching line.
 let editorInst = null
+let diffInst = null
 function onEditorMount(editor) {
   editorInst = editor || null
   try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
+  applyLanguage()
   revealPending()
+}
+function onDiffMount(editor) {
+  diffInst = editor || null
+  applyLanguage()
+}
+
+// EVERY FILE IS COLOURED IN ITS OWN LANGUAGE (ADM-1205). The editor component keeps ONE Monaco model for every tab
+// and never re-reads its `language` prop (monaco-editor-vue3 1.0.5 watches only `value` and `options`): a tab switch
+// changed the text, never the language, so every file was coloured as the first one opened (a .ts after a .json had
+// no TypeScript colours). The active tab's language is set on the model here, and on both sides of a diff.
+function applyLanguage() {
+  const tab = activeTab.value
+  if (!monacoNs || !tab) return
+  const lang = tab.language || 'plaintext'
+  const set = (model) => {
+    try { if (model && model.getLanguageId() !== lang) monacoNs.editor.setModelLanguage(model, lang) } catch { /* disposed */ }
+  }
+  if (tab.type === 'file' && editorInst) set(editorInst.getModel())
+  if (tab.type === 'diff' && diffInst) {
+    const pair = diffInst.getModel()
+    if (pair) { set(pair.original); set(pair.modified) }
+  }
 }
 
 // Computed
 const activeTab = computed(() => {
   return openTabs.value.find(t => t.id === activeTabId.value)
 })
+// The model's language follows the tab shown (see applyLanguage).
+watch(() => [activeTabId.value, activeTab.value && activeTab.value.language], () => nextTick(applyLanguage), { flush: 'post' })
 
 // Build a reactive tree node from a server entry. `expanded`/`loaded`/`loading`/`children` are plain
 // fields — they live inside the reactive `rootNodes` array, so mutating them updates the tree.
@@ -927,6 +960,15 @@ async function refreshDir(path) {
     node.loaded = true
   } catch { node.children = []; node.expanded = false; node.loaded = false }
 }
+// A row the server has just deleted or moved away leaves the tree at once: the folder is read again after, and the
+// project's change report for it (which would read a folder that is gone) finds nothing to read.
+function dropNode(path) {
+  const parent = dirOf(path)
+  const list = parent ? findNode(parent)?.children : rootNodes.value
+  if (!list) return
+  const i = list.findIndex((n) => n.path === path)
+  if (i >= 0) list.splice(i, 1)
+}
 async function openFolder(path) {
   if (!path) return
   const node = findNode(path)
@@ -1092,6 +1134,7 @@ async function deleteEntry(node) {
     if (t.type === 'image' && t.url) URL.revokeObjectURL(t.url)
     projectCache.file.set(props.repositoryId, t.path, null)
   }
+  dropNode(node.path)
   const closing = new Set(openTabs.value.filter(under).map((t) => t.id))
   openTabs.value = openTabs.value.filter((t) => !closing.has(t.id))
   if (closing.has(activeTabId.value)) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
@@ -1111,6 +1154,7 @@ async function moveEntry(fromPath, toDir) {
     return
   }
   retargetTabs(fromPath, to)
+  dropNode(fromPath)
   await refreshDir(dirOf(fromPath))
   await openFolder(toDir)
   afterChange(toDir)
@@ -1440,7 +1484,9 @@ const FileTreeNode = {
 }
 
 /* Sidebar */
-.sidebar {
+/* `cb-sidebar`, not `sidebar`: the app's theme layer paints `:root[data-theme=dark] .sidebar` (its navigation) dark,
+   which reached this panel when the editor's own theme is light (ADM-1205). */
+.cb-sidebar {
   position: relative;
   max-width: 45%;
   flex: 0 0 auto;
@@ -1803,8 +1849,9 @@ const FileTreeNode = {
 .code-browser .node-expand svg { width: 13px; height: 13px; }
 .code-browser .node-spin { animation: cb-node-spin 1s linear infinite; }
 @keyframes cb-node-spin { to { transform: rotate(360deg); } }
-.code-browser .node-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vm-ink); }
-.code-browser .node-gi { flex: 0 0 auto; margin-left: 6px; font: 600 10px var(--vm-font-sans); color: var(--vm-ink-soft); background: color-mix(in srgb, var(--vm-ink-faint) 16%, transparent); border-radius: 4px; padding: 1px 5px; }
+.code-browser .node-name { flex: 1 1 auto; min-width: min(4ch, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vm-ink); }
+/* In a narrow panel the badge gives way first: the name stays readable (375 px, 2026-11-11). */
+.code-browser .node-gi { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-left: 6px; font: 600 10px var(--vm-font-sans); color: var(--vm-ink-soft); background: color-mix(in srgb, var(--vm-ink-faint) 16%, transparent); border-radius: 4px; padding: 1px 5px; }
 .code-browser .node-path { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--vm-ink-faint); }
 .code-browser .search-hit .node-name { flex: 0 0 auto; }
 /* The explorer's file actions (ADM-1205): the row's More button, drag and drop, the name box. */
@@ -1838,6 +1885,6 @@ const FileTreeNode = {
   color: var(--vm-red-ink); background: var(--vm-red-soft); border-radius: 4px;
 }
 @media (max-width: 640px) { .code-browser .tree-node { min-height: 40px; } }
-@media (hover: none), (pointer: coarse) { .code-browser .node-more { opacity: 1; width: 36px; height: 36px; } }
+@media (hover: none), (pointer: coarse) { .code-browser .node-more { opacity: 1; width: 32px; height: 36px; } }
 @media (prefers-reduced-motion: reduce) { .code-browser .node-spin { animation: none; } }
 </style>

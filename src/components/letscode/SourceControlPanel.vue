@@ -12,7 +12,7 @@
     </div>
 
     <div v-if="waiting" class="scm-empty" role="status" aria-live="polite">
-      <Icon icon="lucide:loader" class="spin muted" aria-hidden="true" /> The project's sandbox is starting. Trying again in {{ waiting }}s…
+      <Icon icon="lucide:loader" class="spin scm-faint" aria-hidden="true" /> The project's sandbox is starting. Trying again in {{ waiting }}s…
     </div>
     <div v-else-if="loading && !fetched" class="scm-empty">Loading changes…</div>
     <div v-else-if="error" class="scm-empty err" role="alert">{{ error }}</div>
@@ -270,7 +270,7 @@ defineExpose({ refresh: load })
 .scm-empty { padding: 16px 12px; color: var(--vm-ink-soft); display: flex; align-items: center; gap: 6px; line-height: 1.45; }
 .scm-empty.err { color: var(--vm-red-ink); }
 .scm-empty :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; color: var(--vm-green); }
-.scm-empty :deep(svg.muted) { color: var(--vm-ink-faint); }
+.scm-empty :deep(svg.scm-faint) { color: var(--vm-ink-faint); }
 
 .scm-commit { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-bottom: 1px solid var(--vm-line); }
 .scm-input { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--vm-line-2); border-radius: 7px; background: var(--vm-surface); color: var(--vm-ink); font: 12.5px/1.45 var(--vm-font-sans); resize: vertical; }

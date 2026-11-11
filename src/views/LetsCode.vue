@@ -141,7 +141,7 @@
     </div>
 
     <!-- ============================ WORKSPACE ============================ -->
-    <div v-else class="lc-ide">
+    <div v-else class="lc-ide" :data-theme="ideTheme">
       <div class="ide-bar">
         <button type="button" class="ide-back" @click="onBackToProjects"><Icon icon="lucide:chevron-left" /> Projects</button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
@@ -157,10 +157,16 @@
           </select>
         </label>
         <StatusPill :project="active" />
+        <!-- The editor's own light or dark (ADM-1205): only Let's Code changes, never the rest of AADML. -->
+        <button type="button" class="ide-theme" :aria-pressed="ideDark ? 'true' : 'false'"
+                :aria-label="ideDark ? 'Dark editor (switch to light)' : 'Light editor (switch to dark)'"
+                :title="ideDark ? 'Switch the editor to light' : 'Switch the editor to dark'" @click="toggleIdeTheme">
+          <Icon :icon="ideDark ? 'lucide:moon' : 'lucide:sun'" aria-hidden="true" />
+        </button>
         <a v-if="active.github_url" class="ide-gh" :href="githubWebUrl(active.github_url)" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub">
           <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">Open on GitHub</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
         </a>
-        <DeployButton :class="{ 'ide-deploy-end': !active.github_url }" :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
+        <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
       <div ref="ideMainEl" class="ide-main">
@@ -201,6 +207,7 @@ import { connectGithubService, disconnectGithubService } from '@/composables/use
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
+import { useIdeTheme } from '@/composables/useIdeTheme'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
@@ -504,6 +511,8 @@ function pollStatus() {
 
 // Unsaved edits are never lost without a question: leaving the project, another page, closing the tab (ADM-1200).
 const unsavedGuard = useUnsavedGuard(() => codeBrowser.value?.unsavedCount)
+// The editor's own light or dark, toggled in its bar (ADM-1205).
+const { theme: ideTheme, isDark: ideDark, toggle: toggleIdeTheme } = useIdeTheme()
 
 async function onBackToProjects() {
   if (await unsavedGuard.mayLeave()) closeProject()
@@ -701,7 +710,8 @@ onBeforeUnmount(() => {
 @keyframes lc-shimmer { 100% { transform: translateX(100%); } }
 
 /* ---------- Workspace ---------- */
-.lc-ide { display: flex; flex-direction: column; height: 100%; }
+.lc-ide { display: flex; flex-direction: column; height: 100%; background: var(--vm-bg); color: var(--vm-ink); color-scheme: light; }
+.lc-ide[data-theme="dark"] { color-scheme: dark; }
 .ide-bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 14px; border-bottom: 1px solid var(--vm-line); background: var(--vm-surface); flex: 0 0 auto; }
 .ide-back { display: inline-flex; align-items: center; gap: 2px; min-height: 34px; padding: 0 8px 0 4px; border: none; border-radius: 8px; background: transparent; color: var(--vm-ink-soft); font: 600 13px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, color .15s; }
 .ide-back:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
@@ -714,12 +724,20 @@ onBeforeUnmount(() => {
 .ide-branch select { border: none; background: transparent; font: 13px var(--vm-font-mono); color: var(--vm-ink); cursor: pointer; outline: none; max-width: 180px; padding: 4px 0; }
 .ide-branch select:disabled { cursor: not-allowed; color: var(--vm-ink-faint); }
 .ide-branch select option { background: var(--vm-surface); color: var(--vm-ink); }
-.ide-gh { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; text-decoration: none; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); color: var(--vm-ink); font: 600 13px var(--vm-font-sans); transition: border-color .15s, background-color .15s; }
+.ide-gh { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; text-decoration: none; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); color: var(--vm-ink); font: 600 13px var(--vm-font-sans); transition: border-color .15s, background-color .15s; }
 .ide-gh:hover { border-color: var(--vm-violet); background: var(--vm-violet-soft); }
 .ide-gh :deep(svg) { width: 15px; height: 15px; }
 .ide-gh .ext { width: 13px; height: 13px; color: var(--vm-ink-faint); }
 /* With no GitHub link the Deploy button takes the link's place at the end of the bar. */
-.ide-deploy-end { margin-left: auto; }
+.ide-theme {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; border: 1px solid var(--vm-line-2); border-radius: 8px;
+  background: var(--vm-surface); color: var(--vm-ink-soft); cursor: pointer;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+.ide-theme:hover { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-ink); }
+.ide-theme:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.ide-theme :deep(svg) { width: 16px; height: 16px; }
 
 .ide-main { flex: 1; min-height: 0; display: flex; }
 .ide-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -748,6 +766,7 @@ onBeforeUnmount(() => {
   .lc-wrap { padding: 24px 16px 48px; }
   .lc-title { font-size: 26px; }
   .lc-btn, .ide-back, .ide-gh, .ide-branch { min-height: 44px; }
+  .ide-theme { width: 44px; height: 44px; }
   .gh-acct-actions { width: 100%; }
   .gh-acct-actions .lc-btn { flex: 1; }
   .proj-del { width: 44px; height: 44px; }

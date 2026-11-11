@@ -6,6 +6,7 @@
       ref="menuEl"
       class="xm"
       role="menu"
+      :data-theme="ideTheme"
       :aria-label="label"
       :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
       @keydown="onKey">
@@ -34,6 +35,7 @@
 // "More" button on a touch screen. Arrow keys move, Enter chooses, Escape closes and focus returns to the row.
 import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
+import { useIdeTheme } from '@/composables/useIdeTheme'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -44,6 +46,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'close'])
 
+// Teleported to the body, outside the editor's container: it carries the editor's own theme itself.
+const { theme: ideTheme } = useIdeTheme()
 const menuEl = ref(null)
 const pos = ref({ x: 0, y: 0 })
 let opener = null

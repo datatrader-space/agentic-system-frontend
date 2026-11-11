@@ -10,7 +10,7 @@
     </button>
 
     <Teleport to="body">
-      <div v-if="open" class="dp-overlay" @pointerdown.self="close">
+      <div v-if="open" class="dp-overlay" :data-theme="ideTheme" @pointerdown.self="close">
         <div ref="dialogEl" class="dp-dialog" role="dialog" aria-modal="true" aria-labelledby="dp-title" @keydown.esc.stop="close" @keydown.tab="trapTab">
 
           <!-- Header: the project and where it deploys -->
@@ -87,7 +87,7 @@
                 </button>
               </div>
 
-              <div v-show="tab === 'deploy'" id="dp-pane-deploy" role="tabpanel" aria-labelledby="dp-tab-deploy" class="pane">
+              <div v-show="tab === 'deploy'" id="dp-pane-deploy" role="tabpanel" aria-labelledby="dp-tab-deploy" class="dp-pane">
                 <DeployProgress v-if="current" :dep="current" :lines="logLines" :branch="branch" :project-name="projectName" @open-env="tab = 'env'" />
                 <div v-else class="dp-center">
                   <Icon icon="lucide:rocket" class="dp-big-ic" aria-hidden="true" />
@@ -95,13 +95,13 @@
                   <p>Deploy a preview first: it gets its own link. Publish to production when you are happy with it.</p>
                 </div>
               </div>
-              <div v-if="visited.domains" v-show="tab === 'domains'" id="dp-pane-domains" role="tabpanel" aria-labelledby="dp-tab-domains" class="pane">
+              <div v-if="visited.domains" v-show="tab === 'domains'" id="dp-pane-domains" role="tabpanel" aria-labelledby="dp-tab-domains" class="dp-pane">
                 <DeployDomains :repo-id="repoId" />
               </div>
-              <div v-if="visited.env" v-show="tab === 'env'" id="dp-pane-env" role="tabpanel" aria-labelledby="dp-tab-env" class="pane">
+              <div v-if="visited.env" v-show="tab === 'env'" id="dp-pane-env" role="tabpanel" aria-labelledby="dp-tab-env" class="dp-pane">
                 <DeployEnv :repo-id="repoId" :skipped-paths="current?.skipped_paths || []" />
               </div>
-              <div v-show="tab === 'history'" id="dp-pane-history" role="tabpanel" aria-labelledby="dp-tab-history" class="pane">
+              <div v-show="tab === 'history'" id="dp-pane-history" role="tabpanel" aria-labelledby="dp-tab-history" class="dp-pane">
                 <p v-if="!deployments.length" class="dp-muted">No deploys yet.</p>
                 <ul v-else class="hist">
                   <li v-for="d in deployments" :key="d.id" class="hist-row">
@@ -150,9 +150,13 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { runOAuthPopup } from '@/composables/useOAuthPopup'
 import { usePoller } from '@/composables/usePoller'
+import { useIdeTheme } from '@/composables/useIdeTheme'
 import DeployProgress from './deploy/DeployProgress.vue'
 import DeployDomains from './deploy/DeployDomains.vue'
 import DeployEnv from './deploy/DeployEnv.vue'
+
+// The panel is teleported to the body, outside the editor: it carries the editor's own light or dark (ADM-1205).
+const { theme: ideTheme } = useIdeTheme()
 
 const props = defineProps({
   repoId: { type: Number, required: true },

@@ -19,7 +19,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
-import { useTheme } from '@/composables/useTheme'
+import { useIdeTheme } from '@/composables/useIdeTheme'
 import { loadXterm } from './loadXterm'
 
 const props = defineProps({
@@ -40,10 +40,11 @@ let gone = false
 let written = 0                                   // agent mode: entries already written
 const enc = new TextEncoder()
 
-// Colours from the app's own tokens, so the terminal follows light and dark like the rest of the editor.
-const { isDark } = useTheme()
+// Colours from the editor's tokens, read where the terminal is: the editor has its own light or dark (useIdeTheme),
+// set on its container, so the page's root may hold the other one.
+const { isDark } = useIdeTheme()
 function themeFromTokens() {
-  const css = getComputedStyle(document.documentElement)
+  const css = getComputedStyle(host.value || document.documentElement)
   const v = (name, fallback) => (css.getPropertyValue(name) || '').trim() || fallback
   return {
     background: v('--vm-surface', isDark.value ? '#16161d' : '#ffffff'),
@@ -52,7 +53,7 @@ function themeFromTokens() {
     selectionBackground: isDark.value ? '#3b3b55' : '#d9d6ff',
   }
 }
-watch(isDark, () => { if (term) term.options.theme = themeFromTokens() })
+watch(isDark, () => { if (term) term.options.theme = themeFromTokens() }, { flush: 'post' })   // after the container's attribute
 
 // The person's shell: AADML's socket for this project and terminal number. Output arrives as bytes.
 const sock = reconnectingSocket({
