@@ -125,7 +125,8 @@ const quote = useLivePrice(() => {
   if (isAgent.value || draftProblem.value) return null
   const references = video.refs.filter(ref => ref.attachment_id).map(ref => ({ attachment_id: ref.attachment_id, role: ref.role }))
   const conversation = chat.conversationId ? { conversation_id: chat.conversationId } : {}
-  if (props.kind === 'image') return { kind: 'image', model_id: video.image.modelId ? Number(video.image.modelId) : undefined, params: { aspect_ratio: video.image.aspect_ratio || undefined, n: Number(video.image.n) || 1 }, references, ...conversation }
+  // The prompt goes too: a model priced by tokens (GPT Image 2) is held at what its words can cost (ADM-1170).
+  if (props.kind === 'image') return { kind: 'image', model_id: video.image.modelId ? Number(video.image.modelId) : undefined, prompt: composePreset(selected.value, values.value, details.value, variant.value), params: { aspect_ratio: video.image.aspect_ratio || undefined, n: Number(video.image.n) || 1 }, references, ...conversation }
   return { kind: 'video', route_id: video.routeId || undefined, prompt: composePreset(selected.value, values.value, details.value, variant.value),
     params: { duration: Number(video.settings.duration) || undefined, aspect_ratio: video.settings.aspect_ratio || undefined, resolution: video.settings.resolution || undefined, sound: video.options.audio ? !!video.settings.sound : undefined },
     references: references.filter(ref => ref.role !== 'edit_source'), ...conversation }

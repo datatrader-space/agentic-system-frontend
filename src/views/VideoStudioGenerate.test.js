@@ -355,6 +355,8 @@ describe('Image and Video pages: the live price', () => {
   it.each(['image','video'])('%s: shows the price of the draft and asks for it with the page settings', async kind => {
     await render(kind); pickRequired(); await flushPromises(); await settle()
     expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind, references: [expect.objectContaining({ attachment_id: 42 })] }))
+    // The prompt is sent with both: a token-priced image model is held by what its words can cost (ADM-1170).
+    expect(api.getStudioQuote.mock.calls.at(-1)[0].prompt).toEqual(expect.any(String))
     // An exact price is just the price (owner, 2026-11-11: never charged above the most shown).
     expect(wrapper.get('[data-test="live-price-amount"]').text()).toBe('$0.04')
     expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeUndefined()
