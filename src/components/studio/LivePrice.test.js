@@ -6,17 +6,16 @@ const price = over => ({ status: 'exact', estimate: 0.04, most: 0.04, reason: ''
 describe('LivePrice', () => {
   it('puts the no-spend note on its own line, without a stray separator (live 2026-10-29)', () => {
     const w = mount(LivePrice, { props: { price: price() } })
-    expect(w.get('strong').text()).toBe('About $0.04')
+    expect(w.get('strong').text()).toBe('$0.04')
     expect(w.findAll('.lp-note').at(-1).text()).toBe('Nothing is spent until you press Generate on its card.')
-    // ADM-1149: a listed price is an estimate; the person pays what the provider bills, so it is never "at most".
-    expect(w.get('.lp-est').text()).toBe('An estimate: you pay what the provider bills.')
-    expect(w.text()).not.toContain('at most')
+    // Owner 2026-11-11 (the industry's rule): what it costs, never more than the most shown, nothing for a failure.
+    expect(w.get('.lp-est').text()).toBe('You pay what it costs, never more than $0.04. A failed render costs nothing.')
     w.unmount()
   })
-  it('an estimated price is shown from the estimate to the most it can cost', () => {
+  it('an estimated price is shown as about the estimate, at most the most it can cost', () => {
     const w = mount(LivePrice, { props: { price: price({ status: 'estimated', estimate: 0.2, most: 0.6 }) } })
-    expect(w.get('strong').text()).toBe('About $0.20 to $0.60')
-    expect(w.text()).not.toContain('at most')
+    expect(w.get('strong').text()).toBe('About $0.20, at most $0.60')
+    expect(w.get('.lp-est').text()).toBe('You pay what it costs, never more than $0.60. A failed render costs nothing.')
     w.unmount()
   })
   it('an unknown price says why, and never $0', () => {
@@ -43,17 +42,15 @@ describe('LivePrice', () => {
     w.unmount()
   })
 
-  it('says the price is an estimate, never "at most" (owner, 2026-11-03: the provider bills the final price)', () => {
+  it('the rule is its own line, and an unpriced model is capped at its hold', () => {
     let w = mount(LivePrice, { props: { price: { status: 'range', estimate: 0.13, most: 0.17 } } })
     // Its own line, like the note: a wrapped line must not start with a stray separator (live 2026-11-03).
-    expect(w.get('.lp-est').text()).toBe('An estimate: you pay what the provider bills.')
+    expect(w.get('.lp-est').text()).toBe('You pay what it costs, never more than $0.17. A failed render costs nothing.')
     expect(w.text()).not.toContain('·')
-    expect(w.text()).not.toContain('at most')
     w.unmount()
     w = mount(LivePrice, { props: { price: { status: 'unknown', estimate: 0, most: 2 } } })
-    expect(w.get('strong').text()).toBe('No published price')
-    expect(w.text()).toContain('$2.00 is held')
-    expect(w.text()).not.toContain('at most')
+    expect(w.get('[data-test="live-price"]').text()).toContain('No published price, at most $2.00')
+    expect(w.get('.lp-est').text()).toBe('You pay what it costs, never more than $2.00. A failed render costs nothing.')
     w.unmount()
   })
 })

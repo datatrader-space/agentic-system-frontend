@@ -37,18 +37,24 @@ describe('VideoJobCard', () => {
     expect(api.post).toHaveBeenCalledWith('/video/jobs/j1/start/', { accept: true })
   })
 
-  it('the price is an estimate and never a ceiling: the provider bills the final price (owner, 2026-11-03)', () => {
+  it('the most shown is a promise: never charged above it, nothing for a failure (owner, 2026-11-11)', () => {
     const ranged = { ...base, state: 'awaiting_authorization',
                      quote: { estimate_usd: '0.30', max_usd: '0.50', pricing_status: 'range', adjustments: [] } }
     let w = mount(VideoJobCard, { props: { job: ranged } })
-    expect(w.find('.vjc-price').text()).toBe('About $0.30, an estimate: you pay what the provider bills.')
-    expect(w.text()).not.toContain('at most')
+    expect(w.find('.vjc-price').text()).toBe(
+      'About $0.30, at most $0.50. You pay what it costs, never more than $0.50. A failed render costs nothing.')
+    w.unmount()
+    const exact = { ...base, state: 'awaiting_authorization',
+                    quote: { estimate_usd: '0.56', max_usd: '0.56', pricing_status: 'exact', adjustments: [] } }
+    w = mount(VideoJobCard, { props: { job: exact } })
+    expect(w.find('.vjc-price').text()).toBe(
+      '$0.56. You pay what it costs, never more than $0.56. A failed render costs nothing.')
     w.unmount()
     const unknown = { ...base, state: 'awaiting_authorization',
                       quote: { estimate_usd: '0', max_usd: '2.000000', pricing_status: 'unknown', adjustments: [] } }
     w = mount(VideoJobCard, { props: { job: unknown } })
     expect(w.find('.vjc-price').text()).toBe(
-      'The provider publishes no price for this request; $2.00 is held and you pay what the provider bills.')
+      'The provider publishes no price for this request. You pay what it costs, never more than $2.00. A failed render costs nothing.')
     w.unmount()
   })
 

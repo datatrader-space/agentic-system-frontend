@@ -23,9 +23,9 @@
         </ul>
       </div>
       <p class="vjc-price" v-if="job.quote">
-        <!-- The listed price is an estimate; the person pays what the provider bills (owner, 2026-11-03). -->
-        <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request; ${{ money(job.quote.max_usd) }} is held and you pay what the provider bills.</template>
-        <template v-else>About ${{ money(job.quote.estimate_usd) }}, an estimate: you pay what the provider bills.</template>
+        <!-- The person pays what it costs, never more than the most shown, nothing for a failure (owner, 2026-11-11). -->
+        <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request. {{ priceRule(job.quote.max_usd) }}</template>
+        <template v-else>{{ priceAmount({ status: job.quote.pricing_status, estimate: job.quote.estimate_usd, most: job.quote.max_usd }) }}. {{ priceRule(job.quote.max_usd) }}</template>
       </p>
       <!-- An estimate holds for a short time so the price stays current; the server refuses an expired one,
            so the card says so instead of offering a Generate that can only fail. -->
@@ -96,6 +96,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import MediaThumb from '../common/MediaThumb.vue'
 import { thumbnailFor } from '../../utils/mediaThumb'
+import { priceAmount, priceRule } from '../../utils/studioPrice'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
 

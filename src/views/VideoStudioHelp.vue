@@ -174,9 +174,9 @@
           <h2 id="h-costs">What it costs</h2>
           <ul class="plain">
             <li><strong>An estimate is free.</strong> It shows the price on a card before anything renders.</li>
-            <li><strong>Only Generate spends.</strong> It holds the estimated amount against your organization's budget; when
-              the provider reports the real cost, that is what is charged.</li>
-            <li><strong>Check the job card after a failure.</strong> It shows the run status and charging outcome. A retry prepares a new proposal.</li>
+            <li><strong>Only Generate spends.</strong> It holds the most the render can cost from your balance; when the
+              provider reports the real cost, you pay that, never more than the most shown on the card.</li>
+            <li><strong>A failed render costs nothing.</strong> Its hold is released at once. A retry prepares a new estimate.</li>
             <li><strong>The estimate card shows its expiry.</strong> After that, press Get a new estimate on its card to see
               the current price.</li>
             <li><strong>Over budget, nothing starts.</strong> If a render would pass your organization's spending limit, it
@@ -269,7 +269,6 @@ const RES = ['480p', '540p', '720p', '768p', '1080p', '2K', '4K']
 function bestRes(r) { return ((r.outputs && r.outputs.resolutions) || []).slice().sort((a, b) => RES.indexOf(a) - RES.indexOf(b)).pop() || '' }
 function maxSeconds(r) { return Math.max(0, ...(((r.outputs && r.outputs.durations) || []).map(Number).filter((n) => n > 0))) }
 function usable(r) { return r.state === 'active' && (r.offered || []).length > 0 }
-function shortName(name) { const s = String(name || ''); const i = s.indexOf(': '); return i > 0 ? s.slice(i + 2) : s }
 // "MiniMax: H3" reads as "MiniMax H3": a short model name means little without its maker.
 function label(r) {
   const s = String(r.name || ''); const i = s.indexOf(': ')

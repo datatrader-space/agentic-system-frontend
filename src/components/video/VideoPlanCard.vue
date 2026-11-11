@@ -22,7 +22,7 @@
       </li>
     </ol>
 
-    <p v-if="plan.state === 'waiting'" class="vpc-note">An estimate: you pay what the provider bills. Nothing is spent until you press Generate.</p>
+    <p v-if="plan.state === 'waiting'" class="vpc-note">You pay what each scene costs, never more than the most shown. A failed scene costs nothing. Nothing is spent until you press Generate.</p>
 
     <div v-if="allows('start') || allows('decline') || allows('stop')" class="vpc-actions">
       <button v-if="allows('start')" type="button" class="vpc-btn primary" data-test="video-plan-start" :disabled="pending" @click="act('start')">Generate all {{ plan.scenes.length }} scenes</button>

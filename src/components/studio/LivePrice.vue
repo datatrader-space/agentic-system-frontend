@@ -3,9 +3,9 @@
     <p class="lp" role="status" aria-live="polite" data-test="live-price">
       <template v-if="loading"><span class="lp-dot" aria-hidden="true" />Working out the price…</template>
       <template v-else-if="price">
-        <strong data-test="live-price-amount">{{ amount }}</strong><span v-if="held"> · {{ usd(price.most) }} is held</span>
+        <strong data-test="live-price-amount">{{ amount }}</strong><span v-if="held">, at most {{ usd(price.most) }}</span>
         <span v-if="price.status === 'unknown'" class="lp-note" data-test="live-price-reason">{{ unknownReason }}</span>
-        <span class="lp-est">An estimate: you pay what the provider bills.</span>
+        <span v-if="ceiling > 0" class="lp-est">{{ priceRule(ceiling) }}</span>
         <span class="lp-note">Nothing is spent until you press Generate on its card.</span>
       </template>
       <template v-else-if="problem"><span :class="{ 'lp-refused': refused }" data-test="live-price-problem">{{ problem }}</span><span v-if="refused" class="lp-note">Choose another model to continue.</span></template>
@@ -21,9 +21,9 @@
 </template>
 <script setup>
 import { computed } from 'vue'
-import { priceAmount, usd } from '../../utils/studioPrice'
-// The draft's price, from useLivePrice: worked out as the settings change, before anything is asked for. It is the
-// listed price, an estimate: the person pays what the provider bills (owner, 2026-11-03), so it is never "at most".
+import { priceAmount, priceRule, usd } from '../../utils/studioPrice'
+// The draft's price, from useLivePrice: worked out as the settings change, before anything is asked for. The person
+// pays what the render costs, never more than the most shown, and nothing for a failure (owner, 2026-11-11).
 // A price that depends on the settings the provider uses is shown as its published range. unknown: why it is known
 // only once made (never "$0"). code 'not_priced': the model cannot be charged for, so it cannot be used.
 const props = defineProps({ price: Object, loading: Boolean, problem: String, code: { type: String, default: '' }, accepted: Boolean, empty: { type: String, default: 'Fill in the details to see the price.' } })
@@ -31,6 +31,8 @@ const emit = defineEmits(['update:accepted'])
 const refused = computed(() => props.code === 'not_priced')
 const amount = computed(() => priceAmount(props.price))
 const held = computed(() => props.price?.status === 'unknown' && props.price.most > 0)
+// The most the person can pay: the hold, else the price itself.
+const ceiling = computed(() => Number(props.price?.most ?? props.price?.estimate ?? 0))
 const unknownReason = computed(() => { const r = String(props.price?.reason || '').trim(); return r ? `${r[0].toUpperCase()}${r.slice(1)}${/[.!?]$/.test(r) ? '' : '.'}` : 'This model publishes no price before it runs; the cost is known once it is made.' })
 const word = key => { const s = String(key || '').replace(/[_-]+/g, ' ').trim(); return s ? s[0].toUpperCase() + s.slice(1) : 'Setting' }
 const value = v => v === true ? 'on' : v === false ? 'off' : String(v)
