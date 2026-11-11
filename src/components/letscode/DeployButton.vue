@@ -29,6 +29,9 @@
               <div v-if="conn.connected" class="dp-more">
                 <button type="button" class="dp-ibtn" aria-label="More" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen"><Icon icon="lucide:more-horizontal" /></button>
                 <div v-if="moreOpen" class="dp-menu" role="menu">
+                  <button v-if="hasSite" type="button" role="menuitem" :disabled="removing" @click="removeFromVercel">
+                    <Icon icon="lucide:cloud-off" aria-hidden="true" /> {{ removing ? 'Removing' : 'Remove from Vercel' }}
+                  </button>
                   <button type="button" role="menuitem" :disabled="disconnecting" @click="disconnect">
                     <Icon icon="lucide:unplug" aria-hidden="true" /> {{ disconnecting ? 'Disconnecting' : 'Disconnect Vercel' }}
                   </button>
@@ -107,6 +110,10 @@
                     <span class="hist-by">{{ d.started_by === 'agent' ? 'Coding Agent' : 'You' }}</span>
                     <span class="hist-when">{{ when(d.created_at) }}</span>
                     <a v-if="d.url && d.state === 'READY'" class="dp-ibtn" :href="d.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open the ${d.target} deploy from ${when(d.created_at)}`"><Icon icon="lucide:external-link" /></a>
+                    <button v-if="d.has_build && !d.active && d.state !== 'DELETED'" type="button" class="dp-ibtn danger" :disabled="deletingId === d.id"
+                            :aria-label="`Delete the ${d.target} deploy from ${when(d.created_at)}`" @click="deleteDeployment(d)">
+                      <Icon :icon="deletingId === d.id ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingId === d.id }" />
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -170,9 +177,9 @@ const TABS = [
   { k: 'history', l: 'History', i: 'lucide:history' },
 ]
 const LABELS = { PREPARING: 'Uploading files', QUEUED: 'Queued', INITIALIZING: 'Starting the build', BUILDING: 'Building',
-  READY: 'Ready', ERROR: 'Build failed', FAILED: 'Not deployed', CANCELED: 'Cancelled' }
+  READY: 'Ready', ERROR: 'Build failed', FAILED: 'Not deployed', CANCELED: 'Cancelled', DELETED: 'Deleted' }
 const stateLabel = (s) => LABELS[s] || s || ''
-const toneOf = (s) => (s === 'READY' ? 'ok' : ['ERROR', 'FAILED'].includes(s) ? 'bad' : s === 'CANCELED' ? 'off' : 'run')
+const toneOf = (s) => (s === 'READY' ? 'ok' : ['ERROR', 'FAILED'].includes(s) ? 'bad' : ['CANCELED', 'DELETED'].includes(s) ? 'off' : 'run')
 const errorOf = (e, f) => e?.response?.data?.error || e?.message || f
 function when(iso) {
   const d = iso ? new Date(iso) : null
@@ -188,6 +195,8 @@ const tab = ref('deploy')
 const visited = reactive({ domains: false, env: false })
 const connecting = ref(false)
 const disconnecting = ref(false)
+const removing = ref(false)
+const deletingId = ref(null)
 const starting = ref('')
 const cancelling = ref(false)
 const moreOpen = ref(false)
@@ -284,6 +293,46 @@ async function deploy(target) {
   } finally { starting.value = '' }
 }
 
+// Something of this project is on Vercel: a deployment that reached Vercel and is not deleted.
+const hasSite = computed(() => deployments.value.some((d) => d.has_build && d.state !== 'DELETED'))
+
+async function deleteDeployment(d) {
+  const live = d.state === 'READY'
+  const ok = await confirm({
+    title: `Delete this ${d.target === 'production' ? 'production' : 'preview'} deployment?`,
+    message: live
+      ? `It is removed from your Vercel account and its link ${String(d.url || '').replace(/^https?:\/\//, '')} stops working. Your project files are not changed.`
+      : 'It is removed from your Vercel account. Your project files are not changed.',
+    confirmText: 'Delete', danger: true,
+  })
+  if (!ok) return
+  deletingId.value = d.id
+  try {
+    const { data } = await api.deleteVercelDeployment(props.repoId, d.id)
+    deployments.value = deployments.value.map((x) => (x.id === d.id ? { ...x, ...data } : x))
+    notify.success('Deployment deleted from Vercel')
+  } catch (e) { notify.error(errorOf(e, 'Could not delete the deployment')) }
+  finally { deletingId.value = null }
+}
+
+async function removeFromVercel() {
+  moreOpen.value = false
+  const ok = await confirm({
+    title: `Remove ${props.projectName || 'this project'} from Vercel?`,
+    message: 'This takes the site offline: the Vercel project is deleted with every deployment, custom domain and environment variable. Your code in AADML is not changed, and you can deploy again later.',
+    confirmText: 'Remove from Vercel', danger: true,
+  })
+  if (!ok) return
+  removing.value = true
+  try {
+    await api.removeVercelProject(props.repoId)
+    deployments.value = deployments.value.map((d) => (d.has_build && !d.active ? { ...d, state: 'DELETED', embeddable: null } : d))
+    logLines.value = []
+    notify.success('Removed from Vercel. The site is offline.')
+  } catch (e) { notify.error(errorOf(e, 'Could not remove the project from Vercel')) }
+  finally { removing.value = false }
+}
+
 async function cancel() {
   const dep = current.value
   if (!dep) return
@@ -361,6 +410,7 @@ defineExpose({ load, openPanel })
 .dp-menu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 10px; border: none; border-radius: 7px; background: transparent; color: var(--vm-danger); font: 600 13px var(--vm-font-sans); cursor: pointer; text-align: left; }
 .dp-menu button:hover { background: color-mix(in srgb, var(--vm-danger) 8%, transparent); }
 .dp-menu :deep(svg) { width: 15px; height: 15px; }
+.dp-ibtn.danger:hover:not(:disabled) { color: var(--vm-danger); background: color-mix(in srgb, var(--vm-danger) 8%, transparent); }
 
 .dp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 20px; }
 .dp-skel { display: flex; flex-direction: column; gap: 10px; }

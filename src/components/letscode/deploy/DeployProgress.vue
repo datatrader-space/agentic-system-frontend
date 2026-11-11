@@ -24,9 +24,21 @@
       </div>
       <div class="site">
         <div class="site-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="mono">{{ host }}</span></div>
-        <iframe :src="dep.url" :title="`Live ${dep.target} of ${projectName}`" loading="lazy"
+        <!-- A protected preview (Vercel Authentication) or a site that forbids frames cannot be shown here: the browser
+             refuses it and showed a broken page (live 2026-11-10). Say why, and open it in a tab. -->
+        <div v-if="dep.embeddable === false" class="site-off">
+          <Icon :icon="dep.protected ? 'lucide:lock' : 'lucide:frame'" class="site-off-ic" aria-hidden="true" />
+          <p class="site-off-h">{{ dep.protected ? 'This preview is protected by Vercel' : 'This site cannot be shown inside another page' }}</p>
+          <p class="site-off-p">{{ dep.protected
+            ? 'Vercel asks visitors to sign in before they see a preview. Open it in a new tab: you see it once you are signed in to Vercel.'
+            : 'The site tells browsers not to show it inside other pages. Open it in a new tab.' }}</p>
+          <div class="site-off-a">
+            <a class="pbtn primary" :href="dep.url" target="_blank" rel="noopener noreferrer"><Icon icon="lucide:external-link" aria-hidden="true" /> {{ dep.target === 'production' ? 'Open site' : 'Open preview' }}</a>
+            <a v-if="dep.protected && dep.protection_url" class="pbtn" :href="dep.protection_url" target="_blank" rel="noopener noreferrer"><Icon icon="lucide:shield" aria-hidden="true" /> Protection settings on Vercel</a>
+          </div>
+        </div>
+        <iframe v-else :src="dep.url" :title="`Live ${dep.target} of ${projectName}`" loading="lazy"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>
-        <p class="site-note">If the site asks you to sign in to Vercel here, open it in a new tab: Vercel protects preview links by default.</p>
       </div>
     </div>
 
@@ -106,9 +118,9 @@ const STEPS = [
   { key: 'live', label: 'Deploying' },
 ]
 const LABELS = { PREPARING: 'Uploading files', QUEUED: 'Queued', INITIALIZING: 'Starting the build', BUILDING: 'Building',
-  READY: 'Ready', ERROR: 'Build failed', FAILED: 'Not deployed', CANCELED: 'Cancelled' }
+  READY: 'Ready', ERROR: 'Build failed', FAILED: 'Not deployed', CANCELED: 'Cancelled', DELETED: 'Deleted from Vercel' }
 const label = computed(() => LABELS[props.dep.state] || props.dep.state)
-const tone = computed(() => (['ERROR', 'FAILED'].includes(props.dep.state) ? 'bad' : props.dep.state === 'CANCELED' ? 'off' : 'run'))
+const tone = computed(() => (['ERROR', 'FAILED'].includes(props.dep.state) ? 'bad' : ['CANCELED', 'DELETED'].includes(props.dep.state) ? 'off' : 'run'))
 const host = computed(() => String(props.dep.url || '').replace(/^https?:\/\//, ''))
 
 // Where the deploy is, or where it stopped.
@@ -210,7 +222,11 @@ async function copy() {
 .site-chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--vm-line-2); }
 .site-chrome span { margin-left: 10px; font-size: 12px; color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site iframe { display: block; width: 100%; height: min(52vh, 460px); border: 0; background: #fff; }
-.site-note { margin: 0; padding: 8px 12px; font-size: 12px; color: var(--vm-ink-soft); border-top: 1px solid var(--vm-line); }
+.site-off { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 24px; text-align: center; }
+.site-off-ic { width: 30px; height: 30px; color: var(--vm-ink-soft); }
+.site-off-h { margin: 0; font: 700 15px var(--vm-font-sans); color: var(--vm-ink); }
+.site-off-p { margin: 0; max-width: 52ch; font-size: 13px; line-height: 1.5; color: var(--vm-ink-soft); }
+.site-off-a { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
 
 .term { border: 1px solid #262a30; border-radius: 12px; overflow: hidden; background: var(--pg-term); color: var(--pg-term-ink); }
 .term-h { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #262a30; font: 600 13.5px var(--vm-font-sans); }

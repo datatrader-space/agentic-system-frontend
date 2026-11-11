@@ -838,6 +838,8 @@ export default {
   getVercelDeployments: (repoId) => api.get(`/lets-code/projects/${repoId}/vercel/deployments/`, { noCache: true }),   // { deployments, connection }
   getVercelDeployment: (repoId, depId, { log = false } = {}) => api.get(`/lets-code/projects/${repoId}/vercel/deployments/${depId}/`, { params: log ? { log: 1 } : {}, noCache: true }),
   cancelVercelDeployment: (repoId, depId) => api.post(`/lets-code/projects/${repoId}/vercel/deployments/${depId}/cancel/`),
+  deleteVercelDeployment: (repoId, depId) => api.delete(`/lets-code/projects/${repoId}/vercel/deployments/${depId}/`),   // its URL stops working
+  removeVercelProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/vercel/project/`),   // the site goes offline: every deployment, domain and env var
   getVercelDomains: (repoId) => api.get(`/lets-code/projects/${repoId}/vercel/domains/`, { noCache: true }),   // { domains: [{ name, verified, configured, dns, verification }] }
   addVercelDomain: (repoId, name) => api.post(`/lets-code/projects/${repoId}/vercel/domains/`, { name }),
   verifyVercelDomain: (repoId, name) => api.post(`/lets-code/projects/${repoId}/vercel/domains/${encodeURIComponent(name)}/`),

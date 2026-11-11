@@ -8,6 +8,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 vi.mock('@/services/api', () => ({
   default: {
     getVercelDeployments: vi.fn(), getVercelDeployment: vi.fn(), getVercelConnection: vi.fn(),
+    deleteVercelDeployment: vi.fn(), removeVercelProject: vi.fn(),
     startVercelConnect: vi.fn(), disconnectVercel: vi.fn(), deployToVercel: vi.fn(), cancelVercelDeployment: vi.fn(),
     getVercelDomains: vi.fn(), addVercelDomain: vi.fn(), verifyVercelDomain: vi.fn(), removeVercelDomain: vi.fn(),
     getVercelEnv: vi.fn(), setVercelEnv: vi.fn(), deleteVercelEnv: vi.fn(), importVercelEnv: vi.fn(),
@@ -181,5 +182,37 @@ describe('DeployButton', () => {
     w = mount(DeployButton, { props: { repoId: 7, ready: false } })
     await flushPromises()
     expect(w.find('.dp-trigger').attributes('disabled')).toBeDefined()
+  })
+
+  it('a protected preview shows why and a way to open it, not a broken frame', async () => {
+    await openWindow([dep({ embeddable: false, protected: true, protection_url: 'https://vercel.com/t/p/settings/deployment-protection' })])
+    expect($('.site iframe')).toBeNull()
+    expect($('.site-off').textContent).toContain('This preview is protected by Vercel')
+    expect($$('.site-off a').map((a) => a.getAttribute('href'))).toEqual(
+      ['https://my-app-abc.vercel.app', 'https://vercel.com/t/p/settings/deployment-protection'])
+  })
+
+  it('deletes one deployment from History after confirming', async () => {
+    api.deleteVercelDeployment.mockResolvedValue({ data: dep({ state: 'DELETED' }) })
+    await openWindow([dep()])
+    await click($('#dp-tab-history'))
+    await click($('.hist-row .dp-ibtn.danger'))
+    expect(confirm.mock.calls[0][0].danger).toBe(true)
+    expect(api.deleteVercelDeployment).toHaveBeenCalledWith(7, 1)
+    expect($('.hist-row').textContent).toContain('Deleted')
+    expect($('.hist-row .dp-ibtn.danger')).toBeNull()
+  })
+
+  it('removes the project from Vercel only after confirming', async () => {
+    api.removeVercelProject.mockResolvedValue({ data: { removed: true } })
+    confirm.mockResolvedValueOnce(false)
+    await openWindow([dep()])
+    await click($('.dp-more .dp-ibtn'))
+    await click(button('Remove from Vercel'))
+    expect(api.removeVercelProject).not.toHaveBeenCalled()
+    await click($('.dp-more .dp-ibtn'))
+    await click(button('Remove from Vercel'))
+    expect(api.removeVercelProject).toHaveBeenCalledWith(7)
+    expect($('.state-pill').textContent).toContain('Deleted')
   })
 })
