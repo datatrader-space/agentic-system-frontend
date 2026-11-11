@@ -70,3 +70,42 @@ test('what a copy did is said in one sentence', async () => {
   assert.equal(copySaid({ copied: 1, already: 2, labels: 0, left_out: 1, reasons: [{ reason: 'deleted from the target on request', photos: 1 }] }, 'T'),
     '1 photo copied into “T”, 2 photos already there. 1 photo left out: deleted from the target on request (1)');
 });
+
+// A fake fetch that records every request and answers ``reply`` (JSON) with ``status``; 204 answers nothing.
+function fake(reply = {}, status = 200) {
+  const asked = [];
+  const fetchImpl = async (url, options) => {
+    asked.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : undefined, csrf: options.headers['X-CSRFToken'] });
+    return { ok: status < 400, status, headers: { get: () => (status === 204 ? '' : 'application/json') }, json: async () => reply };
+  };
+  return { asked, opts: { fetchImpl, store: null, cookies: 'csrftoken=tok' } };
+}
+
+test('a folder is renamed and deleted by its id', async () => {
+  const { renameFolder, deleteFolder } = await import('../src/api/training.js');
+  const { asked, opts } = fake({ id: 5, name: 'Pilots 2', projects: 3, can_arrange: true });
+  assert.deepEqual(await renameFolder(5, 'Pilots 2', opts), { id: 5, name: 'Pilots 2', projects: 3, can_arrange: true });
+  const gone = fake({}, 204);
+  assert.equal(await deleteFolder(5, gone.opts), null);
+  assert.deepEqual(asked, [{ url: '/api/training-data/app/folders/5/', method: 'PATCH', body: { name: 'Pilots 2' }, csrf: 'tok' }]);
+  assert.deepEqual(gone.asked, [{ url: '/api/training-data/app/folders/5/', method: 'DELETE', body: undefined, csrf: 'tok' }]);
+  const clash = fake({ error: 'This workspace already has a folder named “Pilots”.', code: 'taken', field: 'name' }, 409);
+  await assert.rejects(renameFolder(5, 'Pilots', clash.opts), { status: 409, field: 'name', serverCode: 'taken' });
+});
+
+test('the folder filter is a folder\'s id, so a renamed folder keeps its projects; a deleted one resets it', async () => {
+  const { inFolder, filterAfterDelete, folderRows } = await import('../src/api/training.js');
+  const cards = [toCard({ ref: 'a', folder: { id: 2, name: 'Pilots' } }), toCard({ ref: 'b', folder: { id: 3, name: 'Pilots' } }), toCard({ ref: 'c' })];
+  assert.deepEqual(cards.filter(c => inFolder(c, '')).map(c => c.ref), ['a', 'b', 'c']);
+  assert.deepEqual(cards.filter(c => inFolder(c, '2')).map(c => c.ref), ['a']);          // two folders of one name stay apart
+  assert.deepEqual(cards.filter(c => inFolder(c, 3)).map(c => c.ref), ['b']);
+  // A rename changes the name only: the same id still finds the project.
+  const renamed = toCard({ ref: 'a', folder: { id: 2, name: 'Pilots, autumn' } });
+  assert.equal(inFolder(renamed, '2'), true);
+  assert.equal(filterAfterDelete('2', 2), '');
+  assert.equal(filterAfterDelete('3', 2), '3');
+  assert.equal(filterAfterDelete('', 2), '');
+  assert.deepEqual(folderRows([{ id: 2, name: 'Pilots', projects: 4, can_arrange: true }, { id: 3, name: 'Old', projects: null, can_arrange: false }], cards),
+    [{ id: 2, name: 'Pilots', can_arrange: true, projects: 4 }, { id: 3, name: 'Old', can_arrange: false, projects: 1 }]);
+  assert.deepEqual(folderRows(undefined), []);
+});

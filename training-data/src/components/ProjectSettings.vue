@@ -2,13 +2,16 @@
 // A project's settings (asked for by the user on 2026-10-16; the old pages had them): its name and address, the five
 // data-use answers (data-use/ — each save is a new version, and only the Owner changes them), a language-model project's
 // three more answers (llm/data-use/, its own versions; added 2026-10-20 with the user's approval), the apps that send data
-// (the Connect app page), and deleting the project. Backend: training_models_data/app_api.py.
-import { computed, onMounted, reactive, ref } from 'vue';
-import { Check, Copy, ShieldCheck, Trash2, KeyRound } from 'lucide-vue-next';
+// (the Connect app page), and deleting the project. Backend: training_models_data/app_api.py. A vision project's Owner
+// also chooses here how a record from an app becomes a training photo: the keys that name its group and the consent text
+// kept with it (ADM-1210 §3.2, records_api.py record-fields/).
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { Check, Copy, ShieldCheck, Trash2, KeyRound, Waypoints } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { getDataUse, saveDataUse, renameProject, trashProject, dataUseAnswers, dataUseForm, getLlmDataUse, saveLlmDataUse, llmDataUseAnswers } from '../api/training.js';
+import { recordsApi, fieldsBody, fieldsRefusal, placedWords, pathName, takeSettingsFocus } from '../api/records.js';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate', 'renamed', 'trashed']);
@@ -35,7 +38,43 @@ onMounted(async () => {
     }
   }
   catch (e) { error.value = e.message; } finally { loading.value = false; }
+  if (vision.value) await loadFields();
+  if (takeSettingsFocus() === 'record-fields' && fieldsHeading.value) { await nextTick(); fieldsHeading.value.scrollIntoView({ block: 'start' }); fieldsHeading.value.focus({ preventScroll: true }); }
 });
+
+// ── From a record to a training photo (a vision project, its Owner) ──
+const vision = computed(() => owner.value && props.project?.family === 'vision');
+const fields = ref(null); const fieldsLoading = ref(false); const fieldsError = ref(''); const fieldsHeading = ref(null);
+const fieldsForm = reactive({ mode: 'keys', paths: [], consent: '' }); const fieldsConfirm = ref(false); const fieldsBusy = ref(false); const fieldsTold = ref('');
+const keyLimit = computed(() => fields.value?.limits?.keys ?? 3);
+const consentLimit = computed(() => fields.value?.limits?.consent_chars ?? 300);
+const consentLength = computed(() => fieldsForm.consent.split(/\s+/).filter(Boolean).join(' ').length);
+const fieldsProblem = computed(() => fieldsRefusal(fieldsForm, fields.value?.limits));
+function fromFields(body) {
+  fields.value = body;
+  Object.assign(fieldsForm, { mode: body.group.mode, paths: body.group.mode === 'keys' ? body.group.paths.map(p => [...p]) : [], consent: body.consent.given || '' });
+}
+async function loadFields() {
+  fieldsLoading.value = true; fieldsError.value = '';
+  try { fromFields(await recordsApi.fields(props.project.ref)); } catch (e) { fieldsError.value = e.message; } finally { fieldsLoading.value = false; }
+}
+const chosenAt = key => fieldsForm.paths.findIndex(p => pathName(p) === pathName(key.path));
+function toggleKey(key) {
+  const at = chosenAt(key);
+  if (at >= 0) fieldsForm.paths.splice(at, 1);
+  else if (fieldsForm.paths.length < keyLimit.value) fieldsForm.paths.push([...key.path]);
+}
+function askSaveFields() {
+  fieldsError.value = fieldsProblem.value;
+  if (!fieldsProblem.value) fieldsConfirm.value = true;
+}
+async function saveFields() {
+  if (fieldsProblem.value) { fieldsError.value = fieldsProblem.value; fieldsConfirm.value = false; return; }
+  fieldsBusy.value = true; fieldsError.value = ''; fieldsTold.value = '';
+  try { const answer = await recordsApi.saveFields(props.project.ref, fieldsBody(fieldsForm)); fromFields(answer); fieldsTold.value = placedWords(answer); fieldsConfirm.value = false; }
+  catch (e) { fieldsError.value = e.message; }
+  finally { fieldsBusy.value = false; }
+}
 async function saveLlmAnswers() {
   const answer = await act(() => saveLlmDataUse(props.project.ref, llmDataUseAnswers(llmForm)), 'The language-model answers are saved as a new version. They apply from now on.');
   if (answer) llmVersion.value = answer.version;
@@ -104,6 +143,47 @@ async function remove() {
       </form>
     </section>
 
+    <section v-if="vision" id="record-fields" class="panel settings-block" aria-labelledby="record-fields-title">
+      <h2 id="record-fields-title" ref="fieldsHeading" tabindex="-1"><Waypoints :size="18" aria-hidden="true"/> From a record to a training photo</h2>
+      <p class="field-help">When your app sends a photo, its record says which home or place the photo belongs to. Photos of one group always stay on the same side of the split, so a model is never tested on a place it trained on.</p>
+      <p v-if="fieldsLoading && !fields">Loading…</p>
+      <p v-if="fieldsError" class="field-error" role="alert">{{ fieldsError }}</p>
+      <div v-if="fieldsTold" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ fieldsTold }}</span></div>
+      <template v-if="fields">
+        <dl class="settings-facts fields-facts">
+          <dt>The rule now</dt><dd>{{ fields.rule }}</dd>
+          <dt>Records</dt><dd>{{ fields.named }} of {{ fields.records }} record{{ fields.records === 1 ? '' : 's' }} from apps name a group under it.</dd>
+          <dt>Unassigned pool</dt><dd>{{ fields.pool }} photo{{ fields.pool === 1 ? '' : 's' }} without a group yet.</dd>
+          <dt>Consent kept</dt><dd>{{ fields.consent.in_force }}</dd>
+        </dl>
+        <form class="settings-policy" @submit.prevent="askSaveFields">
+          <fieldset class="policy-card"><legend>How a photo gets its group</legend>
+            <label class="policy-option"><input v-model="fieldsForm.mode" name="fields-mode" type="radio" value="keys"><div><strong>From keys of its record</strong><p>Choose up to {{ keyLimit }} keys. The first one the record fills in names the group.</p></div></label>
+            <label class="policy-option"><input v-model="fieldsForm.mode" name="fields-mode" type="radio" value="each_photo"><div><strong>Each photo is its own group</strong><p>For an app that names no home or place.</p></div></label>
+            <template v-if="fieldsForm.mode === 'keys'">
+              <p v-if="!fields.keys.length" class="field-help">No record from an app has arrived yet, so there is no key to choose. The default keys hold until then.</p>
+              <ul v-else class="fields-keys" aria-label="Keys found in the records">
+                <li v-for="key in fields.keys" :key="pathName(key.path)">
+                  <label :class="['fields-key', { 'fields-key--off': chosenAt(key) < 0 && fieldsForm.paths.length >= keyLimit }]">
+                    <input type="checkbox" :checked="chosenAt(key) >= 0" :disabled="chosenAt(key) < 0 && fieldsForm.paths.length >= keyLimit" @change="toggleKey(key)">
+                    <span class="fields-key-name"><code translate="no">{{ key.name }}</code><small>{{ key.records }} record{{ key.records === 1 ? '' : 's' }}{{ key.example !== '' && key.example != null ? `, for example “${key.example}”` : '' }}</small></span>
+                    <UiBadge v-if="chosenAt(key) >= 0" tone="purple">{{ chosenAt(key) + 1 }}</UiBadge>
+                  </label>
+                </li>
+              </ul>
+              <p v-if="fieldsForm.paths.length" class="field-help">Read in this order: {{ fieldsForm.paths.map(pathName).join(', then ') }}.</p>
+            </template>
+          </fieldset>
+          <fieldset class="policy-card"><legend>Licence or consent kept with each photo</legend>
+            <label class="field-label" for="fields-consent">Text<textarea id="fields-consent" v-model="fieldsForm.consent" class="text-input settings-text" rows="2" name="consent" autocomplete="off" placeholder="e.g. Customer consent given in the FitMyWall app" aria-describedby="fields-consent-count"></textarea></label>
+            <p id="fields-consent-count" :class="['field-help', 'fields-count', { 'fields-count--over': consentLength > consentLimit }]" aria-live="polite">{{ consentLength }} of {{ consentLimit }} characters</p>
+            <p class="field-help">Left empty, the project keeps the consent of its client, or says none was stated.</p>
+          </fieldset>
+          <div class="settings-actions"><UiButton type="submit" variant="primary" :disabled="fieldsBusy || !!fieldsProblem">Save how photos get their group</UiButton></div>
+        </form>
+      </template>
+    </section>
+
     <section class="panel settings-block">
       <h2><KeyRound :size="18"/> Apps that send data</h2>
       <p class="field-help">The keys of the apps that send {{ llm ? 'data' : 'photos' }} to this project, and how to send them.</p>
@@ -116,6 +196,11 @@ async function remove() {
       <UiButton class="danger" @click="deleting=true;confirmText=''">Move to Trash</UiButton>
     </section>
 
+    <UiDialog :open="fieldsConfirm" title="Save how photos get their group" @close="fieldsConfirm=false">
+      <p class="dialog-description">Groups already given stay as they are. Photos in the unassigned pool get a group now when their record names one under the new rule, and every photo that arrives from now on follows it.</p>
+      <p v-if="fieldsError" class="field-error" role="alert">{{ fieldsError }}</p>
+      <div class="dialog-actions"><UiButton @click="fieldsConfirm=false">Cancel</UiButton><UiButton variant="primary" :disabled="fieldsBusy" @click="saveFields">{{ fieldsBusy ? 'Saving…' : 'Save' }}</UiButton></div>
+    </UiDialog>
     <UiDialog :open="deleting" title="Move this project to the Trash" @close="deleting=false">
       <p class="dialog-description">“{{ savedName }}” leaves every list now and is deleted for good in 30 days unless you restore it. Type the project name to confirm.</p>
       <input v-model="confirmText" class="text-input" :aria-label="`Type ${savedName} to confirm`" :placeholder="savedName">
@@ -153,4 +238,17 @@ async function remove() {
 .field-label,legend,.check-line{font-size:14px}
 .danger{color:#b42318;border-color:#fda29b}
 .danger-fill{background:#d92d20;border-color:#d92d20}
+.settings-block h2:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:3px;border-radius:4px}
+.fields-facts{grid-template-columns:140px 1fr;margin:4px 0 12px}
+.fields-keys{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px;max-height:320px;overflow:auto}
+.fields-key{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border:1px solid #e3e8ef;border-radius:8px;cursor:pointer}
+.fields-key:focus-within{outline:2px solid var(--aadml-focus);outline-offset:1px}
+.fields-key input{flex:none;width:18px;height:18px;margin:0;accent-color:var(--aadml-focus)}
+.fields-key--off{cursor:not-allowed;background:#f7f8fb}
+.fields-key-name{flex:1;min-width:0}
+.fields-key-name code{font-size:12px;color:#24344c;overflow-wrap:anywhere}
+.fields-key-name small{display:block;font-size:11px;color:#5f6d82;margin-top:2px;overflow-wrap:anywhere}
+.fields-count{font-variant-numeric:tabular-nums;margin:0}
+.fields-count--over{color:#b52f40!important}
+@media(max-width:600px){.fields-facts{grid-template-columns:1fr}.fields-facts dd{margin-bottom:6px}}
 </style>

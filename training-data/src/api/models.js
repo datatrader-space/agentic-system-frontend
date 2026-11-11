@@ -16,6 +16,46 @@ export const modelsApi = {
   usage: (ref, days) => apiFetch(`${base(ref)}/usage/?days=${enc(days)}`, { timeoutMs: SLOW }),
 };
 
+// A vision model's evaluations (backend: app_api.py evaluations/, evaluations/<n>/, evaluations/<n>/(cancel|retry)/).
+// Opening one follows it at the provider while it is unfinished, so its answer gets the same longer wait as the page's.
+const project = ref => `/training-data/app/projects/${enc(ref)}`;
+export const evaluationsApi = {
+  // Newest first, 50 a page: ``before`` is the last number shown, for the next page.
+  list: (ref, { model, before } = {}, opts) => {
+    const q = new URLSearchParams(Object.entries({ model, before }).filter(([, v]) => v !== '' && v != null)).toString();
+    return apiFetch(`${project(ref)}/evaluations/${q ? `?${q}` : ''}`, { timeoutMs: SLOW, ...opts });
+  },
+  get: (ref, number, opts) => apiFetch(`${project(ref)}/evaluations/${enc(number)}/`, { timeoutMs: SLOW, ...opts }),
+  cancel: (ref, number, opts) => apiFetch(`${project(ref)}/evaluations/${enc(number)}/cancel/`, { timeoutMs: SLOW, ...opts, method: 'POST', body: {} }),
+  retry: (ref, number, opts) => apiFetch(`${project(ref)}/evaluations/${enc(number)}/retry/`, { timeoutMs: SLOW, ...opts, method: 'POST', body: {} }),
+};
+
+// The evaluation a model's block opens: the one running, else the one that ended without a result, else the newest
+// measured one (the model row's ``evaluating``, ``ended`` and ``evaluation``). null when it has none.
+export function newestEvaluation(model) {
+  return model?.evaluating?.number ?? model?.ended?.number ?? model?.evaluation?.number ?? null;
+}
+
+// An attempt's billable machine time as a person reads it: "45 s", "12 min 5 s", "2 h 3 min". Not known: '—'.
+export function billableText(seconds) {
+  if (seconds === null || seconds === undefined || seconds === '' || Number.isNaN(Number(seconds))) return '—';
+  const s = Math.max(0, Math.round(Number(seconds)));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`;
+  const minutes = Math.floor((s % 3600) / 60);
+  return `${Math.floor(s / 3600)} h${minutes ? ` ${minutes} min` : ''}`;
+}
+
+// What happened to one attempt, in words: its own reason when it has one, else what its state means.
+const ATTEMPT_STATE = {
+  queued: 'Waiting for a machine', starting: 'Starting the machine', running: 'Running', finalizing: 'Reading the results',
+  succeeded: 'Finished', failed: 'Failed', cancelled: 'Cancelled',
+};
+export function attemptText(attempt) {
+  if (attempt?.reason) return attempt.reason;
+  return ATTEMPT_STATE[attempt?.state] || attempt?.state || '';
+}
+
 // A write whose answer never came may still have been done on the server: the page reads the models again before
 // the person can press the button a second time.
 export const unanswered = error => error?.code === 'timeout' || error?.code === 'network';

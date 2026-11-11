@@ -142,6 +142,26 @@ export async function loadReview(store) {
   const body = await json(`${base(store.ref)}/review/`);
   keepImages(store, 'review', body.photos.map(p => ({ id: p.id, batchId: 'review', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
     state: 'In review', label: p.label, author: p.author, labelled: true, tags: p.tags || [], shapes: [], noObjects: false })));
+  // Why approving is refused in this project ('' when it is not): "Approve selected" is off from the start (ADM-1210).
+  store.approveRefused = typeof body.approve_refused === 'string' ? body.approve_refused : '';
+}
+
+// The body of an assignment's send-back: only the photos chosen, or (none chosen) every one not approved yet.
+export function sendBackBody(reason, photos = []) {
+  const chosen = [...new Set((photos || []).filter(Boolean).map(String))];
+  return chosen.length ? { reason, photos: chosen } : { reason };
+}
+
+// What a bulk approval answered ({approved, refused: [{label, why}]}), in one sentence.
+export function approvedWords({ approved = 0, refused = [] } = {}) {
+  const n = Number(approved) || 0; const left = Array.isArray(refused) ? refused.length : 0;
+  return `${n} label${n === 1 ? '' : 's'} approved.${left ? ` ${left} ${left === 1 ? 'was' : 'were'} not, and why is listed below.` : ''}`;
+}
+
+// What taking an approval back answered: the dataset versions that hold the photo keep the label they froze (D6).
+export function takenBackWords({ affected_versions: versions = [], warning = '' } = {}) {
+  const kept = warning || (versions.length ? `${versions.join(', ')} keep${versions.length === 1 ? 's' : ''} the label ${versions.length === 1 ? 'it' : 'they'} froze.` : '');
+  return `The approval is taken back: the label waits for approval again.${kept ? ` ${kept}` : ''}`;
 }
 
 export async function loadLabellers(store) {
@@ -178,4 +198,8 @@ export const api = {
   comments: (ref, photo) => json(`${base(ref)}/photos/${enc(photo)}/comments/`),
   comment: (ref, photo, text) => json(`${base(ref)}/photos/${enc(photo)}/comments/`, 'POST', { text }),
   tag: (ref, photo, body) => json(`${base(ref)}/photos/${enc(photo)}/tags/`, 'POST', body),
+  // ADM-1210 §3.7, §3.10 (backend review_api.py). ``opts`` is for the tests (fetchImpl) only.
+  takeBack: (ref, label, opts) => apiFetch(`${base(ref)}/labels/${enc(label)}/take-back/`, { ...opts, method: 'POST', body: {} }),
+  reopen: (ref, number, photo, opts) => apiFetch(`${base(ref)}/assignments/${Number(number)}/photos/${enc(photo)}/reopen/`, { ...opts, method: 'POST', body: {} }),
+  approveMany: (ref, labels, opts) => apiFetch(`${base(ref)}/review/approve/`, { timeoutMs: 120000, ...opts, method: 'POST', body: { labels } }),
 };

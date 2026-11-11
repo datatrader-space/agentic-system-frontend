@@ -1,13 +1,15 @@
 <script setup>
 // The dataset page's LLM form (plan §2.1): the Examples tab (filters by source, kind, state and split; one example
 // with its revisions; deleting one on request) and the Preparation tab (the settings, "Run preparation", and the
-// report of a run with its findings). Backend: llm/app_api.py.
+// report of a run with its findings), and beside "Delete on request" the list of what was deleted on request (ADM-1210
+// §3.8, llm/review_api.py deletions/, for people with the overview right). Backend: llm/app_api.py.
 import { computed, onMounted, ref, watch } from 'vue';
 import { RefreshCw, Play, Trash2, ShieldCheck, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import LlmConversation from './LlmConversation.vue';
+import DeletedOnRequest from './DeletedOnRequest.vue';
 import { llmApi, KIND_LABEL, SOURCE_LABEL, STATE_LABEL, SPLIT_LABEL, ACTION_LABEL, findingText } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
@@ -16,6 +18,10 @@ const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
 const rights = computed(() => props.project?.rights || []);
 const tab = ref('Examples');
+const tabs = computed(() => (rights.value.includes('overview') ? ['Examples', 'Preparation', 'Deleted on request'] : ['Examples', 'Preparation']));
+const deletionsList = ref(null);
+const loadDeletions = page => llmApi.deletions(props.project.ref, page);
+function refresh() { if (tab.value === 'Examples') loadExamples(); else if (tab.value === 'Preparation') loadPreparation(); else deletionsList.value?.reload(); }
 
 // ── Examples ──
 const filters = ref({ source: '', kind: '', state: '', split: '' });
@@ -94,8 +100,8 @@ onMounted(loadExamples);
 
 <template>
   <div class="studio llm-examples">
-    <div class="studio-actions"><div class="studio-tabs"><button v-for="t in ['Examples', 'Preparation']" :key="t" :class="{active: tab===t}" @click="tab=t">{{ t }}</button></div>
-      <UiButton @click="tab==='Examples' ? loadExamples() : loadPreparation()"><RefreshCw :size="15" /> Refresh</UiButton></div>
+    <div class="studio-actions"><div class="studio-tabs"><button v-for="t in tabs" :key="t" :class="{active: tab===t}" :aria-pressed="tab===t" @click="tab=t">{{ t }}</button></div>
+      <UiButton @click="refresh"><RefreshCw :size="15" /> Refresh</UiButton></div>
     <div v-if="told" class="notice" role="status"><span>{{ told }}</span><button class="icon-button" aria-label="Dismiss" @click="told=''"><X :size="16" /></button></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
 
@@ -118,6 +124,11 @@ onMounted(loadExamples);
         </section>
       </template>
     </template>
+
+    <section v-else-if="tab==='Deleted on request'" class="panel">
+      <h2>Deleted on request</h2>
+      <DeletedOnRequest ref="deletionsList" kind="example" :load="loadDeletions" />
+    </section>
 
     <template v-else>
       <p v-if="!prep && !error" class="llm-loading">Loading…</p>
@@ -183,7 +194,7 @@ onMounted(loadExamples);
         </details>
         <template v-if="rights.includes('upload')">
           <h3><Trash2 :size="15" /> Delete on request</h3>
-          <p class="field-help">The example and every revision go; it is never made again from where it came. Published dataset versions stay as they were and are listed.</p>
+          <p class="field-help">The example and every revision go; it is never made again from where it came. Published dataset versions stay as they were and are listed. <button v-if="rights.includes('overview')" type="button" class="link-button" @click="opened=null; tab='Deleted on request'">See what was deleted on request</button></p>
           <label class="field-label">Reason<input v-model="reason" class="text-input" maxlength="500" placeholder="e.g. the customer asked for it"></label>
           <p v-if="sure" class="field-error" role="alert">This cannot be undone. Press again to delete the example and every revision of it.</p>
           <p v-if="deleteError" class="field-error" role="alert">{{ deleteError }}</p>
@@ -201,5 +212,7 @@ onMounted(loadExamples);
 .llm-pager{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px}
 .llm-run-select{max-width:320px}
 .llm-revision{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin:8px 0}
+.link-button{background:none;border:0;padding:0;color:var(--aadml-primary);font:inherit;text-decoration:underline;cursor:pointer}
+.link-button:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px;border-radius:3px}
 .llm-revision summary{cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:8px}
 </style>

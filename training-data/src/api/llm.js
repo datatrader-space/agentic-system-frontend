@@ -37,6 +37,10 @@ export const llmApi = {
   decide: (ref, number, item, body) => post(`${llm(ref)}/reviews/${number}/items/${item}/`, body),
   comment: (ref, number, body) => post(`${llm(ref)}/reviews/${number}/comments/`, body),
   move: (ref, number, move, body = {}) => post(`${llm(ref)}/reviews/${number}/${move}/`, body),
+  // ADM-1210 §3.7, §3.8, §3.10 (backend llm/review_api.py). ``opts`` is for the tests (fetchImpl) only.
+  decideMany: (ref, number, items, opts) => post(`${llm(ref)}/reviews/${Number(number)}/items/decide/`, { items, decision: 'approved' }, { timeoutMs: 120000, ...opts }),
+  takeBack: (ref, number, item, opts) => post(`${llm(ref)}/reviews/${Number(number)}/items/${Number(item)}/take-back/`, {}, opts),
+  deletions: (ref, page, opts) => apiFetch(`${llm(ref)}/deletions/${page?.before ? query({ before: page.before, before_id: page.before_id ?? '' }) : ''}`, opts),
   datasets: ref => apiFetch(`${llm(ref)}/datasets/`),
   publish: (ref, body) => post(`${llm(ref)}/datasets/`, body),
   training: ref => apiFetch(`${llm(ref)}/training/`),
@@ -308,6 +312,21 @@ export function withFixes(content, fixes) {
   const last = [...messages.keys()].reverse().find(i => messages[i].role === 'assistant');
   if (last !== undefined && 'answer' in fixes) messages[last] = { ...messages[last], content: fixes.answer };
   return out;
+}
+
+// The examples of a review its reviewer can approve together: those still waiting that preparation did not flag. A
+// flagged one is left out (decision D10): it is read and decided on its own.
+export const approvable = items => (items || []).filter(it => it.decision === 'waiting' && it.why !== 'flagged');
+export const leftOut = items => (items || []).filter(it => it.decision === 'waiting' && it.why === 'flagged');
+
+// Whether an example's approval can be taken back from this review: the review is accepted and the example approved
+// (or fixed and approved). The server says why when a later review holds it.
+export const mayTakeBack = (batch, item) => batch?.state === 'accepted' && ['approved', 'fixed'].includes(item?.decision);
+
+// The body of a review's send-back: only the examples chosen (positions, from 1), or every one.
+export function reviewSendBackBody(reason, positions = []) {
+  const chosen = [...new Set((positions || []).map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  return chosen.length ? { reason, positions: chosen } : { reason };
 }
 
 // Which board column a review batch stands in (plan §2.1: Unassigned → Reviewing → In review → Dataset).

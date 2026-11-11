@@ -22,9 +22,10 @@ export async function loadDataset(store, { q = '', status = 'All', filters = FIL
   store.images = [...store.images.filter(i => i.batchId !== 'dataset'), ...body.photos.map(p => ({
     id: p.id, batchId: 'dataset', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height, state: p.status,
     labels: p.labels, label: p.label, golden: p.golden, split: p.split, group: p.group, origin: p.origin,
-    tags: p.tags || [], shapes: [], noObjects: false, labelled: p.label_state === 'done',
+    tags: p.tags || [], shapes: [], noObjects: false, labelled: p.label_state === 'done', labelState: p.label_state || '',
   }))];
-  store.dataset = { total: body.total, page: body.page, pages: body.pages, splitCounts: body.split_counts, may: body.may };
+  // ``waiting``: records sent by the project's app that are not training photos yet (0 for who may not take them in).
+  store.dataset = { total: body.total, page: body.page, pages: body.pages, splitCounts: body.split_counts, may: body.may, waiting: Number(body.waiting) || 0 };
   // The editor asks the store what this person may do; the Dataset page knows it from the same rights.
   store.can = { ...(store.can || {}), batch: !!body.may?.golden, upload: !!body.may?.delete };
   return store.dataset;
@@ -44,7 +45,62 @@ export const datasetApi = {
   preview: (ref, kind) => apiFetch(`${base(ref)}/versions/preview/${query({ kind })}`),
   publish: (ref, body) => post(`${base(ref)}/versions/`, body),
   version: (ref, name) => apiFetch(`${base(ref)}/versions/${enc(name)}/`),
+  // At most 200 waiting records become training photos a call: {added, handled, left}.
+  takeIn: (ref, opts) => apiFetch(`${base(ref)}/photos/take-in/`, { timeoutMs: 120000, ...opts, method: 'POST', body: {} }),
+  // The photos deleted on request, newest first, a page at a time (review_api.deletions; OVERVIEW).
+  deletions: (ref, page, opts) => apiFetch(`${base(ref)}/deletions/${pageQuery(page)}`, opts),
 };
+
+// The address of the next page of a list read in steps (``next: {before, before_id}``); '' for the first page.
+export function pageQuery(page) {
+  if (!page?.before) return '';
+  return query({ before: page.before, before_id: page.before_id ?? '' });
+}
+
+// A sha256 as the list shows it: its first 12 characters (the whole value goes in the cell's title).
+export const shortSha = sha => (typeof sha === 'string' && sha.length > 12 ? `${sha.slice(0, 12)}…` : String(sha ?? ''));
+
+// One row of a "Deleted on request" list, for a photo (vision) or an example (language model), in one shape.
+export function deletionRow(row, kind = 'photo') {
+  const llm = kind === 'example';
+  return {
+    id: row.id, at: (llm ? row.at : row.deleted_at) || '', by: row.by || 'A person who left', reason: row.reason || '',
+    versions: Array.isArray(row.versions) ? row.versions : [],
+    what: llm ? `Example ${row.example_ref}` : shortSha(row.sha256),
+    full: llm ? (row.record_ref ? `From record ${row.record_ref}` : `Example ${row.example_ref}`) : String(row.sha256 || ''),
+  };
+}
+
+// What deleting photos answered ({deleted, affected_versions, failed}), in one sentence. The failed rows are listed apart.
+export function photosDeletedWords({ deleted = 0, affected_versions: versions = [], failed = [] } = {}) {
+  const n = Number(deleted) || 0; const left = Array.isArray(failed) ? failed.length : 0;
+  return `${n} photo${n === 1 ? '' : 's'} deleted`
+    + (versions.length ? `; the versions that held them keep them: ${versions.join(', ')}` : '')
+    + (left ? `. ${left} could not be deleted, and why is listed below.` : '.');
+}
+
+// "Take in": call again while records are left, telling ``progress`` after each call ({added, left}: photos taken in so
+// far, records still waiting). It stops on a refusal (thrown, with what was taken in before it as ``error.added``) and
+// when a call takes nothing in, so records that cannot be taken in never keep it calling. ``stuck``: records left so.
+export async function takeInAll(ref, progress = () => {}, call = datasetApi.takeIn) {
+  let added = 0; let before = Infinity;
+  for (;;) {
+    let body;
+    try { body = await call(ref); } catch (error) { error.added = added; throw error; }
+    added += Number(body.added) || 0;
+    const left = Math.max(0, Number(body.left) || 0);
+    progress({ added, left });
+    if (!left) return { added, left, stuck: 0 };
+    if (!(Number(body.handled) > 0) || left >= before) return { added, left, stuck: left };
+    before = left;
+  }
+}
+
+// What the progress line says while taking in, and after.
+export function takeInText({ added, left }) {
+  const photos = `${added} photo${added === 1 ? '' : 's'}`;
+  return `Taken in ${photos}, ${left} record${left === 1 ? '' : 's'} left.`;
+}
 
 // The recipe a version is frozen with, from the builder's steps 3 and 4.
 export function recipeOf({ resize, dimension, augmentation }) {

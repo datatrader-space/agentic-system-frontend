@@ -8,6 +8,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Play, RefreshCw, X, RotateCw, ArrowLeft, Plus, Trash2, Upload, Save, CheckCheck } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import UiDialog from './UiDialog.vue';
+import RunProvenance from './RunProvenance.vue';
+import AttemptsTable from './AttemptsTable.vue';
 import { llmApi, percent, verdictLabel, verdictTone, tallyParts, tallyInWords, questionRows, questionCases, requestKey } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
@@ -92,6 +95,9 @@ async function move(name) {
   catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
+// Cancel stops a job that costs money: it is asked first (ADM-1210).
+const cancelling = ref(false);
+async function confirmCancel() { await move('cancel'); cancelling.value = false; }
 async function reveal() {
   try { revealed.value = (await llmApi.evaluationPairs(props.project.ref, opened.value.number)).pairs; } catch (e) { error.value = e.message; }
 }
@@ -256,7 +262,7 @@ onUnmounted(() => clearTimeout(timer));
       <div class="studio-actions"><UiButton @click="opened = null; load()"><ArrowLeft :size="16" /> All evaluations</UiButton>
         <div class="dialog-actions">
           <UiButton v-if="page.can_manage && ['judging', 'waiting_people'].includes(opened.state) && ['people', 'both'].includes(opened.marking)" :disabled="busy" @click="move('close')">Close the marking now</UiButton>
-          <UiButton v-if="page.can_train && unfinished(opened) && !opened.cancel_requested" :disabled="busy" @click="move('cancel')"><X :size="15" /> Cancel</UiButton>
+          <UiButton v-if="page.can_train && unfinished(opened) && !opened.cancel_requested" :disabled="busy" @click="cancelling = true"><X :size="15" /> Cancel</UiButton>
           <UiButton v-if="page.can_train && ['failed', 'cancelled'].includes(opened.state)" :disabled="busy" @click="move('retry')"><RotateCw :size="15" /> Try again</UiButton>
         </div></div>
       <section class="panel">
@@ -273,6 +279,9 @@ onUnmounted(() => clearTimeout(timer));
           <template v-if="opened.criteria"><dt>Criteria</dt><dd>Version {{ opened.criteria.version }}</dd></template>
           <dt>Started</dt><dd>{{ ago(opened.created_at) }} by {{ opened.created_by || 'someone' }}</dd>
         </dl>
+        <RunProvenance :used="opened.used" :cost="opened.cost" what="evaluation"/>
+        <h3>Attempts</h3>
+        <AttemptsTable :attempts="opened.attempts || []" :caption="`The attempts of evaluation ${opened.number}`" empty="No attempt yet: the evaluation waits for a machine."/>
       </section>
 
       <section v-if="measureRows.length" class="panel">
@@ -372,6 +381,11 @@ onUnmounted(() => clearTimeout(timer));
         <p v-else class="field-help">Only the project's Owner approves the criteria.</p>
       </section>
     </template>
+
+    <UiDialog :open="cancelling && !!opened" :title="opened ? `Cancel evaluation ${opened.number}` : 'Cancel evaluation'" @close="cancelling = false">
+      <p class="dialog-description">This stops the evaluation's job and the machine it runs on. You can try it again afterwards.</p>
+      <div class="dialog-actions"><UiButton @click="cancelling = false">Keep it running</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="confirmCancel">{{ busy ? 'Cancelling…' : 'Cancel evaluation' }}</UiButton></div>
+    </UiDialog>
   </div>
 </template>
 

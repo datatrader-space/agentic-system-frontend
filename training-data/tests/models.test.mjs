@@ -71,3 +71,84 @@ test('every tab of the workspace Models page has its own section (2026-10-28: a 
   assert.ok(names.length >= 3);
   for (const name of names.slice(0, -1)) assert.ok(page.includes(`active==='${name}'`), name);   // the last tab is the v-else
 });
+
+// A fake fetch that records every request and answers ``reply`` (JSON) with ``status``; 204 answers nothing.
+function fake(reply = {}, status = 200) {
+  const asked = [];
+  const fetchImpl = async (url, options) => {
+    asked.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : undefined, csrf: options.headers['X-CSRFToken'] });
+    return { ok: status < 400, status, headers: { get: () => (status === 204 ? '' : 'application/json') }, json: async () => reply };
+  };
+  return { asked, opts: { fetchImpl, store: null, cookies: 'csrftoken=tok' } };
+}
+
+test('the evaluation clients ask the project\'s evaluations, one evaluation, and cancel or retry it', async () => {
+  const { evaluationsApi } = await import('../src/api/models.js');
+  const { asked, opts } = fake({ evaluations: [], more: false });
+  await evaluationsApi.list('walls', { model: 3 }, opts);
+  await evaluationsApi.list('walls', { model: 3, before: 51 }, opts);
+  await evaluationsApi.list('~4', {}, opts);
+  await evaluationsApi.get('walls', 7, opts);
+  await evaluationsApi.cancel('walls', 7, opts);
+  await evaluationsApi.retry('walls', 7, opts);
+  assert.deepEqual(asked.map(a => `${a.method} ${a.url}`), [
+    'GET /api/training-data/app/projects/walls/evaluations/?model=3',
+    'GET /api/training-data/app/projects/walls/evaluations/?model=3&before=51',
+    'GET /api/training-data/app/projects/~4/evaluations/',
+    'GET /api/training-data/app/projects/walls/evaluations/7/',
+    'POST /api/training-data/app/projects/walls/evaluations/7/cancel/',
+    'POST /api/training-data/app/projects/walls/evaluations/7/retry/',
+  ]);
+  assert.deepEqual(asked.slice(4).map(a => [a.body, a.csrf]), [[{}, 'tok'], [{}, 'tok']]);   // writes carry the CSRF token
+});
+
+test('a refused retry (a balance that cannot pay) comes back with the server\'s sentence and code', async () => {
+  const { evaluationsApi } = await import('../src/api/models.js');
+  const { opts } = fake({ error: 'Your balance cannot pay for this evaluation.', code: 'conflict' }, 409);
+  await assert.rejects(evaluationsApi.retry('walls', 7, opts), { status: 409, serverCode: 'conflict', message: 'Your balance cannot pay for this evaluation.' });
+});
+
+test('a model block opens its running evaluation, else the one that ended, else the newest measured one', async () => {
+  const { newestEvaluation } = await import('../src/api/models.js');
+  assert.equal(newestEvaluation({ evaluating: { number: 9 }, ended: null, evaluation: { number: 4 } }), 9);
+  assert.equal(newestEvaluation({ evaluating: null, ended: { number: 8 }, evaluation: { number: 4 } }), 8);
+  assert.equal(newestEvaluation({ evaluating: null, ended: null, evaluation: { number: 4 } }), 4);
+  assert.equal(newestEvaluation({ evaluating: null, ended: null, evaluation: null }), null);
+});
+
+test('billable time and what an attempt did read as words', async () => {
+  const { billableText, attemptText } = await import('../src/api/models.js');
+  assert.equal(billableText(null), '—');
+  assert.equal(billableText(undefined), '—');
+  assert.equal(billableText(0), '0 s');
+  assert.equal(billableText(45), '45 s');
+  assert.equal(billableText(60), '1 min');
+  assert.equal(billableText(725), '12 min 5 s');
+  assert.equal(billableText(7380), '2 h 3 min');
+  assert.equal(billableText(3600), '1 h');
+  assert.equal(attemptText({ state: 'failed', reason: 'could not be started: no GPU' }), 'could not be started: no GPU');
+  assert.equal(attemptText({ state: 'queued', reason: '' }), 'Waiting for a machine');
+  assert.equal(attemptText({ state: 'succeeded' }), 'Finished');
+});
+
+test('the run and evaluation views offer a log only when the attempt has one, and every paid Cancel asks first', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = name => readFile(new URL(`../src/components/${name}`, import.meta.url), 'utf8');
+  // Every attempts list is the one table (ADM-1210 §3.9), whose Log link is shown only with a log.
+  const table = await read('AttemptsTable.vue');
+  assert.ok(table.includes('<a v-if="a.log"'), 'an attempt\'s Log link is shown only with a log');
+  const studio = await read('ProjectStudio.vue');
+  assert.ok(studio.includes('<AttemptsTable :attempts="runView.attempts'), 'the run view lists its attempts');
+  assert.ok(!studio.includes("@click=\"runAct('cancel')\""), 'the run Cancel opens a confirmation');
+  for (const name of ['LlmTrain.vue', 'LlmAnalytics.vue']) {
+    const page = await read(name);
+    assert.ok(!page.includes("@click=\"move('cancel')\""), `${name}: Cancel opens a confirmation`);
+    assert.ok(page.includes('<UiDialog') && page.includes('<AttemptsTable :attempts="opened.attempts'), name);
+  }
+  const view = await read('ModelEvaluations.vue');
+  assert.ok(view.includes('<AttemptsTable :attempts="detail.attempts"') && view.includes('@click="act(\'cancel\')"') && view.includes('<UiDialog'));
+  for (const name of ['ProjectStudio.vue', 'LlmTrain.vue', 'LlmAnalytics.vue', 'ModelEvaluations.vue', 'RunProvenance.vue', 'AttemptsTable.vue', '../App.vue']) {
+    const page = (await read(name)).replace(/\b(confirmCancelRun|confirmCancel|confirmMove)\(/g, '');
+    assert.ok(!/(^|[^\w.])(confirm|alert|prompt)\(/m.test(page), `${name}: no native dialog`);
+  }
+});

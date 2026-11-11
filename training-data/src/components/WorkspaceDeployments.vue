@@ -581,6 +581,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 
         <div class="ded-field">
           <MachinePicker ref="dedPicker" v-model="form.instance_type" :load="loadDedMachines" legend="Machine"/>
+          <p v-if="options.machines_unavailable" class="field-error" role="alert">{{ options.machines_unavailable }}</p>
           <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
           <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
         </div>

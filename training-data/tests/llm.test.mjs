@@ -138,3 +138,57 @@ test('a model card reads as facts, with the licence use in words', () => {
   assert.equal(cardFacts(null)[0][1], '—');
   assert.equal(Object.fromEntries(cardFacts({ model: { parent: { model_version: 'chat-v1', run: 1, method: 'sft' } } }))['Started from'], 'model chat-v1 (SFT)');
 });
+
+// ── ADM-1210 phase C: the reviewer approves several, a send-back of some examples, take back, deletions ──
+function fakeFetch(reply = {}, status = 200) {
+  const asked = [];
+  const fetchImpl = async (url, options) => {
+    asked.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : undefined, csrf: options.headers['X-CSRFToken'] });
+    return { ok: status < 400, status, headers: { get: () => 'application/json' }, json: async () => reply };
+  };
+  return { asked, opts: { fetchImpl, store: null, cookies: 'csrftoken=tok' } };
+}
+
+test('only waiting examples preparation did not flag are approved together; flagged ones are left out', async () => {
+  const { approvable, leftOut } = await import('../src/api/llm.js');
+  const items = [{ id: 1, decision: 'waiting', why: 'sample' }, { id: 2, decision: 'waiting', why: 'flagged' }, { id: 3, decision: 'approved', why: 'sample' }, { id: 4, decision: 'waiting', why: 'sample' }];
+  assert.deepEqual(approvable(items).map(i => i.id), [1, 4]);
+  assert.deepEqual(leftOut(items).map(i => i.id), [2]);
+  assert.deepEqual(approvable(undefined), []);
+});
+
+test('an approval is taken back only from an accepted review, for an approved or fixed example', async () => {
+  const { mayTakeBack } = await import('../src/api/llm.js');
+  assert.equal(mayTakeBack({ state: 'accepted' }, { decision: 'approved' }), true);
+  assert.equal(mayTakeBack({ state: 'accepted' }, { decision: 'fixed' }), true);
+  assert.equal(mayTakeBack({ state: 'accepted' }, { decision: 'rejected' }), false);
+  assert.equal(mayTakeBack({ state: 'returned' }, { decision: 'approved' }), false);
+});
+
+test('a review\'s send-back names only the examples chosen (their positions), or every one', async () => {
+  const { reviewSendBackBody } = await import('../src/api/llm.js');
+  assert.deepEqual(reviewSendBackBody('Read again'), { reason: 'Read again' });
+  assert.deepEqual(reviewSendBackBody('Read again', [3, '1', 3, 0, 'x']), { reason: 'Read again', positions: [3, 1] });
+});
+
+test('approve several, take back and the deletions list ask their addresses; writes carry the CSRF token', async () => {
+  const { llmApi } = await import('../src/api/llm.js');
+  const { asked, opts } = fakeFetch({});
+  await llmApi.decideMany('chat', 2, [11, 12], opts);
+  await llmApi.takeBack('chat', 2, 11, opts);
+  await llmApi.deletions('chat', null, opts);
+  await llmApi.deletions('chat', { before: '2026-11-10T09:00:00Z', before_id: 9 }, opts);
+  assert.deepEqual(asked, [
+    { url: '/api/training-data/app/projects/chat/llm/reviews/2/items/decide/', method: 'POST', body: { items: [11, 12], decision: 'approved' }, csrf: 'tok' },
+    { url: '/api/training-data/app/projects/chat/llm/reviews/2/items/11/take-back/', method: 'POST', body: {}, csrf: 'tok' },
+    { url: '/api/training-data/app/projects/chat/llm/deletions/', method: 'GET', body: undefined, csrf: undefined },
+    { url: '/api/training-data/app/projects/chat/llm/deletions/?before=2026-11-10T09%3A00%3A00Z&before_id=9', method: 'GET', body: undefined, csrf: undefined },
+  ]);
+});
+
+test('more than 500 examples at once is refused with the server\'s sentence (400 too_many)', async () => {
+  const { llmApi } = await import('../src/api/llm.js');
+  const { opts } = fakeFetch({ error: 'At most 500 examples are approved at once, and 501 were chosen. Approve them in parts.', code: 'too_many', field: 'items' }, 400);
+  await assert.rejects(llmApi.decideMany('chat', 2, Array.from({ length: 501 }, (_, i) => i + 1), opts),
+    e => e.status === 400 && e.serverCode === 'too_many' && e.message === 'At most 500 examples are approved at once, and 501 were chosen. Approve them in parts.');
+});

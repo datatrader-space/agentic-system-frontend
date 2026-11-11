@@ -15,6 +15,21 @@ export const createProject = (body, opts) => apiFetch(`${BASE}/projects/`, { ...
 export const moveProject = (ref, folder, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/move/`, { ...opts, method: 'POST', body: { folder } });
 export const listKinds = opts => apiFetch(`${BASE}/kinds/`, opts);
 export const createFolder = (name, opts) => apiFetch(`${BASE}/folders/`, { ...opts, method: 'POST', body: { name } });
+// Rename (409 when the workspace has a folder of that name) and delete (its projects stay, in no folder): only by who
+// may arrange the folder (the row's ``can_arrange``; the backend decides).
+export const renameFolder = (id, name, opts) => apiFetch(`${BASE}/folders/${enc(id)}/`, { ...opts, method: 'PATCH', body: { name } });
+export const deleteFolder = (id, opts) => apiFetch(`${BASE}/folders/${enc(id)}/`, { ...opts, method: 'DELETE' });
+
+// The folder filter of the project list is a folder's id ('' for every folder), never its name: a renamed folder
+// keeps its projects. ``inFolder``: whether a card is shown under the filter.
+export const inFolder = (card, filter) => filter === '' || filter == null || String(card.folderId ?? '') === String(filter);
+// After a delete the filter that named the deleted folder goes back to every folder.
+export const filterAfterDelete = (filter, id) => (String(filter) === String(id) ? '' : filter);
+// The folder rows as the list uses them, keyed by id. The project count is the server's when it says one.
+export const folderRows = (rows, cards = []) => (rows || []).map(f => ({
+  id: f.id, name: f.name, can_arrange: !!f.can_arrange,
+  projects: f.projects ?? cards.filter(c => String(c.folderId) === String(f.id)).length,
+}));
 export const saveDataUse = (ref, answers, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/data-use/`, { ...opts, method: 'POST', body: answers });
 export const getDataUse = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/data-use/`, opts);
 // A language-model project's three extra data-use answers (backend: llm/app_api.py).

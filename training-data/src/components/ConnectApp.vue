@@ -9,6 +9,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { listKeys, createKey, rotateKey, revokeKey, sendingGuide, ago } from '../api/training.js';
 import { llmApi, pathName } from '../api/llm.js';
+import { focusSettings } from '../api/records.js';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
@@ -19,6 +20,8 @@ const confirm = ref(null);
 // A language-model project's form of this page (plan §2.1): how an app sends conversations, and the key mapping for
 // payloads of the app's own shape (llm/app_api.py chat_sending_guide, chat_mapping).
 const isLlm = computed(() => props.project?.family === 'llm');
+// The group rule is chosen in Settings, "From a record to a training photo" (ADM-1210 §3.2): the link opens it there.
+function openRecordFields() { focusSettings('record-fields'); emit('navigate', 'settings'); }
 const mapping = ref(null); const chosen = ref({ user: '', assistant: '', system: '', group: '', system_text: '' }); const mapped = ref('');
 function showMapping(body) {
   mapping.value = body;
@@ -145,14 +148,14 @@ const curl = computed(() => guide.value && isLlm.value ? [
         <h2><Plug :size="18" /> How to send</h2>
         <p>Send one record per request to this address. {{ guide.vision ? `Send the photo as the part named file (${guide.formats.join(', ')}, at most ${guide.file_mb} MB) and the record as the part named payload.` : 'Send the record as JSON.' }} The payload is at most {{ guide.payload_mb }} MB. {{ guide.rate }}</p>
         <label class="field-label">Address<div class="connect-line"><code>{{ guide.endpoint }}</code><UiButton @click="copy(guide.endpoint, 'address')"><Copy :size="15" /> {{ copied === 'address' ? 'Copied' : 'Copy' }}</UiButton></div></label>
-        <p class="field-help">Received so far: {{ guide.received }}{{ guide.newest ? `, the newest ${ago(guide.newest)}` : '' }}.</p>
+        <p class="field-help">Received so far: {{ guide.received }}{{ guide.newest ? `, the newest ${ago(guide.newest)}` : '' }}.{{ guide.vision ? ` Waiting to become training photos: ${guide.waiting ?? 0}${guide.waiting ? ' (take them in on the Dataset page)' : ''}.` : '' }}</p>
         <p v-if="guide.training_refused" class="connect-refused"><UiBadge>Note</UiBadge> {{ guide.training_refused }}</p>
         <h3>Example</h3>
         <pre class="code-block">{{ curl }}</pre>
         <UiButton @click="copy(curl, 'curl')"><Copy :size="15" /> {{ copied === 'curl' ? 'Copied' : 'Copy example' }}</UiButton>
         <h3>The payload</h3>
         <pre class="code-block">{{ guide.payload_pretty }}</pre>
-        <p v-if="guide.group_rule" class="field-help">{{ guide.group_rule }}</p>
+        <p v-if="guide.group_rule" class="field-help">{{ guide.group_rule }} <button v-if="owner && project?.family === 'vision'" type="button" class="link-button" @click="openRecordFields">Change how photos get their group</button></p>
         <table v-if="guide.fields?.length" class="connect-table"><thead><tr><th>Field</th><th>Needed</th><th>What it is</th></tr></thead><tbody>
           <tr v-for="field in guide.fields" :key="field.key"><td><code>{{ field.key }}</code></td><td>{{ field.needed }}</td><td>{{ field.what }}</td></tr>
         </tbody></table>
@@ -190,4 +193,6 @@ const curl = computed(() => guide.value && isLlm.value ? [
 .connect-table tr.revoked td{color:#94a3b8}
 .code-block{white-space:pre-wrap;word-break:break-all;font-size:12px;min-height:0}
 .connect-mapping{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
+.link-button{background:none;border:0;padding:0;color:var(--aadml-primary);font:inherit;text-decoration:underline;cursor:pointer}
+.link-button:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px;border-radius:3px}
 </style>

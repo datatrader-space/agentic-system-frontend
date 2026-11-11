@@ -1,14 +1,17 @@
 <script setup>
 // The annotate page's LLM form (plan §2.1): the review board (Unassigned → Reviewing → In review → Dataset) and the
 // editor of one conversation, where its reviewer approves it, fixes the answer, or rejects it, with comments. Flagged
-// examples come first. A reviewer sees the reviews given to them. Backend: llm/app_api.py, llm/review.py.
+// examples come first. A reviewer sees the reviews given to them. Backend: llm/app_api.py, llm/review.py. ADM-1210: the
+// reviewer approves several examples at once (flagged ones are left out, decision D10), a send-back can name only some
+// examples, and an approved example of an accepted review can have its approval taken back (llm/review_api.py).
 import { computed, onMounted, ref, watch } from 'vue';
-import { ArrowLeft, Check, X, Pencil, Send, RefreshCw, MessageSquare, History, CheckCheck, CornerUpLeft, Circle } from 'lucide-vue-next';
+import { ArrowLeft, Check, X, Pencil, Send, RefreshCw, MessageSquare, History, CheckCheck, CornerUpLeft, Circle, Undo2 } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import LlmConversation from './LlmConversation.vue';
-import { llmApi, REVIEW_COLUMNS, reviewColumn, fixableOf, withFixes, findingText, KIND_LABEL } from '../api/llm.js';
+import { llmApi, REVIEW_COLUMNS, reviewColumn, fixableOf, withFixes, findingText, KIND_LABEL, approvable, leftOut, mayTakeBack, reviewSendBackBody } from '../api/llm.js';
+import { refusalRows, tooMany, toggled } from '../api/records.js';
 import { ago } from '../api/training.js';
 import './llm.css';
 
@@ -66,7 +69,45 @@ async function move(name, body) {
   catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
-function close() { batch.value = null; itemIndex.value = -1; loadBoard(); }
+function close() { batch.value = null; itemIndex.value = -1; picked.value = []; refused.value = []; loadBoard(); }
+
+// ── Several examples approved at once, by the reviewer (ADM-1210 §3.10) ──
+const picked = ref([]); const refused = ref([]); const approveAsk = ref(false); const approveError = ref('');
+const canPick = computed(() => isReviewer.value ? approvable(batch.value?.items) : []);
+const flaggedLeft = computed(() => isReviewer.value ? leftOut(batch.value?.items) : []);
+const pickedTooMany = computed(() => tooMany(picked.value.length, 'examples'));
+const positionOf = id => batch.value?.items.find(it => String(it.id) === String(id))?.position;
+watch(batch, b => { const ids = new Set(approvable(b?.items).map(it => it.id)); picked.value = picked.value.filter(id => ids.has(id)); });
+async function approvePicked() {
+  busy.value = true; approveError.value = '';
+  try {
+    const answer = await llmApi.decideMany(props.project.ref, batch.value.number, picked.value);
+    const { approved, refused: notApproved, ...rest } = answer;
+    batch.value = rest; approveAsk.value = false; picked.value = [];
+    refused.value = refusalRows(notApproved, 'item', id => `Example ${positionOf(id) ?? id}`);
+    told.value = `${approved} example${approved === 1 ? '' : 's'} approved.${refused.value.length ? ` ${refused.value.length} ${refused.value.length === 1 ? 'was' : 'were'} not, and why is listed below.` : ''}`;
+    await loadBoard();
+  } catch (e) { approveError.value = e.message; }
+  finally { busy.value = false; }
+}
+
+// ── Taking an approval back (ADM-1210 §3.7): the example is new or flagged again, so the next review takes it ──
+const mayUndo = computed(() => rights.value.includes('batch'));
+const takeBackItem = ref(null); const takeBackError = ref('');
+async function confirmTakeBack() {
+  const it = takeBackItem.value; if (!it) return;
+  busy.value = true; takeBackError.value = '';
+  try {
+    const answer = await llmApi.takeBack(props.project.ref, batch.value.number, it.id);
+    const versions = answer.affected_versions || [];
+    batch.value = answer; takeBackItem.value = null;
+    told.value = `The approval of example ${it.position} is taken back: the next review takes it.${versions.length ? ` ${versions.join(', ')} ${versions.length === 1 ? 'keeps' : 'keep'} what ${versions.length === 1 ? 'it' : 'they'} froze.` : ''}`;
+  } catch (e) { takeBackError.value = e.message; }
+  finally { busy.value = false; }
+}
+
+// ── A send-back that names some examples (positions, from 1); none ticked: every example goes back ──
+const backPositions = ref([]);
 const itemComments = computed(() => (batch.value?.events || []).filter(e => e.kind === 'comment' && (!item.value || e.item === item.value.position)));
 
 // Event kinds come from the review API. Unknown kinds retain their original detail.
@@ -117,15 +158,24 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
       <div class="studio-actions"><UiButton @click="close"><ArrowLeft :size="16" /> Back to the board</UiButton>
         <div class="dialog-actions">
           <UiButton v-if="isReviewer" variant="primary" :disabled="busy || batch.counts.waiting > 0" @click="move('return')"><Send :size="15" /> Return for approval</UiButton><small v-if="isReviewer && batch.counts.waiting > 0" class="field-help">Decide every example first: {{ batch.counts.waiting }} still waiting.</small>
-          <template v-if="batch.state==='returned' && rights.includes('batch')"><UiButton :disabled="busy" @click="backDialog=true">Send back</UiButton><UiButton variant="primary" :disabled="busy" @click="move('accept')"><Check :size="15" /> Accept</UiButton></template>
+          <template v-if="batch.state==='returned' && rights.includes('batch')"><UiButton :disabled="busy" @click="backPositions=[]; backDialog=true">Send back</UiButton><UiButton variant="primary" :disabled="busy" @click="move('accept')"><Check :size="15" /> Accept</UiButton></template>
         </div></div>
       <section class="panel">
         <h2>{{ batch.name }} <UiBadge>{{ batch.state_label }}</UiBadge></h2>
         <p>Reviewer: {{ batch.reviewer }} · from preparation run {{ batch.run }} · {{ batch.total }} examples: {{ batch.counts.approved + batch.counts.fixed }} approved, {{ batch.counts.rejected }} rejected, {{ batch.counts.waiting }} to decide.</p>
         <p v-if="batch.instructions" class="field-help">{{ batch.instructions }}</p>
-        <table class="llm-table"><thead><tr><th>#</th><th>Why</th><th>Kind</th><th>Found</th><th>Decision</th></tr></thead><tbody>
-          <tr v-for="(it, i) in batch.items" :key="it.id" class="llm-row" tabindex="0" @click="openItem(i)" @keydown.enter="openItem(i)"><td>{{ it.position }}</td><td><UiBadge :tone="it.why==='flagged' ? 'purple' : 'neutral'">{{ it.why==='flagged' ? 'Flagged' : 'Sample' }}</UiBadge></td><td>{{ KIND_LABEL[it.kind] }}</td>
-            <td>{{ it.findings.map(f => findingText(f.code)).join(' · ') || '—' }}</td><td>{{ it.decision_label }}</td></tr>
+        <div v-if="isReviewer && canPick.length" class="studio-actions review-pick" role="group" aria-label="Selected examples">
+          <span aria-live="polite">{{ picked.length }} selected</span>
+          <UiButton :disabled="picked.length === canPick.length" @click="picked = canPick.map(it => it.id)">Select all</UiButton>
+          <UiButton variant="primary" :disabled="busy || !picked.length || !!pickedTooMany" @click="approveError=''; approveAsk=true"><CheckCheck :size="15" aria-hidden="true" /> Approve selected</UiButton>
+          <UiButton :disabled="!picked.length" @click="picked=[]">Clear selection</UiButton>
+        </div>
+        <p v-if="isReviewer && flaggedLeft.length" class="field-help">{{ flaggedLeft.length }} flagged example{{ flaggedLeft.length === 1 ? '' : 's' }} {{ flaggedLeft.length === 1 ? 'is' : 'are' }} left out of the selection: read {{ flaggedLeft.length === 1 ? 'it' : 'each one' }} and decide on {{ flaggedLeft.length === 1 ? 'its' : 'their' }} own.</p>
+        <p v-if="pickedTooMany" class="field-error" role="alert">{{ pickedTooMany }}</p>
+        <div v-if="refused.length" class="review-refused" role="alert"><p><strong>{{ refused.length }} example{{ refused.length === 1 ? ' was' : 's were' }} not approved.</strong></p><ul><li v-for="r in refused" :key="r.id">{{ r.name }}: {{ r.why }}</li></ul><button class="icon-button" aria-label="Dismiss the list" @click="refused=[]"><X :size="15" /></button></div>
+        <table class="llm-table"><thead><tr><th v-if="isReviewer && canPick.length"><span class="sr-only">Select</span></th><th>#</th><th>Why</th><th>Kind</th><th>Found</th><th>Decision</th><th v-if="mayUndo && batch.state==='accepted'"><span class="sr-only">Take back</span></th></tr></thead><tbody>
+          <tr v-for="(it, i) in batch.items" :key="it.id" class="llm-row" tabindex="0" @click="openItem(i)" @keydown.enter="openItem(i)"><td v-if="isReviewer && canPick.length" @click.stop @keydown.stop><input v-if="it.decision==='waiting' && it.why!=='flagged'" type="checkbox" class="review-check" :checked="picked.includes(it.id)" :aria-label="`Select example ${it.position}`" @change="picked = toggled(picked, it.id)"><span v-else-if="it.decision==='waiting'" class="field-help">Left out</span></td><td>{{ it.position }}</td><td><UiBadge :tone="it.why==='flagged' ? 'purple' : 'neutral'">{{ it.why==='flagged' ? 'Flagged' : 'Sample' }}</UiBadge></td><td>{{ KIND_LABEL[it.kind] }}</td>
+            <td>{{ it.findings.map(f => findingText(f.code)).join(' · ') || '—' }}</td><td>{{ it.decision_label }}</td><td v-if="mayUndo && batch.state==='accepted'" @click.stop @keydown.stop><UiButton v-if="mayTakeBack(batch, it)" class="review-undo" :disabled="busy" :aria-label="`Take back the approval of example ${it.position}`" @click="takeBackError=''; takeBackItem=it"><Undo2 :size="14" aria-hidden="true" /> Take back</UiButton></td></tr>
         </tbody></table>
         <section class="review-activity" aria-labelledby="review-timeline-title">
           <header class="activity-heading">
@@ -180,9 +230,21 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
       <div class="dialog-actions"><UiButton @click="creating=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="create">Send for review</UiButton></div>
     </UiDialog>
     <UiDialog :open="backDialog" title="Send back to the reviewer" @close="backDialog=false">
-      <p class="dialog-description">Every example of this review goes back to {{ batch?.reviewer }} to decide again. A fix that was made is kept in the example's history.</p>
+      <p class="dialog-description">{{ backPositions.length ? `${backPositions.length} example${backPositions.length === 1 ? '' : 's'} of this review go${backPositions.length === 1 ? 'es' : ''}` : 'Every example of this review goes' }} back to {{ batch?.reviewer }} to decide again. A fix that was made is kept in the example's history.</p>
       <label class="field-label">Reason<textarea v-model="backReason" class="text-input" rows="3"></textarea></label>
-      <div class="dialog-actions"><UiButton @click="backDialog=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy || !backReason.trim()" @click="move('send-back', {reason: backReason.trim()})">Send back</UiButton></div>
+      <fieldset v-if="batch?.items?.length" class="review-back-list"><legend>Only these examples (optional)</legend><p class="field-help">None ticked: every example goes back.</p>
+        <div><label v-for="it in batch.items" :key="it.id"><input v-model="backPositions" type="checkbox" :value="it.position"> Example {{ it.position }} <span class="field-help">{{ it.decision_label }}{{ it.why === 'flagged' ? ', flagged' : '' }}</span></label></div></fieldset>
+      <div class="dialog-actions"><UiButton @click="backDialog=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy || !backReason.trim()" @click="move('send-back', reviewSendBackBody(backReason.trim(), backPositions))">{{ backPositions.length ? `Send back ${backPositions.length}` : 'Send back' }}</UiButton></div>
+    </UiDialog>
+    <UiDialog :open="approveAsk" :title="`Approve ${picked.length} example${picked.length === 1 ? '' : 's'}`" @close="approveAsk=false">
+      <p class="dialog-description">Each example is approved as it is shown. Examples preparation flagged are left out: read each one and decide it on its own. Every example that is not approved is listed with why.</p>
+      <p v-if="approveError" class="field-error" role="alert">{{ approveError }}</p>
+      <div class="dialog-actions"><UiButton @click="approveAsk=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy || !picked.length" @click="approvePicked">{{ busy ? 'Approving…' : 'Approve' }}</UiButton></div>
+    </UiDialog>
+    <UiDialog :open="!!takeBackItem" :title="takeBackItem ? `Take back the approval of example ${takeBackItem.position}` : 'Take back an approval'" @close="takeBackItem=null">
+      <p class="dialog-description">The example is new again (or flagged, when preparation flagged it), so the next review takes it. This review keeps its history. Dataset versions that hold the example keep what they froze.</p>
+      <p v-if="takeBackError" class="field-error" role="alert">{{ takeBackError }}</p>
+      <div class="dialog-actions"><UiButton @click="takeBackItem=null">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="confirmTakeBack">{{ busy ? 'Taking back…' : 'Take back approval' }}</UiButton></div>
     </UiDialog>
   </div>
 </template>
@@ -214,6 +276,12 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
 .llm-comments{list-style:none;padding:0;margin:12px 0 20px;display:grid;gap:12px;font-size:13px}
 .llm-comments li{padding:12px;background:#f8fafc;border:1px solid #e8edf5;border-radius:8px;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.7}.llm-comments strong{display:block;font-size:12px}.llm-comments .field-help{display:block;font-size:11px;margin-top:5px}
 @media(max-width:600px){.review-activity{margin-top:24px;padding-top:22px}.timeline-event{column-gap:12px}.event-heading time{flex-basis:100%;margin-left:0;padding-left:0}.event-detail.event-comment{padding:10px 12px}}
+.review-pick{margin:12px 0;font-size:12px}.review-pick>span{font-variant-numeric:tabular-nums;color:#24344c}
+.review-check{width:18px;height:18px;accent-color:var(--aadml-focus);cursor:pointer}
+.review-undo{min-height:32px;padding:5px 10px;font-size:12px}
+.review-refused{position:relative;padding:12px 44px 12px 16px;margin:0 0 12px;border:1px solid #fecdca;background:#fef3f2;border-radius:8px;font-size:12px;color:#7a271a}.review-refused p{margin:0;color:#7a271a}.review-refused ul{margin:6px 0 0;padding-left:18px}.review-refused .icon-button{position:absolute;top:8px;right:8px}
+.review-back-list{border:1px solid #e0e3eb;border-radius:8px;padding:10px 12px;margin:12px 0 0;min-width:0}.review-back-list legend{font-size:12px;font-weight:600;padding:0 4px}.review-back-list>div{display:grid;gap:2px;max-height:220px;overflow:auto}.review-back-list label{display:flex;align-items:center;gap:8px;min-height:36px;font-size:12px;cursor:pointer}.review-back-list input{width:16px;height:16px;accent-color:var(--aadml-focus)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .llm-editor{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px;align-items:start}
 @media (max-width:900px){.llm-editor{grid-template-columns:1fr}}
 </style>

@@ -8,7 +8,8 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import ApprovalDialog from './ApprovalDialog.vue';
-import { modelsApi, catalogue, measureText, meets, msText, unanswered } from '../api/models.js';
+import ModelEvaluations from './ModelEvaluations.vue';
+import { modelsApi, catalogue, measureText, meets, msText, unanswered, newestEvaluation } from '../api/models.js';
 import { startKey } from '../api/train.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
@@ -29,7 +30,12 @@ function follow() { clearTimeout(timer); timer = alive && running.value ? setTim
 watch(running, follow);
 onMounted(load);
 onUnmounted(() => { alive = false; clearTimeout(timer); });
-watch(() => props.projectRef, () => { loading.value = true; data.value = null; load(); });
+watch(() => props.projectRef, () => { loading.value = true; data.value = null; evaluations.value = null; load(); });
+
+// An in-page view of one model's evaluations: one of them (``number``) or the list of all (``number`` null).
+const evaluations = ref(null);
+function openEvaluations(model, number = null) { evaluations.value = { model, number }; notice.value = ''; error.value = ''; }
+function closeEvaluations() { evaluations.value = null; load(); }
 
 function replace(model) { data.value.models = data.value.models.map(m => (m.number === model.number ? model : m)); }
 async function act(model, action, body) {
@@ -111,6 +117,8 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <p v-if="loading">Loading…</p>
 
+    <ModelEvaluations v-else-if="data&&tab==='My models'&&evaluations" :key="`${evaluations.model.number}-${evaluations.number}`" :project-ref="projectRef" :model="evaluations.model" :number="evaluations.number" :criteria-approved="!!data.criteria_approved" @close="closeEvaluations" @changed="load"/>
+
     <template v-else-if="data&&tab==='My models'">
       <div class="studio-actions">
         <UiButton variant="primary" @click="emit('navigate','train')">Train a model</UiButton>
@@ -154,6 +162,10 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
             <a v-if="m.evaluation.report" class="button button--secondary" :href="m.evaluation.report" download>Download the evaluation report (JSON)</a>
           </template>
           <p v-else-if="!m.evaluating&&!m.ended" class="model-meta">Not evaluated yet.</p>
+          <div v-if="newestEvaluation(m)" class="evaluation-links">
+            <UiButton class="small" @click="openEvaluations(m, newestEvaluation(m))">Open evaluation {{ newestEvaluation(m) }}</UiButton>
+            <UiButton class="small" @click="openEvaluations(m)">All evaluations of this model</UiButton>
+          </div>
         </section>
 
         <section class="model-section">
@@ -324,7 +336,8 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
 .approval-history{margin-top:6px}
 .approval-history summary{cursor:pointer;font-size:12px;color:var(--aadml-primary)}
 .approval-history .approval-list{margin-top:6px}
-.approval-list .small,.model-actions .button{min-height:30px;padding:6px 10px;font-size:12px}
+.evaluation-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.evaluation-links .small,.approval-list .small,.model-actions .button{min-height:30px;padding:6px 10px;font-size:12px}
 .file-check{display:flex;flex-direction:column;gap:4px;margin-top:12px;padding:10px 12px;border-radius:7px;background:#f3fbf7;color:#27765a;font-size:12px}
 .file-check.bad{background:#fff6f5;color:#b42318}
 .file-check span{display:flex;align-items:center;gap:6px}

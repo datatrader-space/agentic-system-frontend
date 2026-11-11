@@ -1,12 +1,16 @@
 <script setup>
 // The train page's LLM form (plan §2.1): a dataset version, the method (SFT, continued pre-training, DPO, KTO), the
 // base model it was prepared for with its licence, a named configuration and what to set over it, the parent model
-// of a DPO or KTO run, and the runs with their progress, losses and log. Backend: llm/app_api.py, llm/runs.py.
+// of a DPO or KTO run, and the runs with their progress, losses and log; a run's view also says what it used and cost
+// and lists its attempts with their time, cost and whole log (ADM-1210 §3.9). Backend: llm/app_api.py, llm/runs.py.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Play, RefreshCw, X, RotateCw, ArrowLeft } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import UiDialog from './UiDialog.vue';
 import MachinePicker from './MachinePicker.vue';
+import RunProvenance from './RunProvenance.vue';
+import AttemptsTable from './AttemptsTable.vue';
 import { llmApi, trainingOverrides, configSummary } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
@@ -70,7 +74,10 @@ async function move(name) {
   catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
-const unfinished = run => ['queued', 'starting', 'running', 'finalizing'].includes(run?.state);
+// Cancel stops a job that costs money: it is asked first (ADM-1210).
+const cancelling = ref(false);
+async function confirmCancel() { await move('cancel'); cancelling.value = false; }
+const unfinished = run =>['queued', 'starting', 'running', 'finalizing'].includes(run?.state);
 // A job says its steps once it trains; before that it loads the model and the data (found 2026-10-21: "0 of 0 steps").
 const progressText = p => (!p ? '—' : p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
   : p.phase === 'preparing' ? 'loading the model and the data' : p.phase);
@@ -146,7 +153,7 @@ onUnmounted(() => clearTimeout(timer));
     <template v-else>
       <div class="studio-actions"><UiButton @click="opened = null; load()"><ArrowLeft :size="16" /> Back to training</UiButton>
         <div class="dialog-actions">
-          <UiButton v-if="page?.can_train && unfinished(opened) && !opened.cancel_requested" :disabled="busy" @click="move('cancel')"><X :size="15" /> Cancel</UiButton>
+          <UiButton v-if="page?.can_train && unfinished(opened) && !opened.cancel_requested" :disabled="busy" @click="cancelling = true"><X :size="15" /> Cancel</UiButton>
           <UiButton v-if="page?.can_train && ['failed', 'cancelled'].includes(opened.state)" :disabled="busy" @click="move('retry')"><RotateCw :size="15" /> Try again</UiButton>
         </div></div>
       <section class="panel">
@@ -160,13 +167,19 @@ onUnmounted(() => clearTimeout(timer));
           <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
           <dt>Loss</dt><dd>{{ opened.metrics?.train_loss != null ? `training ${opened.metrics.train_loss.toFixed(3)}` : '—' }}{{ opened.metrics?.eval_loss != null ? `, validation ${opened.metrics.eval_loss.toFixed(3)}` : '' }}</dd>
           <dt>Model</dt><dd>{{ opened.model || 'none yet' }}</dd>
-          <dt>Code</dt><dd><code>{{ opened.code.git_sha.slice(0, 12) }}</code> · tree <code>{{ opened.code.tree_sha256.slice(0, 12) }}</code></dd>
-          <dt>Attempts</dt><dd>{{ opened.attempts.map(a => `${a.number}: ${a.state}${a.exit_code != null ? ` (exit ${a.exit_code})` : ''}`).join(' · ') }}</dd>
         </dl>
+        <RunProvenance :used="opened.used" :cost="opened.cost" what="run"/>
+        <h3>Attempts</h3>
+        <AttemptsTable :attempts="opened.attempts || []" :caption="`The attempts of run ${opened.number}`" empty="No attempt yet: the run waits for a machine."/>
         <h3>Log</h3>
         <pre class="code-block llm-log">{{ opened.log || 'Nothing written yet.' }}</pre>
       </section>
     </template>
+
+    <UiDialog :open="cancelling && !!opened" :title="opened ? `Cancel run ${opened.number}` : 'Cancel run'" @close="cancelling = false">
+      <p class="dialog-description">This stops the run's job and the machine it trains on. You can try it again afterwards.</p>
+      <div class="dialog-actions"><UiButton @click="cancelling = false">Keep it running</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="confirmCancel">{{ busy ? 'Cancelling…' : 'Cancel run' }}</UiButton></div>
+    </UiDialog>
   </div>
 </template>
 
