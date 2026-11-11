@@ -62,7 +62,7 @@ const HINTS = {
   video_model: 'Makes video (Video Studio).',
   audio_model: 'Speaks text aloud.',
   audio_transcription_model: 'Turns speech in audio and video into text.',
-  fast_model: 'Small steps: summaries, notes, quick helpers.',
+  fast_model: 'Small steps: summaries, notes, Explore subagents.',
 }
 // The name of a job the server sends without one.
 const LABELS = { fast_model: 'Fast model' }

@@ -70,7 +70,7 @@ describe('the Fast model slot (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9, D5)'
     await flushPromises()
     const fast = w.get('[data-test="default-fast_model"]')
     expect(fast.text()).toContain('Fast model')
-    expect(fast.text()).toContain('Small steps: summaries, notes, quick helpers.')
+    expect(fast.text()).toContain('Small steps: summaries, notes, Explore subagents.')
     await fast.get('select').setValue('2')
     await w.get('[data-test="defaults-save"]').trigger('click')
     await flushPromises()
