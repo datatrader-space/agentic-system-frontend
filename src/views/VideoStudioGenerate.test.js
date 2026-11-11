@@ -354,9 +354,14 @@ describe('Image and Video pages: the live price', () => {
   const settle = async () => { await new Promise(resolve => setTimeout(resolve, 760)); await flushPromises() }
   it.each(['image','video'])('%s: shows the price of the draft and asks for it with the page settings', async kind => {
     await render(kind); pickRequired(); await flushPromises(); await settle()
-    expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind, references: [expect.objectContaining({ attachment_id: 42 })] }))
-    // The prompt is sent with both: a token-priced image model is held by what its words can cost (ADM-1170).
-    expect(api.getStudioQuote.mock.calls.at(-1)[0].prompt).toEqual(expect.any(String))
+    // An image asks its job's own quote (kind media), with the request the job sends: the price shown is the job's.
+    expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind: kind === 'image' ? 'media' : kind, references: [expect.objectContaining({ attachment_id: 42 })] }))
+    const sent = api.getStudioQuote.mock.calls.at(-1)[0]
+    if (kind === 'image') {
+      expect(sent).toMatchObject({ operation: 'image', route_id: 501, request: { n: 1, aspect_ratio: '1:1' } })
+      expect(sent.request.prompt).toEqual(expect.any(String))
+      expect(sent.request.prompt).toBe(sent.request.prompt.trim())
+    } else expect(sent.prompt).toEqual(expect.any(String))
     // An exact price is just the price (owner, 2026-11-11: never charged above the most shown).
     expect(wrapper.get('[data-test="live-price-amount"]').text()).toBe('$0.04')
     expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeUndefined()
@@ -378,6 +383,25 @@ describe('Image and Video pages: the live price', () => {
     expect(wrapper.get('.qb-reason').text()).toContain('cannot be charged for')
     await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
     expect(video.request).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled()
+  })
+  it('image: the quote asks for the same request the job sends (ADM-1170)', async () => {
+    await render('image'); pickRequired(); await flushPromises(); await settle()
+    const sent = api.getStudioQuote.mock.calls.at(-1)[0]
+    const { kind, conversation_id, ...asked } = sent
+    expect(kind).toBe('media')
+    expect(asked).toEqual(video.imageJob(sent.request.prompt, video.refs))
+  })
+  it('image: a model whose billing is still being checked keeps Generate off', async () => {
+    api.getStudioQuote.mockRejectedValue({ response: { data: { error: { code: 'not_verified', message: 'This image model is not open to you yet: its billing is still being checked.' } } } })
+    await render('image'); pickRequired(); await flushPromises(); await settle()
+    expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.qb-reason').text()).toContain('billing is still being checked')
+  })
+  it('image: a model with no Manual route says so and asks no price', async () => {
+    await render('image'); pickRequired(); await flushPromises()
+    video.image.models = video.image.models.map(m => ({ ...m, route_id: null })); await flushPromises(); api.getStudioQuote.mockClear(); await settle()
+    expect(wrapper.get('.qb-reason').text()).toContain('not ready for Manual mode')
+    expect(api.getStudioQuote).not.toHaveBeenCalled()
   })
   it('Agent mode asks for no live price', async () => {
     await render('image', null, 'agent'); await settle()

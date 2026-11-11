@@ -133,7 +133,8 @@ function describeImage(r) {
   const n = Number(r.max_references || 0)
   parts.push(n ? `up to ${n} reference image${n === 1 ? '' : 's'}` : 'from words only')
   // Billing's own words (the price the person pays, a range when the provider bills by its settings), else the list price.
-  if (r.price_label && !r.price_label.startsWith('priced by')) parts.push(`${r.price_label} an image`)
+  // A model priced by tokens (GPT Image 2) costs far more with reference images: both figures are said (ADM-1170).
+  if (r.price_label && !r.price_label.startsWith('priced by')) parts.push(`${r.price_label} an image${r.price_with_references ? `, up to ${r.price_with_references} with reference images` : ''}`)
   else if (r.price_label) parts.push('priced per token, known once made')
   else if (r.price_per_image) parts.push(`$${Number(r.price_per_image).toFixed(3)} an image`)
   return parts.join(', ')

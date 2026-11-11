@@ -115,6 +115,17 @@ describe('VideoModelPicker for images', () => {
     w.unmount()
   })
 
+  it('a model priced by tokens says what words cost and what reference images can (ADM-1170)', async () => {
+    video.image.models.push({ model_id: 24, model: 'openai/gpt-image-2', name: 'GPT Image 2', maker: 'OpenAI', shapes: ['1:1'],
+      max_references: 4, price_per_image: null, usable: true, price_label: '$0.03 to $0.86', price_with_references: '$4.69' })
+    const w = mount(VideoModelPicker, { props: { kind: 'image' }, attachTo: document.body })
+    await w.get('[data-test="image-model"]').trigger('click')
+    expect(w.get('[data-test="image-model-24"]').text()).toContain('$0.03 to $0.86 an image, up to $4.69 with reference images')
+    // A model with one price says it once.
+    expect(w.get('[data-test="image-model-21"]').text()).not.toContain('with reference images')
+    w.unmount()
+  })
+
   it('picking goes through pickImageModel', async () => {
     const pick = vi.spyOn(video, 'pickImageModel')
     const w = mount(VideoModelPicker, { props: { kind: 'image' }, attachTo: document.body })

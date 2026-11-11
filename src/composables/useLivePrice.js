@@ -7,7 +7,8 @@ import { retryText } from '../components/studio/studioForm'
 // draft is not complete; nothing is made, held or saved. The newest answer wins.
 // An answer can carry adjustments (what the model cannot do as asked, and what it would do instead): when it
 // needs_acceptance, the person accepts them before the page asks for the job (`blocked` until then), and the job
-// request sends `acceptFields`. A model that cannot be charged for ('not_priced') cannot be used: `blocked` too.
+// request sends `acceptFields`. A model that cannot be charged for ('not_priced'), or whose billing is still being
+// checked ('not_verified', for billing testers only), cannot be used: `blocked` too.
 export function useLivePrice(body, { wait = 700 } = {}) {
   const price = ref(null), loading = ref(false), problem = ref(''), code = ref(''), accepted = ref(false)
   let timer = null, seq = 0, gone = false
@@ -40,7 +41,7 @@ export function useLivePrice(body, { wait = 700 } = {}) {
     }, wait)
   }, { immediate: true })
   onBeforeUnmount(() => { gone = true; clearTimeout(timer) })
-  const blocked = computed(() => code.value === 'not_priced' || (!!price.value?.needsAcceptance && !accepted.value))
+  const blocked = computed(() => ['not_priced', 'not_verified'].includes(code.value) || (!!price.value?.needsAcceptance && !accepted.value))
   const acceptFields = computed(() => accepted.value ? (price.value?.adjustments || []).map(a => a.field).filter(Boolean) : [])
   return { price, loading, problem, code, accepted, blocked, acceptFields }
 }

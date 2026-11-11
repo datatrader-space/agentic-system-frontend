@@ -680,6 +680,17 @@ export const useVideoStore = defineStore('video', {
         this.busy = false
       }
     },
+    // The Manual image job's request (``/video/media/jobs/``, operation image), from a prompt and the uploaded
+    // references. The page's live price asks the quote with the same request (kind 'media'), so the price shown
+    // is the job's own (ADM-1170: a second, older quote said about $0.03 where the job said about $0.09).
+    imageJob(prompt, references = []) {
+      return {
+        operation: 'image', route_id: this.imageModel && this.imageModel.route_id,
+        request: { prompt: (prompt || '').trim(), n: Number(this.image.n) || 1, aspect_ratio: this.image.aspect_ratio || undefined },
+        references: references.filter((r) => r.attachment_id).map((r) => ({ attachment_id: r.attachment_id,
+          role: IMAGE_ROLES.includes(r.role) ? r.role : 'subject' })),
+      }
+    },
     async requestImageDirect({ prompt, chat, studioContext = null }) {
       if (this.busy) return null
       const text = (prompt || '').trim()
@@ -694,13 +705,9 @@ export const useVideoStore = defineStore('video', {
       try {
         const cid = await chat.ensureConversation()
         if (!cid) return null
-        const references = (await this._uploadRefs(cid)).map((r) => ({ attachment_id: r.attachment_id,
-          role: IMAGE_ROLES.includes(r.role) ? r.role : 'subject' }))
-        const body = {
-          operation: 'image', route_id: routeId,
-          request: { prompt: text, n: Number(this.image.n) || 1, aspect_ratio: this.image.aspect_ratio || undefined },
-          references, conversation_id: cid, ...(studioContext ? { studio_context: studioContext } : {}),
-        }
+        const references = await this._uploadRefs(cid)
+        const body = { ...this.imageJob(text, references), conversation_id: cid,
+          ...(studioContext ? { studio_context: studioContext } : {}) }
         const job = this._put((await api.post('/video/media/jobs/', body)).data)
         this.refs = []
         return job

@@ -115,6 +115,7 @@ const draftProblem = computed(() => {
   if (full) return `${full.label} takes up to ${full.limit} file(s). Remove the extra inputs.`
   if (video.pendingSwitch) return 'Review the model change before continuing.'
   if (video.unusableRefs.length) return `${video.unusableRefs[0].name}: this model ${video.unusableRefs[0].problem}. Remove the input or choose another model.`
+  if (props.kind === 'image' && !isAgent.value && video.imageModel && !video.imageModel.route_id) return 'This image model is not ready for Manual mode yet. Choose another model.'
   if (!selected.value && !details.value.trim()) return 'Choose a preset or add a creative direction.'
   return ''
 })
@@ -125,8 +126,8 @@ const quote = useLivePrice(() => {
   if (isAgent.value || draftProblem.value) return null
   const references = video.refs.filter(ref => ref.attachment_id).map(ref => ({ attachment_id: ref.attachment_id, role: ref.role }))
   const conversation = chat.conversationId ? { conversation_id: chat.conversationId } : {}
-  // The prompt goes too: a model priced by tokens (GPT Image 2) is held at what its words can cost (ADM-1170).
-  if (props.kind === 'image') return { kind: 'image', model_id: video.image.modelId ? Number(video.image.modelId) : undefined, prompt: composePreset(selected.value, values.value, details.value, variant.value), params: { aspect_ratio: video.image.aspect_ratio || undefined, n: Number(video.image.n) || 1 }, references, ...conversation }
+  // An image is priced by its job's own quote, with the request the job sends (video.imageJob), prompt included.
+  if (props.kind === 'image') return { kind: 'media', ...video.imageJob(composePreset(selected.value, values.value, details.value, variant.value), video.refs), ...conversation }
   return { kind: 'video', route_id: video.routeId || undefined, prompt: composePreset(selected.value, values.value, details.value, variant.value),
     params: { duration: Number(video.settings.duration) || undefined, aspect_ratio: video.settings.aspect_ratio || undefined, resolution: video.settings.resolution || undefined, sound: video.options.audio ? !!video.settings.sound : undefined },
     references: references.filter(ref => ref.role !== 'edit_source'), ...conversation }
@@ -138,6 +139,7 @@ const barPrice = computed(() => quote.loading.value ? 'Working out the price…'
 const disabledReason = computed(() => {
   if (draftProblem.value || isAgent.value) return draftProblem.value
   if (quote.code.value === 'not_priced') return 'This model cannot be charged for, so it cannot be used. Choose another model.'
+  if (quote.code.value === 'not_verified') return 'This model is not open to you yet: its billing is still being checked. Choose another model.'
   if (quote.blocked.value) return 'Accept the changes the model needs, or change the settings, to continue.'
   return ''
 })
