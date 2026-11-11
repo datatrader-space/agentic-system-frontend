@@ -90,11 +90,13 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <p><strong>Live on staging.</strong> Photos go to the staging endpoint; no test server is needed.</p>
           </template>
           <template v-else-if="state.phase==='ready'">
+            <p v-if="state.machine"><strong>{{ state.machine.label }}.</strong> Free: it runs on your hardware, and each photo you try goes to {{ state.machine.name }} and is not kept.</p>
             <p><strong>The test server is ready.</strong> {{ state.trial.photos_tried }} photo{{ state.trial.photos_tried===1?'':'s' }} tried<template v-if="state.trial.started_by"> · started by {{ state.trial.started_by }}</template> at {{ when(state.trial.started_at) }}. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop test server</UiButton>
           </template>
           <template v-else-if="state.phase==='starting'">
-            <p class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The model is placed on AADML's shared test server; this takes a few seconds.</p>
+            <p v-if="state.machine" class="starting"><span class="spinner" aria-hidden="true"></span><strong>{{ state.machine.label }}…</strong> The first time, {{ state.machine.name }} downloads AADML's model server (a few minutes, once), then the model.</p>
+            <p v-else class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The model is placed on AADML's shared test server; this takes a few seconds.</p>
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop</UiButton>
           </template>
           <template v-else>

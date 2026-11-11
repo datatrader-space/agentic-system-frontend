@@ -318,7 +318,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             </ol>
             <p v-if="!state" class="muted">Looking at where it stands…</p>
             <template v-else>
-              <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : onPlatform ? 'Its GPU server is starting; this takes a few minutes' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
+              <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : state.machine ? state.machine.label : onPlatform ? 'Its GPU server is starting; this takes a few minutes' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
@@ -326,6 +326,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-else-if="ready&&onPlatform&&gpu==='waking'" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>Its GPU is starting; this takes a few minutes.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+              <p v-else-if="ready&&state.machine" class="muted">{{ state.machine.label }}: free, on your hardware. Each photo you try goes to {{ state.machine.name }} and is not kept. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried; it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
               <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>

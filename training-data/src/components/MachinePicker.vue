@@ -8,7 +8,7 @@
 // otherwise the reason it runs on a GPU only) and one machine from the list. The server reads every choice again
 // before anything starts. A page calls ``confirm(start)`` instead of ``start()``.
 import { computed, onMounted, ref, watch } from 'vue';
-import { Cpu, MapPin, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-vue-next';
+import { Cpu, HardDrive, MapPin, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 
 const props = defineProps({
@@ -27,9 +27,12 @@ const NONE_HERE = 'No machine that can run this model is free now where its file
 
 const ofKind = computed(() => (kind.value === 'auto' ? (machines.value || [])
   : (machines.value || []).filter(m => (m.kind || 'gpu') === kind.value)));
+// "Your machine" (agentic-docs/TRY_ON_MY_MACHINE_PLAN.md): the workspace's own machines the server offers for this
+// model, online and allowed (kind 'own_machine'). The choice is shown only when there is one; it is free.
 const counts = computed(() => ({
   gpu: (machines.value || []).filter(m => (m.kind || 'gpu') === 'gpu').length,
   cpu: (machines.value || []).filter(m => m.kind === 'cpu').length,
+  own_machine: (machines.value || []).filter(m => m.kind === 'own_machine').length,
 }));
 const chosen = computed(() => (machines.value || []).find(m => m.key === props.modelValue) || null);
 // Auto's find: the cheapest machine where the files already are (the list comes that location first, cheapest first).
@@ -81,7 +84,10 @@ function cancel() { pending.value = null; said.value = 'Nothing was started, and
 const describe = m => `${m.gpu_name} (${m.kind === 'cpu' ? 'CPU' : 'GPU'}, ${m.memory_gb} GB) in ${m.data_center}, ${m.soc2 ? 'SOC 2' : 'not SOC 2'}, ${money(m.usd_per_hour)} an hour ($${Number(m.usd_per_second).toFixed(6)} a second), ${m.files_here ? 'its files are already there' : 'its files are copied there first'}`;
 
 function money(value) { return `$${Number(value).toFixed(2)}`; }
-const optionText = m => `${m.gpu_name}, ${m.memory_gb} GB, ${m.data_center}${m.soc2 ? ' (SOC 2)' : ' (not SOC 2)'}, ${money(m.usd_per_hour)} an hour`;
+const optionText = m => (m.kind === 'own_machine'
+  ? `${m.name}, ${m.gpu_name || 'CPU'}, ${m.memory_gb} GB, free`
+  : `${m.gpu_name}, ${m.memory_gb} GB, ${m.data_center}${m.soc2 ? ' (SOC 2)' : ' (not SOC 2)'}, ${money(m.usd_per_hour)} an hour`);
+const own = computed(() => chosen.value?.kind === 'own_machine');
 defineExpose({ read, confirm });
 </script>
 
@@ -98,7 +104,7 @@ defineExpose({ read, confirm });
       <UiButton :disabled="loading" @click="read"><RefreshCw :size="14" aria-hidden="true"/> Read again</UiButton>
     </div>
     <template v-else-if="machines">
-      <div class="machine-kinds" role="radiogroup" aria-label="Auto, GPU or CPU">
+      <div :class="['machine-kinds', { four: counts.own_machine }]" role="radiogroup" :aria-label="counts.own_machine ? 'Auto, GPU, CPU or your machine' : 'Auto, GPU or CPU'">
         <label :class="['machine-kind', { chosen: kind === 'auto' }]">
           <input type="radio" :name="`kind-${uid}`" value="auto" :checked="kind === 'auto'" @change="pickKind('auto')">
           <Sparkles :size="15" aria-hidden="true"/><span><strong>Auto</strong><small>you approve it</small></span>
@@ -111,12 +117,16 @@ defineExpose({ read, confirm });
           <input type="radio" :name="`kind-${uid}`" value="cpu" :checked="kind === 'cpu'" :disabled="!counts.cpu" @change="pickKind('cpu')">
           <Cpu :size="15" aria-hidden="true"/><span><strong>CPU</strong><small>{{ counts.cpu ? `${counts.cpu} free` : 'not for this model' }}</small></span>
         </label>
+        <label v-if="counts.own_machine" :class="['machine-kind', { chosen: kind === 'own_machine' }]">
+          <input type="radio" :name="`kind-${uid}`" value="own_machine" :checked="kind === 'own_machine'" @change="pickKind('own_machine')">
+          <HardDrive :size="15" aria-hidden="true"/><span><strong>Your machine</strong><small>free, on your hardware</small></span>
+        </label>
       </div>
       <p v-if="gpuOnly" class="machine-gpu-only" role="note">{{ gpuOnly }}</p>
 
       <p v-if="kind === 'auto'" class="machine-auto">At Start, the cheapest machine free now that can run this model, where its files already are, is found and shown to you; it starts only when you approve it.</p>
       <template v-else>
-        <label class="machine-select-label" :for="`machine-${uid}`">{{ kind === 'cpu' ? 'CPU machine' : 'GPU machine' }}</label>
+        <label class="machine-select-label" :for="`machine-${uid}`">{{ kind === 'own_machine' ? 'Your machine' : kind === 'cpu' ? 'CPU machine' : 'GPU machine' }}</label>
         <select :id="`machine-${uid}`" class="compact-select machine-select" :value="modelValue"
                 @change="emit('update:modelValue', $event.target.value)">
           <option v-for="m in ofKind" :key="m.key" :value="m.key">{{ optionText(m) }}</option>
@@ -133,7 +143,13 @@ defineExpose({ read, confirm });
       </div>
       <p v-if="said" class="machine-said" role="status">{{ said }}</p>
 
-      <p v-if="chosen && kind !== 'auto'" class="machine-chosen">
+      <p v-if="chosen && own" class="machine-chosen">
+        <span><HardDrive :size="14" aria-hidden="true"/>{{ chosen.stock_text || 'Online' }}</span>
+        <span>{{ chosen.gpu_name || 'CPU only' }}, {{ chosen.memory_gb }} GB</span>
+        <strong>Free: it runs on your hardware</strong>
+        <span>The model's files and each photo you try go to this machine; the photo is not kept.</span>
+      </p>
+      <p v-else-if="chosen && kind !== 'auto'" class="machine-chosen">
         <span><MapPin :size="14" aria-hidden="true"/>{{ chosen.data_center }}</span>
         <span v-if="chosen.soc2" class="machine-soc2"><ShieldCheck :size="14" aria-hidden="true"/>SOC 2</span>
         <span v-else>not SOC 2</span>
@@ -151,6 +167,8 @@ defineExpose({ read, confirm });
 .machine-picker { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
 .machine-picker legend { font-weight: 600; margin-bottom: 8px; color: var(--aadml-navy); }
 .machine-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.machine-kinds.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 720px) { .machine-kinds.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .machine-auto { margin: 0; font-size: 14px; color: var(--muted); }
 .machine-found { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--aadml-primary); border-radius: 12px;
   background: var(--aadml-tint); }
