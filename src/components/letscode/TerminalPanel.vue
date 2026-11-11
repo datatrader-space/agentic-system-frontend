@@ -76,6 +76,7 @@
                        @find="openFind" @font="setFont" @menu="openTermMenu" @results="findResults = $event" />
       <ProjectTerminal v-for="s in shells" v-show="current === s.n" :key="`${repoId}-${s.n}`"
                        :ref="(el) => setRef(s.n, el)" mode="shell" :repo-id="repoId" :n="s.n" :shell="s.shell || ''"
+                       :fresh="!!s.fresh"
                        :active="current === s.n" :font-size="fontSize"
                        @info="onInfo(s.n, $event)" @cwd="onCwd(s.n, $event)" @find="openFind" @font="setFont"
                        @menu="openTermMenu" @results="findResults = $event" />
@@ -120,7 +121,7 @@ const where = reactive({})
 function addShell(shell = DEFAULT_SHELL) {
   if (!props.ready || shells.value.length >= MAX) return
   const n = [1, 2, 3].find(x => !shells.value.some(s => s.n === x))
-  shells.value = [...shells.value, { n, shell }].sort((a, b) => a.n - b.n)
+  shells.value = [...shells.value, { n, shell, fresh: true }].sort((a, b) => a.n - b.n)
   where[n] = { shell }
   current.value = n
 }
@@ -278,7 +279,7 @@ function remembered(repo) {
 function remember(repo, list) {
   try { localStorage.setItem(storeKey(repo), JSON.stringify(list)) } catch { /* storage blocked: nothing kept */ }
 }
-watch(shells, (list) => remember(props.repoId, list))
+watch(shells, (list) => remember(props.repoId, list.map(({ n, shell }) => ({ n, shell }))))
 
 // Open what was open; the first visit opens one bash terminal, as VS Code does. Once the project is ready.
 function restore() {

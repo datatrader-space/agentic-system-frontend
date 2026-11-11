@@ -173,7 +173,7 @@ describe('TerminalPanel', () => {
     await flushPromises()
     expect(w.findAll('.tp-name').map(n => n.text())).toEqual(['bash (1)', 'bash (2)', 'bash (3)'])
     expect(w.find('.tp-add').exists()).toBe(false)
-    const shell2 = sockets.find(s => s.url && s.url.endsWith('/terminal/2/?shell=bash'))
+    const shell2 = sockets.find(s => s.url && s.url.endsWith('/terminal/2/?shell=bash&new=1'))
     await w.find('[aria-label="End bash (2)"]').trigger('click')
     await flushPromises()
     expect(shell2.sent.map(d => (typeof d === 'string' ? JSON.parse(d) : null))).toContainEqual({ type: 'close' })

@@ -49,7 +49,7 @@ const sockets = []
 vi.mock('@/utils/reconnectingSocket', () => ({
   reconnectingSocket: (handlers) => {
     const s = { handlers, url: null, sent: [], closed: 0,
-      connect(target) { this.url = target(); this.closed = 0 },
+      connect(target) { this.target = target; this.url = target(); this.closed = 0 },
       close() { this.closed += 1 },
       send(d) { this.sent.push(d); return true } }
     sockets.push(s)
@@ -83,14 +83,14 @@ const shellSock = () => sockets.find(s => s.url && s.url.includes('/terminal/'))
 describe('which shell', () => {
   it('a new terminal is bash; the menu opens zsh or sh, and the server is asked for that shell', async () => {
     const w = await panel()
-    expect(shellSock().url).toMatch(/\/ws\/lets-code\/16\/terminal\/1\/\?shell=bash$/)
+    expect(shellSock().url).toMatch(/\/ws\/lets-code\/16\/terminal\/1\/\?shell=bash&new=1$/)
     await w.find('.tp-pick').trigger('click')
     await flushPromises()
     const items = [...document.querySelectorAll('.xm-item')].map(b => b.textContent.trim())
     expect(items).toEqual(['bash (default)', 'zsh', 'sh'])
     ;[...document.querySelectorAll('.xm-item')].find(b => b.textContent.trim() === 'zsh').click()
     await flushPromises()
-    expect(sockets.some(s => s.url && s.url.endsWith('/terminal/2/?shell=zsh'))).toBe(true)
+    expect(sockets.some(s => s.url && s.url.endsWith('/terminal/2/?shell=zsh&new=1'))).toBe(true)
     expect(w.findAll('.tp-name').map(n => n.text())).toEqual(['bash', 'zsh'])
   })
 
@@ -119,6 +119,31 @@ describe('which shell', () => {
     await flushPromises()
     expect(w.find('.tp-name').text()).toBe('zsh')
     expect(JSON.parse(localStorage.getItem('lets-code:terminals:16'))).toEqual([{ n: 2, shell: 'zsh' }])
+  })
+})
+
+describe('a new terminal is a new shell', () => {
+  // Live 2026-11-11: a tab ended before its socket opened left its zsh running, and "+ bash" reattached to it.
+  it('only the first connection of a terminal opened with + asks for a new shell; a reconnect reattaches', async () => {
+    await panel()
+    const s = shellSock()
+    expect(s.url).toContain('new=1')
+    s.handlers.onMessage(connected('bash'))
+    s.connect(s.target)                                           // the socket's own reconnect re-reads the address
+    await flushPromises()
+    expect(s.url).not.toContain('new=1')
+    expect(JSON.parse(localStorage.getItem('lets-code:terminals:16'))).toEqual([{ n: 1, shell: 'bash' }])
+  })
+
+  it('a reload reattaches: a kept terminal never asks for a new shell', async () => {
+    localStorage.setItem('lets-code:terminals:16', JSON.stringify([{ n: 1, shell: 'bash' }]))
+    await panel()
+    expect(shellSock().url).toMatch(/\/terminal\/1\/\?shell=bash$/)
+  })
+
+  it("find can mark matches (xterm's proposed API is on)", async () => {
+    await panel()
+    expect(shellTerm().opts.allowProposedApi).toBe(true)
   })
 })
 

@@ -32,8 +32,12 @@ const props = defineProps({
   // The shell a NEW terminal starts (bash, zsh or sh; ADM-1211). A running terminal keeps its own; the server says
   // which in the "connected" status ("info").
   shell: { type: String, default: '' },
+  // Opened with "+": the first connection asks for a NEW shell (the server ends one left under this number); later
+  // reconnects and reloads reattach to it.
+  fresh: { type: Boolean, default: false },
   fontSize: { type: Number, default: 13 },
 })
+let freshPending = props.fresh
 // info: {shell, root, project} once connected; cwd: the folder the shell is in (OSC 7, each prompt);
 // find / font(+1 | -1 | 0) / menu({x, y}): the keys and right-click the panel acts on; results: {index, count} of a find.
 const emit = defineEmits(['ended', 'info', 'cwd', 'find', 'font', 'menu', 'results'])
@@ -89,6 +93,7 @@ const sock = reconnectingSocket({
     if (msg.state === 'starting') overlay.value = { kind: 'wait', icon: 'lucide:loader', text: "The project's sandbox is starting…" }
     else if (msg.state === 'connected') {
       overlay.value = null; sendSize(); if (props.active) term?.focus()
+      freshPending = false
       if (msg.shell) emit('info', { shell: msg.shell, root: msg.root || '', project: msg.project || '' })
     }
     else if (msg.state === 'exited') stop({ kind: 'ended', icon: 'lucide:square-terminal', text: 'The terminal ended.' })
@@ -109,8 +114,13 @@ function connect() {
   overlay.value = { kind: 'wait', icon: 'lucide:loader', text: 'Opening the terminal…' }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host_ = import.meta.env.VITE_WS_HOST || window.location.host
-  const pick = props.shell ? `?shell=${encodeURIComponent(props.shell)}` : ''
-  sock.connect(() => `${proto}//${host_}/ws/lets-code/${props.repoId}/terminal/${props.n}/${pick}`)
+  sock.connect(() => {
+    const q = new URLSearchParams()
+    if (props.shell) q.set('shell', props.shell)
+    if (freshPending) q.set('new', '1')
+    const qs = q.toString()
+    return `${proto}//${host_}/ws/lets-code/${props.repoId}/terminal/${props.n}/${qs ? `?${qs}` : ''}`
+  })
 }
 function restart() { term?.reset(); connect() }
 let sizeTimer = null
@@ -144,6 +154,9 @@ onMounted(async () => {
     fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--vm-font-mono').trim() || 'monospace',
     fontSize: props.fontSize, lineHeight: 1.25, cursorBlink: props.mode === 'shell', scrollback: 10000,
     disableStdin: props.mode !== 'shell', convertEol: false, theme: themeFromTokens(), minimumContrastRatio: 4.5,
+    // The search add-on marks matches with decorations, a "proposed" xterm API: without this every find threw and
+    // said "No results" (live, 2026-11-11). VS Code's terminal sets it too.
+    allowProposedApi: true,
   })
   fit = new FitAddon()
   term.loadAddon(fit)
