@@ -9,6 +9,7 @@ import { Play, Square, Send, RefreshCw, ArrowLeft, ArrowRight, MessageSquarePlus
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import MachinePicker from './MachinePicker.vue';
+import DownloadBar from './DownloadBar.vue';
 import LlmConversation from './LlmConversation.vue';
 import { llmApi } from '../api/llm.js';
 import './llm.css';
@@ -186,6 +187,7 @@ onUnmounted(() => { clearTimeout(pollTimer); clearInterval(clock); });
             <template v-else-if="trial.state === 'ready'"> answers your messages.</template>
             <template v-else-if="trial.failure"> {{ trial.failure }}</template>
           </p>
+          <DownloadBar v-if="onMachine && trial.state === 'starting'" :download="onMachine.download"/>
           <p class="field-help">Nothing you type here is kept: the conversation lives in this page and is gone when you leave it. One test server runs per project; one nobody uses for 15 minutes is stopped.</p>
         </section>
 

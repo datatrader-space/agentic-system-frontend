@@ -9,6 +9,7 @@ import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
 import MachinePicker from './MachinePicker.vue';
+import DownloadBar from './DownloadBar.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PipelineResult from './PipelineResult.vue';
@@ -319,6 +320,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <p v-if="!state" class="muted">Looking at where it stands…</p>
             <template v-else>
               <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : state.machine ? state.machine.label : onPlatform ? 'Its GPU server is starting; this takes a few minutes' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
+              <DownloadBar v-if="state.phase==='starting'" :download="state.machine?.download"/>
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
@@ -399,6 +401,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
           <p v-if="!state" class="muted">Looking at where it stands…</p>
           <template v-else>
             <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.machine ? `${state.machine.label}. The first time, ${state.machine.name} downloads the model and AADML's server for it` : 'Its server is starting; this takes a few minutes' }}.</p>
+            <DownloadBar v-if="state.phase==='starting'" :download="state.machine?.download"/>
             <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
             <p v-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text }}, charged by the second of each call. Each {{ trying.kind==='chat' ? 'message' : 'photo' }} goes to {{ state.machine.name }} and is not kept. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
             <p v-else-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>

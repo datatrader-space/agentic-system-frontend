@@ -7,6 +7,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { Check, Gauge, Play, Square, Upload, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import MachinePicker from './MachinePicker.vue';
+import DownloadBar from './DownloadBar.vue';
 import PredictionResult from './PredictionResult.vue';
 import { trialApi, PHOTO_TYPES, percent } from '../api/trial.js';
 
@@ -96,6 +97,7 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
           </template>
           <template v-else-if="state.phase==='starting'">
             <p v-if="state.machine" class="starting"><span class="spinner" aria-hidden="true"></span><strong>{{ state.machine.label }}…</strong> The first time, {{ state.machine.name }} downloads AADML's model server (a few minutes, once), then the model.</p>
+            <DownloadBar v-if="state.machine" :download="state.machine.download"/>
             <p v-else class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The model is placed on AADML's shared test server; this takes a few seconds.</p>
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop</UiButton>
           </template>
