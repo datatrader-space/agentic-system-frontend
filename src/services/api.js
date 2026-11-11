@@ -487,7 +487,9 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/files/rename/`, { path, new_path: newPath }),
   deleteRepositoryEntry: (systemId, repoId, path) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, { path }),
-  // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top).
+  // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top). Sent as multipart, said
+  // explicitly: the instance's JSON default otherwise went out with the form and the server read no files (live,
+  // 2026-11-11: "Choose files to upload.").
   uploadRepositoryFiles: (systemId, repoId, folder, files, { overwrite = false } = {}) => {
     const form = new FormData()
     form.append('folder', folder || '')
@@ -496,7 +498,8 @@ export default {
       form.append('files', f.file, f.file.name)
       form.append('paths', f.path)
     }
-    return api.post(`/systems/${systemId}/repositories/${repoId}/files/upload/`, form)
+    return api.post(`/systems/${systemId}/repositories/${repoId}/files/upload/`, form,
+      { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   // A file as itself, or a folder ('' = the whole project) as .tar.gz, as a Blob to save.
   downloadRepositoryEntry: (systemId, repoId, path) =>
