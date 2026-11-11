@@ -380,13 +380,18 @@ function fmtDuration(ms) {
 </script>
 
 <style scoped>
+/* Colours are the theme's tokens, never fixed light utilities: `@apply text-gray-600` compiled to a fixed grey
+   that no theme reached, so this card stayed light in dark mode (in the chat, and in the Let's Code editor's own
+   dark theme; ADM-1205). AgentActivityTimeline.colours.test.js keeps it so. */
 .agent-timeline {
-  @apply text-xs text-gray-500 my-1;
+  @apply text-xs my-1;
+  color: var(--vm-ink-faint);
 }
 
 /* Live status line */
 .agent-status-line {
-  @apply flex items-center gap-2 text-gray-600 py-1;
+  @apply flex items-center gap-2 py-1;
+  color: var(--vm-ink-soft);
 }
 .agent-status-label {
   @apply font-medium;
@@ -394,7 +399,9 @@ function fmtDuration(ms) {
 
 /* Spinner */
 .agent-spinner {
-  @apply inline-block w-3 h-3 rounded-full border-2 border-gray-300 border-t-blue-500;
+  @apply inline-block w-3 h-3 rounded-full border-2;
+  border-color: var(--vm-line-2);
+  border-top-color: var(--vm-link);
   animation: agent-spin 0.7s linear infinite;
 }
 .agent-spinner.sm {
@@ -408,44 +415,54 @@ function fmtDuration(ms) {
 
 /* Bordered card (legacy "Done · N steps" look) */
 .at-card {
-  @apply rounded-lg border border-gray-200 bg-slate-50/70;
+  @apply rounded-lg border;
+  border-color: var(--vm-line);
+  background-color: color-mix(in srgb, var(--vm-surface-soft) 70%, transparent);
 }
 .at-card.at-warn {
-  @apply border-amber-200;
+  border-color: color-mix(in srgb, var(--vm-amber) 35%, transparent);
 }
 /* DONE header — clickable, collapses/expands the rows */
 .at-head {
-  @apply w-full flex items-center gap-2 px-3 py-2 text-[13px] text-gray-600 rounded-lg hover:bg-slate-100/60 select-none;
+  @apply w-full flex items-center gap-2 px-3 py-2 text-[13px] rounded-lg select-none;
+  color: var(--vm-ink-soft);
 }
+.at-head:hover { background-color: color-mix(in srgb, var(--vm-ink) 5%, transparent); }
 .at-check {
-  @apply w-4 h-4 flex-shrink-0 text-emerald-500;
+  @apply w-4 h-4 flex-shrink-0;
+  color: var(--vm-green);
 }
 .at-check.warn {
-  @apply text-amber-500;
+  color: var(--vm-amber-ink);
 }
 /* Paused on a decision: a still, amber mark - nothing is running. */
 .at-pause {
-  @apply w-4 h-4 flex-shrink-0 text-amber-500;
+  @apply w-4 h-4 flex-shrink-0;
+  color: var(--vm-amber-ink);
 }
 .at-head-text {
   @apply text-left;
 }
 .at-chevron {
-  @apply w-3.5 h-3.5 ml-auto text-gray-400 transition-transform;
+  @apply w-3.5 h-3.5 ml-auto transition-transform;
+  color: var(--vm-ink-faint);
 }
 .at-chevron.open {
   transform: rotate(180deg);
 }
 /* RUNNING header */
 .at-head-live {
-  @apply flex items-center gap-2 px-3 pt-2 pb-1 text-[12px] text-indigo-600;
+  @apply flex items-center gap-2 px-3 pt-2 pb-1 text-[12px];
+  color: var(--vm-violet-ink);
 }
 .at-head-live .at-dot {
-  @apply w-1.5 h-1.5 rounded-full bg-indigo-500;
+  @apply w-1.5 h-1.5 rounded-full;
+  background-color: var(--vm-violet);
   animation: agent-pulse 1.4s ease-in-out infinite;
 }
 .at-head-tok {
-  @apply ml-auto text-gray-400 tabular-nums;
+  @apply ml-auto tabular-nums;
+  color: var(--vm-ink-faint);
 }
 @keyframes agent-pulse {
   0%, 100% { opacity: 1; }
@@ -457,7 +474,8 @@ function fmtDuration(ms) {
 }
 /* When the card is collapsed→expanded (done), separate the rows from the header. */
 .agent-steps.at-rows-done {
-  @apply border-t border-gray-100;
+  @apply border-t;
+  border-color: var(--vm-line);
 }
 
 /* Reasoning section (folded into the one panel) */
@@ -465,17 +483,22 @@ function fmtDuration(ms) {
   @apply px-3 pt-1.5 pb-2.5 space-y-2;
 }
 .at-reasoning.at-rows-done {
-  @apply border-t border-gray-100;
+  @apply border-t;
+  border-color: var(--vm-line);
 }
 .at-reason-phrase {
-  @apply text-[12px] font-medium text-gray-600;
+  @apply text-[12px] font-medium;
+  color: var(--vm-ink-soft);
 }
 .at-reason-text {
-  @apply mt-0.5 text-[12px] text-gray-500 italic whitespace-pre-wrap break-words;
+  @apply mt-0.5 text-[12px] italic whitespace-pre-wrap break-words;
+  color: var(--vm-ink-faint);
 }
 .at-reason-toggle {
-  @apply flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors;
+  @apply flex items-center gap-1 text-[11px] font-medium select-none transition-colors;
+  color: var(--vm-ink-faint);
 }
+.at-reason-toggle:hover { color: var(--vm-ink-soft); }
 .at-reason-caret {
   @apply w-3 h-3 transition-transform;
 }
@@ -492,13 +515,13 @@ function fmtDuration(ms) {
   @apply flex items-center justify-center w-4 h-4 flex-shrink-0 mt-0.5 text-[10px] font-bold;
 }
 .agent-step-icon.icon-ok {
-  @apply text-green-600;
+  color: var(--vm-green-ink);
 }
 .agent-step-icon.icon-failed {
-  @apply text-red-500;
+  color: var(--vm-red-ink);
 }
 .agent-step-icon.icon-interrupted {
-  @apply text-amber-500;
+  color: var(--vm-amber-ink);
 }
 .agent-step-body {
   @apply flex-1 min-w-0;
@@ -510,21 +533,24 @@ function fmtDuration(ms) {
   @apply flex min-w-0 items-center gap-1.5;
 }
 .agent-step-label {
-  @apply text-gray-700;
+  color: var(--vm-ink-soft);
 }
 /* The person's own words inside the run: quoted in their voice, set apart from the agent's work. */
 .agent-step.is-steer .agent-step-icon,
 .at-steer-icon {
-  @apply text-blue-600 font-semibold;
+  @apply font-semibold;
+  color: var(--vm-link);
 }
 .agent-step.is-steer .agent-step-label {
-  @apply text-gray-900;
+  color: var(--vm-ink);
 }
 .at-steer-by {
-  @apply font-medium text-blue-700;
+  @apply font-medium;
+  color: var(--vm-link);
 }
 .at-steers {
-  @apply px-3 pb-2 space-y-1 text-[13px] text-gray-900;
+  @apply px-3 pb-2 space-y-1 text-[13px];
+  color: var(--vm-ink);
 }
 .at-steer-line {
   @apply flex items-baseline gap-1.5 break-words;
@@ -532,44 +558,53 @@ function fmtDuration(ms) {
 /* The count on a folded row: quiet, tabular so a column of them lines up, and never louder than the
    label it qualifies. */
 .agent-step-count {
-  @apply text-[11px] text-gray-400 tabular-nums flex-shrink-0;
+  @apply text-[11px] tabular-nums flex-shrink-0;
+  color: var(--vm-ink-faint);
 }
 /* Lined up with the rows above it: the list has a 12px side padding and this button sat outside it, on
    the panel's edge (seen 2026-10-14, conversation 2741). */
 .at-steps-toggle {
-  @apply mx-3 -mt-1 mb-2 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors text-left;
+  @apply mx-3 -mt-1 mb-2 text-[11px] font-medium select-none transition-colors text-left;
+  color: var(--vm-ink-faint);
 }
+.at-steps-toggle:hover { color: var(--vm-ink-soft); }
 .agent-step-dur {
-  @apply text-gray-400 tabular-nums flex-shrink-0;
+  @apply tabular-nums flex-shrink-0;
+  color: var(--vm-ink-faint);
 }
 .agent-step-detail {
-  @apply text-gray-500 mt-0.5 break-words;
+  @apply mt-0.5 break-words;
+  color: var(--vm-ink-faint);
 }
 .agent-step-error {
-  @apply text-red-500;
+  color: var(--vm-red-ink);
 }
 .agent-step-warn {
-  @apply text-amber-600;
+  color: var(--vm-amber-ink);
 }
 .agent-step-next {
-  @apply text-gray-500 italic;
+  @apply italic;
+  color: var(--vm-ink-faint);
 }
 
 /* Turn summary */
 .agent-summary {
-  @apply flex items-center gap-1.5 mt-1.5 text-gray-500;
+  @apply flex items-center gap-1.5 mt-1.5;
+  color: var(--vm-ink-faint);
 }
 .agent-summary-dot {
-  @apply inline-block w-1.5 h-1.5 rounded-full bg-green-500;
+  @apply inline-block w-1.5 h-1.5 rounded-full;
+  background-color: var(--vm-green);
 }
 .agent-summary.has-warn .agent-summary-dot {
-  @apply bg-amber-500;
+  background-color: var(--vm-amber);
 }
 .agent-summary-label {
-  @apply font-medium text-gray-600;
+  @apply font-medium;
+  color: var(--vm-ink-soft);
 }
 .agent-summary-counts {
-  @apply text-gray-400;
+  color: var(--vm-ink-faint);
 }
 
 /* Sources footer */
@@ -577,25 +612,33 @@ function fmtDuration(ms) {
   @apply mt-1.5;
 }
 .agent-sources-label {
-  @apply text-gray-400;
+  color: var(--vm-ink-faint);
 }
 .agent-sources-list {
-  @apply mt-1 flex flex-col gap-0.5 text-gray-600;
+  @apply mt-1 flex flex-col gap-0.5;
+  color: var(--vm-ink-soft);
 }
 .agent-source {
   @apply truncate;
 }
 .agent-source-link {
-  @apply text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-blue-700 hover:decoration-blue-400;
+  @apply underline underline-offset-2;
+  color: var(--vm-ink-soft);
+  text-decoration-color: var(--vm-line-2);
 }
+.agent-source-link:hover { color: var(--vm-link); text-decoration-color: var(--vm-link); }
 
 /* Builder/debug details (emulator only) */
 .agent-debug {
-  @apply mt-2 rounded-lg border border-slate-200 bg-slate-50/70;
+  @apply mt-2 rounded-lg border;
+  border-color: var(--vm-line);
+  background-color: color-mix(in srgb, var(--vm-surface-soft) 70%, transparent);
 }
 .agent-debug-summary {
-  @apply cursor-pointer select-none px-2 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700;
+  @apply cursor-pointer select-none px-2 py-1 text-[11px] font-semibold;
+  color: var(--vm-ink-faint);
 }
+.agent-debug-summary:hover { color: var(--vm-ink-soft); }
 .agent-debug-body {
   @apply px-2 pb-2 space-y-2;
 }
@@ -609,30 +652,36 @@ function fmtDuration(ms) {
   @apply flex items-center gap-2;
 }
 .agent-debug-tool {
-  @apply font-mono text-[11px] text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded;
+  @apply font-mono text-[11px] px-1 py-0.5 rounded;
+  color: var(--vm-violet-ink);
+  background-color: var(--vm-violet-soft);
 }
 .agent-debug-status {
-  @apply text-[10px] uppercase tracking-wide text-slate-400;
+  @apply text-[10px] uppercase tracking-wide;
+  color: var(--vm-ink-faint);
 }
 .agent-debug-status.s-failed {
-  @apply text-red-500;
+  color: var(--vm-red-ink);
 }
 .agent-debug-status.s-ok {
-  @apply text-green-600;
+  color: var(--vm-green-ink);
 }
 .agent-debug-dur {
-  @apply text-[10px] text-slate-400 tabular-nums;
+  @apply text-[10px] tabular-nums;
+  color: var(--vm-ink-faint);
 }
 .agent-debug-args {
-  @apply font-mono text-[11px] text-slate-500 break-all pl-1;
+  @apply font-mono text-[11px] break-all pl-1;
+  color: var(--vm-ink-faint);
 }
 .agent-debug-args .k {
-  @apply text-slate-400 mr-1;
+  @apply mr-1;
+  color: var(--vm-ink-faint);
 }
 .agent-debug-err {
-  @apply text-red-500;
+  color: var(--vm-red-ink);
 }
 .agent-debug-ref {
-  @apply text-slate-400;
+  color: var(--vm-ink-faint);
 }
 </style>
