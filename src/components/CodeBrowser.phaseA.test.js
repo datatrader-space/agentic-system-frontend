@@ -28,7 +28,7 @@ async function browser() {
   w = mount(CodeBrowser, {
     attachTo: document.body,
     props: { repositoryId: 4, systemId: 5, editable: true },
-    global: { stubs: { Icon: true, RouterLink: RouterLinkStub, SourceControlPanel: { template: '<div />' } } },
+    global: { stubs: { Icon: true, RouterLink: RouterLinkStub, SourceControlPanel: { name: 'SourceControlPanel', emits: ['branch'], template: '<div />' } } },
   })
   await flushPromises()
   return w
@@ -125,5 +125,14 @@ describe('editor settings (the gear beside Save)', () => {
     document.querySelector('.es-reset').click()
     await flushPromises()
     expect(w.find('.monaco-stub').attributes('data-font')).toBe('14')
+  })
+})
+
+describe('the branch Source control reports', () => {
+  it('is passed up to the page, whose branch picker follows it', async () => {
+    await browser()
+    await w.find('.sidebar-tab[title="Source control"]').trigger('click')
+    w.findComponent({ name: 'SourceControlPanel' }).vm.$emit('branch', 'fix/login')
+    expect(w.emitted('branch').at(-1)).toEqual(['fix/login'])
   })
 })

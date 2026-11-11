@@ -117,7 +117,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
         </div>
 
         <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
@@ -347,7 +347,7 @@ const props = defineProps({
 })
 // A new project was published to GitHub from Source control: the page reloads the project (its GitHub address,
 // its branches).
-const emit = defineEmits(['published'])
+const emit = defineEmits(['published', 'branch'])
 
 // State
 const sidebarTab = ref('files')

@@ -132,6 +132,8 @@ describe('discard all, a new branch, a pull request with a description', () => {
     await flushPromises()
     expect(api.createBranch).toHaveBeenCalledWith(5, 4, 'fix/login')
     expect(w.find('.scm-branch').text()).toContain('fix/login')
+    // The page's branch picker follows: the panel reports the branch git is on now.
+    expect(w.emitted('branch').at(-1)).toEqual(['fix/login'])
   })
 
   it('a pull request has a title and a description', async () => {

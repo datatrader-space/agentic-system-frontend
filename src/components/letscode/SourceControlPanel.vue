@@ -222,7 +222,8 @@ const props = defineProps({
   projectName: { type: String, default: '' },
 })
 // open-file: a conflicted file opens in the editor to be resolved.
-const emit = defineEmits(['count', 'open-diff', 'open-file', 'changed', 'published'])
+// `branch`: the branch the project is on, as git reports it (the page's branch picker follows it).
+const emit = defineEmits(['count', 'open-diff', 'open-file', 'changed', 'published', 'branch'])
 
 const status = reactive({ branch: '', default_branch: '', on_default: false, unpushed: 0, on_remote: false,
                           has_remote: true, has_commit: true, clean: true, changes: [], untracked: [], merging: false })
@@ -268,6 +269,7 @@ function apply(data) {
   unticked.value = new Set(unticked.value)
   projectCache.status.set(props.repoId, data)
   emit('count', status.changes.length + status.untracked.length)
+  if (status.branch) emit('branch', status.branch)
 }
 
 // Opened again: the status last read shows at once while it is read again (ADM-1196; it took 4.6 s on prod).

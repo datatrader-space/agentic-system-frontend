@@ -190,7 +190,7 @@
         <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }"
                :style="{ '--bp-h': bottomHeight + 'px' }">
@@ -673,6 +673,14 @@ async function onPublished() {
   catch { /* the next status update brings it */ }
   loadBranches()
   loadProjects()
+}
+
+// Source control made or moved to a branch (New branch, or a commit on a new branch): the branch picker shows the
+// branch git reports, and lists it. Not while a switch is under way: that switch decides the branch.
+function onBranchSeen(branch) {
+  if (!active.value || !branch || switchingBranch.value || !ready.value || branch === active.value.branch) return
+  active.value = { ...active.value, branch }
+  loadBranches()
 }
 
 // A turn changed files: the tree, Source control and open tabs reload in place.
