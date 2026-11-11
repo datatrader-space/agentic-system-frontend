@@ -52,7 +52,7 @@ const WORK_FORWARDED_TYPES = new Set([
 const TURN_ALIVE_TYPES = new Set([
   'assistant_message_chunk', 'reasoning_delta', 'reasoning_done', 'tool_call', 'tool_result',
   'tool_blocked', 'work_segment', 'agent_status', 'agent_step_started', 'agent_step_completed',
-  'agent_step_failed', 'source_citation', 'token_usage',
+  'agent_step_failed', 'source_citation', 'token_usage', 'todo_update',
 ])
 
 //: What the page sends after "Approve & run" (see `_resumeAfterPlan`).
@@ -76,6 +76,20 @@ const MESSAGE_WINDOW = 50
 
 // DRF PageNumberPagination reports the full total in `count`. An unpaginated (bare-array) response
 // has no total — fall back to what we hold, which reads as "nothing more to load".
+// The agent's task list for a conversation (TODO_WRITE, AGENT_ENGINE_CAPABILITIES_PLAN.md section 7): the same shape
+// from the `todo_update` frame and from the conversation's `todos` on load. An item without words is not a task.
+const TODO_STATUSES = new Set(['pending', 'in_progress', 'completed'])
+export function normalizeTodos(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((t) => t && typeof t.content === 'string' && t.content.trim())
+    .map((t) => ({
+      content: t.content.trim(),
+      status: TODO_STATUSES.has(t.status) ? t.status : 'pending',
+      activeForm: typeof t.active_form === 'string' && t.active_form.trim() ? t.active_form.trim() : '',
+    }))
+}
+
 function countOf(d, loaded) {
   return d && typeof d.count === 'number' ? d.count : loaded
 }
@@ -98,6 +112,9 @@ export const useChatStore = defineStore('chat', {
     isStreaming: false,
     conversationId: null,
     repoId: 0,
+    // The open conversation's task list ({content, status, activeForm}), drawn near the composer. Set from the
+    // conversation on load and replaced by each `todo_update` frame of this conversation; empty hides it.
+    todos: [],
 
     // Create-Image mode (per-turn signal, sticky in the composer). When on, the backend runs the agent as
     // a focused image generation/editing assistant (image toolset + guided pipeline prompt). Sent as
@@ -635,6 +652,7 @@ export const useChatStore = defineStore('chat', {
       this._clearTurnState()
       this.messages = []
       this.conversationId = null
+      this.todos = []
       this.error = ''
       this.messagesHasMore = false
       this.messagesTotal = 0
@@ -751,6 +769,9 @@ export const useChatStore = defineStore('chat', {
         // never typed them, and drawing them as their own blue bubble is what made conv 1561 read as
         // if the operator kept shouting "DO THE NEXT PIECE OF WORK". Absent == authored by the user.
         authoredBy: info.authored_by || 'user',
+        // Let's Code: the checkpoint taken before this user message's turn first changed a file, so the chat can
+        // offer "Restore to before this message" (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9).
+        restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id) || null,
         // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
         // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
         planArtifacts: pickArray(m.plan_artifacts),
@@ -810,6 +831,7 @@ export const useChatStore = defineStore('chat', {
       this._loadingConversationId = String(id)
       this._loadFailedConversationId = null
       this.messages = []
+      this.todos = []
       this.messagesHasMore = false   // recomputed from this conversation's response below
       this.messagesTotal = 0
       this.pendingPlan = null
@@ -822,6 +844,7 @@ export const useChatStore = defineStore('chat', {
         if (String(this.conversationId) !== String(id)) return
         const data = res.data || {}
         this.conversationProjectId = data.project ?? null
+        this.todos = normalizeTodos(data.todos)
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
@@ -1687,6 +1710,9 @@ export const useChatStore = defineStore('chat', {
           // Same continuation marker as the main loader — a reconnect must not resurrect the
           // machine-authored prompts as user bubbles.
           authoredBy: (m.model_info && m.model_info.authored_by) || 'user',
+          // Same restore point as the main loader: a turn's checkpoint lands on its user row while it runs.
+          restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id)
+            || (_prev && _prev.restoreCheckpointId) || null,
           workIteration: (m.model_info && m.model_info.work_iteration) || (_prev && _prev.workIteration) || null,
           planArtifacts: pickArray(m.plan_artifacts).length ? pickArray(m.plan_artifacts)
             : ((_prev && _prev.planArtifacts) || []),
@@ -1995,6 +2021,13 @@ export const useChatStore = defineStore('chat', {
         return
       }
       if (TURN_ALIVE_TYPES.has(t) && this.isStreaming) this._turnAliveAt = Date.now()
+      // The task list of a conversation, replaced whole by each update. Another conversation's list (the frame can
+      // reach every socket of this person) never lands on the one on screen.
+      if (t === 'todo_update') {
+        if (msg.conversation_id != null && String(msg.conversation_id) !== String(this.conversationId ?? '')) return
+        this.todos = normalizeTodos(msg.todos)
+        return
+      }
       // Video jobs (VIDEO_WORKSPACE_PLAN.md section 7) are broadcast to the user group with their
       // conversation inside. The video store mirrors every one (its tray filters by conversation); when the
       // server posted a finished result into THIS conversation, reload the thread so the message shows.

@@ -10,7 +10,7 @@
     </header>
 
     <div v-if="loading" class="md-loading">
-      <div v-for="n in 7" :key="n" class="md-skeleton"></div>
+      <div v-for="n in 8" :key="n" class="md-skeleton"></div>
     </div>
 
     <section v-else class="md-card admin-surface" aria-labelledby="md-title">
@@ -19,7 +19,7 @@
 
       <div v-for="row in slots" :key="row.slot" class="md-row" :data-test="`default-${row.slot}`">
         <div class="md-what">
-          <span class="md-label">{{ row.label }}</span>
+          <span class="md-label">{{ row.label || LABELS[row.slot] || row.slot }}</span>
           <span class="md-hint">{{ HINTS[row.slot] }}</span>
         </div>
         <div class="md-pick">
@@ -62,7 +62,10 @@ const HINTS = {
   video_model: 'Makes video (Video Studio).',
   audio_model: 'Speaks text aloud.',
   audio_transcription_model: 'Turns speech in audio and video into text.',
+  fast_model: 'Small steps: summaries, notes, quick helpers.',
 }
+// The name of a job the server sends without one.
+const LABELS = { fast_model: 'Fast model' }
 
 const loading = ref(true)
 const saving = ref(false)

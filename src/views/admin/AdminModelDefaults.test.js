@@ -12,6 +12,7 @@ const payload = (main = luna) => ({ slots: [
   { slot: 'default_model', label: 'Main model', model: main, options: [luna, gemini] },
   { slot: 'video_input_model', label: 'Video input', model: gemini, options: [gemini] },
   { slot: 'audio_model', label: 'Audio generation', model: null, options: [] },
+  { slot: 'fast_model', label: 'Fast model', model: null, options: [luna, gemini] },
 ] })
 
 const stubs = {
@@ -59,5 +60,27 @@ describe('AdminModelDefaults (PLATFORM_MODEL_DEFAULTS_PLAN.md)', () => {
     await flushPromises()
     expect(w.get('[data-test="default-default_model"]').text()).toContain('cannot do the Main model job')
     expect(w.text()).toContain('Some defaults were not saved.')
+  })
+})
+
+describe('the Fast model slot (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9, D5)', () => {
+  it('is listed with what it is for, and saves like every other slot', async () => {
+    api.put.mockResolvedValue({ data: payload() })
+    const w = mount(AdminModelDefaults, { global: { stubs } })
+    await flushPromises()
+    const fast = w.get('[data-test="default-fast_model"]')
+    expect(fast.text()).toContain('Fast model')
+    expect(fast.text()).toContain('Small steps: summaries, notes, quick helpers.')
+    await fast.get('select').setValue('2')
+    await w.get('[data-test="defaults-save"]').trigger('click')
+    await flushPromises()
+    expect(api.put).toHaveBeenCalledExactlyOnceWith('/admin/platform-model-defaults/', { fast_model: 2 })
+  })
+
+  it('is still named when the server sends no label for it', async () => {
+    api.get.mockResolvedValue({ data: { slots: [{ slot: 'fast_model', label: '', model: null, options: [] }] } })
+    const w = mount(AdminModelDefaults, { global: { stubs } })
+    await flushPromises()
+    expect(w.get('[data-test="default-fast_model"] .md-label').text()).toBe('Fast model')
   })
 })

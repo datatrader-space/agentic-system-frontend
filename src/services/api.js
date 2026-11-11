@@ -861,6 +861,13 @@ export default {
   getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
+  // Put the project's files back to the checkpoint taken before a chat message's turn changed them (git-ignored files
+  // are not touched). 200 on success; an error carries `error`.
+  restoreLetsCodeMessage: (repoId, messageId) => api.post(`/lets-code/projects/${repoId}/messages/${messageId}/restore/`),
+  // How the project is installed, built, tested, linted, type-checked and run, and its port: filled in by the Coding
+  // Agent from commands that worked, editable by the person. { facts: { install, build, test, lint, typecheck, serve, port }, updated_at }
+  getProjectFacts: (repoId) => api.get(`/lets-code/projects/${repoId}/facts/`, { noCache: true }),
+  saveProjectFacts: (repoId, facts) => api.put(`/lets-code/projects/${repoId}/facts/`, { facts }),
 
   // Let's Code — deploy to the person's own Vercel account (ADM-1203). The token never reaches the browser.
   getVercelConnection: () => api.get('/lets-code/vercel/connection/', { noCache: true }),   // { configured, connected, account_name, is_team, needs_reconnect }

@@ -135,3 +135,12 @@ it('keeps phone Return for a newline and submits only with Send or an explicit k
     expect(state.video.sendAgentMessage).toHaveBeenCalledOnce()
   } finally { window.matchMedia = original }
 })
+
+it('shows the agent task list above the composer, the same list every agent keeps', async () => {
+  w = mount(StudioAgentPanel, {props:{label:'Video',ready:true},global:{stubs:{...stubs, ChatTaskList:true}}})
+  expect(w.find('.sap-tasks').exists()).toBe(false)
+  state.chat.todos = [{content:'Write the shot list', active_form:'Writing the shot list', status:'in_progress'}]
+  await flushPromises()
+  expect(w.find('.sap-tasks chat-task-list-stub').exists()).toBe(true)
+  expect(w.find('.sap-scroll .sap-tasks').exists()).toBe(false)
+})

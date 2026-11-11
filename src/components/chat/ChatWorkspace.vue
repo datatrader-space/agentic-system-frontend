@@ -126,6 +126,8 @@
            moments later, which read as the run finishing and then restarting. -->
       <!-- Video jobs of this chat: estimates waiting for Generate, renders in flight (Video mode). -->
       <VideoJobsTray :conversation-id="chat.conversationId" />
+      <!-- The agent's task list for this chat (TODO_WRITE): hidden until the agent writes one. -->
+      <div v-if="chat.todos && chat.todos.length" class="chat-tasks"><ChatTaskList :todos="chat.todos" /></div>
       <ChatComposer ref="composerRef" :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
@@ -206,6 +208,7 @@ import BrowserCard from '../browser/BrowserCard.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import ChatTaskList from './ChatTaskList.vue'
 // Loaded when a provider refuses a turn (it opens only then): 28 KB a chat no longer downloads up front.
 import TurnModeSwitch from './TurnModeSwitch.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
@@ -765,6 +768,7 @@ watch(
 /* The welcome composer grows with video settings and references. Give it its own scroll area:
    the outer split intentionally clips overflow, while the message list owns scrolling in a thread. */
 .chat-body.welcome-scroll { overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.chat-tasks { padding: 0 16px; }
 .chat-footer { flex-shrink: 0; background: linear-gradient(to top, var(--vm-bg) 55%, transparent); }
 .session-meter {
   text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, var(--vm-ink-faint));

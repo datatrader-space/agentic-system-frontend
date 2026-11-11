@@ -44,6 +44,20 @@
       </div>
       <ChatMessageList v-else>
         <template #after-message="{ message }">
+          <!-- Undo per message: the project's files go back to the checkpoint taken before this message's turn
+               first changed one (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9). -->
+          <div v-if="message.role === 'user' && message.restoreCheckpointId && message.serverId" class="uac-restore">
+            <button
+              type="button" class="uac-restore-btn" data-test="restore-message"
+              :disabled="chat.isBusy || restoringId !== null"
+              :title="chat.isBusy ? 'Wait for the agent to finish, then restore' : 'Put the files back to how they were before this message'"
+              @click="restoreTo(message)"
+            >
+              <Icon :icon="String(restoringId) === String(message.serverId) ? 'lucide:loader-2' : 'lucide:undo-2'"
+                    :class="{ spin: String(restoringId) === String(message.serverId) }" aria-hidden="true" />
+              {{ String(restoringId) === String(message.serverId) ? 'Restoring' : 'Restore to before this message' }}
+            </button>
+          </div>
           <div v-if="message.lcCard" class="uac-cards">
             <div v-if="message.lcCard.changes" class="ai-changes">
               <Icon icon="lucide:file-diff" aria-hidden="true" />
@@ -64,6 +78,9 @@
     </div>
 
     <PermissionCard :requests="permissionRequests" @respond="onPermissionRespond" />
+
+    <!-- The agent's task list for this chat, the same list the main chat shows (the shared store's `todos`). -->
+    <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
 
     <div class="uac-composer">
       <div class="uac-box" :class="{ focused }">
@@ -118,9 +135,12 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 import api from '@/services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 import { usePermission } from '@/composables/usePermission'
 import { useChatStore } from '@/stores/useChatStore'
 import ChatMessageList from '@/components/chat/ChatMessageList.vue'
+import ChatTaskList from '@/components/chat/ChatTaskList.vue'
 import HITLModal from '@/components/HITLModal.vue'
 import PermissionCard from '@/components/letscode/PermissionCard.vue'
 import AgentModelPicker from '@/components/agent/AgentModelPicker.vue'
@@ -212,6 +232,31 @@ function onPermissionRespond({ card, choice }) {
   // when allowed: never re-sent (ADM-1185, ADM-1200).
   if (card?.capability !== 'access_secret') return
   if (String(decided).startsWith('allow') && lastUserPrompt.value) chat.sendMessage(lastUserPrompt.value)
+}
+
+// "Restore to before this message": asked first in the app's own dialog, then the server puts the files back. The file
+// tree, the open tabs and Source control reload through the page's `changes` handler, as after a turn's edits.
+const restoringId = ref(null)
+async function restoreTo(message) {
+  if (!message?.serverId || restoringId.value !== null || chat.isBusy) return
+  const ok = await confirm({
+    title: 'Restore to before this message?',
+    message: "Restore the project's files to how they were before this message? Changes made after it are discarded. Files that git ignores are not touched.",
+    confirmText: 'Restore',
+    danger: true,
+  })
+  if (!ok) return
+  restoringId.value = message.serverId
+  try {
+    await api.restoreLetsCodeMessage(props.repoId, message.serverId)
+    notify.success('Restored')
+    emit('changes')
+  } catch (e) {
+    const err = e?.response?.data?.error
+    notify.error((typeof err === 'string' ? err : err?.message) || 'The files were not restored. Try again.')
+  } finally {
+    restoringId.value = null
+  }
 }
 
 function scrollDown() { nextTick(() => { const el = scrollEl.value; if (el) el.scrollTop = el.scrollHeight }) }
@@ -395,6 +440,20 @@ defineExpose({ send })
 .ai-preview-open:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
 .ai-preview-err { flex-basis: 100%; color: var(--vm-red-ink); }
 
+.uac-tasks { flex: 0 0 auto; padding: 8px 10px 0; border-top: 1px solid var(--vm-line); }
+.uac-tasks :deep(.ctl) { margin: 0; }
+.uac-tasks + .uac-composer { border-top: none; }
+
+/* ── Restore to before a message: a quiet action under the person's own bubble ── */
+.uac-restore { display: flex; justify-content: flex-end; margin: -8px 0 14px; }
+.uac-restore-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--vm-ink-soft); font: 600 12px var(--vm-font-sans); cursor: pointer; transition: color .15s, background-color .15s, border-color .15s; }
+.uac-restore-btn :deep(svg) { width: 14px; height: 14px; }
+.uac-restore-btn:hover:not(:disabled) { color: var(--vm-ink); background: var(--vm-surface-soft); border-color: var(--vm-line); }
+.uac-restore-btn:disabled { opacity: .5; cursor: not-allowed; }
+.uac-restore-btn:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
+.uac-restore-btn .spin { animation: uacspin 1s linear infinite; }
+@keyframes uacspin { to { transform: rotate(360deg); } }
+
 /* ── Composer ── */
 .uac-composer { border-top: 1px solid var(--vm-line); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
 .uac-box { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--vm-surface); border: 1.5px solid var(--vm-line-2); border-radius: 16px; transition: border-color .18s var(--vm-ease2), box-shadow .18s; }
@@ -430,10 +489,10 @@ defineExpose({ send })
   .uac-hbtn, .uac-mic { width: 44px; height: 44px; }
   .uac-circle { width: 44px; height: 44px; }
   .uac-hint > span:last-child { display: none; }
-  .ai-changes-open, .ai-preview-open { min-height: 44px; }
+  .ai-changes-open, .ai-preview-open, .uac-restore-btn { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .uac-mic.live, .uac-mic.busy { animation: none; }
+  .uac-mic.live, .uac-mic.busy, .uac-restore-btn .spin { animation: none; }
 }
 </style>

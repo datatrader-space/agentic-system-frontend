@@ -166,6 +166,8 @@
         <a v-if="active.github_url" class="ide-gh" :href="githubWebUrl(active.github_url)" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub">
           <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">Open on GitHub</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
         </a>
+        <!-- How the project is installed, built, tested and run: the agent fills these in, the person corrects them. -->
+        <ProjectCommands :repo-id="Number(active.repo_id)" :ready="ready" />
         <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
@@ -212,6 +214,7 @@ import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
+import ProjectCommands from '../components/letscode/ProjectCommands.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
 import { isReady, phaseTone, relativeTime, githubWebUrl } from '../components/letscode/projectStatus'

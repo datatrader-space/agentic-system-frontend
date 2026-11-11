@@ -9,7 +9,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 const chat = reactive({
   messages: [], hitlRequests: [], isBusy: false, connectionLost: false, conversationId: null,
-  repoId: 0, newChatRepoId: null, selectedAgentId: '7', surfaceHandler: null,
+  repoId: 0, newChatRepoId: null, selectedAgentId: '7', surfaceHandler: null, todos: [],
   reset: vi.fn(function () { chat.messages = [] }), setAgent: vi.fn((id) => { chat.selectedAgentId = id }),
   sendMessage: vi.fn(() => Promise.resolve(true)), sendRaw: vi.fn(), stop: vi.fn(), openConversation: vi.fn(),
   respondHitl: vi.fn(), dismissHitl: vi.fn(), skipHitl: vi.fn(),
@@ -20,8 +20,11 @@ vi.mock('@/services/api', () => ({
     unifiedConfig: vi.fn(() => Promise.resolve({ data: { agent_id: 3527 } })),
     getProjectPreview: vi.fn(() => Promise.resolve({ data: { url: 'https://3000-abcdefgh12345678.proxy.x' } })),
     getConversations: vi.fn(() => Promise.resolve({ data: [] })),
+    restoreLetsCodeMessage: vi.fn(() => Promise.resolve({ data: { restored: true } })),
   },
 }))
+const confirmMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
+vi.mock('@/composables/useConfirm', () => ({ confirm: confirmMock }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/composables/useVoiceInput', () => ({
   useVoiceInput: () => new Proxy({}, { get: (_t, k) => (k === 'toggle' ? () => {} : { value: false }) }),
@@ -208,6 +211,104 @@ describe('UnifiedAgentChat: reopening a project continues its last chat (ADM-120
     api.getConversations.mockRejectedValueOnce(new Error('offline'))
     const w = await mountChat()
     expect(chat.openConversation).not.toHaveBeenCalled()
+    w.unmount()
+  })
+})
+
+describe('UnifiedAgentChat: restore to before a message (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9)', () => {
+  const apiOf = async () => (await import('@/services/api')).default
+  const notifyOf = async () => (await import('@/composables/useNotify')).notify
+  const thread = () => [
+    { id: 'u1', serverId: 501, role: 'user', content: 'add a route', restoreCheckpointId: 'cp-1' },
+    { id: 'a1', serverId: 502, role: 'assistant', content: 'Added.' },
+    { id: 'u2', serverId: 503, role: 'user', content: 'thanks' },
+  ]
+
+  beforeEach(() => { chat.conversationId = null; chat.isBusy = false; chat.todos = [] })
+
+  it('offers it only on a user message that has a restore point', async () => {
+    const w = await mountChat()
+    chat.messages = thread()
+    await flushPromises()
+    const buttons = w.findAll('[data-test="restore-message"]')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].text()).toBe('Restore to before this message')
+    w.unmount()
+  })
+
+  it('asks first, and does nothing when the person cancels', async () => {
+    const api = await apiOf()
+    confirmMock.mockResolvedValueOnce(false)
+    const w = await mountChat()
+    chat.messages = thread()
+    await flushPromises()
+    await w.get('[data-test="restore-message"]').trigger('click')
+    await flushPromises()
+    expect(confirmMock).toHaveBeenCalledOnce()
+    expect(confirmMock.mock.calls[0][0].message).toBe(
+      "Restore the project's files to how they were before this message? Changes made after it are discarded. Files that git ignores are not touched.")
+    expect(api.restoreLetsCodeMessage).not.toHaveBeenCalled()
+    expect(w.emitted('changes')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('on confirm restores through the server, says Restored and refreshes the files and Source control', async () => {
+    const api = await apiOf()
+    const notify = await notifyOf()
+    confirmMock.mockResolvedValueOnce(true)
+    const w = await mountChat()
+    chat.messages = thread()
+    await flushPromises()
+    await w.get('[data-test="restore-message"]').trigger('click')
+    await flushPromises()
+    expect(api.restoreLetsCodeMessage).toHaveBeenCalledExactlyOnceWith(14, 501)
+    expect(notify.success).toHaveBeenCalledWith('Restored')
+    expect(w.emitted('changes')).toHaveLength(1)        // LetsCode.vue's onChanges: codeBrowser.refresh()
+    w.unmount()
+  })
+
+  it("shows the server's error text when the restore fails", async () => {
+    const api = await apiOf()
+    const notify = await notifyOf()
+    confirmMock.mockResolvedValueOnce(true)
+    api.restoreLetsCodeMessage.mockRejectedValueOnce({ response: { data: { error: 'That checkpoint is gone.' } } })
+    const w = await mountChat()
+    chat.messages = thread()
+    await flushPromises()
+    await w.get('[data-test="restore-message"]').trigger('click')
+    await flushPromises()
+    expect(notify.error).toHaveBeenCalledWith('That checkpoint is gone.')
+    expect(notify.success).not.toHaveBeenCalled()
+    expect(w.emitted('changes')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('waits while the agent is working', async () => {
+    const w = await mountChat()
+    chat.messages = thread()
+    chat.isBusy = true
+    await flushPromises()
+    expect(w.get('[data-test="restore-message"]').attributes('disabled')).toBeDefined()
+    w.unmount()
+  })
+})
+
+describe('UnifiedAgentChat: the task list (AGENT_ENGINE_CAPABILITIES_PLAN.md section 7)', () => {
+  beforeEach(() => { chat.conversationId = null; chat.isBusy = false; chat.todos = [] })
+
+  it("shows the shared chat's task list above the composer, and follows it live", async () => {
+    const w = await mountChat()
+    expect(w.find('[data-test="task-list"]').exists()).toBe(false)
+    chat.todos = [
+      { content: 'Read the router', status: 'completed', activeForm: '' },
+      { content: 'Add the route', status: 'in_progress', activeForm: 'Adding the route' },
+    ]
+    await flushPromises()
+    expect(w.get('[data-test="task-count"]').text()).toBe('1 of 2 done')
+    expect(w.get('.ctl-now').text()).toBe('Adding the route')
+    chat.todos = [{ content: 'Read the router', status: 'completed', activeForm: '' }, { content: 'Add the route', status: 'completed', activeForm: '' }]
+    await flushPromises()
+    expect(w.get('[data-test="task-count"]').text()).toBe('2 of 2 done')
     w.unmount()
   })
 })
