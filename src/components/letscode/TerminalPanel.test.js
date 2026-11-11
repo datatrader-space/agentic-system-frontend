@@ -230,7 +230,7 @@ describe('TerminalPanel', () => {
 describe('BottomPanel: the Terminal tab', () => {
   it('sits beside Log and Activity, is built on first open and kept when switching back', async () => {
     const w = mount(BottomPanel, { props: { repoId: 16, ready: true }, global: { stubs: { Icon: true, TerminalPanel: { template: '<div class="tp-stub" />' } } } })
-    expect(w.findAll('.bp-tab').map(t => t.text())).toEqual(['Log', 'Activity', 'Terminal'])
+    expect(w.findAll('.bp-tab').map(t => t.text())).toEqual(['Log', 'Activity', 'Terminal', 'Preview'])   // Preview: ADM-1205 phase D
     expect(w.find('.tp-stub').exists()).toBe(false)
     await w.findAll('.bp-tab')[2].trigger('click')
     expect(w.find('.tp-stub').exists()).toBe(true)
@@ -239,7 +239,7 @@ describe('BottomPanel: the Terminal tab', () => {
     w.unmount()
   })
 
-  it('without a project there is no Terminal tab', () => {
+  it('without a project there is no Terminal or Preview tab', () => {
     const w = mount(BottomPanel, { props: {}, global: { stubs: { Icon: true } } })
     expect(w.findAll('.bp-tab').map(t => t.text())).toEqual(['Log', 'Activity'])
     w.unmount()

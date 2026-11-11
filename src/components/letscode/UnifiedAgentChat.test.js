@@ -109,32 +109,18 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 
-  it('opens AADML\'s preview page for the project and port, never a sandbox link, with no opener', async () => {
+  it('Open preview asks the page for its Preview tab on that port, never a sandbox link (ADM-1205 phase D)', async () => {
     const api = (await import('@/services/api')).default
     const w = await mountChat()
     chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
     chat.surfaceHandler({ type: 'lets_code_preview', port: 3000 })
     await flushPromises()
-    const win = { opener: {} }
-    const open = vi.spyOn(window, 'open').mockReturnValue(win)
+    const open = vi.spyOn(window, 'open')
     await w.find('.ai-preview-open').trigger('click')
     await flushPromises()
-    expect(open).toHaveBeenCalledWith('/preview/lets-code/14/3000', '_blank')
-    expect(win.opener).toBe(null)
-    expect(api.getProjectPreview).not.toHaveBeenCalled()      // the page asks, on every visit
-    open.mockRestore()
-    w.unmount()
-  })
-
-  it('says so when the browser blocks the new tab', async () => {
-    const w = await mountChat()
-    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
-    chat.surfaceHandler({ type: 'lets_code_preview', port: 3000 })
-    await flushPromises()
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
-    await w.find('.ai-preview-open').trigger('click')
-    await flushPromises()
-    expect(w.find('.ai-preview-err').text()).toContain('blocked the new tab')
+    expect(w.emitted('open-preview')).toEqual([[3000]])
+    expect(open).not.toHaveBeenCalled()
+    expect(api.getProjectPreview).not.toHaveBeenCalled()      // the Preview tab asks, each time it opens
     open.mockRestore()
     w.unmount()
   })

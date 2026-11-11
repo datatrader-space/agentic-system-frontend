@@ -24,14 +24,14 @@
 </template>
 
 <script setup>
-// AADML's preview page for a Let's Code app (owner, 2026-11-09). Opened from the chat's "Open preview" button, and
+// AADML's preview page for a Let's Code app (owner, 2026-11-09). Opened by the IDE Preview tab's "Open in a new tab", and
 // safe to reload or bookmark: every visit asks AADML for a FRESH signed link, for the signed-in person's own project
 // only. AADML wakes a parked sandbox and starts a stopped app again before it hands the link out, so the person never
 // lands on a dead sandbox address ("HTTP ERROR 502").
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import api from '@/services/api'
+import { fetchPreviewLink } from '@/utils/previewLink'
 
 const route = useRoute()
 const repoId = Number(route.params.repoId)
@@ -40,50 +40,21 @@ const port = Number(route.params.port)
 const state = ref('working')        // 'working' | 'error'
 const message = ref('Checking the app…')
 const retryable = ref(true)
-
-// How long the page keeps waiting for a sandbox to wake and an app to start before it says so.
-const GIVE_UP_MS = 5 * 60 * 1000
-const WAITING = {
-  RUNNER_STARTING: 'Waking your project\'s sandbox… this can take a minute.',
-  APP_STARTING: 'Starting the app again…',
-}
-let timer = null
 let gone = false
 
-function wait(seconds) {
-  return new Promise((resolve) => { timer = setTimeout(resolve, Math.min(Math.max(seconds, 2), 30) * 1000) })
-}
-
+// Waiting for a sandbox to wake and an app to start: utils/previewLink.js (shared with the IDE's Preview tab).
 async function open() {
   state.value = 'working'
   message.value = 'Checking the app…'
-  const started = Date.now()
-  while (!gone) {
-    try {
-      const { data } = await api.getProjectPreview(repoId, port)
-      if (data?.url) {
-        window.location.replace(data.url)     // the fresh link replaces this page; Back returns to the chat
-        return
-      }
-      throw new Error('no link')
-    } catch (e) {
-      const status = e?.response?.status
-      const body = e?.response?.data || {}
-      if (status === 503 && WAITING[body.code] && Date.now() - started < GIVE_UP_MS) {
-        message.value = WAITING[body.code]
-        await wait(Number(body.retry_after_seconds) || 5)
-        continue
-      }
-      state.value = 'error'
-      retryable.value = status !== 404
-      message.value = status === 404
-        ? 'This preview is not one of your projects.'
-        : status === 503
-          ? 'The app is taking too long to start. Try again, or ask the Coding Agent to start it.'
-          : body.error || 'The preview could not be opened. Try again.'
-      return
-    }
+  const r = await fetchPreviewLink(repoId, port, { onWaiting: (m) => { message.value = m }, gone: () => gone })
+  if (r.gone) return
+  if (r.url) {
+    window.location.replace(r.url)     // the fresh link replaces this page; Back returns to the chat
+    return
   }
+  state.value = 'error'
+  retryable.value = r.retryable
+  message.value = r.error
 }
 
 onMounted(() => {
@@ -95,7 +66,7 @@ onMounted(() => {
   }
   open()
 })
-onBeforeUnmount(() => { gone = true; clearTimeout(timer) })
+onBeforeUnmount(() => { gone = true })
 </script>
 
 <style scoped>

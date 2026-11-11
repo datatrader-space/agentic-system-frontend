@@ -9,7 +9,7 @@
         <Icon :icon="collapsed ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
     </div>
-    <div v-show="!collapsed && tab !== 'terminal'" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
+    <div v-show="!collapsed && tab !== 'terminal' && tab !== 'preview'" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
       <pre v-if="lines.length"><span v-for="(l, i) in lines" :key="i" class="ln" :class="lineClass(l)">{{ l }}</span></pre>
       <div v-else class="bp-empty">{{ tab === 'activity' ? 'The coding agent has not run a tool yet.' : 'No log lines yet.' }}</div>
     </div>
@@ -18,6 +18,10 @@
       <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
                      @maximize="$emit('maximize')" />
     </div>
+    <!-- The Preview tab (ADM-1205 phase D): built the first time it is opened, then kept, so an app stays loaded. -->
+    <div v-if="previewOpened && repoId" v-show="!collapsed && tab === 'preview'" class="bp-term" role="tabpanel">
+      <PreviewPanel ref="previewPanel" :repo-id="repoId" :ready="ready" :maximized="maximized" @maximize="$emit('maximize')" />
+    </div>
   </div>
 </template>
 
@@ -25,6 +29,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import TerminalPanel from './TerminalPanel.vue'
+import PreviewPanel from './PreviewPanel.vue'
 
 const props = defineProps({
   pipelineLog: { type: Array, default: () => [] },
@@ -40,21 +45,32 @@ const props = defineProps({
 const emit = defineEmits(['toggle', 'maximize'])
 
 // Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls; Terminal = shells in the
-// project's sandbox and the commands the Coding Agent ran.
+// project's sandbox and the commands the Coding Agent ran; Preview = the project's running ports and an app on one.
 const tabs = computed(() => [
   { id: 'log', label: 'Log' },
   { id: 'activity', label: 'Activity' },
-  ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }] : []),
+  ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }, { id: 'preview', label: 'Preview' }] : []),
 ])
 const tab = ref('log')
 const body = ref(null)
 const terminalOpened = ref(false)
+const previewOpened = ref(false)
+const previewPanel = ref(null)
 
 function selectTab(id) {
   tab.value = id
   if (id === 'terminal') terminalOpened.value = true
+  if (id === 'preview') previewOpened.value = true
   if (props.collapsed) emit('toggle')
 }
+
+// The chat's "Open preview": the Preview tab, on that port.
+async function openPreview(port) {
+  selectTab('preview')
+  await nextTick()
+  previewPanel.value?.openPort(port)
+}
+defineExpose({ openPreview })
 
 const lines = computed(() => (tab.value === 'activity' ? props.activity : props.pipelineLog))
 function lineClass(l) {

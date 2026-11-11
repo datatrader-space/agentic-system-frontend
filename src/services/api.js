@@ -878,6 +878,8 @@ export default {
   deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
   retryProject: (repoId, body = {}) => api.post(`/lets-code/projects/${repoId}/retry/`, body),   // { start_empty } for a lost new project
   getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
+  // The project's app ports for the IDE's Preview tab (ADM-1205 phase D): { ports: [{ port, listening, started_by: 'agent' | 'you', command }] }
+  getProjectPorts: (repoId) => api.get(`/lets-code/projects/${repoId}/ports/`, { noCache: true }),
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
   // Put the project's files back to the checkpoint taken before a chat message's turn changed them (git-ignored files

@@ -150,7 +150,7 @@ const props = defineProps({
   repoId: { type: [String, Number], required: true },
   crsReady: { type: Boolean, default: false },
 })
-const emit = defineEmits(['changes', 'activity', 'view-changes'])
+const emit = defineEmits(['changes', 'activity', 'view-changes', 'open-preview'])
 
 const chat = useChatStore()
 const input = ref('')
@@ -327,13 +327,10 @@ function changesText(ch) {
 }
 
 function openPreview(c) {
-  // AADML's preview page, not a sandbox link: every visit (and every reload) gets a fresh signed link, after AADML has
-  // woken the sandbox and started the app again when it had stopped (views/LetsCodePreview.vue, owner 2026-11-09).
-  // No 'noopener' feature: with it window.open always returns null, and a blocked tab could not be told apart.
+  // The IDE's Preview tab on that port (ADM-1205 phase D): it asks AADML for a fresh signed link, after AADML has woken
+  // the sandbox and started the app again when it had stopped. "Open in a new tab" is there too.
   c.preview.error = ''
-  const win = window.open(`/preview/lets-code/${props.repoId}/${c.preview.port}`, '_blank')
-  if (win) win.opener = null
-  else c.preview.error = 'Your browser blocked the new tab. Allow pop-ups for AADML and try again.'
+  emit('open-preview', c.preview.port)
 }
 
 // Reopening a project continues its last Coding Agent chat (ADM-1209). The panel used to start blank on every

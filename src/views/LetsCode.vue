@@ -199,7 +199,7 @@
                  role="separator" aria-orientation="horizontal" aria-label="Resize the bottom panel" tabindex="0"
                  :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
                  @dblclick="setBottomHeight(BP_DEFAULT)"></div>
-            <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
+            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
           </div>
         </div>
         <div class="ide-rightpane" :style="{ '--rp-w': rightPaneWidth + 'px' }">
@@ -212,7 +212,7 @@
           <UnifiedAgentChat
             :key="active.repo_id"
             :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
-            @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges"
+            @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
           />
         </div>
       </div>
@@ -247,6 +247,12 @@ const active = ref(null)
 const browserKey = ref(0)
 const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
+const bottomPanel = ref(null)
+// The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
+function onOpenPreview(port) {
+  if (bottomPanel.value) bottomPanel.value.openPreview(port)
+  else window.open(`/preview/lets-code/${active.value?.repo_id}/${port}`, '_blank')   // the panel shows once ready
+}
 // The terminal's Maximize (ADM-1211): the bottom panel fills the editor's column; the editor stays open underneath.
 const bottomMax = ref(false)
 function toggleBottomMax() {
