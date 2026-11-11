@@ -261,6 +261,8 @@ async function restoreTo(message) {
 
 function scrollDown() { nextTick(() => { const el = scrollEl.value; if (el) el.scrollTop = el.scrollHeight }) }
 watch(() => [chat.messages.length, chat.messages.at(-1)?.content, chat.hitlRequests.length], scrollDown)
+// A turn that ended may have saved a restore point on its message: show its button now, not on the next load.
+watch(() => chat.isBusy, (busy, was) => { if (was && !busy) chat.refreshRestorePoints() })
 
 function autoGrow() {
   const el = inputEl.value

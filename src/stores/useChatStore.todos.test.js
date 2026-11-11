@@ -123,3 +123,48 @@ describe('the restore point on a user message', () => {
     expect(s.messages.map((m) => m.restoreCheckpointId)).toEqual(['cp-7', null, null, null])
   })
 })
+
+describe('the restore point of a turn that just ended (live test 2026-11-11)', () => {
+  beforeEach(() => { setActivePinia(createPinia()); getConversationMessages.mockReset() })
+
+  it('lands on the message sent in this session, which has no server id yet', async () => {
+    const chat = useChatStore()
+    chat.conversationId = 3231
+    chat.messages = [
+      { id: 'a', role: 'user', content: 'List the files.', serverId: 15494 },
+      { id: 'b', role: 'assistant', content: 'Here they are.', serverId: 15495 },
+      { id: 'c', role: 'user', content: 'Add one line to README.md', serverId: null },
+      { id: 'd', role: 'assistant', content: 'Added it.', serverId: 15497 },
+    ]
+    getConversationMessages.mockResolvedValue({ data: [
+      { id: 15494, role: 'user', content: 'List the files.', metadata: {} },
+      { id: 15496, role: 'user', content: 'Add one line to README.md', metadata: { restore_checkpoint_id: 1 } },
+    ] })
+    await chat.refreshRestorePoints()
+    expect(chat.messages[2].serverId).toBe(15496)
+    expect(chat.messages[2].restoreCheckpointId).toBe(1)
+    expect(chat.messages[0].restoreCheckpointId).toBeUndefined()
+  })
+
+  it('never gives two identical messages one row, and ignores another conversation', async () => {
+    const chat = useChatStore()
+    chat.conversationId = 7
+    chat.messages = [
+      { id: 'x', role: 'user', content: 'Fix it', serverId: 10 },
+      { id: 'y', role: 'user', content: 'Fix it', serverId: null },
+    ]
+    getConversationMessages.mockImplementation(async () => {
+      return { data: [
+        { id: 10, role: 'user', content: 'Fix it', metadata: { restore_checkpoint_id: 4 } },
+        { id: 12, role: 'user', content: 'Fix it', metadata: { restore_checkpoint_id: 5 } },
+      ] }
+    })
+    await chat.refreshRestorePoints()
+    expect(chat.messages.map((m) => [m.serverId, m.restoreCheckpointId])).toEqual([[10, 4], [12, 5]])
+    chat.conversationId = 8
+    getConversationMessages.mockImplementation(async () => { chat.conversationId = 9; return { data: [] } })
+    chat.messages = [{ id: 'z', role: 'user', content: 'Fix it', serverId: null }]
+    await chat.refreshRestorePoints()
+    expect(chat.messages[0].serverId).toBeNull()
+  })
+})

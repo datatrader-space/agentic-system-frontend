@@ -1763,6 +1763,37 @@ export const useChatStore = defineStore('chat', {
       } catch (_e) { /* plan store optional */ }
     },
 
+    // Let's Code: a turn's restore point is saved on its user message WHILE the turn runs, and no frame
+    // carries it, so the "Restore to before this message" button appeared only after the chat was reopened
+    // (live test 2026-11-11, ADM-1213). Read the newest messages once the turn has ended and copy each
+    // message's restore point onto the one on screen with the same server id. Changes nothing else.
+    async refreshRestorePoints() {
+      const cid = this.conversationId
+      if (!cid) return
+      try {
+        const res = await api.getConversationMessages(cid, { limit: MESSAGE_WINDOW })
+        if (String(cid) !== String(this.conversationId)) return
+        const rows = pickArray(res.data).filter((m) => m.role === 'user')
+        // A message sent in this session has no server id yet (only the answer's id arrives, on
+        // `message_saved`): adopt it from the newest server row with the same text that no message on
+        // screen holds already, newest first, so two identical messages are never given one row.
+        const held = new Set(this.messages.filter((m) => m.serverId != null).map((m) => String(m.serverId)))
+        const unbound = [...this.messages].reverse().filter((m) => m.role === 'user' && m.serverId == null)
+        for (const m of unbound) {
+          const row = [...rows].reverse().find((r) => !held.has(String(r.id))
+            && String(r.content || '').trim() === String(m.content || '').trim())
+          if (row) { m.serverId = row.id; held.add(String(row.id)) }
+        }
+        const byId = new Map(rows.filter((m) => m.metadata && m.metadata.restore_checkpoint_id)
+          .map((m) => [String(m.id), m.metadata.restore_checkpoint_id]))
+        for (const m of this.messages) {
+          if (m.role === 'user' && m.serverId != null && byId.has(String(m.serverId))) {
+            m.restoreCheckpointId = byId.get(String(m.serverId))
+          }
+        }
+      } catch (_e) { /* the button then appears on the next load, as before */ }
+    },
+
     // After a lazy reconcile attaches anchors, re-map plan_artifacts onto the in-memory messages (by
     // assistant order — message order is stable) and hydrate the newly-anchored runs.
     async _reloadHistoryForAnchors(cid) {

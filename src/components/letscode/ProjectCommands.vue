@@ -53,7 +53,7 @@
                 <div class="pc-field">
                   <input
                     id="pc-port" v-model="draft.port" class="pc-input pc-port" type="text" inputmode="numeric" autocomplete="off"
-                    placeholder="3000" :aria-invalid="errors.port ? 'true' : 'false'"
+                    placeholder="e.g. 3000" :aria-invalid="errors.port ? 'true' : 'false'"
                     :aria-describedby="errors.port ? 'pc-port-err' : 'pc-port-hint'" @input="errors.port = ''"
                   />
                   <p v-if="errors.port" id="pc-port-err" class="pc-err" role="alert">{{ errors.port }}</p>
@@ -95,12 +95,12 @@ const props = defineProps({
 })
 
 const FIELDS = [
-  { key: 'install', label: 'How to install', placeholder: 'npm ci' },
-  { key: 'build', label: 'How to build', placeholder: 'npm run build' },
-  { key: 'test', label: 'How to test', placeholder: 'npm test' },
-  { key: 'lint', label: 'How to lint', placeholder: 'npx eslint .' },
-  { key: 'typecheck', label: 'How to type-check', placeholder: 'npx tsc --noEmit' },
-  { key: 'serve', label: 'How to run', placeholder: 'npm run dev' },
+  { key: 'install', label: 'How to install', placeholder: 'e.g. npm ci' },
+  { key: 'build', label: 'How to build', placeholder: 'e.g. npm run build' },
+  { key: 'test', label: 'How to test', placeholder: 'e.g. npm test' },
+  { key: 'lint', label: 'How to lint', placeholder: 'e.g. npx eslint .' },
+  { key: 'typecheck', label: 'How to type-check', placeholder: 'e.g. npx tsc --noEmit' },
+  { key: 'serve', label: 'How to run', placeholder: 'e.g. npm run dev' },
 ]
 const KEYS = [...FIELDS.map((f) => f.key), 'port']
 const blank = () => Object.fromEntries(KEYS.map((k) => [k, '']))
@@ -267,7 +267,7 @@ defineExpose({ openPanel, load })
 .pc-field { min-width: 0; }
 .pc-input { width: 100%; min-height: 38px; padding: 0 11px; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); color: var(--vm-ink); font: 13px var(--vm-font-sans); transition: border-color .15s, box-shadow .15s; }
 .pc-input.mono { font-family: var(--vm-font-mono); font-size: 12.5px; }
-.pc-input::placeholder { color: var(--vm-ink-faint); }
+.pc-input::placeholder { color: var(--vm-ink-faint); opacity: .6; font-style: italic; }
 .pc-input:focus { outline: none; border-color: var(--vm-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vm-focus) 18%, transparent); }
 .pc-input[aria-invalid="true"] { border-color: var(--vm-danger); }
 .pc-port { max-width: 140px; font-variant-numeric: tabular-nums; }
