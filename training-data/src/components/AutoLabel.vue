@@ -8,26 +8,34 @@
 // saved). "Label Batch" gives the batch to this person and makes the model their choice for a photo
 // nobody has drawn on: each photo then opens in the editor with the model's walls as a head start, which the person
 // checks and sends to review — the same rule as the old editor; a model never makes a label by itself.
+// A model with SAM 3 may run SAM 3 on one of the workspace's own machines (agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md):
+// the picker's "Where SAM 3 runs", the machine's fee, the SAM License accepted once, and the machine's own stage while
+// SAM 3 gets ready there ("Downloading SAM 3").
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, ArrowRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Sparkles, Wallet, Maximize2, RotateCcw, SlidersHorizontal } from 'lucide-vue-next';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { startsServer } from '../sourceFamilies.js';
+import { blockedAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { api, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
+import { edgeApi } from '../api/edge.js';
 import { tidyUp } from '../geometry.js';
 
 const props = defineProps({ batch: Object, state: Object, media: Array, busy: Boolean });
 const emit = defineEmits(['close', 'autolabel']);
 const sources = ref([]); const loading = ref(true); const error = ref(''); const chosen = ref('');
 const choosing = ref(false); const confirmOpen = ref(false);
+const where = ref(''); const licenceBusy = ref(false); const placeError = ref('');     // where SAM 3 runs: '' or machine:<id>
 const showLabels = ref(true); const focus = ref(0); const canvas = ref(null);
 const picked = ref(props.media.slice(0, 1).map(m => m.id));
 const previews = ref([]);                      // [{image, state: 'asking'|'waiting'|'ready'|'refused', shapes, now, error, width, height}]
 let timers = []; let stopped = false;
 
 const current = computed(() => sources.value.find(s => s.id === chosen.value) || null);
+const place = computed(() => placeOf(current.value, where.value));
+const blocked = computed(() => blockedAt(current.value, place.value));
+const detail = computed(() => detailAt(current.value, place.value));
 const shown = computed(() => previews.value[Math.min(focus.value, previews.value.length - 1)] || null);
 const predictions = computed(() => (shown.value?.state === 'ready' ? shown.value.shapes.length : 0));
 // What the bottom bar says the page is doing.
@@ -35,6 +43,8 @@ const stateWords = computed(() => {
   if (loading.value) return ['Loading the models', ''];
   if (!current.value) return ['Choose a model', 'Pick the model that draws the head start.'];
   if (current.value.unavailable) return ['This model cannot be used now', current.value.unavailable];
+  if (place.value?.unavailable) return [`SAM 3 cannot run on ${place.value.name} now`, place.value.unavailable];
+  if (place.value?.state === 'licence') return ['Accept the SAM License', `SAM 3 runs on ${place.value.name} only under Meta's SAM License.`];
   if (generating.value) return ['Generating the preview', 'The model is looking at the preview photos.'];
   if (previews.value.length) return ['Ready to label', 'Preview ready. Review the results, then label your batch.'];
   return ['Ready to preview', 'Generate a preview to see what the model finds.'];
@@ -52,6 +62,7 @@ async function loadSources() {
     sources.value = body.sources;
     const usable = body.sources.filter(s => !s.unavailable);
     chosen.value = body.preference || usable.find(s => s.tidy)?.id || usable[0]?.id || '';
+    where.value = body.preference ? (body.where || '') : '';
   } catch (e) { error.value = `The models could not be loaded. ${e.message}`; } finally { loading.value = false; }
 }
 onMounted(loadSources);
@@ -86,8 +97,20 @@ function saveClass(c, change) { return changeClasses(() => api.updateClass(props
 function removeClass(c) { return changeClasses(() => api.removeClass(props.state.ref, c.name)); }
 onUnmounted(() => { stopped = true; timers.forEach(clearTimeout); });
 
-// Another model, or another way of showing it: the preview is of the one chosen before, so it goes.
-watch(chosen, () => { previews.value = []; focus.value = 0; });
+// Another model, another way of showing it, or another place it runs: the preview is of the one chosen before, so it goes.
+watch([chosen, where], () => { previews.value = []; focus.value = 0; placeError.value = ''; });
+// The SAM License, accepted once for the workspace: every machine waiting for it can take SAM 3 now.
+async function acceptLicence() {
+  licenceBusy.value = true; placeError.value = '';
+  try { await api.acceptSamLicence(props.state.ref); licenceAccepted(sources.value); }
+  catch (e) { placeError.value = `The SAM License was not recorded. ${e.message}`; } finally { licenceBusy.value = false; }
+}
+// SAM 3 stopped on the machine at the person's word (its weights stay there for the next time).
+async function stopOnMachine(chosenPlace) {
+  placeError.value = '';
+  try { await edgeApi.stop(chosenPlace.running.job); chosenPlace.running = null; }
+  catch (e) { placeError.value = `SAM 3 was not stopped. ${e.message}`; }
+}
 function fullScreen() { canvas.value?.requestFullscreen?.(); }
 function toggle(image) {
   const at = picked.value.indexOf(image.id);
@@ -103,7 +126,7 @@ async function generate() {
 async function ask(preview) {
   while (!stopped) {
     try {
-      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value);
+      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value, where.value);
       if (body.state === 'waiting') {
         preview.state = 'waiting'; preview.now = `${body.title}: ${body.now}${body.seconds ? ` (${body.seconds} s)` : ''}`;
         await new Promise(resolve => timers.push(setTimeout(resolve, 4000)));
@@ -119,7 +142,7 @@ async function ask(preview) {
 function stop() { stopped = true; timers.forEach(clearTimeout); previews.value.forEach(p => { if (p.state !== 'ready') Object.assign(p, { state: 'refused', error: 'Stopped.' }); }); }
 function loaded(preview, event) { preview.width = event.target.naturalWidth; preview.height = event.target.naturalHeight; }
 function counts(shapes) { return props.state.classes.map(c => ({ ...c, n: shapes.filter(s => s.kind === c.name).length })).filter(c => c.n); }
-function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
+function start() { confirmOpen.value = false; emit('autolabel', chosen.value, where.value); }
 </script>
 
 <template>
@@ -137,7 +160,8 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
           <UiBadge>Coming soon</UiBadge>
         </div>
         <p class="auto-or"><span>or</span></p>
-        <ModelSourcePicker v-model="chosen" :sources="sources" :loading="loading" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"/>
+        <ModelSourcePicker v-model="chosen" v-model:where="where" :sources="sources" :loading="loading" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"
+                           :licence-busy="licenceBusy" :place-error="placeError" @accept-licence="acceptLicence" @stop-machine="stopOnMachine"/>
         <p v-if="error" class="field-error" role="alert">{{ error }} <UiButton @click="loadSources">Try again</UiButton></p>
         <p v-else-if="current?.unavailable" class="field-error" role="status">{{ current.unavailable }}</p>
         <p v-else-if="current?.what" class="auto-what">{{ current.what }}</p>
@@ -167,7 +191,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
           <summary><SlidersHorizontal :size="16" aria-hidden="true"/> Advanced</summary>
           <dl v-if="current">
             <dt>Model</dt><dd>{{ label(current) }}</dd>
-            <dt>Where it runs and its cost</dt><dd>{{ current.detail }}.<template v-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
+            <dt>Where it runs and its cost</dt><dd>{{ detail }}.<template v-if="place"> SAM 3 is started on {{ place.name }} the first time and stopped after 15 minutes without a photo; its weights stay on the machine for the next time.</template><template v-else-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
             <template v-if="current.licence"><dt>Licence</dt><dd>{{ current.licence }}. A label started from its answer says so, so that it can be left out later.</dd></template>
           </dl>
           <p v-else class="auto-help">Choose a model to see where it runs and what it costs.</p>
@@ -198,7 +222,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
             <span class="auto-bolt"><Zap :size="26"/></span>
             <strong>See what the model finds before you label.</strong>
             <p>A model draws every class on up to four photos of this batch. Nothing is saved: you check every corner in the editor and send each photo to review.</p>
-            <UiButton variant="primary" :disabled="!current||!!current?.unavailable||!picked.length" @click="generate"><Zap :size="15"/> Generate Preview</UiButton>
+            <UiButton variant="primary" :disabled="blocked||!picked.length" @click="generate"><Zap :size="15"/> Generate Preview</UiButton>
           </div>
         </div>
         <div class="auto-strip">
@@ -216,15 +240,15 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
     </div>
     <footer class="auto-bar">
       <span class="auto-bar-state" role="status"><strong>{{ stateWords[0] }}</strong><small>{{ stateWords[1] }}</small></span>
-      <span v-if="current" class="auto-cost" :title="current.detail"><Wallet :size="15" aria-hidden="true"/> Paid from your balance</span>
+      <span v-if="current" class="auto-cost" :title="detail"><Wallet :size="15" aria-hidden="true"/> {{ place ? place.price : 'Paid from your balance' }}</span>
       <UiButton v-if="generating" @click="stop">Stop</UiButton>
-      <UiButton v-else :disabled="!current||!!current?.unavailable||!picked.length" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
-      <UiButton variant="primary" :disabled="!current||!!current?.unavailable||busy||!media.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>
+      <UiButton v-else :disabled="blocked||!picked.length" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
+      <UiButton variant="primary" :disabled="blocked||busy||!media.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>
     </footer>
     <UiDialog :open="confirmOpen" title="Label this batch" @close="confirmOpen=false">
       <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each one opens in the editor with what <strong>{{ current ? label(current) : '' }}</strong> finds, as a head start: you check every corner and send the photo to review.</p>
       <p class="dialog-description">{{ current ? label(current) : '' }} also becomes your choice for any photo nobody has drawn on in this project. Change it in the editor with “Find Objects with AI” (M).</p>
-      <p v-if="current" class="dialog-description">Each photo is charged to you: {{ current.detail }}.</p>
+      <p v-if="current" class="dialog-description">Each photo is charged to you: {{ detail }}.</p>
       <p v-if="current?.research_only" class="dialog-description">This model is for research or evaluation use only. A label started from its answer says so, so that it can be left out later.</p>
       <div class="dialog-actions"><UiButton @click="confirmOpen=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="start"><Check :size="15"/> Start labelling</UiButton></div>
     </UiDialog>

@@ -61,7 +61,7 @@ async function openEvaluate(model) {
   ask('evaluate', model); form.value = null;
   try {
     form.value = await modelsApi.evaluateForm(props.projectRef, model.number);
-    choice.value = { test_version: form.value.tests[0]?.id || '', golden_version: '', previous: '', max_runtime: form.value.default_runtime, key: startKey() };
+    choice.value = { test_version: form.value.tests[0]?.id || '', golden_version: '', previous: '', max_runtime: form.value.default_runtime, machine: '', key: startKey() };
   } catch (e) { dialogError.value = e.message; }
 }
 async function startEvaluation() {
@@ -69,8 +69,9 @@ async function startEvaluation() {
   busy.value = true; dialogError.value = '';
   try {
     const started = await modelsApi.evaluate(props.projectRef, model.number, choice.value);
+    const mine = (form.value?.machines || []).find(m => m.key === choice.value.machine);
     dialog.value = null; await load();
-    notice.value = `Evaluation ${started.number} has started. It measures ${model.name} ${model.version} on this server; the page shows its result when it is done.`;
+    notice.value = `Evaluation ${started.number} has started. It measures ${model.name} ${model.version} ${mine ? `on ${mine.name}, ${mine.price_text}` : "on AADML's machines"}; the page shows its result when it is done.`;
   } catch (e) {
     if (unanswered(e)) { dialog.value = null; await load(); error.value = 'No answer came back, so the page read the models again: check below whether the evaluation started before trying again.'; }
     else dialogError.value = e.message;
@@ -277,6 +278,14 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
             <select v-model="choice.previous" class="text-input"><option value="">None</option><option v-for="e in form.earlier" :key="e.id" :value="e.id">{{ e.name }}</option></select></label>
           <label class="field-label">Time limit
             <select v-model.number="choice.max_runtime" class="text-input"><option v-for="r in form.runtimes" :key="r.value" :value="r.value">{{ r.label }}</option></select></label>
+          <!-- Where it runs: AADML's machines, or one of the workspace's own (MACHINE_RUNPOD_PARITY_PLAN.md), each with its
+               fee; one that cannot take it is listed with the reason and cannot be chosen. -->
+          <label v-if="form.machines?.length" class="field-label">Where it runs
+            <select v-model="choice.machine" class="text-input">
+              <option value="">AADML's machines</option>
+              <option v-for="m in form.machines" :key="m.key" :value="m.key" :disabled="!m.fits">{{ m.name }}, {{ m.gpu_name || 'CPU' }}: {{ m.fits ? m.price_text : m.why_not }}</option>
+            </select></label>
+          <p v-if="choice.machine" class="muted">Its test photos go to your machine; if the machine is offline it says so, and nothing moves to RunPod.</p>
         </template>
         <p v-if="dialogError" class="field-error" role="alert">{{ dialogError }}</p>
         <div class="dialog-actions"><UiButton @click="dialog=null">Cancel</UiButton><UiButton variant="primary" :disabled="busy||!form||!!form.refused||!choice.test_version" @click="startEvaluation">Start evaluation</UiButton></div>

@@ -6,9 +6,10 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import RoomArt from './RoomArt.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { startsServer } from '../sourceFamilies.js';
+import { blockedAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
 import { batchColumn } from '../previewState.js';
 import { api as liveApi, fromBackend, toBackend, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
+import { edgeApi } from '../api/edge.js';
 import { split as splitShape, contains, crosses, box as boxCorners, tidyUp, whole, corners as cornersOf, bestMatch } from '../geometry.js';
 const props = defineProps({ state: Object, batchId: String }); const emit = defineEmits(['close']);
 const scopedImages = computed(()=>props.batchId?props.state.images.filter(i=>i.batchId===props.batchId):props.state.images);
@@ -180,6 +181,13 @@ function pickShape(shape){selected.value=shape.id;kind.value=shape.kind;pickedPo
 const detectOpen=ref(false);const detecting=ref(null);const detectError=ref('');const detectChoice=ref('');let pollTimer=null;
 // The model the dialog's picker is on (the same grouped picker as Auto Label: ModelSourcePicker); Find objects asks it.
 const detectPick=ref('');const pickedSource=computed(()=>meta.value?.detect?.sources.find(x=>x.id===detectPick.value)||null);
+// Where the picked model's SAM 3 runs ('' AADML's GPU server, machine:<id> one of the workspace's own machines;
+// agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md), and the SAM License step it may need first.
+const detectWhere=ref('');const pickedPlace=computed(()=>placeOf(pickedSource.value,detectWhere.value));const licenceBusy=ref(false);const placeError=ref('');
+async function acceptLicence(){licenceBusy.value=true;placeError.value='';try{await liveApi.acceptSamLicence(props.state.ref);licenceAccepted(meta.value?.detect?.sources);}catch(e){placeError.value=`The SAM License was not recorded. ${e.message}`;}finally{licenceBusy.value=false;}}
+async function stopOnMachine(chosenPlace){placeError.value='';try{await edgeApi.stop(chosenPlace.running.job);chosenPlace.running=null;}catch(e){placeError.value=`SAM 3 was not stopped. ${e.message}`;}}
+// Where this person's own choice runs: the place kept with it (detect-preference/), for the photo it marks by itself.
+const preferredWhere=id=>(meta.value?.detect&&id===meta.value.detect.preference?meta.value.detect.where||'':'');
 // The classes the AI is asked for: the same choice as Auto Label's ticks (kept per project in this browser).
 const classNames=computed(()=>props.state.classes.map(c=>c.name));const detectAsked=ref([]);
 function toggleDetectAsked(name){const now=detectAsked.value.includes(name)?detectAsked.value.filter(n=>n!==name):[...detectAsked.value,name];if(!now.length)return;detectAsked.value=now;keepAskedClasses(props.state.ref,classNames.value,now);}
@@ -188,12 +196,14 @@ function openDetect(){if(refuseLocked())return;if(!live.value){pendingTool('Find
   detectChoice.value=meta.value.detect.preference||'';detectError.value='';
   detectAsked.value=askedClasses(props.state.ref,classNames.value);
   const offered=meta.value.detect.sources;detectPick.value=offered.find(x=>x.id===detectChoice.value&&!x.unavailable)?.id||offered.find(x=>!x.unavailable)?.id||'';
+  detectWhere.value=preferredWhere(detectPick.value);placeError.value='';
   detectOpen.value=true;}
 function stopDetect(){clearTimeout(pollTimer);pollTimer=null;detecting.value=null;}
-async function runDetect(id,auto=false,refine=null){clearTimeout(pollTimer);const it=item.value;const source=meta.value?.detect?.sources.find(x=>x.id===id);if(!it||!source)return;detectError.value='';
+async function runDetect(id,auto=false,refine=null,where=null){clearTimeout(pollTimer);const it=item.value;const source=meta.value?.detect?.sources.find(x=>x.id===id);if(!it||!source)return;detectError.value='';
+  const at=where??preferredWhere(id);
   if(!detecting.value)detecting.value={id,name:source.name,title:`Asking ${source.name}`,now:'asking the model',steps:[],auto,refine};
-  try{const body=await liveApi.detect(props.state.ref,it.id,id,askedClasses(props.state.ref,classNames.value));if(item.value!==it||!detecting.value)return;
-    if(body.state==='waiting'){detecting.value={...body,id,auto,refine};pollTimer=setTimeout(()=>runDetect(id,auto,refine),4000);return;}
+  try{const body=await liveApi.detect(props.state.ref,it.id,id,askedClasses(props.state.ref,classNames.value),at);if(item.value!==it||!detecting.value)return;
+    if(body.state==='waiting'){detecting.value={...body,id,auto,refine};pollTimer=setTimeout(()=>runDetect(id,auto,refine,at),4000);return;}
     if(refine)applyRefine(body,refine);else applyDetected(body,auto);}
   catch(e){if(item.value!==it)return;detecting.value=null;detectError.value=e.message;if(!detectOpen.value)hint.value=`${source.name} did not mark the walls. ${e.message}`;}}
 function wordsOf(report){const did=[];if(report.cut)did.push(`cut at ${report.cut} room corner${report.cut===1?'':'s'}`);
@@ -224,7 +234,7 @@ async function startFrom(start){const it=item.value;detectError.value='';stopDet
     remember();shapes.value=fromBackend(body.shapes,W,H);meta.value.started_from=body.started_from;meta.value.started_model=body.started_model||'';empty.value=false;selected.value=null;dirty.value=true;detectOpen.value=false;
     hint.value=start==='blank'?'Everything was removed. Draw the walls by hand.':`Started from ${start==='correction'?"the walls the app's user confirmed":"the walls the app's own AI marked"}. Check every corner.`;}
   catch(e){detectError.value=e.message;}}
-async function saveDetectChoice(){try{const body=await liveApi.detectPreference(props.state.ref,detectChoice.value);meta.value.detect.preference=body.preference;detectError.value='';detectOpen.value=false;
+async function saveDetectChoice(){try{const body=await liveApi.detectPreference(props.state.ref,detectChoice.value,detectChoice.value&&detectChoice.value===detectPick.value?detectWhere.value:'');meta.value.detect.preference=body.preference;meta.value.detect.where=body.where||'';detectError.value='';detectOpen.value=false;
   hint.value=body.preference?'Saved: from now on that model marks the walls first on a photo nobody has drawn on.':'Saved: no model marks the walls by itself.';}catch(e){detectError.value=e.message;}}
 function undo(){if(!history.value.length)return;pickedPoint.value=null;future.value.push(structuredCloneRaw(shapes.value));shapes.value=history.value.pop();dirty.value=true;}
 function redo(){if(!future.value.length)return;pickedPoint.value=null;history.value.push(structuredCloneRaw(shapes.value));shapes.value=future.value.pop();dirty.value=true;}
@@ -274,13 +284,13 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
         <li v-if="meta?.given?.ai"><button @click="startFrom('ai')"><strong>The walls the app's own AI marked</strong></button></li>
       </ul>
       <template v-if="meta?.detect?.sources?.length">
-        <ModelSourcePicker v-model="detectPick" :sources="meta.detect.sources" inline/>
+        <ModelSourcePicker v-model="detectPick" v-model:where="detectWhere" :sources="meta.detect.sources" inline :licence-busy="licenceBusy" :place-error="placeError" @accept-licence="acceptLicence" @stop-machine="stopOnMachine"/>
         <fieldset class="detect-asked"><legend>The AI looks for</legend>
           <label v-for="c in state.classes" :key="c.name"><input type="checkbox" :checked="detectAsked.includes(c.name)" :disabled="detectAsked.length===1&&detectAsked.includes(c.name)" @change="toggleDetectAsked(c.name)"><i :style="{background:c.color}"/>{{ c.name }}</label>
         </fieldset>
         <div v-if="pickedSource" class="detect-run">
-          <p><span v-if="pickedSource.what">{{ pickedSource.what }} </span>{{ pickedSource.detail }}.<template v-if="startsServer(pickedSource)"> If it is not running it is started first, which takes a moment.</template><template v-if="pickedSource.licence"> Licence: {{ pickedSource.licence }}. A label started from its answer says so, so that it can be left out later.</template></p>
-          <UiButton variant="primary" :disabled="!!pickedSource.unavailable" @click="runDetect(pickedSource.id)"><Sparkles :size="15"/> Find objects</UiButton>
+          <p><span v-if="pickedSource.what">{{ pickedSource.what }} </span>{{ detailAt(pickedSource,pickedPlace) }}.<template v-if="pickedPlace"> SAM 3 is started on {{ pickedPlace.name }} the first time, which takes a while; its weights stay there for the next time.</template><template v-else-if="startsServer(pickedSource)"> If it is not running it is started first, which takes a moment.</template><template v-if="pickedSource.licence"> Licence: {{ pickedSource.licence }}. A label started from its answer says so, so that it can be left out later.</template></p>
+          <UiButton variant="primary" :disabled="blockedAt(pickedSource,pickedPlace)" @click="runDetect(pickedSource.id,false,null,detectWhere)"><Sparkles :size="15"/> Find objects</UiButton>
         </div>
       </template>
       <ul class="detect-list"><li><button @click="startFrom('blank')"><strong>The empty photo</strong><span>Remove everything and draw by hand.</span></button></li></ul>

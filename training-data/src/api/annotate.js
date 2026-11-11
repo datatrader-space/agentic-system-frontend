@@ -163,9 +163,12 @@ export const api = {
   // One photo through a vision model and then SAM 3 takes longer than the usual 15 s (aadml.com, 2026-11-09: GPT-6.1
   // Terra + SAM 3 was cut off and the page said "took too long" while the server was still drawing). Under the site's
   // 300 s limit on a request; a model still being started answers "waiting" at once instead.
-  detect: (ref, photo, source, classes) => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`,
-    { method: 'POST', body: classes ? { source, classes } : { source }, timeoutMs: DETECT_MS }),
-  detectPreference: (ref, detect) => json(`${base(ref)}/detect-preference/`, 'POST', { detect }),
+  // ``where``: '' runs the model where it runs; ``machine:<id>`` runs SAM 3 on that machine of the workspace.
+  detect: (ref, photo, source, classes, where = '') => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`,
+    { method: 'POST', body: { source, ...(classes ? { classes } : {}), ...(where ? { where } : {}) }, timeoutMs: DETECT_MS }),
+  detectPreference: (ref, detect, where = '') => json(`${base(ref)}/detect-preference/`, 'POST', { detect, where }),
+  // Meta's SAM License, accepted once for the workspace before SAM 3 runs on any of its machines.
+  acceptSamLicence: ref => json(`${base(ref)}/sam-licence/`, 'POST', { accept: true }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
   updateClass: (ref, name, body) => json(`${base(ref)}/classes/${enc(name)}/`, 'PATCH', body),

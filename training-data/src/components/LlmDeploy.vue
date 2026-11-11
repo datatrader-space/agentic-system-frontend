@@ -9,6 +9,7 @@ import { Ban, Bot, Check, Copy, Download, KeyRound, Layers, Plus, RotateCcw, Shi
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
+import MachinePicker from './MachinePicker.vue';
 import { llmApi, chatSnippet, chatLiveTag, downloadUrl, verdictLabel, verdictTone } from '../api/llm.js';
 import { bytesText } from '../api/analytics.js';
 import './llm.css';
@@ -54,7 +55,23 @@ async function run(call, after) {
 }
 
 // ── environments ──
-const deploy = env => run(() => llmApi.deployAct(ref_.value, env.key, 'deploy', { model: chosen.value[env.key] }));
+// Where the version answers: AADML's chat serving, or one of the workspace's own machines (``where`` 'machine:<id>',
+// backend machine_deployments.py): each listed with whether its GPU holds this version and its fee, or why not.
+const whereOf = ref({});
+const AADML_CHAT = { title: 'AADML', small: "AADML's chat serving",
+  text: "The version answers on AADML's chat serving. Or choose one of your machines: it answers there, through AADML, at the fee shown." };
+const machineRows = version => (data.value?.models || []).find(m => m.version === version)?.deploy_machines || [];
+const loads = new Map();
+// One stable loader per environment and version, so the picker reads again only when the version changes.
+function loadFor(env) {
+  const key = `${env.key}:${chosen.value[env.key]}`;
+  if (!loads.has(key)) loads.set(key, () => Promise.resolve({ machines: machineRows(chosen.value[env.key]), note: '' }));
+  return loads.get(key);
+}
+watch(data, () => loads.clear());
+const onMachine = env => String(whereOf.value[env.key] || '').startsWith('machine:');
+const deploy = env => run(() => llmApi.deployAct(ref_.value, env.key, 'deploy',
+  { model: chosen.value[env.key], ...(onMachine(env) ? { where: whereOf.value[env.key] } : {}) }));
 const cancel = env => run(() => llmApi.deployAct(ref_.value, env.key, 'cancel'));
 const goingBack = ref(null); const backTo = ref(null); const stopping = ref(null);
 function askBack(env) { goingBack.value = env; backTo.value = env.earlier.find(m => !m.refused)?.version ?? null; }
@@ -76,7 +93,10 @@ async function decide() {
 }
 
 // ── downloads ──
-const merge = model => run(() => llmApi.merge(ref_.value, model.version));
+// The merged weights are made on AADML's machines, or on one of the workspace's own (``mergeOn``, by model version),
+// at its fee; one that cannot hold the base model is listed with the reason and cannot be chosen.
+const mergeOn = ref({});
+const merge = model => run(() => llmApi.merge(ref_.value, model.version, mergeOn.value[model.version] || ''));
 
 // ── apps (the project's Owner) ──
 const appName = ref(''); const revoking = ref(null); const deletingApp = ref(null); const deleteName = ref('');
@@ -134,7 +154,8 @@ const revoked = m => m.approvals.filter(a => !a.active);
               <p class="deploy-meta">Revision {{ env.live.number }}<template v-if="env.live.rollback_of"> · going back from revision {{ env.live.rollback_of }}</template> · live since {{ when(env.live.live_at) }}</p>
             </template>
             <p v-else class="deploy-meta">No chat model is answering in {{ env.label.toLowerCase() }}.</p>
-            <p v-if="env.starting" class="deploy-starting"><span class="spinner" aria-hidden="true"></span>Revision {{ env.starting.number }} with {{ env.starting.model }} is loading on the CPU; this takes a minute or two.<template v-if="env.live"> Until then revision {{ env.live.number }} keeps answering.</template></p>
+            <p v-if="env.live?.machine" class="deploy-meta">Answers on {{ env.live.machine }}, your machine: calls go through AADML and are answered whole, not streamed. If the machine is offline, calls say so.</p>
+            <p v-if="env.starting" class="deploy-starting"><span class="spinner" aria-hidden="true"></span><template v-if="env.starting.machine">Revision {{ env.starting.number }} with {{ env.starting.model }} is starting on {{ env.starting.machine }}: the machine downloads the chat server and the model's files first, which can take a while.</template><template v-else>Revision {{ env.starting.number }} with {{ env.starting.model }} is loading on the CPU; this takes a minute or two.</template><template v-if="env.live"> Until then revision {{ env.live.number }} keeps answering.</template></p>
             <p v-else-if="env.failed" class="deploy-error"><strong>Revision {{ env.failed.number }} did not go live.</strong> {{ env.failed.failure }}<template v-if="env.live"> Revision {{ env.live.number }} is still answering.</template></p>
             <div v-if="data.may.train" class="env-actions">
               <UiButton v-if="env.starting" :disabled="busy" @click="cancel(env)"><Ban :size="14" /> Cancel revision {{ env.starting.number }}</UiButton>
@@ -143,7 +164,9 @@ const revoked = m => m.approvals.filter(a => !a.active);
                   <select v-model.number="chosen[env.key]" class="text-input compact" :aria-label="`Version to deploy to ${env.label.toLowerCase()}`">
                     <option v-for="m in env.deployable.filter(x => !x.refused)" :key="m.version" :value="m.version">{{ m.name }}</option>
                   </select>
-                  <UiButton variant="primary" :disabled="busy || !!data.serving_refused || chosen[env.key] == null" @click="deploy(env)"><Upload :size="14" /> Deploy to {{ env.label.toLowerCase() }}</UiButton>
+                  <UiButton variant="primary" :disabled="busy || (!!data.serving_refused && !onMachine(env)) || chosen[env.key] == null" @click="deploy(env)"><Upload :size="14" /> Deploy to {{ env.label.toLowerCase() }}</UiButton>
+                  <MachinePicker v-if="machineRows(chosen[env.key]).length" v-model="whereOf[env.key]" class="deploy-picker"
+                                 :load="loadFor(env)" :aadml="AADML_CHAT" :disabled="busy" :legend="`Where it answers in ${env.label.toLowerCase()}`"/>
                 </template>
                 <span v-else class="deploy-meta">No version has an approval for {{ env.label.toLowerCase() }}.{{ env.key === 'production' ? ' Production needs a release approval.' : ' A demo approval is enough.' }}</span>
                 <UiButton v-if="env.earlier.length" :disabled="busy" @click="askBack(env)"><RotateCcw :size="14" /> Go back to an earlier version…</UiButton>
@@ -277,7 +300,14 @@ const revoked = m => m.approvals.filter(a => !a.active);
           <div v-if="!m.download_refused" class="env-actions">
             <a class="button" :href="downloadUrl(ref_, m.version, 'adapter')" download><Download :size="14" /> Adapter</a>
             <a v-if="m.merged?.state === 'ready'" class="button" :href="downloadUrl(ref_, m.version, 'merged')" download><Download :size="14" /> Merged weights</a>
-            <UiButton v-else-if="m.merged?.state !== 'preparing'" :disabled="busy" @click="merge(m)">{{ m.merged?.state === 'failed' ? 'Make the merged weights again' : 'Make the merged weights' }}</UiButton>
+            <template v-else-if="m.merged?.state !== 'preparing'">
+              <label v-if="m.machines?.length" class="deploy-where"><span class="sr-only">Where the merged weights are made</span>
+                <select v-model="mergeOn[m.version]" class="compact-select" :disabled="busy">
+                  <option value="">On AADML's machines</option>
+                  <option v-for="o in m.machines" :key="o.key" :value="o.key" :disabled="!o.fits">On {{ o.name }}: {{ o.fits ? o.price_text : o.why_not }}</option>
+                </select></label>
+              <UiButton :disabled="busy" @click="merge(m)">{{ m.merged?.state === 'failed' ? 'Make the merged weights again' : 'Make the merged weights' }}</UiButton>
+            </template>
           </div>
         </div>
       </section>
@@ -347,6 +377,10 @@ const revoked = m => m.approvals.filter(a => !a.active);
 </template>
 
 <style scoped>
+.deploy-where { display: inline-flex; margin-right: 8px; }
+.deploy-picker { flex-basis: 100%; margin-top: 8px; }
+.deploy-where select { min-height: 44px; }
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .deploy-main{display:flex;flex-direction:column;gap:20px;min-width:0}
 .deploy-main>section>h2,.panel>h2{margin-top:0}
 .deploy-intro{font-size:13px!important;line-height:1.55;margin:4px 0 14px!important;max-width:820px;color:#475569}

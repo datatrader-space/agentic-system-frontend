@@ -8,9 +8,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { Play, Square, Send, RefreshCw, ArrowLeft, ArrowRight, MessageSquarePlus } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import MachinePicker from './MachinePicker.vue';
 import LlmConversation from './LlmConversation.vue';
 import { llmApi } from '../api/llm.js';
 import './llm.css';
+// Where the test server runs unless the person picks one of their machines: AADML's own GPU server, as always ('aadml').
+const AADML_TEST = { title: "AADML's GPU server", small: 'as always', text: "AADML's GPU server runs it, as it always does.", value: 'aadml' };
 
 const props = defineProps({ project: Object, openAssignment: Number });
 const emit = defineEmits(['navigate', 'opened']);
@@ -31,6 +34,16 @@ const key = c => (c.kind === 'version' ? `v${c.version}` : `b${c.base_model}`);
 const servesChoice = computed(() => running.value && chosen.value && (chosen.value.kind === 'version'
   ? trial.value.model_version === chosen.value.version : trial.value.model_version == null && trial.value.base_model === chosen.value.base_model));
 const trialTone = state => ({ ready: 'green', starting: 'purple' }[state] || 'neutral');
+// Where the test server runs (MachinePicker): AADML's GPU server as always, or one of the person's own machines
+// (``machine:<id>``, charged the platform fee by the second; agentic-docs/MACHINE_RUNPOD_PARITY_PLAN.md). The server
+// reads the choice again before anything starts; a machine that is offline is said so and nothing moves elsewhere.
+const machine = ref('');
+const loadMachines = computed(() => {
+  const ref_ = props.project.ref, c = chosen.value;
+  return () => (c ? llmApi.trialMachines(ref_, c.kind === 'version' ? { version: c.version } : { base_model: c.base_model })
+    : Promise.resolve({ machines: [] }));
+});
+const onMachine = computed(() => trial.value?.machine || null);
 
 async function loadChat() {
   try {
@@ -52,7 +65,8 @@ async function startServer() {
   if (!chosen.value) return;
   busy.value = true; error.value = '';
   try {
-    await llmApi.startTrial(props.project.ref, chosen.value.kind === 'version' ? { model_version: chosen.value.version } : { base_model: chosen.value.base_model });
+    const where = machine.value && machine.value !== 'aadml' ? { machine: machine.value } : {};
+    await llmApi.startTrial(props.project.ref, { ...(chosen.value.kind === 'version' ? { model_version: chosen.value.version } : { base_model: chosen.value.base_model }), ...where });
     messages.value = [];
     await loadChat();
   } catch (e) { error.value = e.message; }
@@ -159,13 +173,16 @@ onUnmounted(() => { clearTimeout(pollTimer); clearInterval(clock); });
             <label class="field-label" for="llm-test-model">Model</label>
             <div class="llm-test-pick-row">
               <select id="llm-test-model" v-model="choice" class="text-input"><option v-for="c in chatPage.choices" :key="key(c)" :value="key(c)" :disabled="c.kind === 'base' && c.ready === false">{{ c.label }}</option></select>
-              <UiButton v-if="!servesChoice" variant="primary" :disabled="busy || !chosen" @click="startServer"><Play :size="15" /> {{ busy ? 'Starting…' : running ? 'Switch to this model' : 'Start the test server' }}</UiButton>
+              <UiButton v-if="!servesChoice" variant="primary" :disabled="busy || !chosen || !machine" @click="startServer"><Play :size="15" /> {{ busy ? 'Starting…' : running ? 'Switch to this model' : 'Start the test server' }}</UiButton>
               <UiButton v-else :disabled="busy" @click="stopServer"><Square :size="14" /> Stop</UiButton>
             </div>
           </div>
+          <MachinePicker v-if="!servesChoice && chosen" v-model="machine" :load="loadMachines" :disabled="busy" :aadml="AADML_TEST"/>
           <p v-if="trial" class="field-help" aria-live="polite">
             <UiBadge :tone="trialTone(trial.state)">{{ trial.state_label }}</UiBadge>
-            {{ trial.model }}<template v-if="trial.state === 'starting'"> is loading on the CPU; this takes a minute or two.</template>
+            {{ trial.model }}<template v-if="onMachine && trial.state === 'starting'">: {{ onMachine.label }}. The first time, {{ onMachine.name }} downloads AADML's chat server and the model's files; they are kept there for the next time.</template>
+            <template v-else-if="trial.state === 'starting'"> is loading on the CPU; this takes a minute or two.</template>
+            <template v-else-if="trial.state === 'ready' && onMachine"> answers your messages on {{ onMachine.name }}, {{ onMachine.price_text }}, charged by the second it runs. Each message goes to {{ onMachine.name }} and is not kept.</template>
             <template v-else-if="trial.state === 'ready'"> answers your messages.</template>
             <template v-else-if="trial.failure"> {{ trial.failure }}</template>
           </p>

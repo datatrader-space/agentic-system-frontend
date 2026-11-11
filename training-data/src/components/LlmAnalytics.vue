@@ -17,7 +17,10 @@ const emit = defineEmits(['navigate']);
 const TABS = ['Evaluations', 'Test questions', 'Acceptance criteria'];
 const tab = ref('Evaluations'); const page = ref(null); const error = ref(''); const told = ref(''); const busy = ref(false);
 const opened = ref(null); const revealed = ref(null);
-const form = ref({ model: '', marking: 'none', reviewers: [], cap: '', items: 50, tokens: 128, runtime: 3600 });
+const form = ref({ model: '', marking: 'none', reviewers: [], cap: '', items: 50, tokens: 128, runtime: 3600, machine: '' });
+// Where the chosen version may be evaluated besides AADML's machines: the workspace's own (MACHINE_RUNPOD_PARITY_PLAN.md).
+const ownMachines = computed(() => (page.value?.models || []).find(m => String(m.version) === String(form.value.model))?.machines || []);
+watch(() => form.value.model, () => { form.value.machine = ''; });
 const judgeForm = ref({ model: '', rubric: '', open: false });
 let timer = null;
 
@@ -60,7 +63,7 @@ async function start() {
       model_version: Number(form.value.model), marking: form.value.marking, reviewers: usesPeople.value ? form.value.reviewers : [],
       judge: usesJudge.value ? page.value.judge?.id : undefined, judge_cap_usd: usesJudge.value ? form.value.cap : undefined,
       max_items: Number(form.value.items), max_new_tokens: Number(form.value.tokens), max_runtime_seconds: Number(form.value.runtime),
-      idempotency_key: requestKey(),
+      machine: form.value.machine || undefined, idempotency_key: requestKey(),
     });
     told.value = `Evaluation ${started.number} is started. Its state is in the list below.`;
     await load();
@@ -190,6 +193,10 @@ onUnmounted(() => clearTimeout(timer));
           <label class="field-label">Questions from the test split, at most<select v-model="form.items" class="text-input"><option v-for="n in page.choices.max_items" :key="n" :value="n">{{ n }}</option></select></label>
           <label class="field-label">Longest answer<select v-model="form.tokens" class="text-input"><option v-for="n in page.choices.max_new_tokens" :key="n" :value="n">{{ n }} tokens</option></select></label>
           <label class="field-label">Longest it may run<select v-model="form.runtime" class="text-input"><option v-for="r in page.choices.max_runtimes" :key="r.value" :value="r.value">{{ r.label }}</option></select></label>
+          <label v-if="ownMachines.length" class="field-label">Where it runs<select v-model="form.machine" class="text-input">
+            <option value="">AADML's machines</option>
+            <option v-for="o in ownMachines" :key="o.key" :value="o.key" :disabled="!o.fits">{{ o.name }}, {{ o.gpu_name || 'CPU' }}: {{ o.fits ? o.price_text : o.why_not }}</option>
+          </select></label>
         </div>
         <p class="field-help">{{ page.questions ? `Your test questions, version ${page.questions.version} (${page.questions.questions}), are asked too, and a fixed set of safety prompts.` : 'The project has no test questions of its own yet; write them on the Test questions tab. A fixed set of safety prompts is always asked.' }}</p>
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupSources, familyOfId, idFor, labelsOfId, waysOf } from '../src/sourceFamilies.js';
+import { blockedAt, detailAt, groupSources, familyOfId, idFor, labelsOfId, licenceAccepted, placeOf, waysOf } from '../src/sourceFamilies.js';
 
 // As views._detect_sources + auto_label.sources send them (owner, 2026-11-09: GPT-6.1 Terra and Gemini 4 Argon, each
 // alone and with SAM 3, beside SAM 3 and the project's own models).
@@ -66,4 +66,45 @@ test('the AI is asked for every class at first; an unticked one stays out, and a
   assert.deepEqual(askedClasses('p1', names), names);                         // a browser that keeps nothing asks all
   keepAskedClasses('p1', names, ['door']);                                    // and does not fail
   delete globalThis.localStorage;
+});
+
+// SAM 3 on the person's own machine (agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md): a source with SAM 3 lists the machines
+// it may run on (auto_label.sources ``where``); the others list none.
+const MACHINE = { id: 'machine:7', kind: 'own_machine', name: 'garage box', gpu: 'NVIDIA GeForce RTX 3070 (8.0 GB)',
+  state: 'licence', price: '$0.10 an hour, on your machine', unavailable: '', licence: { name: 'SAM License', url: 'https://github.com/facebookresearch/sam3/blob/main/LICENSE' }, running: null };
+const ON_MACHINE = [
+  { id: 'sam3', name: 'SAM 3 (Polygons)', family: 'SAM 3', maker: 'Meta', labels: 'polygons', unavailable: '',
+    detail: "Meta's SAM 3 on AADML's GPU server (up to $1.20 an hour of GPU, charged by the second a call takes), started when it is needed", where: [{ ...MACHINE }] },
+  { id: 'sam3-masks', name: 'SAM 3 (Masks)', family: 'SAM 3', maker: 'Meta', labels: 'masks', unavailable: '', where: [{ ...MACHINE }] },
+  { id: 'vision-sam3:openai/gpt-6.1-terra', name: 'GPT-6.1 Terra + SAM 3 (Polygons)', family: 'GPT-6.1 Terra + SAM 3', maker: 'OpenAI', labels: 'polygons', unavailable: '',
+    detail: "OpenAI's GPT-6.1 Terra at an outside AI provider, charged per photo at its token price, then Meta's SAM 3 on AADML's GPU server", where: [{ ...MACHINE }] },
+  { id: 'vision:openai/gpt-6.1-terra', name: 'GPT-6.1 Terra (Polygons)', family: 'GPT-6.1 Terra', maker: 'OpenAI', labels: 'polygons', unavailable: '', where: [] },
+];
+
+test('a family with SAM 3 carries the machines it may run on, and only such a family', () => {
+  const groups = groupSources(ON_MACHINE);
+  const sam = groups.find(g => g.maker === 'Meta').families[0];
+  assert.deepEqual(sam.where.map(p => p.id), ['machine:7']);
+  assert.deepEqual(groups.find(g => g.maker === 'OpenAI').families.find(f => f.name === 'GPT-6.1 Terra').where, []);
+  assert.equal(placeOf(ON_MACHINE[0], 'machine:7').name, 'garage box');
+  assert.equal(placeOf(ON_MACHINE[0], ''), null);                       // AADML's GPU server
+  assert.equal(placeOf(ON_MACHINE[3], 'machine:7'), null);              // a vision model alone never runs on a machine
+});
+
+test('a machine waiting for the SAM License blocks the run until it is accepted for the workspace', () => {
+  const sources = JSON.parse(JSON.stringify(ON_MACHINE));
+  assert.equal(blockedAt(sources[0], placeOf(sources[0], 'machine:7')), true);
+  assert.equal(blockedAt(sources[0], null), false);                     // AADML's server needs no licence step
+  licenceAccepted(sources);
+  assert.deepEqual(sources.flatMap(s => s.where.map(p => p.state)), ['ready', 'ready', 'ready']);
+  assert.equal(blockedAt(sources[0], placeOf(sources[0], 'machine:7')), false);
+  assert.equal(blockedAt(sources[0], { ...MACHINE, state: 'ready', unavailable: 'The fee is not set.' }), true);
+  assert.equal(blockedAt({ ...sources[0], unavailable: 'Not now.' }, null), true);
+});
+
+test('where it runs and its price are said with the machine, a vision model keeping its own words', () => {
+  const place = { ...MACHINE, state: 'ready' };
+  assert.equal(detailAt(ON_MACHINE[0], place), 'SAM 3 on garage box (NVIDIA GeForce RTX 3070 (8.0 GB)): $0.10 an hour, on your machine, charged by the second from your balance');
+  assert.equal(detailAt(ON_MACHINE[2], place), "OpenAI's GPT-6.1 Terra at an outside AI provider, charged per photo at its token price, then SAM 3 on garage box (NVIDIA GeForce RTX 3070 (8.0 GB)): $0.10 an hour, on your machine, charged by the second from your balance");
+  assert.equal(detailAt(ON_MACHINE[0], null), ON_MACHINE[0].detail);
 });

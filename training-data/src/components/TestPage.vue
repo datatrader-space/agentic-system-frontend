@@ -90,7 +90,7 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <p><strong>Live on staging.</strong> Photos go to the staging endpoint; no test server is needed.</p>
           </template>
           <template v-else-if="state.phase==='ready'">
-            <p v-if="state.machine"><strong>{{ state.machine.label }}.</strong> Free: it runs on your hardware, and each photo you try goes to {{ state.machine.name }} and is not kept.</p>
+            <p v-if="state.machine"><strong>{{ state.machine.label }}.</strong> {{ state.machine.price_text || 'The platform fee for your machine' }}, charged by the second it runs. Each photo you try goes to {{ state.machine.name }} and is not kept.</p>
             <p><strong>The test server is ready.</strong> {{ state.trial.photos_tried }} photo{{ state.trial.photos_tried===1?'':'s' }} tried<template v-if="state.trial.started_by"> · started by {{ state.trial.started_by }}</template> at {{ when(state.trial.started_at) }}. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop test server</UiButton>
           </template>

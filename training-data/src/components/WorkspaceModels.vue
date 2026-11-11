@@ -326,7 +326,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-else-if="ready&&onPlatform&&gpu==='waking'" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>Its GPU is starting; this takes a few minutes.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
-              <p v-else-if="ready&&state.machine" class="muted">{{ state.machine.label }}: free, on your hardware. Each photo you try goes to {{ state.machine.name }} and is not kept. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried; it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
+              <p v-else-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text || 'the platform fee for your machine' }}, charged by the second it runs. Each photo you try goes to {{ state.machine.name }} and is not kept. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried; it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
               <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
@@ -398,9 +398,10 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
           <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
           <p v-if="!state" class="muted">Looking at where it stands…</p>
           <template v-else>
-            <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>Its server is starting; this takes a few minutes.</p>
+            <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.machine ? `${state.machine.label}. The first time, ${state.machine.name} downloads the model and AADML's server for it` : 'Its server is starting; this takes a few minutes' }}.</p>
             <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
-            <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+            <p v-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text }}, charged by the second of each call. Each {{ trying.kind==='chat' ? 'message' : 'photo' }} goes to {{ state.machine.name }} and is not kept. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+            <p v-else-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
             <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
             <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
             <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="startOn"><Play :size="14"/> Start its server</UiButton>

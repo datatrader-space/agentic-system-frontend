@@ -175,6 +175,10 @@ const offeredOpen = computed(() => deployableOpenModels(openModels.value));
 const chosenOpen = computed(() => offeredOpen.value.find(m => String(m.id) === String(form.value.open_model)) || null);
 const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value));
 const chosenMachine = computed(() => machinesShown.value.find(m => m.instance_type === form.value.instance_type) || null);
+// The workspace's own machines this model may run on (backend machine_deployments.py; MACHINE_RUNPOD_PARITY_PLAN.md):
+// each with whether it holds the model and why not, and the platform fee. Chosen as 'machine:<id>'.
+const ownMachines = computed(() => (form.value.source === 'open_model' ? chosenOpen.value?.own_machines : chosenProject.value?.own_machines) || []);
+const chosenOwn = computed(() => ownMachines.value.find(m => m.key === form.value.instance_type) || null);
 // The machines of this form in the picker's shape (MachinePicker): GPU or CPU, then one from a list.
 const dedPicker = ref(null);
 const loadDedMachines = computed(() => {
@@ -182,28 +186,33 @@ const loadDedMachines = computed(() => {
     key: m.instance_type, kind: m.gpu === false ? 'cpu' : 'gpu', gpu_name: m.gpu_name || m.instance_type,
     memory_gb: m.memory_gb ?? '', data_center: m.data_center || '', soc2: !!m.soc2, stock_text: m.stock_text || '',
     files_here: !!m.files_here, usd_per_hour: m.charged_usd_per_hour, usd_per_second: m.usd_per_second || (Number(m.charged_usd_per_hour) / 3600),
-  }));
+  })).concat(ownMachines.value);
   const gpuOnly = form.value.source === 'open_model' ? chosenOpen.value?.gpu_only || '' : '';
   return () => Promise.resolve({ machines: listed, gpu_only: gpuOnly,
     note: 'You are charged by the second it runs, from your balance. A location without the model\'s files copies them first.' });
 });
 const chosenKind = computed(() => options.value.kinds.find(k => k.value === form.value.kind) || null);
-const costLine = computed(() => dedicatedCostSummary(chosenMachine.value, form.value.kind, chosenKind.value?.idle_minutes || 60));
+const costLine = computed(() => (chosenOwn.value
+  ? `${chosenOwn.value.name} (your machine) costs ${chosenOwn.value.price_text}, billed by the second from your balance${form.value.kind === 'development' ? `; it stops itself after ${chosenKind.value?.idle_minutes || 60} minutes without a call` : ' until you stop it'}. If the machine is offline, calls say so; nothing moves to RunPod.`
+  : dedicatedCostSummary(chosenMachine.value, form.value.kind, chosenKind.value?.idle_minutes || 60)));
+const anyMachine = computed(() => machinesShown.value.length > 0 || ownMachines.value.some(m => m.fits));
 const mayStart = computed(() => dedMay.value[`start_${form.value.kind}`] === true);
 const startWhy = computed(() => {
   if (!mayStart.value) return dedMay.value[`reason_${form.value.kind}`] || 'You may not start this type of deployment.';
   if (form.value.source === 'open_model') {
     if (!chosenOpen.value) return missingOpenModel(openModels.value) || 'Choose an open model.';
-    if (!machinesShown.value.length) return 'No machine that holds this model can be chosen right now.';
+    if (!anyMachine.value) return 'No machine that holds this model can be chosen right now.';
     return '';
   }
   if (!eligible.value.length) return 'Choose a project with an approved model.';
-  if (!machinesShown.value.length) return 'No machine can be chosen right now.';
+  if (!anyMachine.value) return 'No machine can be chosen right now.';
   return '';
 });
 // A changed source or open model keeps the machine only while it is still offered for it.
 watch([() => form.value.source, () => form.value.open_model, machinesShown], () => {
-  if (!machinesShown.value.some(m => m.instance_type === form.value.instance_type)) form.value.instance_type = machinesShown.value[0]?.instance_type || '';
+  if (!machinesShown.value.some(m => m.instance_type === form.value.instance_type) && !ownMachines.value.some(m => m.fits && m.key === form.value.instance_type)) {
+    form.value.instance_type = machinesShown.value[0]?.instance_type || '';
+  }
 });
 // A changed project or type keeps the model only while it is still allowed.
 watch([() => form.value.project, () => form.value.kind], () => {
