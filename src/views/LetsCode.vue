@@ -170,13 +170,13 @@
       </div>
 
       <div ref="ideMainEl" class="ide-main">
-        <div class="ide-left">
+        <div class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
             <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" />
           </div>
-          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed }">
-            <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" @toggle="bottomCollapsed = !bottomCollapsed" />
+          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }">
+            <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
           </div>
         </div>
         <div class="ide-rightpane" :style="{ '--rp-w': rightPaneWidth + 'px' }">
@@ -222,6 +222,12 @@ const active = ref(null)
 const browserKey = ref(0)
 const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
+// The terminal's Maximize (ADM-1211): the bottom panel fills the editor's column; the editor stays open underneath.
+const bottomMax = ref(false)
+function toggleBottomMax() {
+  if (bottomCollapsed.value) bottomCollapsed.value = false
+  bottomMax.value = !bottomMax.value
+}
 const pipelineLog = ref([])
 const activity = ref([])
 // The commands the Coding Agent ran in this project, for the Terminal tab's "Coding Agent" entry (ADM-1196).
@@ -744,6 +750,8 @@ onBeforeUnmount(() => {
 .ide-editor { flex: 1; min-height: 0; position: relative; }
 .ide-bottom { height: 220px; flex: 0 0 auto; }
 .ide-bottom.collapsed { height: auto; }
+.ide-left.bottom-max .ide-editor { flex: 0 0 0; overflow: hidden; }
+.ide-bottom.max { flex: 1 1 auto; height: auto; min-height: 0; }
 .ide-rightpane { position: relative; width: var(--rp-w, 384px); flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--vm-line); }
 .ide-rightpane > :not(.rp-resize) { flex: 1; min-height: 0; min-width: 0; }
 /* Drag handle sitting over the left border. */

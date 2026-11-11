@@ -8,9 +8,29 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 enableAutoUnmount(afterEach)
 
 const terms = []
+const searches = []
+class FakeSearch {
+  constructor(opts) { this.opts = opts; this.calls = []; this.cb = null; searches.push(this) }
+  findNext(t, o) { this.calls.push(['next', t, o]); return true }
+  findPrevious(t, o) { this.calls.push(['prev', t, o]); return true }
+  clearDecorations() { this.calls.push(['clear']) }
+  onDidChangeResults(cb) { this.cb = cb }
+}
 class FakeTerminal {
-  constructor(opts) { this.opts = opts; this.options = {}; this.cols = 100; this.rows = 30; this.written = []; this.dataCb = null; terms.push(this) }
-  loadAddon() {}
+  constructor(opts) {
+    this.opts = opts; this.options = {}; this.cols = 100; this.rows = 30; this.written = []; this.dataCb = null
+    this.osc = {}; this.keyHandler = null; this.selection = ''; this.pasted = []; this.cleared = 0; this.addons = []
+    this.parser = { registerOscHandler: (id, cb) => { this.osc[id] = cb } }
+    terms.push(this)
+  }
+  loadAddon(a) { this.addons.push(a) }
+  attachCustomKeyEventHandler(cb) { this.keyHandler = cb }
+  hasSelection() { return !!this.selection }
+  getSelection() { return this.selection }
+  clearSelection() { this.selection = '' }
+  selectAll() { this.selection = 'ALL' }
+  clear() { this.cleared += 1 }
+  paste(t) { this.pasted.push(t) }
   open() {}
   write(d) { this.written.push(typeof d === 'string' ? d : new TextDecoder().decode(d)) }
   onData(cb) { this.dataCb = cb }
@@ -22,7 +42,7 @@ class FakeTerminal {
 // xterm comes through the app's own loader. Mocking the package's dynamic import sometimes gave the real xterm on the
 // CI runner ("matchMedia is not a function", runs 42811128067 and 42815825100, 2026-11-10).
 vi.mock('./loadXterm', () => ({
-  loadXterm: async () => ({ Terminal: FakeTerminal, FitAddon: class { fit() {} }, WebLinksAddon: class {} }),
+  loadXterm: async () => ({ Terminal: FakeTerminal, FitAddon: class { fit() {} }, WebLinksAddon: class {}, SearchAddon: FakeSearch }),
 }))
 vi.mock('@/composables/useTheme', async () => { const { ref } = await import('vue'); return { useTheme: () => ({ isDark: ref(false) }) } })
 
@@ -46,7 +66,7 @@ import BottomPanel from './BottomPanel.vue'
 
 const status = (state, extra = {}) => ({ data: JSON.stringify({ type: 'status', state, ...extra }) })
 
-beforeEach(() => { terms.length = 0; sockets.length = 0; localStorage.clear() })
+beforeEach(() => { terms.length = 0; searches.length = 0; sockets.length = 0; localStorage.clear() })
 
 describe('ProjectTerminal: the person\'s shell', () => {
   async function shell() {
@@ -144,20 +164,20 @@ describe('ProjectTerminal: the Coding Agent\'s commands', () => {
 })
 
 describe('TerminalPanel', () => {
-  it('opens Terminal 1 when the project is ready, adds up to three, and ends one with its close button', async () => {
+  it('opens a bash terminal when the project is ready, adds up to three, and ends one with its close button', async () => {
     const w = mount(TerminalPanel, { props: { repoId: 16, ready: true }, global: { stubs: { Icon: true } } })
     await flushPromises()
-    expect(w.text()).toContain('Terminal 1')
+    expect(w.findAll('.tp-name').map(n => n.text())).toEqual(['bash'])
     await w.find('.tp-add').trigger('click')
     await w.find('.tp-add').trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('Terminal 3')
+    expect(w.findAll('.tp-name').map(n => n.text())).toEqual(['bash (1)', 'bash (2)', 'bash (3)'])
     expect(w.find('.tp-add').exists()).toBe(false)
-    const shell2 = sockets.find(s => s.url && s.url.endsWith('/terminal/2/'))
-    await w.find('[aria-label="End terminal 2"]').trigger('click')
+    const shell2 = sockets.find(s => s.url && s.url.endsWith('/terminal/2/?shell=bash'))
+    await w.find('[aria-label="End bash (2)"]').trigger('click')
     await flushPromises()
     expect(shell2.sent.map(d => (typeof d === 'string' ? JSON.parse(d) : null))).toContainEqual({ type: 'close' })
-    expect(w.text()).not.toContain('Terminal 2')
+    expect(w.findAll('.tp-name').map(n => n.text())).toEqual(['bash (1)', 'bash (2)'])
     w.unmount()
   })
 
@@ -173,7 +193,7 @@ describe('TerminalPanel', () => {
     await flushPromises()
     await first.find('.tp-add').trigger('click')
     await first.find('.tp-add').trigger('click')
-    await first.find('[aria-label="End terminal 1"]').trigger('click')
+    await first.findAll('.tp-x')[0].trigger('click')
     await flushPromises()
     expect(shellsOf(first)).toEqual([2, 3])
     first.unmount()
@@ -181,7 +201,6 @@ describe('TerminalPanel', () => {
     const again = mount(TerminalPanel, { props: { repoId: 16, ready: true }, ...opts })
     await flushPromises()
     expect(shellsOf(again)).toEqual([2, 3])
-    expect(again.text()).not.toContain('Terminal 1')
     again.unmount()
 
     const other = mount(TerminalPanel, { props: { repoId: 17, ready: true }, ...opts })

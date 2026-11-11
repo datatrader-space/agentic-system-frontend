@@ -15,7 +15,8 @@
     </div>
     <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
     <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
-      <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" />
+      <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
+                     @maximize="$emit('maximize')" />
     </div>
   </div>
 </template>
@@ -33,8 +34,10 @@ const props = defineProps({
   repoId: { type: Number, default: 0 },
   ready: { type: Boolean, default: false },
   agentCommands: { type: Array, default: () => [] },
+  // The panel fills the editor's column (the terminal's Maximize, ADM-1211).
+  maximized: { type: Boolean, default: false },
 })
-const emit = defineEmits(['toggle'])
+const emit = defineEmits(['toggle', 'maximize'])
 
 // Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls; Terminal = shells in the
 // project's sandbox and the commands the Coding Agent ran.
