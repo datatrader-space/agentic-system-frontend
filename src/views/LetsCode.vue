@@ -183,6 +183,8 @@
         </a>
         <!-- How the project is installed, built, tested and run: the agent fills these in, the person corrects them. -->
         <ProjectCommands :repo-id="Number(active.repo_id)" :ready="ready" />
+        <!-- The project's environment variables, for the Terminal and the Coding Agent's commands (ADM-1205 phase D). -->
+        <ProjectEnv :repo-id="Number(active.repo_id)" />
         <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
@@ -237,6 +239,7 @@ import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
+import ProjectEnv from '../components/letscode/ProjectEnv.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
 import { isReady, phaseTone, relativeTime, githubWebUrl } from '../components/letscode/projectStatus'

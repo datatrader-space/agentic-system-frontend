@@ -880,6 +880,10 @@ export default {
   getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
   // The project's app ports for the IDE's Preview tab (ADM-1205 phase D): { ports: [{ port, listening, started_by: 'agent' | 'you', command }] }
   getProjectPorts: (repoId) => api.get(`/lets-code/projects/${repoId}/ports/`, { noCache: true }),
+  // The project's environment variables (ADM-1205 phase D): names only, a value is never sent back.
+  // GET -> { variables: [{ key, updated_at }] }; PUT { changes: { KEY: 'value' | null } } (null removes one).
+  getProjectEnv: (repoId) => api.get(`/lets-code/projects/${repoId}/env/`, { noCache: true }),
+  saveProjectEnv: (repoId, changes) => api.put(`/lets-code/projects/${repoId}/env/`, { changes }),
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
   // Put the project's files back to the checkpoint taken before a chat message's turn changed them (git-ignored files
