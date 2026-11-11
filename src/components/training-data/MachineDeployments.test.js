@@ -6,8 +6,9 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MachinePicker from '../../../training-data/src/components/MachinePicker.vue';
 
-// What the dropdown shows: its options and its group labels (where the fee and the counts are).
-const shown = w => `${w.text()} ${w.findAll('optgroup').map(g => g.attributes('label')).join(' ')}`;
+// What the two dropdowns show: the kinds (with the fee and the counts), then the machines of the kind chosen.
+const shown = w => w.text();
+const kindOption = (w, value) => w.find('select.machine-kind').findAll('option').find(o => o.attributes('value') === value);
 
 
 const MINE = { key: 'machine:2', kind: 'own_machine', machine_id: 2, name: 'gpu box', device: 'gpu',
@@ -34,12 +35,13 @@ vi.mock('../../../training-data/src/api/llm.js', async original => ({
 describe('Where a chat version answers: AADML or your machine', () => {
   beforeEach(() => { deployAct.mockReset(); deployAct.mockResolvedValue({ ...page(), said: 'started' }); });
 
-  it('offers AADML first, with no RunPod GPU or CPU to choose, and starts at once on AADML', async () => {
+  it('offers AADML first, RunPod GPU and CPU listed but not choosable, and starts at once on AADML', async () => {
     const wrapper = mount(MachinePicker, { props: { load: async () => ({ machines: [MINE] }), modelValue: '', aadml: AADML } });
     await flushPromises();
     expect(wrapper.text()).toContain("AADML's chat serving");
-    expect(wrapper.find('optgroup[label^="GPU"]').exists()).toBe(false);
-    expect(wrapper.find('optgroup[label^="CPU"]').exists()).toBe(false);
+    expect(kindOption(wrapper, 'gpu').attributes('disabled')).toBeDefined();       // listed, not choosable here
+    expect(kindOption(wrapper, 'cpu').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('select.machine-select').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Auto found');
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['']);
     const run = vi.fn();
@@ -50,6 +52,7 @@ describe('Where a chat version answers: AADML or your machine', () => {
   it('chooses your machine with its fee, and lists one that cannot hold the version with the reason', async () => {
     const wrapper = mount(MachinePicker, { props: { load: async () => ({ machines: [SMALL, MINE] }), modelValue: '', aadml: AADML } });
     await flushPromises();
+    await wrapper.find('select.machine-kind').setValue('own_machine');
     await wrapper.find('select.machine-select').setValue('machine:2');
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['machine:2']);
     expect(shown(wrapper)).toContain('$0.10 an hour, on your machine');
@@ -67,6 +70,7 @@ describe('Where a chat version answers: AADML or your machine', () => {
     await deployButton().trigger('click');
     await flushPromises();
     expect(deployAct).toHaveBeenLastCalledWith('bot', 'staging', 'deploy', { model: 1 });
+    await wrapper.find('select.machine-kind').setValue('own_machine');
     await wrapper.find('select.machine-select').setValue('machine:2');
     await flushPromises();
     await deployButton().trigger('click');

@@ -8,8 +8,9 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import MachinePicker from '../../../training-data/src/components/MachinePicker.vue';
 
-// What the dropdown shows: its options and its group labels (where the fee and the counts are).
-const shown = w => `${w.text()} ${w.findAll('optgroup').map(g => g.attributes('label')).join(' ')}`;
+// What the two dropdowns show: the kinds (with the fee and the counts), then the machines of the kind chosen.
+const shown = w => w.text();
+const kindOption = (w, value) => w.find('select.machine-kind').findAll('option').find(o => o.attributes('value') === value);
 
 
 const MINE = { key: 'machine:2', kind: 'own_machine', machine_id: 2, name: 'garage box', device: 'gpu',
@@ -26,34 +27,37 @@ async function picker(machines) {
 }
 
 describe("Where it runs, with AADML's own server as a choice", () => {
-  it("chooses AADML's server first, never an empty choice, and offers no Auto, GPU or CPU", async () => {
+  it("chooses AADML's server first, never an empty choice; GPU and CPU are listed but not choosable", async () => {
     const wrapper = await picker([MINE]);
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['aadml']);
     expect(wrapper.text()).toContain("AADML's GPU server");
     expect(wrapper.findAll('option')[0].text()).toContain("AADML's GPU server");  // no Auto: AADML's server is its own choice
     expect(wrapper.text()).not.toContain('Auto:');
-    expect(wrapper.find('optgroup[label^="GPU"]').exists()).toBe(false);
+    expect(kindOption(wrapper, 'gpu').attributes('disabled')).toBeDefined();
+    expect(kindOption(wrapper, 'cpu').attributes('disabled')).toBeDefined();
+    expect(kindOption(wrapper, 'gpu').text()).toContain("AADML's GPU server runs it");
   });
 
   it('offers your machine with its fee, and lists one that cannot hold the model with the reason', async () => {
     const wrapper = await picker([CPU_ONLY, MINE]);
     expect(shown(wrapper)).toContain('$0.10 an hour, on your machine');
     expect(wrapper.text()).not.toContain('free, on your hardware');
+    await wrapper.find('select.machine-kind').setValue('own_machine');
     await wrapper.find('select.machine-select').setValue('machine:2');
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['machine:2']);
     const laptop = wrapper.findAll('option').find(o => o.attributes('value') === 'machine:3');
     expect(laptop.attributes('disabled')).toBeDefined();
     expect(laptop.text()).toContain('needs an NVIDIA GPU');
-    await wrapper.find('select.machine-select').setValue('__auto');
+    await wrapper.find('select.machine-kind').setValue('auto');
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['aadml']);
   });
 
-  it('with no machine added, still offers the server and says your machine has none', async () => {
+  it('with no machine of yours offered, still offers the server and says Your machine has none, not choosable', async () => {
     const wrapper = await picker([]);
     expect(wrapper.text()).not.toContain('No machine that can hold this model is free now');
-    const none = wrapper.findAll('option').find(o => o.text().includes('none added'));
+    const none = kindOption(wrapper, 'own_machine');
     expect(none.attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('none added');
+    expect(none.text()).toContain('Your machine: none connected for this model');
   });
 });
 
@@ -76,6 +80,7 @@ describe('the chat Test page on your machine', () => {
     const wrapper = mount(LlmTest, { props: { project: { ref: 'bot' } } });
     await flushPromises();
     expect(api.trialMachines).toHaveBeenCalledWith('bot', { base_model: 'qwen2.5-0.5b-instruct' });
+    await wrapper.find('select.machine-kind').setValue('own_machine');
     await wrapper.find('select.machine-select').setValue('machine:2');
     await flushPromises();
     const running = { id: 1, state: 'ready', state_label: 'Ready', model: 'qwen2.5-0.5b-instruct (base model)', model_version: null,

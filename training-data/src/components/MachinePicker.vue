@@ -4,8 +4,8 @@
 // location its files are already in is shown (owner, 2026-11-09: a new location needs a new volume, which RunPod
 // refuses below a $5 balance; another location is chosen by hand) to the person, who approves it or cancels (owner,
 // 2026-11-06); nothing starts without that approval, and nothing is
-// ever swapped for another machine on its own. Or the person chooses GPU or CPU (a CPU only for a small model;
-// otherwise the reason it runs on a GPU only) and one machine from the list. The server reads every choice again
+// ever swapped for another machine on its own. Or the person chooses GPU, CPU or Your machine in the first dropdown (a
+// kind the model cannot use is shown with the reason, not choosable) and one machine of that kind in the second. The server reads every choice again
 // before anything starts. A page calls ``confirm(start)`` instead of ``start()``.
 import { computed, onMounted, ref, watch } from 'vue';
 import { HardDrive, MapPin, RefreshCw, ShieldCheck } from 'lucide-vue-next';
@@ -68,7 +68,8 @@ onMounted(read);
 watch(() => props.load, read);
 // Switching GPU / CPU chooses the cheapest of that kind (the list comes cheapest first, the files' location first).
 function pickKind(next) {
-  if (next === kind.value || (next !== 'auto' && !counts.value[next])) return;
+  // A kind with no machine that can take this model is listed but never chosen (the dropdown disables it too).
+  if (next === kind.value || (next !== 'auto' && !usable(next))) return;
   kind.value = next; pending.value = null;
   const first = next === 'auto' ? (props.aadml ? null : autoFind()) : ofKind.value.find(fits);
   said.value = next === 'auto' && props.aadml ? ''
@@ -101,12 +102,27 @@ const optionText = m => (m.kind === 'own_machine'
   ? `${m.name}, ${m.gpu_name || 'CPU'}${m.memory_gb ? `, ${m.memory_gb} GB` : ''}${fits(m) ? '' : `: ${m.why_not}`}`
   : `${m.gpu_name}, ${m.memory_gb} GB, ${m.data_center}${m.soc2 ? ' (SOC 2)' : ' (not SOC 2)'}, ${money(m.usd_per_hour)} an hour`);
 const own = computed(() => chosen.value?.kind === 'own_machine');
-// The dropdown's value: Auto (or AADML's own server), else the machine chosen.
-const AUTO = '__auto';
-const selection = computed(() => (kind.value === 'auto' ? AUTO : props.modelValue));
 const byKind = k => (machines.value || []).filter(m => (m.kind || 'gpu') === k);
+// The first dropdown (owner, 2026-11-11: "drop down auto, gpu, cpu, your machine option to choose"): what kind of machine.
+// Every kind is always listed; one this model cannot use now is listed with the reason and cannot be chosen (owner: "if
+// model can run only gpu but can't on cpu or even machine connected resource gpu is not enough we show but disabled").
+// The second dropdown lists the machines of the kind chosen, each that cannot take the model again with its reason.
+const usable = k => byKind(k).filter(fits).length;
+const kinds = computed(() => {
+  const none = props.aadml ? `not chosen here: ${props.aadml.title} runs it` : 'none free now';
+  const firstWhy = byKind('own_machine').find(m => !fits(m))?.why_not || '';
+  return [
+    { value: 'auto', text: props.aadml ? `${props.aadml.title} (${props.aadml.small})` : 'Auto: the cheapest free now, you approve it' },
+    counts.value.gpu ? { value: 'gpu', text: `GPU, ${counts.value.gpu} free` } : { value: 'gpu', text: `GPU: ${none}`, off: true },
+    counts.value.cpu ? { value: 'cpu', text: `CPU, ${counts.value.cpu} free` }
+      : { value: 'cpu', text: `CPU: ${gpuOnly.value ? 'this model needs a GPU' : none}`, off: true },
+    usable('own_machine') ? { value: 'own_machine', text: `Your machine, ${ownPrice.value}` }
+      : { value: 'own_machine', off: true,
+          text: `Your machine: ${counts.value.own_machine ? firstWhy || 'none of yours can take this now' : 'none connected for this model'}` },
+  ];
+});
+const KIND_LABEL = { gpu: 'GPU', cpu: 'CPU', own_machine: 'Your machine' };
 function choose(value) {
-  if (value === AUTO) { pickKind('auto'); return; }
   const m = (machines.value || []).find(x => x.key === value);
   if (!m || !fits(m)) return;
   kind.value = m.kind || 'gpu'; pending.value = null; said.value = '';
@@ -128,24 +144,21 @@ defineExpose({ read, confirm });
       <UiButton :disabled="loading" @click="read"><RefreshCw :size="14" aria-hidden="true"/> Read again</UiButton>
     </div>
     <template v-else-if="machines">
-      <!-- One dropdown (owner, 2026-11-11: "drop down option to choose"): Auto or AADML's own server first, then each
-           GPU, each CPU and each of the person's own machines, grouped, with its price; one that cannot take this
-           model is in the list with the reason and cannot be chosen. -->
-      <label class="sr-only" :for="`machine-${uid}`">{{ legend }}</label>
-      <select :id="`machine-${uid}`" class="compact-select machine-select" :value="selection"
-              @change="choose($event.target.value)">
-        <option :value="AUTO">{{ aadml ? `${aadml.title} (${aadml.small})` : 'Auto: the cheapest free now, you approve it' }}</option>
-        <optgroup v-if="counts.gpu" :label="`GPU, ${counts.gpu} free`">
-          <option v-for="m in byKind('gpu')" :key="m.key" :value="m.key">{{ optionText(m) }}</option>
-        </optgroup>
-        <optgroup v-if="counts.cpu" :label="`CPU, ${counts.cpu} free`">
-          <option v-for="m in byKind('cpu')" :key="m.key" :value="m.key">{{ optionText(m) }}</option>
-        </optgroup>
-        <optgroup v-if="counts.own_machine" :label="`Your machines, ${ownPrice}`">
-          <option v-for="m in byKind('own_machine')" :key="m.key" :value="m.key" :disabled="!fits(m)">{{ optionText(m) }}</option>
-        </optgroup>
-        <option v-else-if="aadml" value="" disabled>Your machine: none added yet</option>
+      <!-- Two dropdowns (owner, 2026-11-11): the kind first (Auto or AADML's own server, GPU, CPU, Your machine), then
+           the machines of that kind with their prices. A kind or a machine this model cannot use is listed with the
+           reason and cannot be chosen. -->
+      <label class="sr-only" :for="`machine-kind-${uid}`">{{ legend }}</label>
+      <select :id="`machine-kind-${uid}`" class="compact-select machine-kind" :value="kind"
+              @change="pickKind($event.target.value)">
+        <option v-for="k in kinds" :key="k.value" :value="k.value" :disabled="k.off">{{ k.text }}</option>
       </select>
+      <template v-if="kind !== 'auto'">
+        <label class="machine-select-label" :for="`machine-${uid}`">{{ KIND_LABEL[kind] }}</label>
+        <select :id="`machine-${uid}`" class="compact-select machine-select" :value="modelValue"
+                @change="choose($event.target.value)">
+          <option v-for="m in byKind(kind)" :key="m.key" :value="m.key" :disabled="!fits(m)">{{ optionText(m) }}</option>
+        </select>
+      </template>
       <p v-if="gpuOnly && !counts.cpu" class="machine-gpu-only" role="note">{{ gpuOnly }}</p>
       <p v-if="kind === 'auto' && aadml" class="machine-auto">{{ aadml.text }}</p>
       <p v-else-if="kind === 'auto'" class="machine-auto">At Start, the cheapest machine free now that can run this model, where its files already are, is found and shown to you; it starts only when you approve it.</p>
@@ -190,8 +203,9 @@ defineExpose({ read, confirm });
 .machine-found p { margin: 6px 0 10px; }
 .machine-found-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .machine-said { margin: 8px 0 0; font-size: 14px; }
-.machine-select-label { display: block; font-weight: 600; font-size: 14px; margin: 4px 0 6px; color: var(--aadml-navy); }
-.machine-select { width: 100%; min-height: 44px; }
+.machine-select-label { display: block; font-weight: 600; font-size: 14px; margin: 12px 0 6px; color: var(--aadml-navy); }
+.machine-kind, .machine-select { width: 100%; min-height: 44px; }
+.machine-kind { margin-bottom: 8px; }
 .machine-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0 0; font-size: 14px; }
 .machine-chosen span { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 .machine-chosen .machine-soc2 { color: var(--aadml-teal); }
