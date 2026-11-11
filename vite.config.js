@@ -169,13 +169,6 @@ export default defineConfig(({ mode, isSsrBuild }) => {
           changeOrigin: true,
           secure: false
         },
-        // Training Data is a Django-rendered app (training_models_data); in prod nginx proxies it the same way.
-        // changeOrigin false so its CSRF-protected forms see the Host the browser sent.
-        '/training-data': {
-          target: env.VITE_API_TARGET || 'http://localhost:8001',
-          changeOrigin: false,
-          secure: false
-        },
         // The new Training Data page has its own Vite server (training-data/vite.config.mjs, 127.0.0.1:5174, base
         // /dashboard/training-data/). Reaching it through THIS origin is what lets it share the AADML session cookie
         // and the selected workspace, as it does in production, where nginx serves its built files at this path.
@@ -185,8 +178,8 @@ export default defineConfig(({ mode, isSsrBuild }) => {
           changeOrigin: false,
           ws: true
         },
-        // Its stylesheet and scripts are Django static files (in prod nginx serves /static). Without this
-        // entry they fell through to the SPA shell (`200 text/html`) and the Training pages came out unstyled.
+        // Django's own static files (the admin site's; in prod nginx serves /static). Without this entry they fell
+        // through to the SPA shell (`200 text/html`) and those pages came out unstyled.
         '/static': {
           target: env.VITE_API_TARGET || 'http://localhost:8001',
           changeOrigin: false,

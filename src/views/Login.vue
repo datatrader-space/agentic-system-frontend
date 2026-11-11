@@ -334,7 +334,7 @@ const route = useRoute()
 // `/admin/` while this app has its own `/admin` route, so a `next` there must reach the server.
 // `/dashboard/training-data` is the new Training Data page: its own index.html under a /dashboard path, which
 // the router would otherwise match to the dashboard shell.
-const SERVER_PATHS = ['/admin/', '/api/', '/training-data/', '/dashboard/training-data']
+const SERVER_PATHS = ['/admin/', '/api/', '/dashboard/training-data']
 
 function goNext(fallback = '/dashboard') {
   const next = route.query.next
