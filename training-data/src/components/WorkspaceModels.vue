@@ -94,7 +94,8 @@ let timer = null; let alive = true;
 const gpu = computed(() => (onPlatform.value ? state.value?.economy?.capacity || null : null));
 function follow() {
   clearTimeout(timer);
-  const starting = ['preparing', 'starting'].includes(state.value?.phase);
+  // Stopping on the person's machine is followed too: it goes back to Start once the machine has stopped it.
+  const starting = ['preparing', 'starting', 'stopping'].includes(state.value?.phase);
   const waking = state.value?.phase === 'ready' && (gpu.value === 'waking' || (gpu.value === 'zero' && held.value));
   timer = alive && (starting || waking) ? setTimeout(async () => { await loadState(); follow(); }, starting ? 3000 : 5000) : null;
 }
@@ -321,6 +322,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <template v-else>
               <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : state.machine ? state.machine.label : onPlatform ? 'Its GPU server is starting; this takes a few minutes' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
               <DownloadBar v-if="state.phase==='starting'" :download="state.machine?.download"/>
+              <p v-if="state.phase==='stopping'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.machine?.label || 'Stopping' }}.</p>
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
@@ -402,6 +404,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
           <template v-else>
             <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.machine ? `${state.machine.label}. The first time, ${state.machine.name} downloads the model and AADML's server for it` : 'Its server is starting; this takes a few minutes' }}.</p>
             <DownloadBar v-if="state.phase==='starting'" :download="state.machine?.download"/>
+            <p v-if="state.phase==='stopping'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.machine?.label || 'Stopping' }}.</p>
             <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
             <p v-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text }}, charged by the second of each call. Each {{ trying.kind==='chat' ? 'message' : 'photo' }} goes to {{ state.machine.name }} and is not kept. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
             <p v-else-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
