@@ -13,13 +13,12 @@
             Files
           </button>
           <button
-            v-if="artifacts && artifacts.length"
-            type="button" role="tab" :aria-selected="sidebarTab === 'artifacts' ? 'true' : 'false'"
-            @click="sidebarTab = 'artifacts'"
-            :class="{ active: sidebarTab === 'artifacts' }"
-            class="sidebar-tab">
-            <Icon icon="lucide:database" aria-hidden="true" />
-            Artifacts
+            type="button" role="tab" :aria-selected="sidebarTab === 'search' ? 'true' : 'false'"
+            @click="openSearch"
+            :class="{ active: sidebarTab === 'search' }"
+            class="sidebar-tab" title="Search in files">
+            <Icon icon="lucide:search" aria-hidden="true" />
+            <span class="sidebar-tab-label">Search</span>
           </button>
           <button
             type="button" role="tab" :aria-selected="sidebarTab === 'scm' ? 'true' : 'false'"
@@ -36,16 +35,36 @@
       <div class="sidebar-content">
         <!-- File Tree -->
         <div v-if="sidebarTab === 'files'" class="file-tree">
-          <div class="search-box">
+          <div class="search-box explorer-bar">
             <input
               v-model="fileSearch"
               type="search"
-              aria-label="Search files"
-              placeholder="Search files"
+              aria-label="Find a file by name"
+              placeholder="Find a file by name"
               class="search-input" />
+            <template v-if="editable">
+              <button type="button" class="xbar-btn" title="New file" aria-label="New file" @click="startNew('file', '')">
+                <Icon icon="lucide:file-plus" aria-hidden="true" />
+              </button>
+              <button type="button" class="xbar-btn" title="New folder" aria-label="New folder" @click="startNew('directory', '')">
+                <Icon icon="lucide:folder-plus" aria-hidden="true" />
+              </button>
+              <button type="button" class="xbar-btn" title="Upload files" aria-label="Upload files" @click="pickUpload('')">
+                <Icon icon="lucide:upload" aria-hidden="true" />
+              </button>
+              <input ref="uploadInput" type="file" multiple class="xbar-file" tabindex="-1" aria-hidden="true"
+                     @change="onPicked" />
+            </template>
           </div>
-          <div class="tree-list">
-            <!-- Search results (flat, capped) -->
+          <p v-if="uploading" class="xbar-status" role="status" aria-live="polite">{{ uploading }}</p>
+          <div
+            class="tree-list"
+            :class="{ 'drop-root': dropTarget === '' }"
+            @dragover="onDragOver($event, '')"
+            @dragleave="onDragLeave"
+            @drop="onDrop($event, '')"
+            @contextmenu="onTreeContextMenu">
+            <!-- Every file whose name matches (flat) -->
             <template v-if="fileSearch.trim()">
               <div v-if="searching" class="loading">Searching…</div>
               <div v-else-if="!searchResults.length" class="empty">No matches</div>
@@ -63,7 +82,6 @@
                   <span class="node-path">{{ r.path }}</span>
                   <span v-if="r.gitignored" class="node-gi" title="Gitignored: kept in your workspace only, never committed">local-only</span>
                 </div>
-                <div v-if="searchTruncated" class="empty">Showing the first {{ searchResults.length }} matches. Type more of the name to narrow it down.</div>
               </div>
             </template>
             <!-- Lazy directory tree -->
@@ -80,14 +98,19 @@
                   Contact support
                 </router-link>
               </div>
-              <div v-else-if="!rootNodes.length" class="empty">No files found</div>
-              <div v-else role="tree" aria-label="Repository files">
-                <FileTreeNode
-                  v-for="file in rootNodes"
-                  :key="file.path"
-                  :file="file"
-                  @select="openFile" />
-              </div>
+              <template v-else>
+                <div v-if="!rootNodes.length && !(pending && pending.parent === '' && pending.mode !== 'rename')" class="empty">
+                  {{ editable ? 'No files yet. Create one, or drop files here.' : 'No files found' }}
+                </div>
+                <div v-else role="tree" aria-label="Project files">
+                  <PendingRow v-if="pending && pending.parent === '' && pending.mode !== 'rename'" :level="0" />
+                  <FileTreeNode
+                    v-for="file in rootNodes"
+                    :key="file.path"
+                    :file="file"
+                    @select="openFile" />
+                </div>
+              </template>
             </template>
           </div>
         </div>
@@ -97,30 +120,13 @@
           <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @changed="refreshAfterScm" @published="emit('published', $event)" />
         </div>
 
-        <!-- Artifact Tree -->
-        <div v-else class="artifact-tree">
-          <div class="search-box">
-            <input
-              v-model="artifactSearch"
-              type="search"
-              aria-label="Search artifacts"
-              placeholder="Search artifacts"
-              class="search-input" />
-          </div>
-          <div class="tree-list">
-            <div v-if="!artifacts || !artifacts.length" class="empty">
-              No artifacts available
-            </div>
-            <div v-else>
-              <ArtifactTreeNode 
-                v-for="artifact in filteredArtifacts" 
-                :key="artifact.name"
-                :artifact="artifact"
-                @select="openArtifact" />
-            </div>
-          </div>
+        <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
+        <div v-show="sidebarTab === 'search'" class="search-pane">
+          <ContentSearch ref="contentSearch" :system-id="systemId" :repo-id="repositoryId" @open="openAt" />
         </div>
       </div>
+      <ExplorerMenu :open="menu.open" :x="menu.x" :y="menu.y" :items="menu.items" :label="menu.label"
+                    @select="onMenuSelect" @close="menu.open = false" />
 
       <!-- Resize Handle -->
       <div class="resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize the file list" @mousedown="startResize"></div>
@@ -221,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, h } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h } from 'vue'
 import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //
@@ -265,6 +271,10 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { useTheme } from '@/composables/useTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
+import ExplorerMenu from '@/components/letscode/ExplorerMenu.vue'
+import ContentSearch from '@/components/letscode/ContentSearch.vue'
+import { saveBlob } from '@/utils/saveBlob'
+import { filesFromDrop, filesFromPicker, uploadParts, tooLarge, MAX_FILE_BYTES } from '@/utils/droppedFiles'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
@@ -313,10 +323,6 @@ const props = defineProps({
     type: Number,
     required: true
   },
-  artifacts: {
-    type: Array,
-    default: () => []
-  },
   // Opt-in editing (Let's Code IDE). Default false → existing usages stay read-only.
   editable: {
     type: Boolean,
@@ -337,7 +343,6 @@ const sidebarTab = ref('files')
 const scmCount = ref(0)               // Source Control change-count badge
 const sidebarWidth = ref(300)
 const fileSearch = ref('')
-const artifactSearch = ref('')
 const rootNodes = ref([])             // lazy tree: top-level entries; dirs load children on expand
 const loading = ref(false)
 const treeError = ref('')             // why the files could not be listed (e.g. the project's sandbox is off)
@@ -348,7 +353,6 @@ let unmounted = false
 const _wait = { onWaiting: (s) => { treeWaiting.value = s }, isCancelled: () => unmounted }
 const searchResults = ref([])         // flat results when the search box is non-empty
 const searching = ref(false)
-const searchTruncated = ref(false)
 const openTabs = ref([])
 // A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
 watch(monacoLanguages, (langs) => {
@@ -458,8 +462,12 @@ function onKeydown(e) {
   }
 }
 
-function onEditorMount() {
+// The text editor itself, once Monaco has made it: a search result opens its file at the matching line.
+let editorInst = null
+function onEditorMount(editor) {
+  editorInst = editor || null
   try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
+  revealPending()
 }
 
 // Computed
@@ -536,12 +544,12 @@ async function expandDir(node) {
   }
 }
 
-// Debounced server-side search (capped) — replaces the old client-side filter over the full tree.
+// Debounced server-side name search: every file whose name matches (never the first N).
 let _searchTimer = null
 watch(fileSearch, (q) => {
   clearTimeout(_searchTimer)
   q = (q || '').trim()
-  if (!q) { searchResults.value = []; searching.value = false; searchTruncated.value = false; return }
+  if (!q) { searchResults.value = []; searching.value = false; return }
   searching.value = true
   _searchTimer = setTimeout(() => runSearch(q), 250)
 })
@@ -551,7 +559,6 @@ async function runSearch(q) {
   try {
     const res = await api.getRepositoryFiles(props.systemId, props.repositoryId, { search: q })
     searchResults.value = res.data.entries || []
-    searchTruncated.value = !!res.data.truncated
   } catch (e) {
     console.error('File search failed:', e)
     searchResults.value = []
@@ -559,15 +566,6 @@ async function runSearch(q) {
     searching.value = false
   }
 }
-
-const filteredArtifacts = computed(() => {
-  if (!artifactSearch.value) return props.artifacts
-  const query = artifactSearch.value.toLowerCase()
-  return props.artifacts.filter(a => 
-    a.name.toLowerCase().includes(query) || 
-    (a.type && a.type.toLowerCase().includes(query))
-  )
-})
 
 // Methods
 // The tree: the project's last-read top level at once, then the fresh one (ADM-1196).
@@ -843,31 +841,6 @@ async function openFile(filePath, { asCode = false } = {}) {
   }
 }
 
-function openArtifact(artifact) {
-  // Check if already open
-  const existing = openTabs.value.find(t => t.artifactId === artifact.name)
-  if (existing) {
-    activeTabId.value = existing.id
-    return
-  }
-
-  const content = formatArtifactCode(artifact)
-  const language = 'python' // Most artifacts are Python
-  
-  const newTab = {
-    id: nextTabId(),
-    name: artifact.name,
-    path: artifact.file || artifact.name,
-    content,
-    language,
-    type: 'artifact',
-    artifactId: artifact.name
-  }
-  
-  openTabs.value.push(newTab)
-  activeTabId.value = newTab.id
-}
-
 async function closeTab(tabId) {
   const index = openTabs.value.findIndex(t => t.id === tabId)
   if (index === -1) return
@@ -899,19 +872,9 @@ function detectLanguage(filePath) {
   return languageFor(filePath, monacoLanguages.value)
 }
 
-function formatArtifactCode(artifact) {
-  // Try different fields for code content
-  if (artifact.content) return artifact.content
-  if (artifact.source_code) return artifact.source_code
-  if (artifact.code) return artifact.code
-  
-  // Fallback to JSON
-  return JSON.stringify(artifact, null, 2)
-}
-
 // Sidebar resize
 let isResizing = false
-function startResize(e) {
+function startResize() {
   isResizing = true
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
@@ -942,7 +905,417 @@ onBeforeUnmount(() => {
   if (props.editable) window.removeEventListener('keydown', onKeydown)
 })
 
+// ── THE EXPLORER'S FILE ACTIONS (ADM-1205, LETS_CODE_IDE_GAPS_PLAN.md phase B) ──────────────────────────────────
+// As VS Code's explorer: a context menu (right-click, the Menu key, Shift+F10, or a row's "More" button), New file /
+// New folder / Rename typed in place in the tree, Delete after a question, drag a row onto a folder to move it, drop
+// files or folders from the computer to upload them, Download a file or a folder (.tar.gz). Every action is the
+// server's; the tree then reads the folders it changed.
+
+const baseOf = (p) => p.split('/').pop()
+const joinPath = (dir, name) => (dir ? `${dir}/${name}` : name)
+const errorOf = (e, fallback) => e?.response?.data?.error || fallback
+
+// A folder the tree shows again with what is in it now (closed: read when next opened).
+async function refreshDir(path) {
+  projectCache.dir.drop(props.repositoryId, path)
+  if (!path) { await loadFiles(); return }
+  const node = findNode(path)
+  if (!node) return
+  if (!node.expanded) { node.loaded = false; return }
+  try {
+    node.children = mergeNodes(node.children, await fetchDir(path))
+    node.loaded = true
+  } catch { node.children = []; node.expanded = false; node.loaded = false }
+}
+async function openFolder(path) {
+  if (!path) return
+  const node = findNode(path)
+  if (node && !node.expanded) await expandDir(node)
+}
+function afterChange(...dirs) {
+  for (const d of new Set(dirs)) refreshDir(d)
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+}
+
+// The context menu.
+const menu = reactive({ open: false, x: 0, y: 0, items: [], label: '', target: null })
+function menuItems(node) {
+  if (!node) {
+    return [
+      { id: 'new-file', label: 'New file', icon: 'lucide:file-plus' },
+      { id: 'new-folder', label: 'New folder', icon: 'lucide:folder-plus' },
+      { id: 'upload', label: 'Upload files', icon: 'lucide:upload' },
+      { separator: true },
+      { id: 'download', label: 'Download project (.tar.gz)', icon: 'lucide:download' },
+    ]
+  }
+  const dir = node.type === 'directory'
+  return [
+    ...(dir ? [
+      { id: 'new-file', label: 'New file', icon: 'lucide:file-plus' },
+      { id: 'new-folder', label: 'New folder', icon: 'lucide:folder-plus' },
+      { id: 'upload', label: 'Upload files here', icon: 'lucide:upload' },
+      { separator: true },
+    ] : [{ id: 'open', label: 'Open', icon: 'lucide:file-text' }, { separator: true }]),
+    { id: 'download', label: dir ? 'Download (.tar.gz)' : 'Download', icon: 'lucide:download' },
+    { id: 'copy-path', label: 'Copy path', icon: 'lucide:copy' },
+    { separator: true },
+    { id: 'rename', label: 'Rename', icon: 'lucide:pencil', keys: 'F2' },
+    { id: 'delete', label: 'Delete', icon: 'lucide:trash-2', keys: 'Del', danger: true },
+  ]
+}
+function openMenuAt(x, y, node) {
+  if (!props.editable) return
+  menu.target = node || null
+  menu.items = menuItems(node)
+  menu.label = node ? `Actions for ${node.name}` : 'Project actions'
+  menu.x = x
+  menu.y = y
+  menu.open = true
+}
+function openMenuFor(el, node) {
+  const r = el.getBoundingClientRect()
+  openMenuAt(r.left + Math.min(24, r.width / 2), r.bottom, node)
+}
+function onTreeContextMenu(e) {
+  if (!props.editable) return
+  e.preventDefault()
+  openMenuAt(e.clientX, e.clientY, null)
+}
+function onMenuSelect(item) {
+  const node = menu.target
+  const dir = node ? (node.type === 'directory' ? node.path : dirOf(node.path)) : ''
+  switch (item.id) {
+    case 'open': return openFile(node.path)
+    case 'new-file': return startNew('file', dir)
+    case 'new-folder': return startNew('directory', dir)
+    case 'upload': return pickUpload(dir)
+    case 'download': return downloadEntry(node)
+    case 'copy-path': return copyPath(node)
+    case 'rename': return startRename(node)
+    case 'delete': return deleteEntry(node)
+  }
+}
+
+// New file / New folder / Rename, typed in place in the tree. Enter saves, Escape cancels, leaving the box saves a
+// changed name (as VS Code). A refusal (the name is taken) is said under the box, which stays open.
+const pending = ref(null)          // { mode: 'file' | 'directory' | 'rename', parent, node?, value, error, busy }
+async function startNew(mode, parent) {
+  if (!props.editable) return
+  sidebarTab.value = 'files'
+  fileSearch.value = ''
+  await openFolder(parent)
+  pending.value = { mode, parent, value: '', error: '', busy: false }
+}
+function startRename(node) {
+  if (!props.editable || !node) return
+  pending.value = { mode: 'rename', parent: dirOf(node.path), node, value: node.name, error: '', busy: false }
+}
+function cancelPending() {
+  pending.value = null
+}
+function nameProblem(name) {
+  if (!name) return 'Type a name.'
+  if (name.includes('\\')) return 'A name cannot contain "\\".'
+  if (name.split('/').some((part) => part === '..' || part === '.')) return 'A name cannot be "." or "..".'
+  if (name.split('/').includes('.git')) return 'The .git folder is managed in Source control.'
+  return ''
+}
+async function commitPending({ fromBlur = false } = {}) {
+  const p = pending.value
+  if (!p || p.busy) return
+  const name = (p.value || '').trim().replace(/^\/+|\/+$/g, '')
+  if (fromBlur && (!name || (p.mode === 'rename' && name === p.node.name))) { cancelPending(); return }
+  if (p.mode === 'rename' && name === p.node.name) { cancelPending(); return }
+  const problem = nameProblem(name)
+  if (problem) { p.error = problem; return }
+  const path = joinPath(p.parent, name)
+  p.busy = true
+  p.error = ''
+  try {
+    if (p.mode === 'rename') {
+      await api.renameRepositoryEntry(props.systemId, props.repositoryId, p.node.path, path)
+      retargetTabs(p.node.path, path)
+      pending.value = null
+      afterChange(p.parent, dirOf(path))
+      notify.success(`Renamed to ${baseOf(path)}`)
+    } else {
+      await api.createRepositoryEntry(props.systemId, props.repositoryId, path, p.mode)
+      pending.value = null
+      await refreshDir(p.parent)
+      afterChange(dirOf(path))
+      if (p.mode === 'file') openFile(path)
+    }
+  } catch (e) {
+    if (pending.value === p) {
+      p.busy = false
+      p.error = e?.response?.status === 409 ? `${baseOf(path)} is already here. Choose another name.`
+        : errorOf(e, p.mode === 'rename' ? 'The name could not be changed.' : 'It could not be created.')
+    }
+  }
+}
+
+// Open tabs follow a renamed or moved file or folder; their unsaved edits stay.
+function retargetTabs(oldPath, newPath) {
+  for (const tab of openTabs.value) {
+    if (!tab.path || (tab.path !== oldPath && !tab.path.startsWith(`${oldPath}/`))) continue
+    const moved = newPath + tab.path.slice(oldPath.length)
+    projectCache.file.set(props.repositoryId, tab.path, null)
+    tab.path = moved
+    tab.name = tab.type === 'diff' ? `${baseOf(moved)} (changes)` : baseOf(moved)
+    if (tab.type === 'file') projectCache.file.set(props.repositoryId, moved, tab.original)
+  }
+}
+
+async function deleteEntry(node) {
+  if (!props.editable || !node) return
+  const dir = node.type === 'directory'
+  const under = (t) => t.path === node.path || t.path?.startsWith(`${node.path}/`)
+  const unsaved = openTabs.value.filter((t) => under(t) && isDirty(t))
+  const ok = await confirm({
+    title: `Delete ${node.name}?`,
+    message: (dir ? `The folder ${node.path} and everything in it will be deleted from the project.`
+      : `${node.path} will be deleted from the project.`)
+      + (unsaved.length ? ` Unsaved edits in ${unsaved.map((t) => t.name).join(', ')} will be lost.` : '')
+      + ' A committed file can be brought back with Discard in Source control; a file never committed cannot.',
+    confirmText: 'Delete', cancelText: 'Keep', danger: true,
+  })
+  if (!ok) return
+  try {
+    await api.deleteRepositoryEntry(props.systemId, props.repositoryId, node.path)
+  } catch (e) {
+    notify.error(errorOf(e, `${node.name} could not be deleted.`))
+    return
+  }
+  for (const t of openTabs.value.filter(under)) {
+    if (t.type === 'image' && t.url) URL.revokeObjectURL(t.url)
+    projectCache.file.set(props.repositoryId, t.path, null)
+  }
+  const closing = new Set(openTabs.value.filter(under).map((t) => t.id))
+  openTabs.value = openTabs.value.filter((t) => !closing.has(t.id))
+  if (closing.has(activeTabId.value)) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
+  afterChange(dirOf(node.path))
+  notify.success(`Deleted ${node.name}`)
+}
+
+async function moveEntry(fromPath, toDir) {
+  if (dirOf(fromPath) === toDir || fromPath === toDir) return
+  if (toDir.startsWith(`${fromPath}/`)) { notify.error('A folder cannot be moved into itself.'); return }
+  const to = joinPath(toDir, baseOf(fromPath))
+  try {
+    await api.renameRepositoryEntry(props.systemId, props.repositoryId, fromPath, to)
+  } catch (e) {
+    notify.error(e?.response?.status === 409 ? `${toDir || 'The project'} already has ${baseOf(fromPath)}.`
+      : errorOf(e, `${baseOf(fromPath)} could not be moved.`))
+    return
+  }
+  retargetTabs(fromPath, to)
+  await refreshDir(dirOf(fromPath))
+  await openFolder(toDir)
+  afterChange(toDir)
+  notify.success(`Moved ${baseOf(fromPath)} to ${toDir || 'the project'}`)
+}
+
+// Uploads: "Upload files" picks, a drop from the computer arrives with a dropped folder's layout. A file that is
+// already there is replaced only after the person says so.
+const uploadInput = ref(null)
+const uploading = ref('')
+let uploadDir = ''
+function pickUpload(dir) {
+  uploadDir = dir || ''
+  if (uploadInput.value) { uploadInput.value.value = ''; uploadInput.value.click() }
+}
+function onPicked(e) {
+  const files = filesFromPicker(e.target.files)
+  if (files.length) uploadInto(uploadDir, files)
+}
+async function uploadInto(dir, files) {
+  const big = tooLarge(files)
+  if (big.length) {
+    notify.error(`${big.map((f) => f.path).join(', ')}: larger than ${Math.round(MAX_FILE_BYTES / (1024 * 1024))} MB, `
+      + 'the most one upload can carry. Add it with the Terminal (for example with curl or git).')
+    files = files.filter((f) => !big.includes(f))
+    if (!files.length) return
+  }
+  await openFolder(dir)
+  let overwrite = false
+  let done = 0
+  const parts = uploadParts(files)
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      uploading.value = `Uploading ${files.length} ${files.length === 1 ? 'file' : 'files'}… (${done} done)`
+      try {
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+      } catch (e) {
+        const there = e?.response?.status === 409 ? e.response.data?.exists : null
+        if (!there || overwrite) throw e
+        const ok = await confirm({
+          title: there.length === 1 ? `Replace ${baseOf(there[0])}?` : `Replace ${there.length} files?`,
+          message: `Already in the project: ${there.join(', ')}. Replace with the uploaded ${there.length === 1 ? 'file' : 'files'}?`,
+          confirmText: 'Replace', cancelText: 'Cancel upload', danger: true,
+        })
+        if (!ok) { notify.info(done ? `Uploaded ${done} ${done === 1 ? 'file' : 'files'}; the rest was not uploaded.` : 'Upload cancelled.'); return }
+        overwrite = true
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+      }
+      done += parts[i].length
+    }
+    notify.success(`Uploaded ${done} ${done === 1 ? 'file' : 'files'} to ${dir || 'the project'}`)
+  } catch (e) {
+    notify.error(`${errorOf(e, 'The upload failed.')}${done ? ` ${done} ${done === 1 ? 'file was' : 'files were'} uploaded before it stopped.` : ''}`)
+  } finally {
+    uploading.value = ''
+    const dirs = new Set([dir, ...files.map((f) => dirOf(joinPath(dir, f.path)))])
+    afterChange(...dirs)
+  }
+}
+
+async function downloadEntry(node) {
+  const path = node ? node.path : ''
+  const name = node ? node.name : (props.projectName || 'project')
+  try {
+    const res = await whileSandboxStarts(() => api.downloadRepositoryEntry(props.systemId, props.repositoryId, path)
+      .catch(async (e) => {
+        const d = e?.response?.data
+        if (typeof Blob !== 'undefined' && d instanceof Blob) {
+          try { e.response.data = JSON.parse(await d.text()) } catch { e.response.data = {} }
+        }
+        throw e
+      }), { isCancelled: () => unmounted })
+    const isDir = !node || node.type === 'directory'
+    saveBlob(res.data, isDir ? `${name}.tar.gz` : name)
+  } catch (e) {
+    notify.error(errorOf(e, `${name} could not be downloaded.`))
+  }
+}
+
+async function copyPath(node) {
+  try {
+    await navigator.clipboard.writeText(node.path)
+    notify.success('Path copied')
+  } catch {
+    notify.error('The path could not be copied. Your browser did not allow it.')
+  }
+}
+
+// Drag and drop: a row onto a folder (or onto the list's empty space, the project's top) moves it; files from the
+// computer upload into that folder. A closed folder held over for a moment opens.
+const dragPath = ref(null)
+const dropTarget = ref(null)
+const DRAG_TYPE = 'application/x-lets-code-path'
+let openTimer = null
+function onDragStart(e, node) {
+  dragPath.value = node.path
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData(DRAG_TYPE, node.path)
+  e.dataTransfer.setData('text/plain', node.path)
+}
+function onDragEnd() {
+  dragPath.value = null
+  dropTarget.value = null
+  clearTimeout(openTimer)
+}
+function onDragOver(e, dir, node = null) {
+  if (!props.editable) return
+  const files = [...(e.dataTransfer?.types || [])].includes('Files')
+  if (!dragPath.value && !files) return
+  e.preventDefault()
+  e.stopPropagation()
+  e.dataTransfer.dropEffect = files ? 'copy' : 'move'
+  if (dropTarget.value !== dir) {
+    dropTarget.value = dir
+    clearTimeout(openTimer)
+    if (node && node.type === 'directory' && !node.expanded) openTimer = setTimeout(() => expandDir(node), 650)
+  }
+}
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) { dropTarget.value = null; clearTimeout(openTimer) }
+}
+async function onDrop(e, dir) {
+  if (!props.editable) return
+  e.preventDefault()
+  e.stopPropagation()
+  const from = dragPath.value || e.dataTransfer.getData(DRAG_TYPE)
+  onDragEnd()
+  if (from) return moveEntry(from, dir)
+  const files = await filesFromDrop(e.dataTransfer)
+  if (files.length) uploadInto(dir, files)
+}
+
+// The Search tab, and a result opening its file at the line.
+const contentSearch = ref(null)
+function openSearch() {
+  sidebarTab.value = 'search'
+  nextTick(() => contentSearch.value?.focus())
+}
+let pendingReveal = null
+function revealPending() {
+  const r = pendingReveal
+  if (!r || !editorInst || activeTab.value?.path !== r.path || activeTab.value?.type !== 'file') return
+  setTimeout(() => {
+    try {
+      editorInst.revealLineInCenter(r.line)
+      editorInst.setPosition({ lineNumber: r.line, column: r.column || 1 })
+      editorInst.focus()
+      pendingReveal = null
+    } catch { /* the editor went away */ }
+  }, 0)
+}
+async function openAt({ path, line, column }) {
+  pendingReveal = { path, line, column }
+  await openFile(path)
+  await nextTick()
+  revealPending()
+}
+watch(() => activeTab.value && activeTab.value.content, () => { if (pendingReveal) nextTick(revealPending) })
+
 // Tree node component with directory support (real per-extension icons via @iconify).
+// The name box for New file / New folder / Rename (see `pending`).
+const PendingRow = {
+  props: ['level'],
+  setup(rowProps) {
+    return () => {
+      const p = pending.value
+      if (!p) return null
+      return h('div', {
+        class: 'tree-node pending-row',
+        style: p.mode === 'rename' ? {} : { paddingLeft: `${10 + (rowProps.level || 0) * 12}px` },
+      }, [
+        p.mode === 'rename' ? null : h('span', { class: 'node-expand', 'aria-hidden': 'true' }),
+        p.mode === 'rename' ? null : h(Icon, { class: 'node-iconify', icon: p.mode === 'directory' ? 'lucide:folder' : 'lucide:file', style: { color: 'var(--vm-ink-faint)' } }),
+        h('div', { class: 'pending-box' }, [
+          h('input', {
+            class: ['pending-input', { invalid: !!p.error }],
+            value: p.value,
+            disabled: p.busy,
+            'aria-label': p.mode === 'rename' ? `New name for ${p.node.name}` : (p.mode === 'directory' ? 'Folder name' : 'File name'),
+            'aria-invalid': p.error ? 'true' : 'false',
+            spellcheck: false,
+            onInput: (e) => { p.value = e.target.value; p.error = '' },
+            onKeydown: (e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') { e.preventDefault(); commitPending() }
+              else if (e.key === 'Escape') { e.preventDefault(); cancelPending() }
+            },
+            onBlur: () => commitPending({ fromBlur: true }),
+            onClick: (e) => e.stopPropagation(),
+            onVnodeMounted: ({ el }) => {
+              el.focus()
+              const dot = p.mode === 'rename' && p.node.type !== 'directory' ? p.value.lastIndexOf('.') : -1
+              el.setSelectionRange(0, dot > 0 ? dot : p.value.length)
+            },
+          }),
+          p.error ? h('p', { class: 'pending-error', role: 'alert' }, p.error) : null,
+        ]),
+      ])
+    }
+  },
+}
+
+// The editor's own `editable` (inside the node, `props` is the node's: file, level).
+const canEdit = () => props.editable
+
 const FileTreeNode = {
   props: ['file', 'level'],
   emits: ['select'],
@@ -964,33 +1337,61 @@ const FileTreeNode = {
     const cool = () => { clearTimeout(hoverTimer); hoverTimer = null }
     onBeforeUnmount(cool)
 
+    const isDir = () => props.file.type === 'directory'
+    // Where a drop on this row goes: into the folder itself, or into the folder a file is in.
+    const dropDir = () => (isDir() ? props.file.path : dirOf(props.file.path))
+    const renaming = () => pending.value?.mode === 'rename' && pending.value.node?.path === props.file.path
+    const newHere = () => isDir() && props.file.expanded && pending.value && pending.value.mode !== 'rename'
+      && pending.value.parent === props.file.path
+
     const renderChildren = () => {
       if (props.file.type === 'directory' && props.file.expanded && props.file.children) {
-        return props.file.children.map(child =>
-          h(FileTreeNode, {
-            key: child.path,
-            file: child,
-            level: (props.level || 0) + 1,
-            onSelect: (path) => emit('select', path)
-          })
-        )
+        return [
+          newHere() ? h(PendingRow, { key: '__pending__', level: (props.level || 0) + 1 }) : null,
+          ...props.file.children.map(child =>
+            h(FileTreeNode, {
+              key: child.path,
+              file: child,
+              level: (props.level || 0) + 1,
+              onSelect: (path) => emit('select', path)
+            })
+          ),
+        ]
       }
       return []
     }
 
+    const onKey = (e) => {
+      if (e.target !== e.currentTarget) return                       // the row's own button, or its name box
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() }
+      else if (!canEdit()) return
+      else if (e.key === 'F2') { e.preventDefault(); startRename(props.file) }
+      else if (e.key === 'Delete') { e.preventDefault(); deleteEntry(props.file) }
+      else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); openMenuFor(e.currentTarget, props.file) }
+    }
+
     return () => h('div', {}, [
       h('div', {
-        class: 'tree-node',
+        class: ['tree-node', {
+          'drop-target': isDir() && dropTarget.value === props.file.path,
+          dragging: dragPath.value === props.file.path,
+        }],
         style: { paddingLeft: `${10 + (props.level || 0) * 12}px` },
         role: 'treeitem',
         tabindex: 0,
         'aria-expanded': props.file.type === 'directory' ? String(!!props.file.expanded) : undefined,
-        onClick: handleClick,
+        draggable: canEdit() && !renaming() ? 'true' : undefined,
+        onClick: renaming() ? undefined : handleClick,
         onMouseenter: warm,
         onMouseleave: cool,
         onFocus: warm,
         onBlur: cool,
-        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } },
+        onKeydown: onKey,
+        onContextmenu: (e) => { if (!canEdit()) return; e.preventDefault(); e.stopPropagation(); openMenuAt(e.clientX, e.clientY, props.file) },
+        onDragstart: (e) => onDragStart(e, props.file),
+        onDragend: onDragEnd,
+        onDragover: (e) => onDragOver(e, dropDir(), props.file),
+        onDrop: (e) => onDrop(e, dropDir()),
       }, [
         props.file.type === 'directory'
           ? h('span', { class: 'node-expand', 'aria-hidden': 'true' }, [
@@ -1005,9 +1406,19 @@ const FileTreeNode = {
           icon: iconFor(props.file),
           style: iconColor(props.file) ? { color: iconColor(props.file) } : {},
         }),
-        h('span', { class: 'node-name' }, props.file.name),
-        props.file.gitignored
+        renaming() ? h(PendingRow, { level: props.level || 0 }) : h('span', { class: 'node-name' }, props.file.name),
+        !renaming() && props.file.gitignored
           ? h('span', { class: 'node-gi', title: 'Gitignored: kept in your workspace only, never committed' }, 'local-only')
+          : null,
+        canEdit() && !renaming()
+          ? h('button', {
+              type: 'button',
+              class: 'node-more',
+              'aria-label': `Actions for ${props.file.name}`,
+              title: 'More actions',
+              tabindex: -1,
+              onClick: (e) => { e.stopPropagation(); openMenuFor(e.currentTarget, props.file) },
+            }, [h(Icon, { icon: 'lucide:more-horizontal', 'aria-hidden': 'true' })])
           : null,
       ]),
       ...renderChildren()
@@ -1015,31 +1426,6 @@ const FileTreeNode = {
   }
 }
 
-const ArtifactTreeNode = {
-  props: ['artifact'],
-  emits: ['select'],
-  setup(props, { emit }) {
-    const getIcon = () => {
-      const type = (props.artifact.type || '').toLowerCase()
-      if (type.includes('model')) return 'lucide:database'
-      if (type.includes('view')) return 'lucide:eye'
-      if (type.includes('serializer')) return 'lucide:package'
-      return 'lucide:file'
-    }
-
-    return () => h('div', {
-      class: 'tree-node',
-      role: 'button',
-      tabindex: 0,
-      onClick: () => emit('select', props.artifact),
-      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); emit('select', props.artifact) } },
-    }, [
-      h(Icon, { class: 'node-iconify', icon: getIcon(), 'aria-hidden': 'true' }),
-      h('span', { class: 'node-name' }, props.artifact.name),
-      h('span', { class: 'node-type' }, props.artifact.type)
-    ])
-  }
-}
 </script>
 
 <style scoped>
@@ -1132,6 +1518,29 @@ const ArtifactTreeNode = {
   font-size: 13px;
 }
 .search-input::placeholder { color: var(--vm-ink-faint); }
+
+/* The Files tab's bar: find by name, then New file / New folder / Upload (ADM-1205). */
+.explorer-bar { display: flex; align-items: center; gap: 2px; }
+.explorer-bar .search-input { flex: 1 1 auto; min-width: 0; margin-right: 4px; }
+.xbar-btn {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--vm-ink-soft);
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.xbar-btn :deep(svg) { width: 16px; height: 16px; }
+.xbar-btn:hover { background: color-mix(in srgb, var(--vm-ink) 6%, transparent); color: var(--vm-ink); }
+.xbar-btn:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.xbar-file { display: none; }
+.xbar-status { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--vm-ink-soft); border-bottom: 1px solid var(--vm-line); }
+.tree-list.drop-root { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--vm-violet) 55%, transparent); border-radius: 4px; }
+.file-tree { display: flex; flex-direction: column; min-height: 100%; }
+.file-tree .tree-list { flex: 1 1 auto; }
+.search-pane { height: 100%; min-height: 0; }
+@media (pointer: coarse) { .xbar-btn { width: 40px; height: 40px; } }
 
 .search-input:focus {
   outline: none;
@@ -1398,6 +1807,37 @@ const ArtifactTreeNode = {
 .code-browser .node-gi { flex: 0 0 auto; margin-left: 6px; font: 600 10px var(--vm-font-sans); color: var(--vm-ink-soft); background: color-mix(in srgb, var(--vm-ink-faint) 16%, transparent); border-radius: 4px; padding: 1px 5px; }
 .code-browser .node-path { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--vm-ink-faint); }
 .code-browser .search-hit .node-name { flex: 0 0 auto; }
+/* The explorer's file actions (ADM-1205): the row's More button, drag and drop, the name box. */
+.code-browser .node-more {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin-left: auto; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; color: var(--vm-ink-faint); cursor: pointer;
+  opacity: 0; transition: opacity .12s, background-color .12s;
+}
+.code-browser .node-more svg { width: 15px; height: 15px; }
+.code-browser .tree-node:hover .node-more, .code-browser .tree-node:focus-within .node-more { opacity: 1; }
+.code-browser .node-more:hover { background: color-mix(in srgb, var(--vm-ink) 8%, transparent); color: var(--vm-ink); }
+.code-browser .tree-node.drop-target {
+  background: color-mix(in srgb, var(--vm-violet) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vm-violet) 55%, transparent);
+  border-radius: 4px;
+}
+.code-browser .tree-node.dragging { opacity: .5; }
+.code-browser .pending-row { cursor: default; align-items: flex-start; }
+.code-browser .pending-row:hover { background: transparent; }
+.code-browser .pending-box { flex: 1 1 auto; min-width: 0; }
+.code-browser .pending-input {
+  width: 100%; padding: 2px 6px; font: 13px var(--vm-font-sans);
+  color: var(--vm-ink); background: var(--vm-surface);
+  border: 1px solid var(--vm-focus); border-radius: 4px; outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vm-focus) 22%, transparent);
+}
+.code-browser .pending-input.invalid { border-color: var(--vm-danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--vm-danger) 22%, transparent); }
+.code-browser .pending-error {
+  margin: 4px 0 2px; padding: 4px 6px; font-size: 12px; line-height: 1.4; white-space: normal;
+  color: var(--vm-red-ink); background: var(--vm-red-soft); border-radius: 4px;
+}
 @media (max-width: 640px) { .code-browser .tree-node { min-height: 40px; } }
+@media (hover: none), (pointer: coarse) { .code-browser .node-more { opacity: 1; width: 36px; height: 36px; } }
 @media (prefers-reduced-motion: reduce) { .code-browser .node-spin { animation: none; } }
 </style>

@@ -461,7 +461,7 @@ export default {
 
 
 
-  // Repository Files — lazy, one directory level per call (opts.path), or a capped name search
+  // Repository Files — lazy, one directory level per call (opts.path), or a name search that lists every match
   // (opts.search). No args = top-level entries.
   getRepositoryFiles: (systemId, repoId, opts = {}) => {
     const params = {}
@@ -480,6 +480,35 @@ export default {
     }),
   saveFileContent: (systemId, repoId, path, content) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, { path, content }),
+  // The explorer's file actions (ADM-1205). Nothing is ever replaced unless `overwrite` says so.
+  createRepositoryEntry: (systemId, repoId, path, type = 'file') =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/create/`, { path, type }),
+  renameRepositoryEntry: (systemId, repoId, path, newPath) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/rename/`, { path, new_path: newPath }),
+  deleteRepositoryEntry: (systemId, repoId, path) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, { path }),
+  // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top).
+  uploadRepositoryFiles: (systemId, repoId, folder, files, { overwrite = false } = {}) => {
+    const form = new FormData()
+    form.append('folder', folder || '')
+    if (overwrite) form.append('overwrite', '1')
+    for (const f of files) {
+      form.append('files', f.file, f.file.name)
+      form.append('paths', f.path)
+    }
+    return api.post(`/systems/${systemId}/repositories/${repoId}/files/upload/`, form)
+  },
+  // A file as itself, or a folder ('' = the whole project) as .tar.gz, as a Blob to save.
+  downloadRepositoryEntry: (systemId, repoId, path) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/files/download/`, {
+      params: { path: path || '' }, responseType: 'blob', noCache: true,
+    }),
+  // Search inside the files: { q, case, word, regex, ignored } -> { matches: [{ path, line, column, text | redacted }] }
+  searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored } = {}) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/files/search/`, {
+      params: { q, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0, regex: regex ? 1 : 0, ignored: ignored ? 1 : 0 },
+      noCache: true,
+    }),
   // Source Control (VS Code–style SCM over the repo clone)
   getSourceControlStatus: (systemId, repoId) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
