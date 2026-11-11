@@ -515,8 +515,27 @@ export default {
   // Source Control (VS Code–style SCM over the repo clone)
   getSourceControlStatus: (systemId, repoId) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
-  getSourceControlDiff: (systemId, repoId, path) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, { params: { path } }),
+  // A file's change in the working tree, or as commit `sha` changed it (History; `from` for a renamed file).
+  getSourceControlDiff: (systemId, repoId, path, { sha, from } = {}) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, {
+      params: { path, ...(sha ? { sha } : {}), ...(from ? { from } : {}) }, ...(sha ? {} : { noCache: true }),
+    }),
+  // More of Source control (ADM-1205, phase C): pull, a merge's conflicts, discard all, a branch, history.
+  pullSourceControl: (systemId, repoId) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull/`, {}),
+  abortMerge: (systemId, repoId) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/merge-abort/`, {}),
+  // side: '' (the person edited it), 'mine' or 'theirs' (keep that side whole).
+  markResolved: (systemId, repoId, path, side = '') =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/stage/`, { path, ...(side ? { side } : {}) }),
+  discardAllSourceControl: (systemId, repoId) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard-all/`, {}),
+  createBranch: (systemId, repoId, name) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/branch/`, { name }),
+  getSourceControlLog: (systemId, repoId, page = 0) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/log/`, { params: { page }, noCache: true }),
+  getCommitFiles: (systemId, repoId, sha) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/commit-files/`, { params: { sha } }),
   // The person's own git actions (owner, 2026-11-09): the agent never commits, pushes or opens a pull request.
   discardSourceControlFile: (systemId, repoId, path) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard/`, { path }),

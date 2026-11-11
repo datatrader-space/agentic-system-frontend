@@ -117,7 +117,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @changed="refreshAfterScm" @published="emit('published', $event)" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" />
         </div>
 
         <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
@@ -414,11 +414,12 @@ let _tabSeq = 0
 const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
 
 // A change from Source control opens as its own tab ("app.py (changes)"), like VS Code's diff editor.
-async function openDiff({ path }) {
-  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path)
+// From History, ``sha`` (and ``from`` for a rename): the file as that commit changed it, its own tab "app.py (abc1234)".
+async function openDiff({ path, sha = '', short = '', from = '' }) {
+  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha)
   if (existing) { activeTabId.value = existing.id; return }
   const tab = {
-    id: nextTabId(), type: 'diff', path, name: `${path.split('/').pop()} (changes)`,
+    id: nextTabId(), type: 'diff', path, sha, from, name: `${path.split('/').pop()} (${sha ? (short || sha.slice(0, 7)) : 'changes'})`,
     language: detectLanguage(path), loading: true, note: '', noteIcon: '', originalText: '', modified: '',
   }
   openTabs.value.push(tab)
@@ -430,13 +431,15 @@ async function loadDiffInto(live) {
   live.note = ''
   live.noteIcon = ''
   try {
-    const { data } = await whileSandboxStarts(() => api.getSourceControlDiff(props.systemId, props.repositoryId, live.path),
+    const { data } = await whileSandboxStarts(() => (live.sha
+      ? api.getSourceControlDiff(props.systemId, props.repositoryId, live.path, { sha: live.sha, from: live.from })
+      : api.getSourceControlDiff(props.systemId, props.repositoryId, live.path)),
       { onWaiting: (s) => { live.waiting = s }, isCancelled: () => unmounted })
     if (data.redacted) { live.note = 'This file holds secrets, so its values are not shown.'; live.noteIcon = 'lucide:lock' }
     else if (data.binary) { live.note = 'Binary file. There is no text to compare.' }
     else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
     // Discarded or committed since the tab opened: say so instead of two identical sides.
-    else if ((data.original || '') === (data.modified || '')) { live.note = 'This file has no changes now.'; live.noteIcon = 'lucide:check-circle-2' }
+    else if (!live.sha && (data.original || '') === (data.modified || '')) { live.note = 'This file has no changes now.'; live.noteIcon = 'lucide:check-circle-2' }
     else { live.originalText = data.original || ''; live.modified = data.modified || '' }
   } catch (e) {
     live.note = e?.response?.data?.error || 'The changes could not be loaded.'
@@ -1153,7 +1156,7 @@ function retargetTabs(oldPath, newPath) {
     const moved = newPath + tab.path.slice(oldPath.length)
     projectCache.file.set(props.repositoryId, tab.path, null)
     tab.path = moved
-    tab.name = tab.type === 'diff' ? `${baseOf(moved)} (changes)` : baseOf(moved)
+    tab.name = tab.type === 'diff' ? `${baseOf(moved)} (${tab.sha ? tab.sha.slice(0, 7) : 'changes'})` : baseOf(moved)
     if (tab.type === 'file') projectCache.file.set(props.repositoryId, moved, tab.original)
   }
 }

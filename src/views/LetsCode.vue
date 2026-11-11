@@ -105,6 +105,21 @@
                   </button>
                 </div>
               </div>
+              <!-- Any GitHub repository by its address, on a branch if one is named (ADM-1205, phase C). -->
+              <form class="lc-byurl" @submit.prevent="cloneByUrl">
+                <label class="lc-byurl-l" for="lc-url">Clone by address</label>
+                <div class="lc-byurl-row">
+                  <input id="lc-url" v-model="cloneUrl" class="lc-byurl-in" type="url" inputmode="url" spellcheck="false"
+                         autocomplete="off" placeholder="https://github.com/owner/repository" :disabled="!!cloningUrl" />
+                  <input v-model="cloneBranch" class="lc-byurl-in br" type="text" spellcheck="false" autocomplete="off"
+                         placeholder="Branch (optional)" aria-label="Branch (optional)" :disabled="!!cloningUrl" />
+                  <button type="submit" class="lc-btn" :disabled="!!cloningUrl || !cloneUrl.trim()">
+                    <Icon :icon="cloningUrl === cloneUrl.trim() ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningUrl === cloneUrl.trim() }" />
+                    {{ cloningUrl === cloneUrl.trim() ? 'Cloning' : 'Clone' }}
+                  </button>
+                </div>
+                <p v-if="cloneUrlError" class="lc-byurl-err" role="alert">{{ cloneUrlError }}</p>
+              </form>
               <label class="lc-search">
                 <span class="sr-only">Search repositories</span>
                 <Icon icon="lucide:search" aria-hidden="true" />
@@ -216,6 +231,7 @@ import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { useIdeTheme } from '@/composables/useIdeTheme'
+import { cloneRequest } from '@/utils/cloneByUrl'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
@@ -427,6 +443,30 @@ async function disconnectGithub() {
     notify.success('GitHub disconnected')
   } catch (e) { notify.error(e?.message || 'Could not disconnect GitHub') }
   finally { ghBusy.value = '' }
+}
+
+// Clone by address: any https://github.com/owner/repository, on a branch if one is named (ADM-1205, phase C). The
+// server checks the address and the branch name again; these are the same rules, said before anything is sent.
+const cloneUrl = ref('')
+const cloneBranch = ref('')
+const cloneUrlError = ref('')
+async function cloneByUrl() {
+  cloneUrlError.value = ''
+  const req = cloneRequest(cloneUrl.value, cloneBranch.value)
+  if (req.error) { cloneUrlError.value = req.error; return }
+  if (cloningUrl.value) return
+  cloningUrl.value = req.body.github_url
+  try {
+    const { data } = await api.createProject(req.body)
+    cloneUrl.value = ''
+    cloneBranch.value = ''
+    await loadProjects()
+    openProject(data)
+  } catch (e) {
+    const d = e?.response?.data || {}
+    if (d.github_not_connected) { ghNotConnected.value = true; cloneUrlError.value = 'Connect GitHub first.' }
+    else cloneUrlError.value = d.error || 'The repository could not be cloned.'
+  } finally { cloningUrl.value = '' }
 }
 
 async function cloneRepo(r) {
@@ -802,6 +842,16 @@ onBeforeUnmount(() => {
 .ide-main { flex: 1; min-height: 0; display: flex; }
 .ide-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ide-editor { flex: 1; min-height: 0; position: relative; }
+.lc-byurl { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }
+.lc-byurl-l { font: 600 12.5px var(--vm-font-sans); color: var(--vm-ink-soft); }
+.lc-byurl-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.lc-byurl-in {
+  flex: 1 1 220px; min-width: 0; padding: 7px 10px; font: 13px var(--vm-font-sans); color: var(--vm-ink);
+  background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 8px;
+}
+.lc-byurl-in.br { flex: 0 1 160px; }
+.lc-byurl-in:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; border-color: transparent; }
+.lc-byurl-err { margin: 0; font-size: 12.5px; color: var(--vm-red-ink); }
 .ide-bottom { position: relative; height: var(--bp-h, 220px); flex: 0 0 auto; }
 /* Drag handle over the bottom panel's top border. */
 .bp-resize { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: row-resize; z-index: 6; }
