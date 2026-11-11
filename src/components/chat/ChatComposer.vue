@@ -11,17 +11,11 @@
     </div>
 
     <!-- Staged attachments (images/files) to send with the next message -->
-    <div v-if="attachments.length" class="attach-strip">
-      <div v-for="(a, i) in attachments" :key="i" class="attach-chip">
-        <img v-if="a.isImage && a.url" :src="a.url" class="attach-thumb" :alt="a.name" />
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="attach-fileicon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
-        <span class="attach-name">{{ a.name }}</span>
-        <button type="button" class="attach-x" title="Remove" @click="$emit('remove-attach', i)">×</button>
-      </div>
-    </div>
+    <AttachmentStrip :attachments="attachments" @remove="$emit('remove-attach', $event)" />
 
     <!-- Single unified container: text area on top, action toolbar on the bottom. -->
-    <form class="composer" :class="{ focused }" @submit.prevent="onSubmit">
+    <form class="composer" :class="{ focused, dragging }" @submit.prevent="onSubmit"
+          @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
       <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
       <input ref="fileEl" type="file" multiple class="file-hidden" @change="onFiles" />
 
@@ -247,6 +241,8 @@ import TurnModeSwitch from './TurnModeSwitch.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useVoiceInput } from '../../composables/useVoiceInput'
 import { notify } from '../../composables/useNotify'
+import { useComposerAttachments } from '../../composables/useComposerAttachments'
+import AttachmentStrip from './AttachmentStrip.vue'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useChatStore } from '../../stores/useChatStore'
 
@@ -349,11 +345,6 @@ const toggleResearchFromMenu = () => {
     : 'Deep Research off.')
 }
 
-// Long pasted text becomes a .txt attachment instead of a giant inline blob (which would bloat the
-// prompt and can't be retrieved/cited). Threshold is intentionally generous — normal messages,
-// short snippets, and small code blocks paste normally.
-const LONG_PASTE_CHAR_LIMIT = 8000
-const LONG_PASTE_LINE_LIMIT = 150
 
 const props = defineProps({
   streaming: { type: Boolean, default: false },
@@ -455,83 +446,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('composer-restore', onComposerRestore)
 })
 
-const onFiles = (e) => {
-  const files = e.target.files
-  if (files && files.length) emit('attach', files)
-  e.target.value = '' // allow re-selecting the same file
-}
-
-// ── Paste handling ──
-// Priority: clipboard image → attach as image file (native vision path, no base64 in the box).
-// Long pasted text → attach as a .txt file (enters the RAG pipeline). Everything else pastes normally.
-const stamp = () => {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-}
-
-const clipboardImages = (cd) => {
-  const out = []
-  for (const item of Array.from(cd.items || [])) {
-    if (item.kind === 'file' && /^image\//.test(item.type || '')) {
-      const f = item.getAsFile()
-      if (!f) continue
-      // Screenshots arrive as a generic "image.png" — give them a stable, human name.
-      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
-      const named = new File([f], `pasted-image-${stamp()}.${ext}`, { type: f.type || 'image/png' })
-      out.push(named)
-    }
-  }
-  return out
-}
-
-const insertTextAtCursor = (text) => {
-  const el = inputEl.value
-  if (!el) { draft.value += text; return }
-  const start = el.selectionStart ?? draft.value.length
-  const end = el.selectionEnd ?? draft.value.length
-  draft.value = draft.value.slice(0, start) + text + draft.value.slice(end)
-  nextTick(() => {
-    autoGrow()
-    const pos = start + text.length
-    try { el.selectionStart = el.selectionEnd = pos } catch { /* ignore */ }
-  })
-}
-
-const attachLongText = (text) => {
-  const file = new File([text], `pasted-text-${stamp()}.txt`, { type: 'text/plain' })
-  emit('attach', [file])
-  notify.info('Long pasted text was attached as a text file.')
-}
-
-const isLongText = (text) =>
-  text.length > LONG_PASTE_CHAR_LIMIT || text.split('\n').length > LONG_PASTE_LINE_LIMIT
-
-const onPaste = (e) => {
-  const cd = e.clipboardData || window.clipboardData
-  if (!cd) return
-  let images = []
-  try { images = clipboardImages(cd) } catch { images = [] }
-  const text = (() => { try { return cd.getData('text/plain') || '' } catch { return '' } })()
-  const longText = text && isLongText(text)
-
-  // Image present → never dump base64 into the box. Attach the image; preserve any accompanying text.
-  if (images.length) {
-    e.preventDefault()
-    emit('attach', images)
-    if (longText) attachLongText(text)
-    else if (text) insertTextAtCursor(text)
-    return
-  }
-
-  // No image, but a long text blob → attach as .txt instead of inlining it.
-  if (longText) {
-    e.preventDefault()
-    attachLongText(text)
-    return
-  }
-  // Otherwise: ordinary paste — let the browser insert the text as usual.
-}
+// The file picker, a pasted image or long text, and files dropped on the composer: the one copy every chat
+// composer uses (useComposerAttachments, ADM-1205 phase E).
+const { dragging, onFiles, onPaste, onDragEnter, onDragOver, onDragLeave, onDrop } = useComposerAttachments({
+  attach: (files) => emit('attach', files),
+  inputEl,
+  text: draft,
+  afterInsert: () => autoGrow(),
+})
 
 const autoGrow = () => {
   const el = inputEl.value
@@ -796,19 +718,7 @@ const onKeydown = (e) => {
 
 .file-hidden { display: none; }
 
-.attach-strip { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px 8px; }
-.attach-chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
-  padding: 4px 6px 4px 4px; background: var(--vm-bg); border: 1px solid var(--vm-line); border-radius: 10px;
-}
-.attach-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
-.attach-fileicon { width: 22px; height: 22px; color: var(--vm-ink-soft); flex-shrink: 0; }
-.attach-name { font-size: 0.75rem; color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attach-x {
-  flex-shrink: 0; width: 18px; height: 18px; line-height: 1; border: none; border-radius: 9999px;
-  background: var(--vm-line-2); color: var(--vm-ink-soft); font-size: 14px; cursor: pointer;
-}
-.attach-x:hover { background: #cbd5e1; }
+.composer.dragging { outline: 2px dashed var(--vm-violet); outline-offset: 2px; }
 
 .action-btn {
   display: flex; align-items: center; justify-content: center;

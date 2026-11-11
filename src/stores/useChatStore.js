@@ -1046,6 +1046,7 @@ export const useChatStore = defineStore('chat', {
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
+          codeContext: opts.codeContext || undefined,
           turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
           imageMode: opts.imageMode || this.imageMode || undefined,
           videoRequest: opts.videoRequest || undefined,
@@ -1127,6 +1128,8 @@ export const useChatStore = defineStore('chat', {
       // instead of the backend guessing "newest upload in the conversation".
       this._conn?.sendMessage(content, this.selectedAgentId, null, {
         ...this._canvasSendOpts(),
+        // Let's Code: the files the person mentioned with @ and the code they selected (ADM-1205 phase E).
+        codeContext: opts.codeContext || undefined,
         // 'auto' sends NOTHING, which is what lets the Brain decide. 'chat' is now sent, so choosing
         // it actually suppresses a Work goal instead of reading as "no preference".
         turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,

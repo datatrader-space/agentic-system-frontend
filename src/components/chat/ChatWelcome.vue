@@ -41,17 +41,11 @@
       </div>
 
       <!-- Composer -->
-      <form class="composer" :class="{ 'composer-disabled': chat.needsAgent }" @submit.prevent="submit">
+      <form class="composer" :class="{ 'composer-disabled': chat.needsAgent, dragging }" @submit.prevent="submit"
+            @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
 
         <!-- Staged attachments -->
-        <div v-if="chat.pendingAttachments.length" class="attach-strip">
-          <div v-for="(a, i) in chat.pendingAttachments" :key="i" class="attach-chip">
-            <img v-if="a.isImage && a.url" :src="a.url" class="attach-thumb" :alt="a.name" />
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="attach-fileicon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
-            <span class="attach-name">{{ a.name }}</span>
-            <button type="button" class="attach-x" title="Remove" @click="chat.removeAttachment(i)">×</button>
-          </div>
-        </div>
+        <AttachmentStrip :attachments="chat.pendingAttachments" @remove="chat.removeAttachment($event)" />
         <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
         <input ref="fileEl" type="file" multiple class="file-hidden" @change="onFiles" />
         <div class="composer-top">
@@ -257,10 +251,9 @@ import AgentSwitcher from './AgentSwitcher.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useVoiceInput } from '../../composables/useVoiceInput'
 import { notify } from '../../composables/useNotify'
+import { useComposerAttachments } from '../../composables/useComposerAttachments'
+import AttachmentStrip from './AttachmentStrip.vue'
 
-// Long pasted text becomes a .txt attachment instead of a giant inline blob (matches ChatComposer).
-const LONG_PASTE_CHAR_LIMIT = 8000
-const LONG_PASTE_LINE_LIMIT = 150
 
 const emit = defineEmits(['submit'])
 const chat = useChatStore()
@@ -307,11 +300,6 @@ const voice = useVoiceInput({
   onTranscript: (text) => { draft.value = text; resizeSoon(); submit() },
 })
 
-const onFiles = (e) => {
-  const files = e.target.files
-  if (files && files.length) chat.addAttachments(files)
-  e.target.value = ''
-}
 
 // ── "+" menu (toggle · outside-click · Escape) ──
 const menuOpen = ref(false)
@@ -433,58 +421,15 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocKey)
 })
 
-// ── Paste handling (clipboard image → attach; long text → .txt; else normal) ──
-const stamp = () => {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-}
-const clipboardImages = (cd) => {
-  const out = []
-  for (const item of Array.from(cd.items || [])) {
-    if (item.kind === 'file' && /^image\//.test(item.type || '')) {
-      const f = item.getAsFile()
-      if (!f) continue
-      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
-      out.push(new File([f], `pasted-image-${stamp()}.${ext}`, { type: f.type || 'image/png' }))
-    }
-  }
-  return out
-}
-const insertTextAtCursor = (text) => {
-  const el = inputEl.value
-  if (!el) { draft.value += text; return }
-  const start = el.selectionStart ?? draft.value.length
-  const end = el.selectionEnd ?? draft.value.length
-  draft.value = draft.value.slice(0, start) + text + draft.value.slice(end)
-  resizeSoon()
-}
-const attachLongText = (text) => {
-  chat.addAttachments([new File([text], `pasted-text-${stamp()}.txt`, { type: 'text/plain' })])
-  notify.info('Long pasted text was attached as a text file.')
-}
-const isLongText = (text) =>
-  text.length > LONG_PASTE_CHAR_LIMIT || text.split('\n').length > LONG_PASTE_LINE_LIMIT
-const onPaste = (e) => {
-  if (chat.needsAgent) return   // composer is disabled until an agent exists
-  const cd = e.clipboardData || window.clipboardData
-  if (!cd) return
-  let images = []
-  try { images = clipboardImages(cd) } catch { images = [] }
-  const text = (() => { try { return cd.getData('text/plain') || '' } catch { return '' } })()
-  const longText = text && isLongText(text)
-  if (images.length) {
-    e.preventDefault()
-    chat.addAttachments(images)
-    if (longText) attachLongText(text)
-    else if (text) insertTextAtCursor(text)
-    return
-  }
-  if (longText) {
-    e.preventDefault()
-    attachLongText(text)
-  }
-}
+// The file picker, a pasted image or long text, and files dropped on the composer: the one copy every chat
+// composer uses (useComposerAttachments, ADM-1205 phase E). Nothing is taken until an agent exists.
+const { dragging, onFiles, onPaste, onDragEnter, onDragOver, onDragLeave, onDrop } = useComposerAttachments({
+  attach: (files) => chat.addAttachments(files),
+  inputEl,
+  text: draft,
+  afterInsert: () => autoGrow(),
+  disabled: () => chat.needsAgent,
+})
 
 onMounted(async () => {
   // Ensure the agent list is present (mode / image-model wiring reads currentAgent). NOT force=true
@@ -885,19 +830,7 @@ const submit = () => {
 }
 
 .file-hidden { display: none; }
-.attach-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.attach-chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
-  padding: 4px 6px 4px 4px; background: var(--vm-bg); border: 1px solid var(--vm-line); border-radius: 10px;
-}
-.attach-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
-.attach-fileicon { width: 22px; height: 22px; color: var(--vm-ink-soft); flex-shrink: 0; }
-.attach-name { font-size: 0.75rem; color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attach-x {
-  flex-shrink: 0; width: 18px; height: 18px; line-height: 1; border: none; border-radius: 9999px;
-  background: var(--vm-line-2); color: var(--vm-ink-soft); font-size: 14px; cursor: pointer;
-}
-.attach-x:hover { background: #cbd5e1; }
+.composer.dragging { outline: 2px dashed var(--vm-violet); outline-offset: 2px; }
 .composer-send {
   display: flex;
   align-items: center;

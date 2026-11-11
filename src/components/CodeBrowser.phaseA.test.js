@@ -62,7 +62,7 @@ describe('Go to file (Ctrl+P)', () => {
     input.dispatchEvent(new Event('input'))
     await settle()
     expect(api.getRepositoryFiles).toHaveBeenCalledWith(5, 4, { search: 'views' })
-    expect([...document.querySelectorAll('.qo-item')].map((li) => li.querySelector('.qo-path').textContent + '/' + li.querySelector('.qo-name').textContent))
+    expect([...document.querySelectorAll('.fr-item')].map((li) => li.querySelector('.fr-path').textContent + '/' + li.querySelector('.fr-name').textContent))
       .toEqual(['app/views.py', '/old_views.py'])
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     await settle()
@@ -81,7 +81,7 @@ describe('Go to file (Ctrl+P)', () => {
     expect(document.querySelector('.qo-status').textContent).toContain('line 12')
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
     await flushPromises()
-    expect(document.querySelectorAll('.qo-item')[1].classList.contains('on')).toBe(true)
+    expect(document.querySelectorAll('.fr-item')[1].classList.contains('on')).toBe(true)
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flushPromises()
     expect(document.querySelector('.qo-in')).toBeNull()
@@ -93,8 +93,8 @@ describe('Go to file (Ctrl+P)', () => {
     await flushPromises()
     press('p')
     await flushPromises()
-    expect([...document.querySelectorAll('.qo-item .qo-name')].map((n) => n.textContent)).toEqual(['README.md'])
-    expect(document.querySelector('.qo-tag').textContent).toBe('recently opened')
+    expect([...document.querySelectorAll('.fr-item .fr-name')].map((n) => n.textContent)).toEqual(['README.md'])
+    expect(document.querySelector('.fr-tag').textContent).toBe('recently opened')
   })
 
   it('Ctrl+Shift+F opens the Search tab', async () => {

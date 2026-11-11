@@ -290,6 +290,9 @@ export class ChatConnection {
       reasoning_effort: opts.reasoningEffort || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
       canvas_selection: opts.canvasSelection || undefined,
+      // Let's Code (ADM-1205 phase E): { files: [path], selection: { path, start_line, end_line, text } }. The server
+      // reads each file in the person's own project and checks protected files as CODE_READ_FILE does.
+      code_context: opts.codeContext || undefined,
       // Chat / Work. The USER'S choice for this turn, and it outranks the Brain's own judgement in
       // BOTH directions: 'work' starts a goal-driven run even for a request the Brain would have
       // answered in one turn, and 'chat' suppresses one it would have opened. Omitted entirely when the

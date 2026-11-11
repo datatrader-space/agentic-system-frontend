@@ -273,6 +273,7 @@ const MonacoDiffEditor = lazyComponent(async () => {
   return mod.DiffEditor
 })
 import { Icon } from '@iconify/vue'
+import { codeSelection } from '@/utils/codeMentions'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -347,7 +348,7 @@ const props = defineProps({
 })
 // A new project was published to GitHub from Source control: the page reloads the project (its GitHub address,
 // its branches).
-const emit = defineEmits(['published', 'branch'])
+const emit = defineEmits(['published', 'branch', 'ask-selection'])
 
 // State
 const sidebarTab = ref('files')
@@ -517,8 +518,27 @@ let diffInst = null
 function onEditorMount(editor) {
   editorInst = editor || null
   try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
+  addAskAction(editorInst)
   applyLanguage()
   revealPending()
+}
+
+// "Ask the Coding Agent about this" (ADM-1205 phase E): the selected lines, or the line the cursor is on, go to the
+// chat with their file and line numbers. In the editor's right-click menu and on Ctrl+L, as in other code editors.
+// Only in the editor of a file (a diff has no single file to name).
+function selectionOf(editor) { return codeSelection(editor?.getModel?.(), editor?.getSelection?.(), activeTab.value) }
+function addAskAction(editor) {
+  if (!editor || !monacoNs || typeof editor.addAction !== 'function') return
+  try {
+    editor.addAction({
+      id: 'lets-code.ask-coding-agent',
+      label: 'Ask the Coding Agent about this',
+      keybindings: [monacoNs.KeyMod.CtrlCmd | monacoNs.KeyCode.KeyL],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 0.5,
+      run: (ed) => { const s = selectionOf(ed); if (s) emit('ask-selection', s) },
+    })
+  } catch { /* an editor that cannot take actions keeps working without it */ }
 }
 function onDiffMount(editor) {
   diffInst = editor || null

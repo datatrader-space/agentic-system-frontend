@@ -83,13 +83,34 @@
     <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
 
     <div class="uac-composer">
-      <div class="uac-box" :class="{ focused }">
+      <!-- @ mentions a project file: Go to file's own search and list (useFileSearch, FileResultList). -->
+      <div v-if="mention" class="uac-mention" data-test="uac-mention">
+        <p class="uac-mention-status" role="status" aria-live="polite">{{ mentionStatus }}</p>
+        <div v-if="mentionItems.length" ref="mentionList" class="uac-mention-list">
+          <FileResultList list-id="uac-mention-list" label="Files to mention" :items="mentionItems" :active="mentionActive"
+                          :highlight="mentionHighlight" :recent-tag="!mention.query"
+                          @hover="mentionActive = $event" @pick="pickMention" />
+        </div>
+      </div>
+      <div class="uac-box" :class="{ focused, dragging }"
+           @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
+        <!-- Files and images for the next message: the main chat's own upload (ADM-1205 phase E). -->
+        <AttachmentStrip class="uac-attach" :attachments="chat.pendingAttachments" @remove="chat.removeAttachment($event)" />
+        <!-- Code selected in the editor ("Ask the Coding Agent about this", Ctrl+L), sent with the next message. -->
+        <div v-if="selection" class="uac-sel" data-test="uac-selection">
+          <Icon icon="lucide:text-select" aria-hidden="true" />
+          <span class="uac-sel-t" translate="no" :title="selection.path">{{ selectionLabel }}</span>
+          <button type="button" class="uac-sel-x" :aria-label="`Remove ${selectionLabel}`" title="Remove" @click="selection = null">×</button>
+        </div>
+        <input ref="fileEl" type="file" multiple class="sr-only" tabindex="-1" aria-hidden="true" @change="onFiles" />
         <div class="uac-box-top">
           <label class="sr-only" for="uac-input">Message the coding agent</label>
           <textarea
             id="uac-input" ref="inputEl" v-model="input" :disabled="!crsReady"
-            :placeholder="crsReady ? 'Describe a change or ask about the code' : 'Preparing the project'"
-            rows="1" @input="autoGrow" @keydown="onKeydown" @focus="focused = true" @blur="focused = false"
+            :placeholder="crsReady ? 'Describe a change or ask about the code (@ adds a file)' : 'Preparing the project'"
+            rows="1" :aria-controls="mention ? 'uac-mention-list' : undefined" :aria-expanded="mention ? 'true' : 'false'"
+            :aria-activedescendant="mention && mentionItems.length ? `uac-mention-list-${mentionActive}` : undefined"
+            @input="onInput" @keydown="onKeydown" @paste="onPaste" @click="findMention" @focus="focused = true" @blur="onBlur"
           ></textarea>
           <!-- Mic: needs an Audio-transcription model; dimmed otherwise, click explains. -->
           <button
@@ -108,6 +129,10 @@
 
         <div class="uac-box-bar">
           <div class="uac-bar-left">
+            <button type="button" class="uac-attach-btn" aria-label="Attach files or images" title="Attach files or images"
+                    :disabled="!crsReady || chat.isBusy" data-test="uac-attach" @click="fileEl?.click()">
+              <Icon icon="lucide:paperclip" />
+            </button>
             <!-- The same pick as the main chat for a shared agent: the person's own model for the Coding Agent. -->
             <AgentModelPicker v-if="agentId" :agent-id="agentId" />
           </div>
@@ -116,7 +141,7 @@
           </button>
           <button
             v-else type="button" class="uac-circle send" title="Send" aria-label="Send"
-            :disabled="!input.trim() || !crsReady || !agentId" @click="send()"
+            :disabled="(!input.trim() && !chat.pendingAttachments.length) || !crsReady || !agentId" @click="send()"
           >
             <Icon icon="lucide:arrow-up" />
           </button>
@@ -131,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 import api from '@/services/api'
@@ -144,6 +169,11 @@ import ChatTaskList from '@/components/chat/ChatTaskList.vue'
 import HITLModal from '@/components/HITLModal.vue'
 import PermissionCard from '@/components/letscode/PermissionCard.vue'
 import AgentModelPicker from '@/components/agent/AgentModelPicker.vue'
+import AttachmentStrip from '@/components/chat/AttachmentStrip.vue'
+import FileResultList from '@/components/letscode/FileResultList.vue'
+import { useComposerAttachments } from '@/composables/useComposerAttachments'
+import { useFileSearch } from '@/composables/useFileSearch'
+import { mentionAt, mentionedPaths } from '@/utils/codeMentions'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -158,6 +188,16 @@ const agentId = ref('')           // the shared Coding Agent (from unified-confi
 const scrollEl = ref(null)
 const inputEl = ref(null)
 const focused = ref(false)
+const fileEl = ref(null)
+// The file picker, a pasted image or long text, and files dropped on the box: the same code as the main chat's
+// composers (useComposerAttachments), into the same store (`chat.addAttachments`, uploaded when the message is sent).
+const { dragging, onFiles, onPaste, onDragEnter, onDragOver, onDragLeave, onDrop } = useComposerAttachments({
+  attach: (files) => chat.addAttachments(files),
+  inputEl,
+  text: input,
+  afterInsert: () => autoGrow(),
+  disabled: () => !props.crsReady || chat.isBusy,
+})
 const historyOpen = ref(false)
 const loadingHistory = ref(false)
 const conversations = ref([])
@@ -215,13 +255,85 @@ function onProjectFrame(d) {
 
 async function send(text) {
   const msg = (text != null ? text : input.value).trim()
-  if (!msg || !props.crsReady || !agentId.value) return
+  // A message can be files alone (the store uploads them with it), as in the main chat.
+  if ((!msg && !chat.pendingAttachments.length) || !props.crsReady || !agentId.value) return
+  const codeContext = codeContextFor(msg)
   lastUserPrompt.value = msg
+  lastCodeContext = codeContext
   activity.length = 0
   input.value = ''
+  mention.value = null
   nextTick(autoGrow)
-  if (!(await chat.sendMessage(msg))) input.value = msg      // not sent: the words stay in the box
+  if (!(await (codeContext ? chat.sendMessage(msg, { codeContext }) : chat.sendMessage(msg)))) {
+    input.value = msg                                        // not sent: the words stay in the box
+    return
+  }
+  picked = []
+  selection.value = null
   scrollDown()
+}
+
+// ── @ mentions and the editor's selection (ADM-1205 phase E): sent as `code_context`, read on the server ──
+const mention = ref(null)                // { start, query } while an @word is being typed
+const mentionList = ref(null)
+let picked = []                          // paths picked from the @ list, in order
+let lastCodeContext = null
+const mentionQuery = computed(() => mention.value?.query || '')
+const {
+  items: mentionItems, found: mentionFound, busy: mentionBusy, error: mentionError, active: mentionActive,
+  highlight: mentionHighlight, listEl: mentionListEl, reset: resetMentionSearch, onKey: onMentionKey,
+} = useFileSearch({ systemId: () => Number(props.systemId), repoId: () => Number(props.repoId), text: mentionQuery })
+watch(mentionList, (el) => { mentionListEl.value = el })
+const mentionStatus = computed(() => {
+  if (mentionError.value) return mentionError.value
+  if (!mentionQuery.value) return mentionItems.value.length ? 'Recently opened files' : 'Type a file name.'
+  if (mentionBusy.value && !mentionFound.value.length) return 'Searching…'
+  const n = mentionItems.value.length
+  return n ? `${n} ${n === 1 ? 'file' : 'files'}` : 'No file has that name.'
+})
+
+function findMention() {
+  const el = inputEl.value
+  const next = props.crsReady && el ? mentionAt(input.value, el.selectionStart) : null
+  if (next && !mention.value) resetMentionSearch()
+  mention.value = next
+}
+function onInput() { autoGrow(); findMention() }
+function onBlur() { focused.value = false; setTimeout(() => { mention.value = null }, 150) }
+function pickMention(f) {
+  const m = mention.value
+  if (!f || !m) return
+  const el = inputEl.value
+  const caret = el ? el.selectionStart : input.value.length
+  const insert = `@${f.path} `
+  input.value = input.value.slice(0, m.start) + insert + input.value.slice(caret)
+  if (!picked.includes(f.path)) picked.push(f.path)
+  mention.value = null
+  nextTick(() => {
+    autoGrow()
+    const pos = m.start + insert.length
+    try { el.focus(); el.selectionStart = el.selectionEnd = pos } catch { /* the box went away */ }
+  })
+}
+
+// The editor's "Ask the Coding Agent about this": shown above the box until sent or removed.
+const selection = ref(null)
+const selectionLabel = computed(() => {
+  const s = selection.value
+  if (!s) return ''
+  const name = s.path.split('/').pop()
+  return s.start_line === s.end_line ? `${name}:${s.start_line}` : `${name}:${s.start_line}-${s.end_line}`
+})
+function addSelection(sel) {
+  if (!sel || !sel.path || !sel.text) return
+  selection.value = { path: sel.path, start_line: sel.start_line, end_line: sel.end_line, text: sel.text }
+  nextTick(() => inputEl.value && inputEl.value.focus())
+}
+
+function codeContextFor(msg) {
+  const files = mentionedPaths(msg, picked)
+  if (!files.length && !selection.value) return null
+  return { files, selection: selection.value || undefined }
 }
 
 function onPermissionRespond({ card, choice }) {
@@ -231,7 +343,10 @@ function onPermissionRespond({ card, choice }) {
   // a protected-file change, a commit or push) pauses on the shared approval card instead, and the SAME run goes on
   // when allowed: never re-sent (ADM-1185, ADM-1200).
   if (card?.capability !== 'access_secret') return
-  if (String(decided).startsWith('allow') && lastUserPrompt.value) chat.sendMessage(lastUserPrompt.value)
+  if (String(decided).startsWith('allow') && lastUserPrompt.value) {
+    if (lastCodeContext) chat.sendMessage(lastUserPrompt.value, { codeContext: lastCodeContext })
+    else chat.sendMessage(lastUserPrompt.value)
+  }
 }
 
 // "Restore to before this message": asked first in the app's own dialog, then the server puts the files back. The file
@@ -271,6 +386,8 @@ function autoGrow() {
   el.style.height = Math.min(el.scrollHeight, 200) + 'px'
 }
 function onKeydown(e) {
+  // While the @ list is open, its keys pick a file: Enter never sends then.
+  if (mention.value && onMentionKey(e, { pick: pickMention, close: () => { mention.value = null }, tabPicks: true })) return
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send() }
 }
 
@@ -376,7 +493,7 @@ onBeforeUnmount(() => {
   if (previous) { chat.repoId = previous.repoId || 0; if (previous.agentId) chat.selectedAgentId = previous.agentId }
 })
 
-defineExpose({ send })
+defineExpose({ send, addSelection })
 </script>
 
 <style scoped>
@@ -452,6 +569,33 @@ defineExpose({ send })
 .uac-restore-btn:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
 .uac-restore-btn .spin { animation: uacspin 1s linear infinite; }
 @keyframes uacspin { to { transform: rotate(360deg); } }
+
+/* ── @ mentions and the selection (ADM-1205 phase E) ── */
+.uac-composer { position: relative; }
+.uac-mention {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 20; max-height: 280px; display: flex; flex-direction: column;
+  background: var(--vm-surface); color: var(--vm-ink); border: 1px solid var(--vm-line-2); border-radius: 10px;
+  box-shadow: var(--vm-shadow-l, 0 12px 32px rgba(0, 0, 0, .18)); overflow: hidden; font: 13px var(--vm-font-sans);
+}
+.uac-mention-status { margin: 0; padding: 8px 12px 4px; font-size: 12px; color: var(--vm-ink-faint); }
+.uac-mention-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.uac-sel { display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 16px); margin: 8px 8px 0; padding: 4px 6px 4px 8px; border: 1px solid var(--vm-line); border-radius: 8px; background: var(--vm-bg); font: 12px var(--vm-font-mono); color: var(--vm-ink-soft); }
+.uac-sel :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; color: var(--vm-violet); }
+.uac-sel-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uac-sel-x { flex: 0 0 auto; width: 18px; height: 18px; line-height: 1; border: none; border-radius: 9999px; background: var(--vm-line-2); color: var(--vm-ink-soft); font-size: 14px; cursor: pointer; touch-action: manipulation; }
+.uac-sel-x:hover { color: var(--vm-ink); }
+.uac-sel-x:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
+@media (pointer: coarse) { .uac-sel-x { width: 32px; height: 32px; } }
+
+/* ── Attachments (ADM-1205 phase E) ── */
+.uac-attach { padding: 8px 8px 0; }
+.uac-box.dragging { outline: 2px dashed var(--vm-violet); outline-offset: 2px; }
+.uac-attach-btn { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: none; border-radius: 8px; background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: background-color .15s, color .15s; touch-action: manipulation; }
+.uac-attach-btn:hover:not(:disabled) { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.uac-attach-btn:disabled { opacity: .45; cursor: not-allowed; }
+.uac-attach-btn:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
+.uac-attach-btn :deep(svg) { width: 16px; height: 16px; }
+@media (pointer: coarse) { .uac-attach-btn { width: 44px; height: 44px; } }
 
 /* ── Composer ── */
 .uac-composer { border-top: 1px solid var(--vm-line); padding: 10px; display: flex; flex-direction: column; gap: 6px; }

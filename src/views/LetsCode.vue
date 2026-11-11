@@ -192,7 +192,7 @@
         <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }"
                :style="{ '--bp-h': bottomHeight + 'px' }">
@@ -212,6 +212,7 @@
             @mousedown="startResize" @keydown="onResizeKey"
           ></div>
           <UnifiedAgentChat
+            ref="agentChat"
             :key="active.repo_id"
             :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
             @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
@@ -251,6 +252,9 @@ const browserKey = ref(0)
 const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
 const bottomPanel = ref(null)
+const agentChat = ref(null)
+// The editor's "Ask the Coding Agent about this" (ADM-1205 phase E): the selected code goes to the chat's box.
+function onAskSelection(sel) { agentChat.value?.addSelection(sel) }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
   if (bottomPanel.value) bottomPanel.value.openPreview(port)
