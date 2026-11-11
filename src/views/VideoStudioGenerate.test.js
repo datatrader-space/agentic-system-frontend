@@ -355,7 +355,8 @@ describe('Image and Video pages: the live price', () => {
   it.each(['image','video'])('%s: shows the price of the draft and asks for it with the page settings', async kind => {
     await render(kind); pickRequired(); await flushPromises(); await settle()
     expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind, references: [expect.objectContaining({ attachment_id: 42 })] }))
-    expect(wrapper.get('[data-test="live-price-amount"]').text()).toBe('About $0.04')
+    // An exact price is just the price (owner, 2026-11-11: never charged above the most shown).
+    expect(wrapper.get('[data-test="live-price-amount"]').text()).toBe('$0.04')
     expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeUndefined()
   })
   it.each(['image','video'])('%s: Generate waits for "Accept these changes" when the model needs adjustments', async kind => {
