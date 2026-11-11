@@ -75,6 +75,10 @@
                 <button type="button" class="tree-error-retry" :disabled="loading" @click="loadFiles">
                   <Icon icon="lucide:refresh-cw" aria-hidden="true" /> Try again
                 </button>
+                <!-- The sandbox platform is down (ADM-1206): it is on our side, so support is one click away. -->
+                <router-link v-if="treeErrorDown" to="/dashboard/help-center/support" class="tree-error-help">
+                  Contact support
+                </router-link>
               </div>
               <div v-else-if="!rootNodes.length" class="empty">No files found</div>
               <div v-else role="tree" aria-label="Repository files">
@@ -337,6 +341,7 @@ const artifactSearch = ref('')
 const rootNodes = ref([])             // lazy tree: top-level entries; dirs load children on expand
 const loading = ref(false)
 const treeError = ref('')             // why the files could not be listed (e.g. the project's sandbox is off)
+const treeErrorDown = ref(false)      // that reason is the sandbox platform being down (code SANDBOX_DOWN)
 // Seconds until the next try while the project's sandbox wakes (the server answers "starting" at once, 4101aaa3).
 const treeWaiting = ref(0)
 let unmounted = false
@@ -568,6 +573,7 @@ const filteredArtifacts = computed(() => {
 // The tree: the project's last-read top level at once, then the fresh one (ADM-1196).
 async function loadFiles() {
   treeError.value = ''
+  treeErrorDown.value = false
   const kept = projectCache.dir.get(props.repositoryId, '')
   if (kept && !rootNodes.value.length) rootNodes.value = kept.map(makeNode)
   loading.value = !rootNodes.value.length
@@ -580,6 +586,7 @@ async function loadFiles() {
     if ([403, 404].includes(error?.response?.status)) projectCache.forget(props.repositoryId)
     // A Let's Code project's files are in its sandbox: when that is off or cannot start, say so (ADM-1128).
     treeError.value = error?.response?.data?.error || 'The files could not be loaded.'
+    treeErrorDown.value = error?.response?.data?.code === 'SANDBOX_DOWN'
   } finally {
     loading.value = false
   }
@@ -1178,6 +1185,9 @@ const ArtifactTreeNode = {
   transition: background-color 150ms ease, border-color 150ms ease;
 }
 .tree-error-retry:hover:not(:disabled) { border-color: var(--vm-ink-faint); }
+.tree-error-help { font-size: 12.5px; font-weight: 600; color: var(--vm-violet-d); text-decoration: underline; text-underline-offset: 3px; }
+.tree-error-help:hover { color: var(--vm-violet); }
+.tree-error-help:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; border-radius: 4px; }
 .tree-error-retry:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
 .tree-error-retry:disabled { opacity: 0.6; cursor: default; }
 .tree-error-retry :deep(svg) { width: 14px; height: 14px; }
