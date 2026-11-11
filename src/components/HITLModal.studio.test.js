@@ -41,12 +41,27 @@ describe('the approval card in Video Studio', () => {
     expect(text).not.toContain('⏱')
   })
 
-  it('leaves the chat’s own card as it was', () => {
+  it('reads the same way in the chat (owner, 2026-11-11: one friendly approval card on every surface)', () => {
     const w = mountCard({})
-    expect(w.find('h3').text()).toBe('Approval Required')
-    expect(w.text()).toContain('Agent Request')
-    expect(w.text()).toContain('Approve GENERATE_IMAGE?')
-    expect(w.findAll('button').map(b => b.text())).toContain('Reject')
-    expect(w.find('[data-test="hitl-waiting"]').exists()).toBe(false)
+    expect(w.find('h3').text()).toBe('Approve this step')
+    expect(w.text()).not.toContain('Agent Request')
+    expect(w.text()).not.toMatch(/medium/i)
+    expect(w.get('[data-test="hitl-waiting"]').text()).toBe('Waiting for you')
+    expect(w.get('[data-test="hitl-approve"]').text()).toBe('Approve')
+    expect(w.get('[data-test="hitl-decline"]').text()).toBe('Decline')
+    expect(w.findAll('button').map(b => b.text())).not.toContain('Reject')
+  })
+
+  it('keeps one filled button: the redirect sends from inside its field, the rest are quiet links', async () => {
+    const w = mountCard({ inline: true, showStop: true })
+    const send = w.get('[data-test="hitl-instead"]')
+    expect(send.text()).toBe('Send')
+    expect(send.attributes('disabled')).toBeDefined()                     // nothing typed yet
+    await w.get('.instruction-input').setValue('only make it in 16:9')
+    expect(send.attributes('disabled')).toBeUndefined()
+    expect(w.get('.instruction-row').element.contains(send.element)).toBe(true)
+    expect(w.get('[data-test="hitl-allow-session"]').text()).toBe('Always allow this session')
+    expect(w.findAll('.approval-links .link-btn').map(b => b.text())).toEqual(['Always allow this session', 'Stop agent'])
+    expect(w.findAll('.btn-approve').length).toBe(1)
   })
 })

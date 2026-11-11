@@ -6,15 +6,18 @@
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
-              <span class="icon">{{ getIcon(currentRequest.interaction_type) }}</span>
+              <!-- A step to approve: a small shield, never an emoji. -->
+              <svg v-if="isToolApproval" class="approval-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+              <span v-else class="icon">{{ getIcon(currentRequest.interaction_type) }}</span>
               <div>
-                <!-- In the Studio (inline) a paid step is a step to approve, in the Studio's words, not an "Agent Request". -->
-                <h3>{{ inline && isToolApproval ? 'Approve this step' : getTitle(currentRequest.interaction_type) }}</h3>
-                <span v-if="!inline" class="subtitle">Agent Request</span>
+                <!-- A step to approve reads the same on every surface (owner, 2026-11-11: the card must be friendly
+                     inside a chat): "Approve this step", not "Approval Required / Agent Request". -->
+                <h3>{{ isToolApproval ? 'Approve this step' : getTitle(currentRequest.interaction_type) }}</h3>
+                <span v-if="!inline && !isToolApproval" class="subtitle">Agent Request</span>
               </div>
             </div>
             <div class="header-right">
-              <span v-if="inline" class="urgency-badge studio-wait" data-test="hitl-waiting">Waiting for you</span>
+              <span v-if="inline || isToolApproval" class="urgency-badge studio-wait" data-test="hitl-waiting">Waiting for you</span>
               <span v-else class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
@@ -81,36 +84,36 @@
             <!-- Binary Response (Approve/Reject) -->
             <div v-else-if="currentRequest.response_type === 'binary'" class="response-section">
               <div class="button-group">
-                <button @click="respond(true)" class="btn btn-approve">
-                  <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <button @click="respond(true)" class="btn btn-approve" data-test="hitl-approve">
+                  <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
                   Approve
                 </button>
-                <button @click="respond(false)" class="btn btn-reject">
-                  <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                  {{ inline ? 'Decline' : 'Reject' }}
-                </button>
+                <button @click="respond(false)" class="btn btn-reject" data-test="hitl-decline">Decline</button>
               </div>
-              <!-- Approve this tool for the rest of the session (don't ask again) -->
-              <button v-if="currentRequest.payload?.session_approval" @click="respondSession"
-                      class="btn btn-approve-session"
-                      title="Approve now and stop asking for this tool for the rest of this session">
-                <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                Approve &amp; don't ask again this session
-              </button>
-              <!-- Redirect: run something different instead of the proposed call -->
+              <!-- Redirect: run something different instead of the proposed call. One field the width of the card,
+                   its Send inside it, so a narrow chat never cuts the field to a few letters. -->
               <div v-if="currentRequest.payload?.kind === 'tool_approval'" class="instruction-row">
                 <input v-model="instruction" type="text" class="instruction-input"
-                       :placeholder="inline ? 'Or tell the agent what to do instead' : `Or tell the agent what to do instead — e.g. only run 'docker ps'`"
+                       aria-label="Tell the agent what to do instead"
+                       placeholder="Or tell the agent what to do instead"
                        @keydown.enter="sendInstruction" />
-                <button class="btn btn-instruct" :disabled="!instruction.trim()" @click="sendInstruction">
-                  Run this instead
+                <button class="btn-instruct" :disabled="!instruction.trim()" @click="sendInstruction"
+                        title="Send this to the agent instead of the step above" data-test="hitl-instead">
+                  Send
                 </button>
               </div>
-              <!-- Cancel this request AND stop the agent's run entirely -->
-              <button v-if="isToolApproval && showStop" @click="stopAgent" class="btn btn-stop-agent"
-                      title="Cancel this request and stop the agent">
-                Stop agent
-              </button>
+              <!-- The rest, quietly: approve this tool for the session, or stop the agent's run altogether. -->
+              <div v-if="currentRequest.payload?.session_approval || (isToolApproval && showStop)" class="approval-links">
+                <button v-if="currentRequest.payload?.session_approval" @click="respondSession"
+                        class="link-btn" data-test="hitl-allow-session"
+                        title="Approve now and stop asking for this tool for the rest of this session">
+                  Always allow this session
+                </button>
+                <button v-if="isToolApproval && showStop" @click="stopAgent" class="link-btn link-btn--stop"
+                        title="Cancel this request and stop the agent">
+                  Stop agent
+                </button>
+              </div>
             </div>
 
             <!-- Choice Response (Multiple Options) -->
@@ -744,9 +747,12 @@ watch(currentRequest, () => {
 }
 
 .hitl-modal {
-  background: white;
+  /* The theme's own surface and text (light and dark): a hard-coded white card under the dark theme's light text
+     tokens was unreadable in the Studio (ADM-1170). */
+  background: var(--vm-surface);
+  color: var(--vm-ink);
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--vm-shadow-l, 0 20px 60px rgba(0, 0, 0, 0.3));
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
@@ -755,6 +761,13 @@ watch(currentRequest, () => {
   flex-direction: column;
   animation: modalSlideIn 0.3s ease-out;
 }
+
+/* Every field in the card is drawn on the card's own surface, never a page's global input colours. */
+.hitl-modal :is(input, textarea, select) {
+  background: var(--vm-surface);
+  color: var(--vm-ink);
+}
+.hitl-modal :is(input, textarea)::placeholder { color: var(--vm-ink-faint); opacity: 1; }
 
 @keyframes modalSlideIn {
   from {
@@ -779,16 +792,39 @@ watch(currentRequest, () => {
 .hitl-modal--compact .choice-text-row { margin-top: 10px; }
 .hitl-modal--compact .modal-footer { padding: 8px 18px; background: transparent; border-top: none; }
 
-/* Tool-approval card ("Approve SSH_EXEC?") — docked + compact like a clarification, but a bit wider
-   so the command is readable, and with tighter spacing so it stays small near the composer. */
-.hitl-modal--compact.hitl-modal--approval { max-width: 520px; }
-.hitl-modal--approval .modal-body { padding-top: 8px; }
-.hitl-modal--approval .summary { margin-bottom: 10px; }
-.held-because { margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
+/* A step to approve, in a chat (owner, 2026-11-11: "user friendly inside chat"): a card that reads as part of the
+   conversation. The theme's surface, a thin amber bar while it waits, one sentence of what happens, Approve as
+   the only filled button, Decline quiet beside it, the rest as small links. Same on every surface. */
+.hitl-modal--approval {
+  max-width: 520px;
+  border: 1px solid var(--vm-line-2);
+  border-left: 3px solid var(--vm-amber);
+  border-radius: 12px;
+}
+.hitl-modal--approval.urgency-critical,
+.hitl-modal--approval.urgency-high { border-left-color: var(--vm-danger); }
+.hitl-overlay--compact .hitl-modal.hitl-modal--approval { border-top: 1px solid var(--vm-line-2); }
+.hitl-modal--approval .modal-header { padding: 12px 16px 4px; border-bottom: none; background: transparent; }
+.hitl-modal--approval .modal-header h3 { font-size: 14px; font-weight: 650; color: var(--vm-ink); }
+.hitl-modal--approval .approval-icon { flex: 0 0 auto; color: var(--vm-amber-ink); }
+.hitl-modal--approval .modal-body { padding: 4px 16px 12px; }
+.hitl-modal--approval .summary { font-size: 14px; font-weight: 500; color: var(--vm-ink); margin-bottom: 8px; }
+.held-because { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--vm-ink); overflow-wrap: anywhere; }
 .hitl-modal--approval .action-preview { margin-bottom: 12px; }
 .hitl-modal--approval .action-preview__cmd { max-height: 160px; font-size: 12px; }
-.hitl-modal--approval .button-group { gap: 10px; }
-.hitl-modal--approval .btn { padding: 10px 18px; }
+.hitl-modal--approval .button-group { gap: 8px; }
+.hitl-modal--approval .btn { padding: 9px 16px; min-height: 40px; font-size: 14px; }
+.hitl-modal--approval .modal-footer { padding: 0 16px 12px; background: transparent; border-top: none; }
+
+/* Approve this tool for the session / stop the agent: quiet links on one row, wrapping when narrow. */
+.approval-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; }
+.link-btn {
+  background: none; border: none; padding: 6px 0; min-height: 32px;
+  font-size: 13px; font-weight: 600; color: var(--vm-link); cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+.link-btn:focus-visible { outline: 2px solid var(--vm-primary); outline-offset: 2px; border-radius: 4px; }
+.link-btn--stop { color: var(--vm-red-ink); }
 
 /* Compact ask = small card DOCKED at the bottom of the chat (Claude AskUserQuestion style) — NOT a
    full-screen dark overlay. No backdrop, so the conversation stays visible AND interactive behind it. */
@@ -805,7 +841,7 @@ watch(currentRequest, () => {
   pointer-events: auto;            /* but the card itself is interactive */
   width: auto;
   max-height: 70vh;
-  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--vm-shadow-m, 0 10px 34px rgba(15, 23, 42, 0.18));
   border: 1px solid var(--vm-line-2);
   animation: hitlDockUp 0.22s ease-out;
 }
@@ -880,9 +916,11 @@ watch(currentRequest, () => {
   letter-spacing: 0.5px;
 }
 
+/* "Waiting for you" on a step to approve: the amber of the card's bar. */
+.urgency-badge.studio-wait { background: var(--vm-amber-soft); color: var(--vm-amber-ink); text-transform: none; letter-spacing: 0; }
 .urgency-badge.urgency-low { background: var(--vm-green-soft); color: var(--vm-green-ink); }
-.urgency-badge.urgency-medium { background: #fed7aa; color: var(--vm-amber-ink); }
-.urgency-badge.urgency-high { background: #fecaca; color: var(--vm-red-ink); }
+.urgency-badge.urgency-medium { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.urgency-badge.urgency-high { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .urgency-badge.urgency-critical { background: #dc2626; color: white; }
 
 .close-btn {
@@ -909,7 +947,7 @@ watch(currentRequest, () => {
 
 .action-preview {
   margin: 0 0 18px 0;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--vm-line-2);
   background: var(--vm-amber-soft);
   border-radius: 10px;
   overflow: hidden;
@@ -923,7 +961,7 @@ watch(currentRequest, () => {
   font-weight: 700;
   color: var(--vm-amber-ink);
   background: var(--vm-amber-soft);
-  border-bottom: 1px solid #fde68a;
+  border-bottom: 1px solid var(--vm-line-2);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -948,38 +986,43 @@ watch(currentRequest, () => {
 }
 
 .instruction-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  align-items: center;
+  position: relative;              /* Send sits inside the field, so the field is always the card's width */
+  margin-top: 10px;
 }
 .instruction-input {
-  flex: 1;
+  display: block;
+  width: 100%;
   min-width: 0;
-  padding: 9px 12px;
-  border: 1px solid #d1d5db;
+  padding: 9px 74px 9px 12px;      /* room for Send */
+  min-height: 40px;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   font-size: 13px;
   color: var(--vm-ink);
 }
 .instruction-input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--vm-primary);
+  box-shadow: 0 0 0 3px var(--vm-primary-soft);
 }
 .btn-instruct {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
   white-space: nowrap;
   background: var(--vm-surface-soft);
   color: var(--vm-link);
-  border: 1px solid #c7d2fe;
-  padding: 9px 14px;
-  border-radius: 8px;
+  border: 1px solid var(--vm-primary-line);
+  padding: 0 12px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 .btn-instruct:hover:not(:disabled) { background: var(--vm-blue-soft); }
-.btn-instruct:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Not ready (nothing typed yet): quiet but readable, never pale text on a pale fill. */
+.btn-instruct:disabled { color: var(--vm-ink-faint); border-color: var(--vm-line-2); cursor: not-allowed; }
 
 .summary {
   font-size: 15px;
@@ -1008,7 +1051,7 @@ watch(currentRequest, () => {
   margin-top: 12px;
   font-size: 12px;
   color: var(--vm-ink);
-  background: white;
+  background: var(--vm-surface);
   padding: 12px;
   border-radius: 4px;
   overflow-x: auto;
@@ -1044,38 +1087,21 @@ watch(currentRequest, () => {
 }
 
 .btn-approve {
-  background: #10b981;
+  background: var(--vm-primary);  /* the brand blue; white text 5.2:1 */
   color: white;
 }
 
-.btn-approve:hover {
-  background: #059669;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
+.btn-approve:hover { background: var(--vm-primary-d); }
 
 .btn-reject {
-  background: #ef4444;
-  color: white;
+  background: transparent;
+  color: var(--vm-ink);
+  border: 1px solid var(--vm-line-2);
 }
 
-.btn-reject:hover {
-  background: #dc2626;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
+.btn-reject:hover { background: var(--vm-surface-soft); border-color: var(--vm-ink-faint); }
+.btn-approve:focus-visible, .btn-reject:focus-visible { outline: 2px solid var(--vm-primary); outline-offset: 2px; }
 
-/* Secondary "approve for the whole session" — full-width, softer than the primary Approve. */
-.btn-approve-session {
-  width: 100%;
-  margin-top: 10px;
-  gap: 6px;
-  background: rgba(16, 185, 129, 0.10);
-  color: var(--vm-green-ink);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-}
-.btn-approve-session:hover {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: rgba(16, 185, 129, 0.55);
-}
 
 /* ── In-chat OAuth connect card (CONNECT_SERVICE) ─────────────────────────────
    One prominent link out to the provider, then a waiting state. Deliberately NOT green/red like an
@@ -1137,22 +1163,9 @@ watch(currentRequest, () => {
 .btn-connect-cancel:hover {
   background: var(--vm-surface-soft);
   color: var(--vm-ink-soft);
-  border-color: #d1d5db;
+  border-color: var(--vm-ink-faint);
 }
 
-/* "Stop agent" — quiet, destructive-tinted link-style button under the approval controls. */
-.btn-stop-agent {
-  width: 100%;
-  margin-top: 10px;
-  background: transparent;
-  color: var(--vm-red-ink);
-  border: 1px solid rgba(185, 28, 28, 0.30);
-  font-size: 0.82rem;
-}
-.btn-stop-agent:hover {
-  background: rgba(185, 28, 28, 0.08);
-  border-color: rgba(185, 28, 28, 0.5);
-}
 
 .btn-submit {
   background: #3b82f6;
@@ -1225,8 +1238,8 @@ watch(currentRequest, () => {
 }
 
 .risk-badge.risk-low { background: var(--vm-green-soft); color: var(--vm-green-ink); }
-.risk-badge.risk-medium { background: #fed7aa; color: var(--vm-amber-ink); }
-.risk-badge.risk-high { background: #fecaca; color: var(--vm-red-ink); }
+.risk-badge.risk-medium { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.risk-badge.risk-high { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 
 /* Optional guidance box shown ABOVE the option buttons (repetition-guard "agent is stuck" pause) */
 .choice-guidance-row {
@@ -1323,7 +1336,7 @@ watch(currentRequest, () => {
 
 .feedback-input:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--vm-primary);
 }
 
 /* Footer */

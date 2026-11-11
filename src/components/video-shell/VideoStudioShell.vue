@@ -203,6 +203,21 @@ body.vs-theme {
   --vs-bad-bg: rgba(255, 110, 110, .12);
   --vs-bad-ink: #FF9C9C;
   --vs-scrim: rgba(0, 0, 0, .6);
+  /* The semantic tokens in the Studio's dark (ADM-1170, 2026-11-11): without them a shared component here (the
+     approval card) took the LIGHT theme's link, amber and red, and its labels were cream pills on a dark card.
+     Taken from the --vs-* values above. */
+  --vm-link: #8DB4FF;
+  --vm-primary-line: rgba(141, 180, 255, .45);
+  --vm-primary-hover-soft: rgba(59, 130, 246, .26);
+  --vm-blue-soft: rgba(59, 130, 246, .16);
+  --vm-amber: #F2B341;
+  --vm-amber-soft: rgba(242, 179, 65, .12);
+  --vm-amber-ink: #F5C76A;
+  --vm-danger: #FF6E6E;
+  --vm-red-soft: rgba(255, 110, 110, .12);
+  --vm-red-ink: #FF9C9C;
+  --vm-green-soft: rgba(60, 203, 127, .14);
+  --vm-green-ink: #7FE0A8;
   background: var(--vm-bg);
 }
 </style>

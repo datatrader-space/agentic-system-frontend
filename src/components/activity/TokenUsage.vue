@@ -7,7 +7,8 @@
   Shared by the Emulator and the new chat.
 -->
 <template>
-  <div v-if="display" class="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1.5 select-none tabular-nums"
+  <!-- Wraps BETWEEN its parts in a narrow panel (the Studio's chat), never inside a number ("60.1 / k"). -->
+  <div v-if="display" class="token-usage flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-gray-400 mt-1.5 select-none tabular-nums"
        :title="hoverTitle">
     <svg class="w-3 h-3 opacity-70" viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm3 2.5h8M6 10h8M6 12.5h5" stroke="currentColor" stroke-width="1" fill="none"/></svg>
     <span>{{ display.total }} tokens</span>
@@ -66,3 +67,7 @@ const hoverTitle = computed(() => {
   return s
 })
 </script>
+
+<style scoped>
+.token-usage > span { white-space: nowrap; }
+</style>
