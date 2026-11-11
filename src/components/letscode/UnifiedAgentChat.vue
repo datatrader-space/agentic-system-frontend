@@ -228,6 +228,7 @@ function onKeydown(e) {
 }
 
 function newChat() {
+  resumeCancelled = true                 // a New chat pressed while the last one loads is not overridden
   if (chat.isBusy) chat.stop()
   chat.reset()
   historyOpen.value = false
@@ -288,6 +289,21 @@ function openPreview(c) {
   else c.preview.error = 'Your browser blocked the new tab. Allow pop-ups for AADML and try again.'
 }
 
+// Reopening a project continues its last Coding Agent chat (ADM-1209). The panel used to start blank on every
+// open, so each page load made a new conversation and an earlier chat looked lost. The newest of this project's
+// chats (the server lists only the person's own, newest first) is opened, never over a chat already begun here:
+// nothing typed, nothing sent, no conversation open. New chat and the history menu work as before.
+let resumeCancelled = false
+async function resumeLastChat() {
+  try {
+    const { data } = await api.getConversations({ repository: props.repoId })
+    const latest = (data?.results || data || [])[0]
+    if (!latest || resumeCancelled) return
+    if (chat.conversationId || chat.isBusy || chat.messages.length || input.value.trim()) return
+    await openConversation(latest)
+  } catch { /* the blank chat stays: nothing was lost */ }
+}
+
 async function loadAgent() {
   try {
     const { data } = await api.unifiedConfig(props.systemId)
@@ -305,8 +321,10 @@ onMounted(() => {
   chat.newChatRepoId = Number(props.repoId)
   chat.surfaceHandler = onProjectFrame
   loadAgent()
+  resumeLastChat()
 })
 onBeforeUnmount(() => {
+  resumeCancelled = true
   if (chat.surfaceHandler === onProjectFrame) chat.surfaceHandler = null
   chat.newChatRepoId = null
   chat.reset()

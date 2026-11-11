@@ -158,3 +158,56 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 })
+
+describe('UnifiedAgentChat: reopening a project continues its last chat (ADM-1209)', () => {
+  // Each open used to start a blank chat, so every page load made a new conversation (2026-11-11).
+  const open = async () => (await import('@/services/api')).default
+
+  beforeEach(() => { chat.conversationId = null; chat.isBusy = false })
+
+  it('opens the newest of this project\'s chats', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }] })
+    const w = await mountChat()
+    expect(api.getConversations).toHaveBeenCalledWith({ repository: 14 })
+    expect(chat.openConversation).toHaveBeenCalledWith(88)
+    expect(chat.repoId).toBe(14)                     // the chat stays on this project's socket
+    w.unmount()
+  })
+
+  it('a project with no chat yet starts blank', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: { results: [] } })
+    const w = await mountChat()
+    expect(chat.openConversation).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('never replaces a chat already begun, or a New chat pressed while the last one loads', async () => {
+    const api = await open()
+    let resolve
+    api.getConversations.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    const w = await mountChat()
+    await w.find('button[aria-label="New chat"]').trigger('click')
+    resolve({ data: [{ id: 88 }] })
+    await flushPromises()
+    expect(chat.openConversation).not.toHaveBeenCalled()
+    w.unmount()
+
+    api.getConversations.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    const w2 = await mountChat()
+    chat.messages = [{ id: 1, role: 'user', content: 'hi' }]        // the person already sent something
+    resolve({ data: [{ id: 88 }] })
+    await flushPromises()
+    expect(chat.openConversation).not.toHaveBeenCalled()
+    w2.unmount()
+  })
+
+  it('a failed history read leaves the blank chat', async () => {
+    const api = await open()
+    api.getConversations.mockRejectedValueOnce(new Error('offline'))
+    const w = await mountChat()
+    expect(chat.openConversation).not.toHaveBeenCalled()
+    w.unmount()
+  })
+})
