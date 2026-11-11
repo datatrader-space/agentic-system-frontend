@@ -127,6 +127,8 @@
       </div>
       <ExplorerMenu :open="menu.open" :x="menu.x" :y="menu.y" :items="menu.items" :label="menu.label"
                     @select="onMenuSelect" @close="menu.open = false" />
+      <QuickOpen :open="quickOpen" :system-id="systemId" :repo-id="repositoryId" @close="closeQuickOpen" @pick="onQuickPick" />
+      <EditorSettings :open="settingsOpen" :anchor="settingsAnchor" @close="settingsOpen = false" />
 
       <!-- Resize Handle -->
       <div class="resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize the file list" @mousedown="startResize"></div>
@@ -151,6 +153,10 @@
           <button type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
         </div>
         <div v-if="editable" class="tab-actions">
+          <button ref="settingsBtn" type="button" class="tab-gear" title="Editor settings" aria-label="Editor settings"
+                  :aria-expanded="settingsOpen ? 'true' : 'false'" @click="openSettings">
+            <Icon icon="lucide:settings-2" aria-hidden="true" />
+          </button>
           <button type="button" class="save-btn" :disabled="!activeTab || !isDirty(activeTab) || saving" @click="saveActive">
             {{ saving ? 'Saving' : 'Save' }}
           </button>
@@ -274,6 +280,10 @@ import { useIdeTheme } from '@/composables/useIdeTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
 import ExplorerMenu from '@/components/letscode/ExplorerMenu.vue'
 import ContentSearch from '@/components/letscode/ContentSearch.vue'
+import QuickOpen from '@/components/letscode/QuickOpen.vue'
+import EditorSettings from '@/components/letscode/EditorSettings.vue'
+import { useEditorSettings, monacoOptions } from '@/composables/useEditorSettings'
+import { noteOpened, forgetRecent } from '@/utils/quickOpen'
 import { saveBlob } from '@/utils/saveBlob'
 import { filesFromDrop, filesFromPicker, uploadParts, tooLarge, MAX_FILE_BYTES } from '@/utils/droppedFiles'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
@@ -372,17 +382,15 @@ const monacoTheme = computed(() => (isDark.value ? 'vs-dark' : 'vs'))
 watch(monacoTheme, (t) => { try { monacoNs && monacoNs.editor.setTheme(t) } catch { /* editor not loaded */ } })
 
 // Editor options (readOnly unless `editable`)
+// The person's editor settings (font size, wrap, minimap, line numbers, whitespace; the gear beside Save).
+const { settings: editorSettings } = useEditorSettings()
 const editorOptions = computed(() => ({
   readOnly: !props.editable,
-  minimap: { enabled: true },
-  lineNumbers: 'on',
   scrollBeyondLastLine: false,
   automaticLayout: true,
   theme: monacoTheme.value,
-  fontSize: 14,
-  wordWrap: 'on',
   folding: true,
-  renderWhitespace: 'selection',
+  ...monacoOptions(editorSettings),
   // As VS Code: matching brackets in matching colours, and their guides.
   bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
   guides: { bracketPairs: 'active', indentation: true, highlightActiveIndentation: true },
@@ -396,8 +404,8 @@ const diffOptions = computed(() => ({
   automaticLayout: true,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
-  fontSize: 14,
-  wordWrap: 'on',
+  fontSize: editorSettings.fontSize,
+  wordWrap: editorSettings.wordWrap ? 'on' : 'off',
   bracketPairColorization: { enabled: true },
 }))
 
@@ -464,9 +472,40 @@ async function saveActive() {
 }
 
 function onKeydown(e) {
-  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+  const ctrl = e.ctrlKey || e.metaKey
+  if (!ctrl || e.altKey) return
+  const k = (e.key || '').toLowerCase()
+  if (k === 's' && !e.shiftKey) {
     if (props.editable) { e.preventDefault(); saveActive() }
+  } else if ((k === 'p' || k === 'e') && !e.shiftKey) {
+    // Go to file, as VS Code (never the browser's print or its address bar).
+    e.preventDefault(); openQuickOpen()
+  } else if (k === 'f' && e.shiftKey) {
+    e.preventDefault(); openSearch()
   }
+}
+
+// ── Go to file (Ctrl+P / Ctrl+E) and the editor's settings (ADM-1205, phase A) ─────────────────────────────────
+const quickOpen = ref(false)
+let quickOpenFrom = null
+function openQuickOpen() { quickOpenFrom = document.activeElement; quickOpen.value = true }
+function closeQuickOpen() {
+  quickOpen.value = false
+  const back = quickOpenFrom
+  quickOpenFrom = null
+  nextTick(() => { if (back && document.contains(back)) back.focus?.() })
+}
+function onQuickPick({ path, line }) {
+  quickOpenFrom = null
+  if (line) openAt({ path, line, column: 1 })
+  else openFile(path)
+}
+const settingsOpen = ref(false)
+const settingsBtn = ref(null)
+const settingsAnchor = ref(null)
+function openSettings() {
+  settingsAnchor.value = settingsBtn.value?.getBoundingClientRect() || null
+  settingsOpen.value = true
 }
 
 // The text editor itself, once Monaco has made it: a search result opens its file at the matching line.
@@ -494,7 +533,13 @@ function applyLanguage() {
   const set = (model) => {
     try { if (model && model.getLanguageId() !== lang) monacoNs.editor.setModelLanguage(model, lang) } catch { /* disposed */ }
   }
-  if (tab.type === 'file' && editorInst) set(editorInst.getModel())
+  if (tab.type === 'file' && editorInst) {
+    const model = editorInst.getModel()
+    set(model)
+    // Tab size is the model's own option (Monaco ignores it as an editor option); "auto" leaves the file's.
+    const size = editorSettings.tabSize
+    if (size !== 'auto') { try { model?.updateOptions({ tabSize: size, indentSize: size, insertSpaces: true }) } catch { /* disposed */ } }
+  }
   if (tab.type === 'diff' && diffInst) {
     const pair = diffInst.getModel()
     if (pair) { set(pair.original); set(pair.modified) }
@@ -506,7 +551,7 @@ const activeTab = computed(() => {
   return openTabs.value.find(t => t.id === activeTabId.value)
 })
 // The model's language follows the tab shown (see applyLanguage).
-watch(() => [activeTabId.value, activeTab.value && activeTab.value.language], () => nextTick(applyLanguage), { flush: 'post' })
+watch(() => [activeTabId.value, activeTab.value && activeTab.value.language, editorSettings.tabSize], () => nextTick(applyLanguage), { flush: 'post' })
 
 // Build a reactive tree node from a server entry. `expanded`/`loaded`/`loading`/`children` are plain
 // fields — they live inside the reactive `rootNodes` array, so mutating them updates the tree.
@@ -808,6 +853,7 @@ async function loadImageInto(live) {
   }
 }
 async function openImage(filePath) {
+  noteOpened(props.repositoryId, filePath)              // Go to file lists it among the recently opened
   const existing = openTabs.value.find(t => t.path === filePath && t.type === 'image')
   if (existing) { activeTabId.value = existing.id; return }
   const tab = {
@@ -851,6 +897,7 @@ async function openFile(filePath, { asCode = false } = {}) {
     const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, repoId, filePath), _wait)
     const content = response.data.content
     projectCache.file.set(repoId, filePath, content)
+    noteOpened(repoId, filePath)                        // Go to file lists it among the recently opened
     const live = id !== null ? openTabs.value.find(t => t.id === id) : null
     if (id === null) {
       const tab = newTab(content)
@@ -1100,6 +1147,7 @@ async function commitPending({ fromBlur = false } = {}) {
 
 // Open tabs follow a renamed or moved file or folder; their unsaved edits stay.
 function retargetTabs(oldPath, newPath) {
+  forgetRecent(props.repositoryId, oldPath)
   for (const tab of openTabs.value) {
     if (!tab.path || (tab.path !== oldPath && !tab.path.startsWith(`${oldPath}/`))) continue
     const moved = newPath + tab.path.slice(oldPath.length)
@@ -1138,6 +1186,7 @@ async function deleteEntry(node) {
   const closing = new Set(openTabs.value.filter(under).map((t) => t.id))
   openTabs.value = openTabs.value.filter((t) => !closing.has(t.id))
   if (closing.has(activeTabId.value)) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
+  forgetRecent(props.repositoryId, node.path)
   afterChange(dirOf(node.path))
   notify.success(`Deleted ${node.name}`)
 }
@@ -1721,6 +1770,13 @@ const FileTreeNode = {
 
 .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); flex: 0 0 auto; }
 .tab-actions { margin-left: auto; display: flex; align-items: center; padding: 0 8px; }
+.tab-gear {
+  display: grid; place-items: center; width: 30px; height: 30px; margin-right: 6px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: background-color .15s, color .15s;
+}
+.tab-gear :deep(svg) { width: 16px; height: 16px; }
+.tab-gear:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
+.tab-gear:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
 .save-btn { background: var(--vm-violet); color: var(--cb-on-solid); border: none; border-radius: 6px; padding: 5px 12px; font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, opacity .15s; }
 .save-btn:hover:not(:disabled) { background: var(--vm-violet-d); }
 .save-btn:disabled { opacity: .45; cursor: not-allowed; }

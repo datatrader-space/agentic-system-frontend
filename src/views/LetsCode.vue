@@ -172,12 +172,18 @@
       </div>
 
       <div ref="ideMainEl" class="ide-main">
-        <div class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
+        <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
             <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" />
           </div>
-          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }">
+          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }"
+               :style="{ '--bp-h': bottomHeight + 'px' }">
+            <!-- Drag the top border to resize the panel (arrow keys when focused; a double click restores it). -->
+            <div v-if="!bottomCollapsed && !bottomMax" class="bp-resize" :class="{ active: bottomResizing }"
+                 role="separator" aria-orientation="horizontal" aria-label="Resize the bottom panel" tabindex="0"
+                 :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
+                 @dblclick="setBottomHeight(BP_DEFAULT)"></div>
             <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
           </div>
         </div>
@@ -280,6 +286,51 @@ function onResizeKey(e) {
   rightPaneWidth.value = clampWidth(rightPaneWidth.value + (e.key === 'ArrowLeft' ? 24 : -24))
   localStorage.setItem('lc.rightPaneWidth', String(rightPaneWidth.value))
 }
+
+// ── Resizable bottom panel (drag its top border, or arrow keys on the handle; ADM-1205) ──
+const ideLeftEl = ref(null)
+const BP_MIN = 120
+const BP_DEFAULT = 220
+const BP_EDITOR_MIN = 140                       // the editor always keeps this much
+const bottomHeight = ref(Number(localStorage.getItem('lc.bottomHeight')) || BP_DEFAULT)
+const bottomResizing = ref(false)
+function clampHeight(h) {
+  const rect = ideLeftEl.value?.getBoundingClientRect()
+  const max = rect ? Math.max(BP_MIN, rect.height - BP_EDITOR_MIN) : 900
+  return Math.round(Math.max(BP_MIN, Math.min(h, max)))
+}
+function setBottomHeight(h) {
+  bottomHeight.value = clampHeight(h)
+  try { localStorage.setItem('lc.bottomHeight', String(bottomHeight.value)) } catch { /* kept for this visit */ }
+}
+function startBottomResize(e) {
+  e.preventDefault()
+  bottomResizing.value = true
+  document.body.style.cursor = 'row-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onBottomResize)
+  window.addEventListener('mouseup', stopBottomResize)
+}
+function onBottomResize(e) {
+  if (!bottomResizing.value) return
+  const rect = ideLeftEl.value?.getBoundingClientRect()
+  if (!rect) return
+  bottomHeight.value = clampHeight(rect.bottom - e.clientY)      // the panel hugs the column's bottom
+}
+function stopBottomResize() {
+  bottomResizing.value = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('mousemove', onBottomResize)
+  window.removeEventListener('mouseup', stopBottomResize)
+  setBottomHeight(bottomHeight.value)
+}
+function onBottomResizeKey(e) {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+  e.preventDefault()
+  setBottomHeight(bottomHeight.value + (e.key === 'ArrowUp' ? 24 : -24))
+}
+onBeforeUnmount(() => { if (bottomResizing.value) stopBottomResize() })
 
 // ── GitHub repositories ──
 const ghNotConnected = ref(false)
@@ -751,7 +802,12 @@ onBeforeUnmount(() => {
 .ide-main { flex: 1; min-height: 0; display: flex; }
 .ide-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ide-editor { flex: 1; min-height: 0; position: relative; }
-.ide-bottom { height: 220px; flex: 0 0 auto; }
+.ide-bottom { position: relative; height: var(--bp-h, 220px); flex: 0 0 auto; }
+/* Drag handle over the bottom panel's top border. */
+.bp-resize { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: row-resize; z-index: 6; }
+.bp-resize::after { content: ''; position: absolute; left: 0; right: 0; top: 3px; height: 2px; background: transparent; transition: background-color .15s; }
+.bp-resize:hover::after, .bp-resize.active::after, .bp-resize:focus-visible::after { background: var(--vm-violet); }
+.bp-resize:focus-visible { outline: none; }
 .ide-bottom.collapsed { height: auto; }
 .ide-left.bottom-max .ide-editor { flex: 0 0 0; overflow: hidden; }
 .ide-bottom.max { flex: 1 1 auto; height: auto; min-height: 0; }
