@@ -297,7 +297,9 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   let quieted = false
   function quietBuiltins() {
     const monaco = ctx && ctx.monaco()
-    const ts = monaco && monaco.languages && monaco.languages.typescript
+    // `monaco.typescript` in Monaco 0.53 and later; `monaco.languages.typescript` before.
+    const ts = monaco && ((monaco.typescript && monaco.typescript.typescriptDefaults ? monaco.typescript : null)
+      || (monaco.languages && monaco.languages.typescript))
     if (!ts || quieted) return
     quieted = true
     for (const d of [ts.typescriptDefaults, ts.javascriptDefaults]) {
@@ -420,7 +422,18 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     const monaco = ctx.monaco()
     if (monaco) registerProviders(monaco)
     addActions(ctx.editor(), monaco)
-    scope = effectScope()
+    // Typing reaches the server from the editor's own change event, the way an LSP client listens to its document
+    // (a Vue watcher on the tab's text, made while the editor component mounted, was stopped with that component and
+    // sent nothing: live 2026-11-12).
+    const ed = ctx.editor()
+    if (ed && typeof ed.onDidChangeModelContent === 'function') {
+      disposables.push(ed.onDidChangeModelContent(() => {
+        const tab = ctx && ctx.activeTab.value
+        if (tab && tab.type === 'file') changed({ path: tab.path, content: ed.getModel().getValue() })
+      }))
+    }
+    // Detached: the watchers below belong to this binding only, never to the component mounting at that moment.
+    scope = effectScope(true)
     scope.run(() => {
       watch(() => ctx.activeTab.value && ctx.activeTab.value.path, (path) => {
         const lang = serverFor(path)

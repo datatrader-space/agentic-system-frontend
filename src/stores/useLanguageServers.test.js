@@ -193,4 +193,39 @@ describe('the store', () => {
     // Another model (a diff's side) is not the editor's file: nothing is asked.
     expect(await e.providers.hover.typescript.provideHover({}, { lineNumber: 1, column: 1 })).toBeNull()
   })
+
+  it("typing reaches the server from the editor's own change event, even when bound inside a component that goes", async () => {
+    vi.useFakeTimers()
+    const { effectScope } = await import('vue')
+    const e = editorCtx()
+    let listener = null
+    const model = { uri: e.model.uri, getValue: () => 'const a = 3' }
+    e.ctx.editor = () => ({ getModel: () => model, onDidChangeModelContent: (fn) => { listener = fn; return { dispose: vi.fn() } } })
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    const mounting = effectScope()
+    mounting.run(() => s.bind(e.ctx))       // as from the editor component's mount hook
+    mounting.stop()                          // that component goes: the binding stays
+    const c = FakeConnection.made[0]
+    c.ready()
+    await vi.runAllTimersAsync()
+    listener()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(c.sent.find((x) => x[1] === 'textDocument/didChange')[2].contentChanges).toEqual([{ text: 'const a = 3' }])
+    e.tabs.value[0].original = 'const a = 3'
+    await nextTick()
+    expect(c.methods()).toContain('textDocument/didSave')
+  })
+
+  it("Monaco's own TypeScript features are switched off where Monaco 0.57 keeps them", async () => {
+    const e = editorCtx()
+    const defaults = () => ({ setDiagnosticsOptions: vi.fn(), setModeConfiguration: vi.fn() })
+    e.monaco.typescript = { typescriptDefaults: defaults(), javascriptDefaults: defaults() }
+    e.monaco.languages.typescript = { deprecated: true }
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    FakeConnection.made[0].ready()
+    await Promise.resolve(); await Promise.resolve()
+    expect(e.monaco.typescript.typescriptDefaults.setModeConfiguration).toHaveBeenCalledWith(expect.objectContaining({ hovers: false, diagnostics: false }))
+    expect(e.monaco.typescript.javascriptDefaults.setDiagnosticsOptions).toHaveBeenCalledWith(expect.objectContaining({ noSemanticValidation: true }))
+  })
 })
