@@ -84,3 +84,43 @@ describe('the Fast model slot (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9, D5)'
     expect(w.get('[data-test="default-fast_model"] .md-label').text()).toBe('Fast model')
   })
 })
+
+describe('AdminModelDefaults: the voice replies are spoken in (VOICE_NOTES_PLAN.md)', () => {
+  const flash = { id: 7, name: 'Eleven Flash v2.5', model_id: 'eleven_flash_v2_5', provider_name: 'Eleven Lab' }
+  const withAudio = (voice = null) => ({ audio_voice: voice, slots: [
+    { slot: 'default_model', label: 'Main model', model: luna, options: [luna] },
+    { slot: 'audio_model', label: 'Audio generation', model: flash, options: [flash] },
+  ] })
+  const voices = { listed: true, voices: [
+    { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', preview_url: 'https://x.test/sarah.mp3' },
+    { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', preview_url: '' },
+  ] }
+
+  beforeEach(() => {
+    api.get.mockReset().mockImplementation((url) => Promise.resolve({
+      data: url.endsWith('/voices/') ? voices : withAudio() }))
+  })
+
+  it('lists the voices of the saved Audio generation model and saves the one chosen', async () => {
+    api.put.mockResolvedValue({ data: withAudio({ voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah' }) })
+    const w = mount(AdminModelDefaults, { global: { stubs } })
+    await flushPromises()
+    expect(api.get).toHaveBeenCalledWith('/admin/platform-model-defaults/voices/')
+    const sel = w.get('[data-test="voice-select"]')
+    expect(sel.text()).toContain('Sarah')
+    await sel.setValue('EXAVITQu4vr4xnSDxMaL')
+    expect(w.find('[data-test="voice-sample"]').exists()).toBe(true)
+    await w.get('[data-test="defaults-save"]').trigger('click')
+    await flushPromises()
+    expect(api.put).toHaveBeenCalledExactlyOnceWith('/admin/platform-model-defaults/',
+      { audio_voice: { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah' } })
+  })
+
+  it('asks to save a new Audio generation model before choosing its voice', async () => {
+    const w = mount(AdminModelDefaults, { global: { stubs } })
+    await flushPromises()
+    await w.get('[data-test="default-audio_model"] select').setValue('')
+    expect(w.get('[data-test="default-audio-voice"]').text()).toContain('Save the Audio generation model first')
+    expect(w.find('[data-test="voice-select"]').exists()).toBe(false)
+  })
+})

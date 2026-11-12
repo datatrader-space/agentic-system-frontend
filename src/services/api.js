@@ -1128,16 +1128,8 @@ export default {
   // Web Speech API is deliberately not used, because it ships the user's voice to Google/Microsoft.
   // getVoiceInput says whether the mic may be enabled at all (a model must be assigned to the agent).
   getVoiceInput: (agentId) => api.get(`/agent-profiles/${agentId}/voice-input/`),
-  transcribeVoice: (agentId, blob, { conversationId, language, filename, signal } = {}) => {
-    const fd = new FormData();
-    fd.append('audio', blob, filename || 'recording.webm');
-    if (conversationId) fd.append('conversation_id', String(conversationId));
-    if (language) fd.append('language', language);
-    // A 2-minute clip can take a while upstream; the provider itself times out at 60s.
-    return api.post(`/agent-profiles/${agentId}/transcribe/`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000, signal,
-    });
-  },
+  // A recording is not sent here: it is uploaded as a chat file and sent as a voice note over the chat socket
+  // (VOICE_NOTES_PLAN.md), where the server hears it.
   getContextFiles: (conversationPk) => api.get(`/conversations/${conversationPk}/files/`),
   // Media gallery: generated + uploaded images/video for this conversation (scope='conversation') or
   // every conversation of this agent (scope='agent'). Optional source/type filters. Returns { media: [] }.

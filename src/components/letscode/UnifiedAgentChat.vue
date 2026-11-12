@@ -111,19 +111,9 @@
             :aria-activedescendant="mention && mentionItems.length ? `uac-mention-list-${mentionActive}` : undefined"
             @input="onInput" @keydown="onKeydown" @paste="onPaste" @click="findMention" @focus="focused = true" @blur="onBlur"
           ></textarea>
-          <!-- Mic: needs an Audio-transcription model; dimmed otherwise, click explains. -->
-          <button
-            type="button" class="uac-mic" data-test="uac-mic"
-            :class="{ live: voice.recording.value, busy: voice.transcribing.value, off: !voice.enabled.value }"
-            :aria-disabled="voice.enabled.value ? 'false' : 'true'"
-            :aria-label="voice.recording.value ? 'Stop and send' : 'Voice input'"
-            :title="voice.enabled.value
-              ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
-              : voice.disabledMessage.value"
-            @click="voice.toggle()"
-          >
-            <Icon icon="lucide:mic" />
-          </button>
+          <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why without a transcription model. -->
+          <VoiceNoteMic :agent-id="agentId || null" data-test="uac-mic"
+                        @voice-note="(n) => chat.sendMessage('', { voiceNote: n })" />
         </div>
 
         <div class="uac-box-bar">
@@ -157,7 +147,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, inject } from 'vue'
 import { Icon } from '@iconify/vue'
-import { useVoiceInput } from '@/composables/useVoiceInput'
+import VoiceNoteMic from '@/components/chat/VoiceNoteMic.vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -209,13 +199,6 @@ const lastUserPrompt = ref('')
 
 // What the main chat held before this page took the shared chat over; given back when the page closes.
 let previous = null
-
-const voice = useVoiceInput({
-  agentId: () => agentId.value || null,
-  conversationId: () => chat.conversationId,
-  getDraft: () => input.value,
-  onTranscript: (text) => { input.value = text; nextTick(() => { autoGrow(); send() }) },
-})
 
 const { permissionRequests, handlePermissionEvent, respondPermission } =
   usePermission((obj) => chat.sendRaw(obj), () => chat.conversationId)
@@ -634,7 +617,7 @@ defineExpose({ send, addSelection })
 .uac-title { display: inline-flex; align-items: center; gap: 7px; font: 700 13px var(--vm-font-sans); color: var(--vm-ink); white-space: nowrap; }
 .uac-title :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); }
 .uac-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.uac-hbtn:focus-visible, .uac-circle:focus-visible, .uac-mic:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
+.uac-hbtn:focus-visible, .uac-circle:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
 .uac-hwrap { position: relative; }
 .uac-hbtn { display: grid; place-items: center; width: 32px; height: 32px; border: none; background: transparent; color: var(--vm-ink-soft); border-radius: 8px; cursor: pointer; transition: color .15s, background-color .15s; }
 .uac-hbtn:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
@@ -731,14 +714,6 @@ defineExpose({ send, addSelection })
 .uac-box-top textarea { flex: 1; min-width: 0; resize: none; border: none; outline: none; background: transparent; padding: 5px 2px; font: inherit; font-size: 14px; line-height: 1.5; color: var(--vm-ink); max-height: 200px; }
 .uac-box-top textarea::placeholder { color: var(--vm-ink-faint); }
 .uac-box-top textarea:disabled { color: var(--vm-ink-faint); cursor: not-allowed; }
-.uac-mic { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; border: none; border-radius: 50%; background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: color .15s, background-color .15s; }
-.uac-mic:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.uac-mic.live { color: var(--uac-on-solid); background: var(--vm-danger); animation: uacmic 1.3s ease-in-out infinite; }
-.uac-mic.off { color: var(--vm-ink-faint); opacity: .55; cursor: help; }
-.uac-mic.off:hover { background: transparent; color: var(--vm-ink-faint); }
-.uac-mic.busy { color: var(--vm-violet); animation: uacmic 1s linear infinite; }
-.uac-mic :deep(svg) { width: 16px; height: 16px; }
-@keyframes uacmic { 50% { opacity: .55; } }
 .uac-box-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .uac-bar-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .uac-circle { flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer; color: var(--uac-on-solid); transition: background-color .15s, opacity .15s; }
@@ -755,13 +730,13 @@ defineExpose({ send, addSelection })
 .uac-hint > span:last-child { margin-left: auto; text-align: right; }
 
 @media (max-width: 640px) {
-  .uac-hbtn, .uac-mic { width: 44px; height: 44px; }
+  .uac-hbtn { width: 44px; height: 44px; }
   .uac-circle { width: 44px; height: 44px; }
   .uac-hint > span:last-child { display: none; }
   .ai-changes-open, .ai-preview-open, .uac-restore-btn { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .uac-mic.live, .uac-mic.busy, .uac-restore-btn .spin { animation: none; }
+  .uac-restore-btn .spin { animation: none; }
 }
 </style>

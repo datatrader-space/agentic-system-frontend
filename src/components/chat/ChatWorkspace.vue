@@ -94,7 +94,7 @@
 
     <!-- Body -->
     <div class="chat-body" :class="{ 'welcome-scroll': showWelcome }">
-      <ChatWelcome v-if="showWelcome" ref="welcomeRef" @submit="onSend" />
+      <ChatWelcome v-if="showWelcome" ref="welcomeRef" @submit="onSend" @voice-note="onVoiceNote" />
       <ChatMessageList v-else />
     </div>
 
@@ -134,7 +134,7 @@
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
         :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
         :is-shared-agent="chat.isSharedAgent"
-        @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
+        @send="onSend" @voice-note="onVoiceNote" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <!-- THE WHOLE CONVERSATION, AND IT HAS TO SAY SO. It read "Session 7993.6k · $11.35", which a person
            takes for what the reply above it cost; it is every run in this conversation added up (that one
@@ -438,6 +438,8 @@ const onSend = async (text) => {
   const sent = await chat.sendMessage(text)
   if (sent === false) (welcomeRef.value || composerRef.value)?.restoreDraft?.(text)
 }
+// A recorded voice note (VoiceNoteMic): sent as the whole message; the server hears it (VOICE_NOTES_PLAN.md).
+const onVoiceNote = (note) => chat.sendMessage('', { voiceNote: note })
 
 // Media gallery open state + attach handler (bind chosen existing media to the next message BY ID).
 const mediaOpen = ref(false)

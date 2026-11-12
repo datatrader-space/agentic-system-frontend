@@ -17,7 +17,8 @@
       <h2 class="admin-section-title" id="md-title">Model for each job</h2>
       <p class="md-sub">Only models on the platform's own connections that can do the job are listed.</p>
 
-      <div v-for="row in slots" :key="row.slot" class="md-row" :data-test="`default-${row.slot}`">
+      <template v-for="row in slots" :key="row.slot">
+      <div class="md-row" :data-test="`default-${row.slot}`">
         <div class="md-what">
           <span class="md-label">{{ row.label || LABELS[row.slot] || row.slot }}</span>
           <span class="md-hint">{{ HINTS[row.slot] }}</span>
@@ -37,6 +38,38 @@
         </div>
       </div>
 
+      <!-- The voice the Audio generation model speaks replies to voice notes in (VOICE_NOTES_PLAN.md). -->
+      <div v-if="row.slot === 'audio_model'" class="md-row" data-test="default-audio-voice">
+        <div class="md-what">
+          <label class="md-label" for="md-voice">Reply voice</label>
+          <span class="md-hint">The voice an agent answers a voice note in. No voice: answers are text only.</span>
+        </div>
+        <div class="md-pick">
+          <p v-if="(draft.audio_model ?? null) !== (saved.audio_model ?? null)" class="md-hint md-voice-note">
+            Save the Audio generation model first, then choose its voice.
+          </p>
+          <p v-else-if="!saved.audio_model" class="md-hint md-voice-note">Choose an Audio generation model first.</p>
+          <template v-else>
+            <div class="md-voice">
+              <select id="md-voice" class="md-select" :value="draftVoice?.voice_id || ''" :disabled="voicesLoading"
+                      data-test="voice-select" @change="pickVoice($event.target.value)">
+                <option value="">{{ voicesLoading ? 'Loading voices…' : 'No voice: replies are text only' }}</option>
+                <option v-if="draftVoice && !voices.some(v => v.voice_id === draftVoice.voice_id)" :value="draftVoice.voice_id">
+                  {{ draftVoice.name || draftVoice.voice_id }}
+                </option>
+                <option v-for="v in voices" :key="v.voice_id" :value="v.voice_id">{{ v.name }}</option>
+              </select>
+              <button v-if="samplePreview" type="button" class="md-link" data-test="voice-sample" @click="playSample">
+                {{ sampling ? 'Stop sample' : 'Play sample' }}
+              </button>
+            </div>
+            <p v-if="voicesError" class="md-error" role="alert">{{ voicesError }}</p>
+            <p v-if="fieldErrors.audio_voice" class="md-error" role="alert">{{ fieldErrors.audio_voice }}</p>
+          </template>
+        </div>
+      </div>
+      </template>
+
       <div v-if="error" class="md-banner" role="alert">{{ error }}</div>
       <div class="md-actions">
         <button class="md-save" type="button" :disabled="saving || !changed" data-test="defaults-save" @click="save">
@@ -49,7 +82,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import api from '../../services/api'
 import ModelPicker from '../../components/common/ModelPicker.vue'
 
@@ -77,15 +110,65 @@ const error = ref('')
 const savedAt = ref(null)
 
 function take(payload) {
+  const audioBefore = saved.audio_model ?? null
   slots.value = payload.slots || []
   for (const row of slots.value) {
     saved[row.slot] = row.model ? row.model.id : null
     draft[row.slot] = saved[row.slot]
     fieldErrors[row.slot] = ''
   }
+  savedVoice.value = payload.audio_voice || null
+  draftVoice.value = savedVoice.value
+  fieldErrors.audio_voice = ''
+  if ((saved.audio_model ?? null) !== audioBefore || !voices.value.length) loadVoices()
 }
 
-const changed = computed(() => slots.value.some(row => (draft[row.slot] ?? null) !== (saved[row.slot] ?? null)))
+// The reply voice (VOICE_NOTES_PLAN.md): {voice_id, name} or null, and the voices the saved Audio generation model has.
+const savedVoice = ref(null)
+const draftVoice = ref(null)
+const voices = ref([])
+const voicesLoading = ref(false)
+const voicesError = ref('')
+const sampling = ref(false)
+let sampleAudio = null
+
+const voiceChanged = computed(() => (draftVoice.value?.voice_id || '') !== (savedVoice.value?.voice_id || ''))
+const changed = computed(() => voiceChanged.value
+  || slots.value.some(row => (draft[row.slot] ?? null) !== (saved[row.slot] ?? null)))
+const samplePreview = computed(() => voices.value.find(v => v.voice_id === draftVoice.value?.voice_id)?.preview_url || '')
+
+function pickVoice(id) {
+  const v = voices.value.find(x => x.voice_id === id)
+  draftVoice.value = id ? { voice_id: id, name: v ? v.name : (draftVoice.value?.name || id) } : null
+  stopSample()
+}
+function stopSample() {
+  try { sampleAudio?.pause() } catch { /* ignore */ }
+  sampleAudio = null
+  sampling.value = false
+}
+function playSample() {
+  if (sampling.value) { stopSample(); return }
+  sampleAudio = new Audio(samplePreview.value)
+  sampleAudio.onended = stopSample
+  sampling.value = true
+  sampleAudio.play().catch(stopSample)
+}
+async function loadVoices() {
+  voices.value = []
+  voicesError.value = ''
+  if (!saved.audio_model) return
+  voicesLoading.value = true
+  try {
+    const { data } = await api.get('/admin/platform-model-defaults/voices/')
+    voices.value = data.voices || []
+    if (!data.listed && data.message) voicesError.value = data.message
+  } catch (e) {
+    voicesError.value = e?.response?.data?.error?.message || 'The voices could not be listed.'
+  } finally {
+    voicesLoading.value = false
+  }
+}
 
 function perMillion(v) {
   const n = Number(v)
@@ -117,6 +200,7 @@ async function save() {
   for (const row of slots.value) {
     if ((draft[row.slot] ?? null) !== (saved[row.slot] ?? null)) body[row.slot] = draft[row.slot] ?? null
   }
+  if (voiceChanged.value) body.audio_voice = draftVoice.value
   saving.value = true
   try {
     const { data } = await api.put('/admin/platform-model-defaults/', body)
@@ -132,6 +216,7 @@ async function save() {
 }
 
 onMounted(load)
+onBeforeUnmount(stopSample)
 </script>
 
 <style scoped>
@@ -155,6 +240,11 @@ onMounted(load)
 .md-link { background: none; border: 0; color: #2563eb; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; padding: 4px 6px; border-radius: 6px; }
 .md-link:focus-visible, .md-save:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .md-error { margin: 6px 0 0; font-size: 12.5px; color: #b91c1c; }
+.md-voice { display: flex; align-items: center; gap: 10px; }
+.md-select { flex: 1; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--admin-line, #e5e7eb);
+  border-radius: 8px; background: var(--admin-surface, #fff); color: var(--admin-ink, #111827); font: inherit; font-size: 14px; }
+.md-select:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.md-voice-note { margin: 10px 0 0; }
 
 .md-banner { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 12px 0; background: #fee2e2; color: #991b1b; }
 .md-actions { display: flex; gap: 12px; align-items: center; padding-top: 14px; border-top: 1px solid #f3f4f6; }
@@ -171,6 +261,7 @@ onMounted(load)
   .md-row { grid-template-columns: 1fr; gap: 8px; }
   .md-save { width: 100%; min-height: 44px; }
   .md-link { min-height: 44px; }
+  .md-select { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .md-save { transition: none; } }
 </style>

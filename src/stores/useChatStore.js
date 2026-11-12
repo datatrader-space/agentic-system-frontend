@@ -17,6 +17,7 @@ import { shownCost } from '../composables/tokens'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
 import { resumeStatusLine } from '../utils/resumeStatus'
+import { voiceReplyOf, voiceReplyFromFrame } from '../utils/voiceNotes'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
@@ -105,6 +106,13 @@ function mergeById(current, incoming) {
 //: unversioned key held a default, not a decision, and treating the two alike suppressed Work mode
 //: for everyone who had ever used the old switch.
 const TURN_MODE_KEY = 'aadml.turnMode.v2'
+
+// What a sent message's bubble shows of each attachment (a voice note plays from its local recording until the
+// saved copy is loaded).
+function _bubbleAttachment(a) {
+  return { name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id,
+    isAudio: !!a.isAudio, isVoiceNote: !!a.isVoiceNote }
+}
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -792,6 +800,8 @@ export const useChatStore = defineStore('chat', {
         // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
         // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
         attachments: pickArray(m.attachments),
+        // The answer spoken back to a voice note (VOICE_NOTES_PLAN.md), from its saved media.
+        voiceReply: voiceReplyOf(m),
         // Connector buttons (Connect / Sign in again / Assign) CONNECT_SERVICE offered with this answer,
         // persisted on model_info so they stay in history after a reload.
         chatActions: pickArray(info.chat_actions),
@@ -1050,8 +1060,12 @@ export const useChatStore = defineStore('chat', {
     // agent, like Create-Image; see useVideoStore.request). `opts.imageRequest` + `opts.imageMode`: the Studio's
     // Image panel (useVideoStore.requestImage), for this one message.
     async sendMessage(text, opts = {}) {
-      const content = (text || '').trim()
-      const atts = this.pendingAttachments.slice()
+      // `opts.voiceNote`: a recording (utils/voiceNotes.voiceNoteAttachment). It is the whole message: the server
+      // hears it and its words are what the agent answers (VOICE_NOTES_PLAN.md). Files waiting in the composer stay
+      // there for the next typed message.
+      const voiceNote = opts.voiceNote || null
+      const content = voiceNote ? '' : (text || '').trim()
+      const atts = voiceNote ? [voiceNote] : this.pendingAttachments.slice()
       if (!content && atts.length === 0) return false
       // Ask for browser-notification permission on this user gesture (once). Lets us notify the user when
       // the run finishes if they've stepped away to another window/tab. No-op if already asked/decided.
@@ -1069,9 +1083,9 @@ export const useChatStore = defineStore('chat', {
         const steerClientId = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         this.messages.push({
           id: nid(), role: 'user', content, status: 'done', queued: true, clientMessageId: steerClientId,
-          attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id })),
+          attachments: atts.map(_bubbleAttachment),
         })
-        this.pendingAttachments = []
+        if (!voiceNote) this.pendingAttachments = []
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
@@ -1087,6 +1101,7 @@ export const useChatStore = defineStore('chat', {
           reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
           clientMessageId: steerClientId,
+          voiceNote: !!voiceNote,
         })
         return true
       }
@@ -1107,12 +1122,15 @@ export const useChatStore = defineStore('chat', {
         this._connect()
       }
 
-      // Show the user turn (with attachment previews) and the assistant placeholder up-front.
+      // Show the user turn (with attachment previews) and the assistant placeholder up-front. The client id travels
+      // with the message, so a frame about it (a voice note that could not be heard) finds THIS bubble.
+      const clientMessageId = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       this.messages.push({
-        id: nid(), role: 'user', content, status: 'done',
-        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id })),
+        id: nid(), role: 'user', content, status: 'done', clientMessageId,
+        attachments: atts.map(_bubbleAttachment),
       })
-      this.pendingAttachments = [] // claimed by this turn; the message bubble keeps the preview urls
+      // Claimed by this turn; the message bubble keeps the preview urls. A voice note leaves them for the next message.
+      if (!voiceNote) this.pendingAttachments = []
       // A NEW USER TURN CLEARS THE PREVIOUS RUN'S WORK STATE. This is the right home for it rather than
       // `_beginAssistant`, which also fires when a LATER iteration of a still-running Work run opens its
       // bubble — clearing it there would undo the announcement that had just arrived and end the turn
@@ -1171,7 +1189,8 @@ export const useChatStore = defineStore('chat', {
         researchDepth: this.researchMode ? this.researchDepth : undefined,
         reasoningEffort: this.reasoningEffort || undefined,
         attachmentIds,
-        clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        clientMessageId,
+        voiceNote: !!voiceNote,
       })
       return true
     },
@@ -1810,6 +1829,8 @@ export const useChatStore = defineStore('chat', {
             || (_prev && _prev.citations) || [],
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
           attachments: pickArray(m.attachments),
+          // The spoken answer: the saved one, else the live state (still being recorded) until it is saved.
+          voiceReply: voiceReplyOf(m) || (_prev && _prev.voiceReply) || null,
           // Same connector buttons as the main loader; the live copy until the server row carries them.
           chatActions: pickArray(m.model_info && m.model_info.chat_actions).length
             ? pickArray(m.model_info.chat_actions) : ((_prev && _prev.chatActions) || []),
@@ -2306,6 +2327,33 @@ export const useChatStore = defineStore('chat', {
           const target = m || [...this.messages].reverse().find((x) => x.role === 'assistant')
           if (target && msg.message_id != null) target.serverId = msg.message_id
           if (target && target.timelineUnsent) this._persistTurnMeta(target)   // it waited for this id
+          break
+        }
+        case 'voice_reply': {
+          // The answer to a voice note, spoken back (backend agent/services/voice_replies.py): pending when it is
+          // queued, then ready with its audio, or failed with the reason. Pushed to every page of the person, so
+          // only this conversation's answer is touched.
+          if (msg.conversation_id != null && String(msg.conversation_id) !== String(this.conversationId)) break
+          const target = this.messages.find((x) => x.role === 'assistant' && x.serverId != null
+            && String(x.serverId) === String(msg.message_id))
+          if (target) target.voiceReply = voiceReplyFromFrame(msg)
+          break
+        }
+        case 'voice_note_failed': {
+          // The voice note could not be heard (no speech, unreadable, no transcription model, no balance): no turn
+          // started. Said where the person looks: on the note itself when it was sent while the agent was working
+          // (that run carries on), else in the answer bubble that was waiting for it.
+          if (msg.conversation_id && String(msg.conversation_id) !== String(this.conversationId)) break
+          const note = msg.client_message_id
+            && this.messages.find((x) => x.role === 'user' && x.clientMessageId === msg.client_message_id)
+          if (note && note.queued) {
+            note.queued = false
+            note.voiceNoteError = msg.error || 'That voice note could not be sent.'
+            break
+          }
+          const _vb = this._cur()
+          if (_vb && msg.code) _vb.errorCode = msg.code
+          this._errAssistant(msg.error || 'That voice note could not be sent. Record it again.', false, true)
           break
         }
         case 'memories_used': {

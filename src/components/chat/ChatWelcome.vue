@@ -62,18 +62,9 @@
             @keydown="onKeydown"
             @paste="onPaste"
           ></textarea>
-          <!-- Mic: live only when the selected agent has an Audio-transcription model; otherwise dimmed
-               and a click explains why (see useVoiceInput). -->
-          <button type="button" class="composer-mic" data-test="welcome-mic"
-                  :class="{ live: voice.recording.value, busy: voice.transcribing.value, off: !voice.enabled.value }"
-                  :aria-disabled="voice.enabled.value ? 'false' : 'true'"
-                  :title="voice.enabled.value
-                    ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
-                    : voice.disabledMessage.value"
-                  aria-label="Voice input" @click="voice.toggle()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-            <span v-if="voice.recording.value" class="composer-mic-timer">{{ voice.elapsed.value }}s</span>
-          </button>
+          <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why without a transcription model. -->
+          <VoiceNoteMic :agent-id="chat.currentAgent?.id || null" data-test="welcome-mic"
+                        @voice-note="(n) => emit('voice-note', n)" />
         </div>
         <!-- Bottom toolbar: + attach + mode pill (left), send (right) -->
         <div class="composer-actions">
@@ -249,13 +240,13 @@ import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AgentSwitcher from './AgentSwitcher.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
-import { useVoiceInput } from '../../composables/useVoiceInput'
+import VoiceNoteMic from './VoiceNoteMic.vue'
 import { notify } from '../../composables/useNotify'
 import { useComposerAttachments } from '../../composables/useComposerAttachments'
 import AttachmentStrip from './AttachmentStrip.vue'
 
 
-const emit = defineEmits(['submit'])
+const emit = defineEmits(['submit', 'voice-note'])
 const chat = useChatStore()
 const router = useRouter()
 
@@ -289,17 +280,6 @@ const autoGrow = () => {
 }
 // Run after the DOM reflects a programmatic draft change (suggestion click, voice input, clear).
 const resizeSoon = () => nextTick(autoGrow)
-
-// Voice input — transcribed by the selected agent's own Audio-transcription model, then SENT straight
-// away through `submit()` (the same path as the Send button, so the conversation is created and the
-// pending attachments ride along). Text already typed is preserved by the composable.
-const voice = useVoiceInput({
-  agentId: () => chat.currentAgent?.id || null,
-  conversationId: () => chat.conversationId || null,
-  getDraft: () => draft.value,
-  onTranscript: (text) => { draft.value = text; resizeSoon(); submit() },
-})
-
 
 // ── "+" menu (toggle · outside-click · Escape) ──
 const menuOpen = ref(false)
@@ -634,18 +614,6 @@ const submit = () => {
 }
 .composer-input::placeholder { color: var(--vm-ink-faint); }
 .composer-top { display: flex; align-items: flex-start; gap: 6px; }
-.composer-mic {
-  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
-  border: none; border-radius: 9999px; background: transparent; color: var(--vm-ink-faint); cursor: pointer; transition: .15s var(--vm-ease);
-}
-.composer-mic:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.composer-mic.live { color: #fff; background: #ef4444; animation: vmMicPulse 1.3s ease-in-out infinite; }
-.composer-mic.off { color: #cbd5e1; cursor: help; }
-.composer-mic.off:hover { color: var(--vm-ink-faint); background: transparent; }
-.composer-mic.busy { color: var(--vm-violet); animation: vmMicPulse 1s linear infinite; }
-.composer-mic-timer { margin-left: 4px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
-.composer-mic svg { width: 16px; height: 16px; }
-@keyframes vmMicPulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
 .composer-actions {
   display: flex;
   align-items: center;

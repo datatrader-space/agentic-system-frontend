@@ -82,6 +82,9 @@
         <div v-if="displayContent && !answerOnRail" ref="bubbleEl" class="bubble assistant" v-html="rendered"
              @click="onCodeCopy"></div>
 
+        <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md): recording, then playable, or why not. -->
+        <VoiceReply v-if="message.voiceReply && !answerOnRail" :reply="message.voiceReply" />
+
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
         <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
           <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1"
@@ -192,14 +195,16 @@
         <div v-else class="bubble user" :class="{ collapsed: isLong && !expanded }">
           <div v-if="message.attachments && message.attachments.length" class="user-attach">
             <template v-for="(a, i) in message.attachments" :key="i">
-              <MediaThumb v-if="a.isImage && a.url" :item="a" :src="a.url" class="user-attach-thumb" :alt="a.name"
+              <VoiceNotePlayer v-if="a.isVoiceNote" :src="a.url" tone="brand" label="your voice note" />
+              <MediaThumb v-else-if="a.isImage && a.url" :item="a" :src="a.url" class="user-attach-thumb" :alt="a.name"
                           title="Click to open preview" @click="openAttachment(a)" />
               <a v-else-if="a.url" class="user-attach-file" :href="a.url" :download="a.name"
                  target="_blank" rel="noopener" title="Open / download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</a>
               <span v-else class="user-attach-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</span>
             </template>
           </div>
-          <span v-if="message.content">{{ message.content }}</span>
+          <span v-if="message.content && !isVoiceNote">{{ message.content }}</span>
+          <span v-if="message.voiceNoteError" class="user-voice-error" role="alert">{{ message.voiceNoteError }}</span>
           <span v-if="message.queued" class="user-queued"
                 :title="message.queuedAfter ? 'A separate request — it is answered on its own when the current run finishes' : 'Sent while the agent is working — it will pick this up between steps'">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
@@ -213,7 +218,7 @@
         </button>
 
         <!-- User actions: edit · copy -->
-        <div v-if="!editing && message.content" class="msg-actions user-actions">
+        <div v-if="!editing && message.content && !isVoiceNote" class="msg-actions user-actions">
           <button class="msg-action" title="Edit" @click="startEdit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
           </button>
@@ -250,6 +255,8 @@ import BrandMark from '../common/BrandMark.vue'
 import MediaThumb from '../common/MediaThumb.vue'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import ImageLightbox from './ImageLightbox.vue'
+import VoiceNotePlayer from './VoiceNotePlayer.vue'
+import VoiceReply from './VoiceReply.vue'
 import { renderUntrustedMarkdown, hasMath } from '../../utils/safeMarkdown'
 import { ensureMath, mathVersion } from '../../utils/mathRenderer'
 import { highlightCodeIn } from '../../utils/codeHighlight'
@@ -360,8 +367,10 @@ function addCodeCopyButtons(html) {
 
 // ── Long user-message collapse (Show more / Show less) ──
 const LONG_CHARS = 500
+// A voice note: the chat shows the playable note only; its transcript (the message's text) is what the agent read.
+const isVoiceNote = computed(() => (props.message.attachments || []).some((a) => a && a.isVoiceNote))
 const isLong = computed(() =>
-  props.message.role === 'user' && (props.message.content || '').length > LONG_CHARS)
+  props.message.role === 'user' && !isVoiceNote.value && (props.message.content || '').length > LONG_CHARS)
 const expanded = ref(false)
 
 // ── Edit a user message + re-submit ──
@@ -682,6 +691,9 @@ const copy = async () => {
   box-shadow: var(--vm-glow-v);
 }
 .user-attach { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.user-attach:only-child { margin-bottom: 0; }
+.user-voice-error { display: block; margin-top: 6px; font-size: 12px; font-weight: 500; color: #fff;
+  padding: 4px 8px; border-radius: 8px; background: rgba(0, 0, 0, .18); }
 .user-attach-thumb { max-width: 160px; max-height: 160px; border-radius: 8px; border: 1px solid rgba(255,255,255,.5); cursor: zoom-in; transition: filter .12s ease; }
 .user-attach-thumb:hover { filter: brightness(1.05); }
 .user-queued { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; font-size: 0.7rem; color: #fff; opacity: 0.85; }

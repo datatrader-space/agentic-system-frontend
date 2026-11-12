@@ -258,6 +258,9 @@ export class ChatConnection {
       attachment_ids: (opts.attachmentIds && opts.attachmentIds.length) ? opts.attachmentIds : undefined,
       // Client-generated id for message idempotency (retries/reconnects don't double-create/rebind).
       client_message_id: opts.clientMessageId || undefined,
+      // A VOICE NOTE: the one attachment is a recording; the server hears it and its words are the message
+      // (backend agent/services/voice_notes.py). The answer comes back as text and as a voice note.
+      voice_note: opts.voiceNote ? true : undefined,
       // The person's time zone (IANA name), so the agent knows the local date and time. Without it an
       // agent asked "what date is today" woke a sandbox to run `date` and took 3 minutes (conv 2789).
       timezone: browserTimeZone(),

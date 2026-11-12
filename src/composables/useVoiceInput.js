@@ -1,25 +1,21 @@
-// Voice input for the chat composer — records the mic and has the AGENT'S OWN Audio-transcription
-// model turn it into text, server-side.
+// The chat mic: records a VOICE NOTE (backend agentic-docs/VOICE_NOTES_PLAN.md, ADM-1235).
 //
-// This replaces the old `useSpeech` (browser Web Speech API), which was honest about being
-// feature-detected but shipped the user's voice to Google/Microsoft, worked in Chrome/Edge only, and
-// could not be metered, budgeted or tenant-scoped. There is now ONE transcription path:
-// MediaRecorder → POST /api/agent-profiles/<id>/transcribe/ → the agent's configured model.
+// The recording is handed back to the caller as an attachment (`onVoiceNote`), and the caller sends it like any
+// message, with `voiceNote` set: the chat shows the playable note, the server hears it with the agent's Audio
+// transcription model (agent/services/voice_notes.py), and the agent answers in text and in a voice note. Nothing is
+// transcribed in the browser and the words are never put in the text box.
 //
-// Enablement is the agent's configuration, not a feature flag: the mic is live only when the agent has
-// an Audio-transcription model assigned. Otherwise the button stays visibly disabled and CLICKING IT
-// EXPLAINS WHY (a popup, not a dead control) — which is also why the button must not carry the DOM
-// `disabled` attribute: a disabled button swallows the click and the user learns nothing.
-//
-// The transcript is AUTO-SENT through the caller's own send function, so attachments, conversation
-// creation, busy state and the in-session queue behave exactly as they do for a typed message.
+// The mic is on when the agent has an Audio transcription model for this person (`GET .../voice-input/`). Otherwise
+// the button stays visibly off and CLICKING IT EXPLAINS WHY (a popup, not a dead control), which is also why the
+// button must not carry the DOM `disabled` attribute: a disabled button swallows the click.
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import apiService from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { voiceNoteAttachment } from '@/utils/voiceNotes'
 
-// Container preference: Opus in WebM (Chrome/Edge/Firefox), Ogg (older Firefox), then MP4 (Safari).
-// Every one of these is accepted by the transcription endpoint.
+// Container preference: Opus in WebM (Chrome/Edge/Firefox), Ogg (older Firefox), then MP4 (Safari). The server
+// keeps every voice note as AAC .m4a, which plays everywhere.
 const MIME_CANDIDATES = [
   'audio/webm;codecs=opus',
   'audio/webm',
@@ -27,8 +23,6 @@ const MIME_CANDIDATES = [
   'audio/ogg',
   'audio/mp4',
 ]
-
-const EXT = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a' }
 
 function pickMime() {
   if (typeof MediaRecorder === 'undefined') return null
@@ -46,8 +40,8 @@ function canRecord() {
     && typeof MediaRecorder !== 'undefined')
 }
 
-// One in-memory answer per agent. Cheap, and it keeps the mic from flickering between agents; cleared
-// by `refresh()` after an agent save so assigning a model lights the mic up without a page reload.
+// One in-memory answer per agent, cleared by `refresh()` after an agent save so assigning a model lights the mic up
+// without a page reload.
 const modeCache = new Map()
 
 export function clearVoiceInputCache(agentId) {
@@ -57,14 +51,12 @@ export function clearVoiceInputCache(agentId) {
 
 /**
  * @param {object} o
- * @param {() => (string|number|null)} o.agentId        the agent that will transcribe (and answer)
- * @param {() => (string|number|null)} [o.conversationId] for cost attribution
- * @param {(text: string) => any} o.onTranscript        AUTO-SEND hook: receives the final text
- * @param {() => string} [o.getDraft]                   current draft, so typed text is never lost
+ * @param {() => (string|number|null)} o.agentId   the agent that will hear the note (and answer)
+ * @param {(note: object, seconds: number) => any} o.onVoiceNote  the recording, as an attachment, to send
  */
-export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft } = {}) {
-  const state = ref('idle')          // idle | requesting | recording | transcribing
-  const elapsed = ref(0)             // seconds recorded, for the button's timer
+export function useVoiceInput({ agentId, onVoiceNote } = {}) {
+  const state = ref('idle')          // idle | requesting | recording
+  const elapsed = ref(0)             // seconds recorded, for the timer
   const info = ref(null)             // server answer: { enabled, model_name, max_seconds, message }
   const supported = canRecord()
 
@@ -73,17 +65,17 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
   let chunks = []
   let ticker = null
   let stopTimer = null
-  let controller = null
   let cancelled = false
+  let startedAt = 0
 
   const maxSeconds = computed(() => info.value?.max_seconds || 120)
   const enabled = computed(() => supported && !!info.value?.enabled)
   const disabledMessage = computed(() => {
-    if (!supported) return 'Voice input needs a browser with microphone recording support (try Chrome, Edge or Firefox).'
+    if (!supported) return 'Voice notes need a browser with microphone recording support (try Chrome, Edge, Firefox or Safari).'
     if (info.value && !info.value.enabled) return info.value.message || 'Audio transcription model not configured.'
     return ''
   })
-  const busy = computed(() => state.value === 'requesting' || state.value === 'transcribing')
+  const busy = computed(() => state.value === 'requesting')
 
   async function loadInfo() {
     const id = agentId?.()
@@ -97,9 +89,8 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
       // Ignore a late reply for an agent we've since switched away from.
       if (String(agentId?.() ?? '') === key) info.value = data
     } catch {
-      // Unreachable config endpoint = mic stays disabled. Never guess "enabled" and then fail at the
-      // moment the user is speaking.
-      info.value = { enabled: false, message: 'Voice input is unavailable right now. Please try again.' }
+      // Unreachable config endpoint = mic stays off. Never guess "enabled" and then fail while the person speaks.
+      info.value = { enabled: false, message: 'Voice notes are unavailable right now. Please try again.' }
     }
   }
 
@@ -113,7 +104,7 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
 
   async function explainDisabled() {
     await confirm({
-      title: !supported ? 'Voice input not supported' : 'Audio transcription model not configured',
+      title: !supported ? 'Voice notes not supported' : 'Audio transcription model not configured',
       message: disabledMessage.value,
       confirmText: 'OK',
       hideCancel: true,
@@ -129,7 +120,7 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
   }
 
   async function start() {
-    if (!enabled.value || busy.value) return
+    if (!enabled.value || busy.value || state.value === 'recording') return
     cancelled = false
     chunks = []
     elapsed.value = 0
@@ -159,64 +150,38 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
     recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data) }
     recorder.onstop = () => {
       const type = recorder?.mimeType || mime || 'audio/webm'
+      const seconds = startedAt ? (Date.now() - startedAt) / 1000 : elapsed.value
       releaseMic()
-      if (cancelled) { state.value = 'idle'; return }
+      state.value = 'idle'
+      if (cancelled) return
       const blob = new Blob(chunks, { type })
       chunks = []
-      if (!blob.size) { state.value = 'idle'; notify.info('Nothing was recorded.'); return }
-      upload(blob, type)
+      if (!blob.size) { notify.info('Nothing was recorded.'); return }
+      onVoiceNote?.(voiceNoteAttachment(blob, type), seconds)
     }
     recorder.start()
+    startedAt = Date.now()
     state.value = 'recording'
     ticker = setInterval(() => { elapsed.value += 1 }, 1000)
-    // Hard stop at the server's limit so a forgotten recording can't run forever.
+    // Hard stop at the server's limit, so a forgotten recording can't run forever; it is sent like a tap on Send.
     stopTimer = setTimeout(() => { if (state.value === 'recording') stop() }, maxSeconds.value * 1000)
   }
 
+  /** Stop recording and send the voice note. */
   function stop() {
     if (state.value !== 'recording' || !recorder) return
     try { recorder.stop() } catch { releaseMic(); state.value = 'idle' }
   }
 
-  /** Abandon a recording without transcribing it (Esc, unmount, agent switch). */
+  /** Throw the recording away (the cancel button, Esc, unmount, agent switch). */
   function cancel() {
     cancelled = true
     if (recorder && state.value === 'recording') {
       try { recorder.stop() } catch { /* ignore */ }
     }
     releaseMic()
-    try { controller?.abort() } catch { /* ignore */ }
-    controller = null
     chunks = []
     if (state.value !== 'idle') state.value = 'idle'
-  }
-
-  async function upload(blob, type) {
-    const id = agentId?.()
-    if (!id) { state.value = 'idle'; return }
-    state.value = 'transcribing'
-    controller = typeof AbortController !== 'undefined' ? new AbortController() : null
-    try {
-      const base = String(type).split(';')[0]
-      const res = await apiService.transcribeVoice(id, blob, {
-        conversationId: conversationId?.() || null,
-        filename: `recording.${EXT[base] || 'webm'}`,
-        signal: controller?.signal,
-      })
-      const text = (res?.data?.text || '').trim()
-      state.value = 'idle'
-      if (!text) { notify.info("Didn't catch that — try again."); return }
-      // AUTO-SEND, preserving whatever was already typed so a half-written message is never dropped.
-      const draft = (getDraft?.() || '').trim()
-      onTranscript?.(draft ? `${draft} ${text}` : text)
-    } catch (e) {
-      state.value = 'idle'
-      if (e?.name === 'CanceledError' || e?.code === 'ERR_CANCELED' || e?.name === 'AbortError') return
-      const data = e?.response?.data || {}
-      notify.error(data.message || data.detail || 'Transcription failed. Please try again.')
-    } finally {
-      controller = null
-    }
   }
 
   function toggle() {
@@ -229,11 +194,8 @@ export function useVoiceInput({ agentId, conversationId, onTranscript, getDraft 
   onBeforeUnmount(cancel)
 
   return {
-    // state
     supported, enabled, disabledMessage, state, elapsed, maxSeconds, info,
     recording: computed(() => state.value === 'recording'),
-    transcribing: computed(() => state.value === 'transcribing'),
-    // actions
     toggle, start, stop, cancel, explainDisabled, refresh,
   }
 }

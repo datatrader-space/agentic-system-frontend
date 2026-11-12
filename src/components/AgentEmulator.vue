@@ -64,7 +64,8 @@
                  class="max-w-[85%] px-3 py-2 rounded-2xl text-sm bg-indigo-100 text-indigo-900 whitespace-pre-wrap break-words">
               <div v-if="m.attachments && m.attachments.length" class="flex flex-wrap gap-1.5 mb-1.5">
                 <template v-for="(a, i) in m.attachments" :key="i">
-                  <img v-if="a.isImage && a.url" :src="a.url" :alt="a.name" title="Click to open preview"
+                  <VoiceNotePlayer v-if="a.isVoiceNote" :src="a.url" tone="plain" label="your voice note" />
+                  <img v-else-if="a.isImage && a.url" :src="a.url" :alt="a.name" title="Click to open preview"
                        class="max-w-[140px] max-h-[140px] rounded-lg border border-indigo-200 cursor-zoom-in"
                        @click="openEmuAttachment(a)" />
                   <a v-else-if="a.url" :href="a.url" :download="a.name" target="_blank" rel="noopener"
@@ -103,6 +104,8 @@
               <div v-if="m.content"
                    class="emu-prose text-sm text-gray-800 break-words mt-1"
                    v-html="renderMarkdown(m.content)"></div>
+              <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md). -->
+              <VoiceReply v-if="m.voiceReply" :reply="m.voiceReply" />
               <!-- Provenance footer (where the answer came from) — same as New Chat -->
               <ProvenanceFooter v-if="!m.streaming && m.answerBasis" :basis="m.answerBasis" />
               <!-- KB sources panel (clickable): cited-or-top-4 when provenance is on, else full list -->
@@ -151,19 +154,8 @@
               placeholder="Type a message…"
               class="flex-1 min-w-0 bg-transparent text-sm px-1 py-1 focus:outline-none disabled:opacity-50"
             />
-            <!-- Mic: needs an Audio-transcription model on this agent; dimmed otherwise, click explains. -->
-            <button type="button" data-test="emu-mic" @click="voice.toggle()"
-                    :class="voice.recording.value ? 'text-white bg-red-500 animate-pulse'
-                      : !voice.enabled.value ? 'text-gray-300 cursor-help'
-                      : voice.transcribing.value ? 'text-violet-600 animate-pulse'
-                      : 'text-gray-400 hover:text-violet-600 hover:bg-violet-50'"
-                    class="w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition"
-                    :aria-disabled="voice.enabled.value ? 'false' : 'true'"
-                    :title="voice.enabled.value
-                      ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
-                      : voice.disabledMessage.value">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-            </button>
+            <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why without a transcription model. -->
+            <VoiceNoteMic :agent-id="agentId" :disabled="busy" data-test="emu-mic" @voice-note="sendVoiceNote" />
           </div>
           <div class="flex items-center justify-between gap-2 mt-1.5">
             <div class="flex items-center gap-1.5">
@@ -274,7 +266,10 @@ import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { fmtTokens, fmtCost, shownCost } from '../composables/tokens'
-import { useVoiceInput } from '../composables/useVoiceInput'
+import VoiceNoteMic from './chat/VoiceNoteMic.vue'
+import VoiceNotePlayer from './chat/VoiceNotePlayer.vue'
+import VoiceReply from './chat/VoiceReply.vue'
+import { voiceReplyFromFrame } from '../utils/voiceNotes'
 import { stopReasonBadge } from '../composables/stopReason'
 import { enhanceChatMedia } from '../utils/chatMedia'
 
@@ -299,14 +294,6 @@ const inputFocused = ref(false)
 const optionsOpen = ref(false)
 const copied = ref(false)
 
-// Voice input — this agent's own Audio-transcription model transcribes, then the text is SENT through
-// the emulator's normal send() (so staged attachments upload and the socket/queue rules are identical).
-const voice = useVoiceInput({
-  agentId: () => props.agentId,
-  conversationId: () => conversationId.value,
-  getDraft: () => input.value,
-  onTranscript: (text) => { input.value = text; send() },
-})
 
 // Long pasted text becomes a .txt attachment instead of a giant inline blob (matches New Chat).
 const LONG_PASTE_CHAR_LIMIT = 8000
@@ -336,23 +323,29 @@ function pickFiles() { plusOpen.value = false; emuFileEl.value?.click() }
 // Ask-about-a-link before the first message: pre-create the emulator's conversation via REST so the URL
 // can become a conversation-scoped DocumentSource, then point the live socket at it (ChatGPT-style —
 // the test chat starts the moment you attach). The WS reuses this conversation_id on the next turn.
+async function ensureEmuConversation() {
+  if (conversationId.value) return conversationId.value
+  try {
+    const res = await api.startAgentChat(props.agentId)
+    const d = res.data || {}
+    conversationId.value = String(d.conversation_id ?? d.profile_id ?? '')
+    if (conversationId.value) {
+      saveConv()   // remember it so a refresh restores this thread
+      if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+        try { ws.value.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch { /* noop */ }
+      }
+    }
+  } catch {
+    error.value = 'Failed to start chat.'
+  }
+  return conversationId.value
+}
+
 async function openUrl() {
   if (!props.agentId || urlBusy.value) return
   if (!conversationId.value) {
     urlBusy.value = true
-    try {
-      const res = await api.startAgentChat(props.agentId)
-      const d = res.data || {}
-      conversationId.value = String(d.conversation_id ?? d.profile_id ?? '')
-      if (conversationId.value) {
-        saveConv()   // remember it so a refresh restores this thread
-        if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-          try { ws.value.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch { /* noop */ }
-        }
-      }
-    } catch {
-      error.value = 'Failed to start chat.'
-    }
+    await ensureEmuConversation()
     urlBusy.value = false
     if (!conversationId.value) return
   }
@@ -843,6 +836,25 @@ function handleEvent(raw) {
       busy.value = false
       break
     }
+    case 'voice_reply': {
+      // The spoken answer (pending → ready / failed). The first frame comes right after the answer is saved and
+      // names it; later frames find the same answer by that id.
+      if (evt.conversation_id != null && String(evt.conversation_id) !== String(conversationId.value)) break
+      let target = messages.value.find((x) => x.role === 'assistant' && x.voiceReplyFor === evt.message_id)
+      if (!target && evt.state === 'pending') {
+        target = [...messages.value].reverse().find((x) => x.role === 'assistant')
+        if (target) target.voiceReplyFor = evt.message_id
+      }
+      if (target) target.voiceReply = voiceReplyFromFrame(evt)
+      break
+    }
+    case 'voice_note_failed': {
+      const m = streamingAssistant()
+      if (m) m.streaming = false
+      error.value = evt.error || 'That voice note could not be sent. Record it again.'
+      busy.value = false
+      break
+    }
     case 'stop_acknowledged': {
       const m = streamingAssistant()
       if (m) {
@@ -871,10 +883,25 @@ async function send() {
   dispatch(text || 'Please look at the attached image.', { previews, holdDocs: docs })
 }
 
+// A recorded voice note (VoiceNoteMic): uploaded to the test chat (started now if needed) and sent as the whole
+// message; the server hears it and the agent answers in text and in a voice note (VOICE_NOTES_PLAN.md).
+async function sendVoiceNote(note) {
+  if (busy.value || !props.agentId) return
+  const cid = await ensureEmuConversation()
+  if (!cid) return
+  let attachmentId = null
+  try {
+    attachmentId = (await api.uploadConversationFile(cid, note.file))?.data?.attachment_id || null
+  } catch { attachmentId = null }
+  if (!attachmentId) { error.value = 'The voice note could not be uploaded. Record it again.'; return }
+  dispatch('', { previews: [{ name: note.name, url: note.url, mime: note.mime, isVoiceNote: true }],
+    voiceNoteId: attachmentId })
+}
+
 // Send a chat_message turn. `resume` re-sends the original instruction after a plan approval and so
 // does not add a second user bubble (the original is already shown).
-function dispatch(text, { resume = false, previews = [], holdDocs = [] } = {}) {
-  if (!text || !props.agentId) return
+function dispatch(text, { resume = false, previews = [], holdDocs = [], voiceNoteId = null } = {}) {
+  if ((!text && !voiceNoteId) || !props.agentId) return
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) connect()
 
   if (!resume) messages.value.push({ role: 'user', content: text, attachments: previews })
@@ -890,6 +917,7 @@ function dispatch(text, { resume = false, previews = [], holdDocs = [] } = {}) {
 
   const payload = { type: 'chat_message', message: text, agentId: props.agentId }
   if (conversationId.value) payload.conversation_id = conversationId.value
+  if (voiceNoteId) Object.assign(payload, { voice_note: true, attachment_ids: [voiceNoteId] })
 
   let tries = 0
   const trySend = () => {

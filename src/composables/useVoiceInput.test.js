@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 //
-// Voice input: the mic records and the AGENT'S transcription model turns it into text, server-side.
-// The behaviours pinned here are the ones that would be silently wrong in a way no one notices:
-// a mic that opens when the agent has no model, a recording that uploads after the user cancelled, a
-// transcript that overwrites what the user already typed, and a microphone track left running.
+// The mic records a VOICE NOTE (VOICE_NOTES_PLAN.md): the recording is handed back to be sent as the message, and
+// the server hears it. The behaviours pinned here are the ones that would be silently wrong in a way no one notices:
+// a mic that opens when the agent has no model, a recording sent after the person cancelled, text typed into the
+// box from a recording, and a microphone track left running.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { api, notify, confirmSpy } = vi.hoisted(() => ({
-  api: { getVoiceInput: vi.fn(), transcribeVoice: vi.fn() },
+  api: { getVoiceInput: vi.fn() },
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
   confirmSpy: vi.fn(() => Promise.resolve(true)),
 }))
@@ -59,9 +59,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 
 const make = (over = {}) => useVoiceInput({
   agentId: () => 3163,
-  conversationId: () => 'c9',
-  onTranscript: vi.fn(),
-  getDraft: () => '',
+  onVoiceNote: vi.fn(),
   ...over,
 })
 
@@ -72,7 +70,7 @@ beforeEach(() => {
   api.getVoiceInput.mockResolvedValue({
     data: { enabled: true, model_name: 'OpenAI: GPT Transcribe', max_seconds: 120, message: null },
   })
-  api.transcribeVoice.mockResolvedValue({ data: { text: 'hello there' } })
+  global.URL.createObjectURL = vi.fn(() => 'blob:voice-note')
 })
 
 afterEach(() => { vi.useRealTimers() })
@@ -113,97 +111,78 @@ describe('enablement follows the agent config', () => {
   })
 })
 
-describe('record → transcribe → auto-send', () => {
-  it('sends the transcript and releases the microphone', async () => {
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript })
+describe('record → voice note', () => {
+  it('hands back the recording as a voice note and releases the microphone', async () => {
+    const onVoiceNote = vi.fn()
+    const v = make({ onVoiceNote })
     await flush()
     await v.toggle()                 // start
     expect(v.recording.value).toBe(true)
-    await v.toggle()                 // stop
+    await v.toggle()                 // stop = send
     await flush()
-    expect(api.transcribeVoice).toHaveBeenCalledTimes(1)
-    const [agentId, blob, opts] = api.transcribeVoice.mock.calls[0]
-    expect(agentId).toBe(3163)
-    expect(blob.size).toBeGreaterThan(0)
-    expect(opts.conversationId).toBe('c9')
-    expect(opts.filename).toBe('recording.webm')
-    expect(onTranscript).toHaveBeenCalledWith('hello there')
+    expect(onVoiceNote).toHaveBeenCalledTimes(1)
+    const [note, seconds] = onVoiceNote.mock.calls[0]
+    expect(note).toMatchObject({ isVoiceNote: true, isAudio: true, isImage: false, mime: 'audio/webm',
+      name: 'voice-note.webm', url: 'blob:voice-note' })
+    expect(note.file).toBeInstanceOf(File)
+    expect(note.file.size).toBeGreaterThan(0)
+    expect(seconds).toBeGreaterThanOrEqual(0)
     expect(tracks[0].stop).toHaveBeenCalled()      // mic indicator released
     expect(v.state.value).toBe('idle')
   })
 
-  it('keeps what the user already typed, ahead of the transcript', async () => {
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript, getDraft: () => 'summarize this:' })
-    await flush()
-    await v.toggle()
-    await v.toggle()
-    await flush()
-    expect(onTranscript).toHaveBeenCalledWith('summarize this: hello there')
-  })
-
-  it('sends nothing when the transcript is empty', async () => {
-    api.transcribeVoice.mockResolvedValue({ data: { text: '   ' } })
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript })
-    await flush()
-    await v.toggle()
-    await v.toggle()
-    await flush()
-    expect(onTranscript).not.toHaveBeenCalled()
-    expect(notify.info).toHaveBeenCalled()
-  })
-
-  it('cancel discards the recording without uploading', async () => {
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript })
+  it('cancel throws the recording away', async () => {
+    const onVoiceNote = vi.fn()
+    const v = make({ onVoiceNote })
     await flush()
     await v.toggle()
     v.cancel()
     await flush()
-    expect(api.transcribeVoice).not.toHaveBeenCalled()
-    expect(onTranscript).not.toHaveBeenCalled()
+    expect(onVoiceNote).not.toHaveBeenCalled()
     expect(tracks[0].stop).toHaveBeenCalled()
     expect(v.state.value).toBe('idle')
   })
 
-  it('auto-stops at the configured limit', async () => {
+  it('an empty recording is not sent', async () => {
+    class EmptyRecorder extends FakeRecorder {
+      stop() { this.state = 'inactive'; this.onstop?.() }
+    }
+    global.MediaRecorder = EmptyRecorder
+    const onVoiceNote = vi.fn()
+    const v = make({ onVoiceNote })
+    await flush()
+    await v.toggle()
+    await v.toggle()
+    await flush()
+    expect(onVoiceNote).not.toHaveBeenCalled()
+    expect(notify.info).toHaveBeenCalled()
+  })
+
+  it('stops and sends at the configured limit', async () => {
     vi.useFakeTimers()
     api.getVoiceInput.mockResolvedValue({ data: { enabled: true, max_seconds: 5 } })
-    const v = make()
+    const onVoiceNote = vi.fn()
+    const v = make({ onVoiceNote })
     await vi.advanceTimersByTimeAsync(0)
     await v.toggle()
     expect(v.recording.value).toBe(true)
     await vi.advanceTimersByTimeAsync(5000)
     expect(recorders[0].state).toBe('inactive')
+    expect(onVoiceNote).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('failures never reach the agent', () => {
   it('reports a denied microphone and sends nothing', async () => {
     installMediaStack({ denied: true })
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript })
+    const onVoiceNote = vi.fn()
+    const v = make({ onVoiceNote })
     await flush()
     await v.toggle()
     await flush()
     expect(notify.error).toHaveBeenCalled()
     expect(String(notify.error.mock.calls[0][0])).toMatch(/microphone/i)
-    expect(api.transcribeVoice).not.toHaveBeenCalled()
-    expect(onTranscript).not.toHaveBeenCalled()
+    expect(onVoiceNote).not.toHaveBeenCalled()
     expect(v.state.value).toBe('idle')
-  })
-
-  it('surfaces the server message on a failed transcription', async () => {
-    api.transcribeVoice.mockRejectedValue({ response: { data: { message: 'Budget exceeded.' } } })
-    const onTranscript = vi.fn()
-    const v = make({ onTranscript })
-    await flush()
-    await v.toggle()
-    await v.toggle()
-    await flush()
-    expect(notify.error).toHaveBeenCalledWith('Budget exceeded.')
-    expect(onTranscript).not.toHaveBeenCalled()
   })
 })

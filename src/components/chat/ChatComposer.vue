@@ -33,20 +33,9 @@
           @focus="focused = true"
           @blur="focused = false"
         ></textarea>
-        <!-- Mic (top-right). Enabled only when this agent has an Audio-transcription model assigned;
-             otherwise it stays visibly dimmed and CLICKING IT explains why (never a dead control, so
-             no DOM `disabled` here — that would swallow the click). -->
-        <button type="button" class="mic-btn" data-test="composer-mic"
-                :class="{ live: voice.recording.value, busy: voice.transcribing.value, off: !voice.enabled.value }"
-                :aria-disabled="voice.enabled.value ? 'false' : 'true'"
-                :title="voice.enabled.value
-                  ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
-                  : voice.disabledMessage.value"
-                aria-label="Voice input"
-                @click="voice.toggle()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-          <span v-if="voice.recording.value" class="mic-timer">{{ voice.elapsed.value }}s</span>
-        </button>
+        <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why when the agent has no
+             transcription model. -->
+        <VoiceNoteMic :agent-id="agentId" data-test="composer-mic" @voice-note="(n) => emit('voice-note', n)" />
       </div>
 
       <!-- Bottom toolbar: "+" attach menu + mode pill (left), send/stop (right) -->
@@ -239,7 +228,7 @@ import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AgentSwitcher from './AgentSwitcher.vue'
 import TurnModeSwitch from './TurnModeSwitch.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
-import { useVoiceInput } from '../../composables/useVoiceInput'
+import VoiceNoteMic from './VoiceNoteMic.vue'
 import { notify } from '../../composables/useNotify'
 import { useComposerAttachments } from '../../composables/useComposerAttachments'
 import AttachmentStrip from './AttachmentStrip.vue'
@@ -360,7 +349,7 @@ const props = defineProps({
   // SHARED system-owned agent (built-in / Platform Super Agent) → model pill instead of the mode pill.
   isSharedAgent: { type: Boolean, default: false },
 })
-const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change'])
+const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change', 'voice-note'])
 
 const draft = ref('')
 const inputEl = ref(null)
@@ -375,20 +364,6 @@ const pShow = (keywords) => {
   return !q || keywords.toLowerCase().includes(q)
 }
 const urlOpen = ref(false)
-
-// Voice input: the agent's own Audio-transcription model does the work server-side, and the transcript
-// is SENT immediately through the same path as the Send button (`onSubmit`), so attachments, streaming
-// state and the queue rules are identical to a typed message. Anything already typed is kept — the
-// composable folds the draft into the text it hands back.
-const voice = useVoiceInput({
-  agentId: () => props.agentId,
-  conversationId: () => props.conversationId,
-  getDraft: () => draft.value,
-  onTranscript: (text) => {
-    draft.value = text
-    nextTick(() => { autoGrow(); onSubmit() })
-  },
-})
 
 // ── "+" menu open/close (toggle · outside-click · Escape) ──
 const closeMenu = () => { menuOpen.value = false; urlOpen.value = false; plusQuery.value = '' }
@@ -700,21 +675,7 @@ const onKeydown = (e) => {
   animation: plus-in .12s var(--vm-ease);
 }
 
-.mic-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex-shrink: 0;
-  background: transparent; border: none; border-radius: 9999px;
-  color: var(--vm-ink-faint); cursor: pointer; transition: .15s var(--vm-ease);
-}
-.mic-btn:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.mic-btn.live { color: #fff; background: #ef4444; animation: micpulse 1.3s ease-in-out infinite; }
 /* No transcription model on the agent: dimmed, but still clickable so the click can explain why. */
-.mic-btn.off { color: #cbd5e1; cursor: help; }
-.mic-btn.off:hover { color: var(--vm-ink-faint); background: transparent; }
-.mic-btn.busy { color: var(--vm-violet); animation: micpulse 1s linear infinite; }
-.mic-timer { margin-left: 4px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
-.mic-btn svg { width: 16px; height: 16px; }
-@keyframes micpulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
 
 .file-hidden { display: none; }
 
