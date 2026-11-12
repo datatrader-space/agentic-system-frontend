@@ -230,7 +230,7 @@ function moveChoice(event, name, options) {
 
     <UiDialog :open="!!confirming" :title="confirming ? `Add ${confirming.name}?` : ''" @close="cancelAdd">
       <template v-if="confirming">
-        <p class="dialog-description">Adding it fetches its files into AADML's ML account and keeps them for this workspace. It is charged to your balance.</p>
+        <p class="dialog-description">Adding it fetches its files into AADML's storage and keeps them for this workspace. It is charged to your balance.</p>
         <p v-if="quoting" class="muted" role="status"><span class="om-spinner" aria-hidden="true"></span> Reading what it costs…</p>
         <p v-else-if="quoteError" class="field-error" role="alert">{{ quoteError }}</p>
         <template v-else-if="quote">
