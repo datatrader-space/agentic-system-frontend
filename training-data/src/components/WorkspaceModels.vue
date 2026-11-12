@@ -83,10 +83,13 @@ const file = ref(null); const photoUrl = ref(''); const answer = ref(null); cons
 // started, then it answers. Each photo is charged by the second (state.price).
 const onPlatform = computed(() => (state.value?.served || trying.value?.served) === 'platform');
 const steps = computed(() => trySteps(state.value).filter(step => !onPlatform.value || step.key !== 'preparing'));
+let pollFailed = false;
 async function loadState() {
   const key = trying.value?.key;
   if (!key) return;
-  try { const now = await publishedApi.state(key); if (trying.value?.key === key) state.value = now; } catch (e) { tryError.value = e.message; }
+  // A failed read of where it stands is said until a later read answers, then cleared: the panel follows the state
+  // every few seconds, and one read lost while AADML restarts must not stay on it for the whole try (live, 2026-11-12).
+  try { const now = await publishedApi.state(key); if (trying.value?.key === key) { state.value = now; if (pollFailed) { tryError.value = ''; pollFailed = false; } } } catch (e) { tryError.value = e.message; pollFailed = true; }
 }
 // While it is being made ready or its test server starts, it is asked about again 3 s after each answer.
 let timer = null; let alive = true;
@@ -306,7 +309,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&state?.machine">{{ trying.name }} finds the walls, windows and doors of your photo on {{ state.machine.name }}, your own machine. Each photo is charged by the second it takes<template v-if="state.price">, {{ state.price }}</template>.</p><p v-else-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -326,11 +329,11 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
-              <p v-if="ready&&onPlatform&&held" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>No GPU was running, so one is starting for your photo (a few minutes). The photo is sent as soon as it is up; nothing is charged until it is answered.</p>
+              <p v-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text || 'the platform fee for your machine' }}, charged by the second it runs. Each photo you try goes to {{ state.machine.name }} and is not kept. It is yours alone, and stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
+              <p v-else-if="ready&&onPlatform&&held" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>No GPU was running, so one is starting for your photo (a few minutes). The photo is sent as soon as it is up; nothing is charged until it is answered.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='waking'" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>Its GPU is starting; this takes a few minutes.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
-              <p v-else-if="ready&&state.machine" class="muted">{{ state.machine.label }}: {{ state.machine.price_text || 'the platform fee for your machine' }}, charged by the second it runs. Each photo you try goes to {{ state.machine.name }} and is not kept. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried; it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
               <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>

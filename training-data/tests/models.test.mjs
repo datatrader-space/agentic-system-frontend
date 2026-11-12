@@ -152,3 +152,26 @@ test('the run and evaluation views offer a log only when the attempt has one, an
     assert.ok(!/(^|[^\w.])(confirm|alert|prompt)\(/m.test(page), `${name}: no native dialog`);
   }
 });
+
+// Live, 2026-11-12, SAM 3 on the owner's own machine: the panel said "on AADML's GPU server" and "Its GPU is running. It
+// is shared…", and the answer "on its test server". A try on the person's machine names that machine.
+test('a try on the person\'s own machine says that machine, never AADML\'s shared GPU', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const page = await readFile(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
+  const machineReady = page.indexOf('<p v-if="ready&&state.machine" class="muted">');
+  const sharedReady = page.indexOf('Its GPU is running. It is shared');
+  assert.ok(machineReady > 0, 'the machine\'s ready line opens the chain');
+  assert.ok(sharedReady > machineReady, 'the shared GPU\'s words come only after the machine\'s line');
+  assert.match(page, /your photo on \{\{ state\.machine\.name \}\}, your own machine/);
+  assert.doesNotMatch(page.slice(machineReady, page.indexOf('</p>', machineReady)), /photos_tried/);
+  const result = await readFile(new URL('../src/components/PredictionResult.vue', import.meta.url), 'utf8');
+  assert.match(result, /answer\.served_by==='machine' \? `on \$\{answer\.served_on \|\| 'your machine'\}`/);
+});
+
+test('a read of the Try state that failed once is cleared by the next read that answers', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const page = await readFile(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
+  const load = page.slice(page.indexOf('async function loadState() {'), page.indexOf('function follow()'));
+  assert.match(load, /if \(pollFailed\) \{ tryError\.value = ''; pollFailed = false; \}/);
+  assert.match(load, /catch \(e\) \{ tryError\.value = e\.message; pollFailed = true; \}/);
+});

@@ -40,6 +40,11 @@ test('failures carry the status and only the server short message', async () => 
   await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('Traceback secret', 500, 'text/plain') }),
     e => e.code === 'server' && !e.message.includes('secret'));
   await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('<html>login</html>', 200, 'text/html') }), { code: 'format' });
+  // A gateway's page while AADML restarts (502/504, not JSON): "did not answer", never "refused"; its body never shown.
+  await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('<html>502 Bad Gateway</html>', 502, 'text/html') }),
+    e => e.code === 'server' && e.status === 502 && e.message === 'AADML did not answer just now. Try again in a moment.');
+  await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('<html>no</html>', 404, 'text/html') }),
+    e => e.message === 'The request was refused.');
   await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => { throw new TypeError('redirect'); } }), { code: 'network' });
 });
 

@@ -70,7 +70,10 @@ export async function apiFetch(path, { method = 'GET', body, fetchImpl = fetch, 
     // AADML's other APIs (Video Studio's Library) answer {"error": {"code", "message", "field"}}: read that shape too.
     const nested = data?.error && typeof data.error === 'object' ? data.error : null;
     const message = typeof data?.error === 'string' ? data.error : typeof nested?.message === 'string' ? nested.message
-      : typeof data?.detail === 'string' ? data.detail : 'The request was refused.';
+      : typeof data?.detail === 'string' ? data.detail
+      // A 5xx with no message of AADML's own is a gateway's page (502/504 while AADML restarts): nothing was refused
+      // (live, 2026-11-12: "The request was refused." stayed on a Try panel whose model went on downloading).
+      : response.status >= 500 ? 'AADML did not answer just now. Try again in a moment.' : 'The request was refused.';
     const refused = new ApiError(response.status, response.status === 401 ? 'auth' : response.status === 403 ? 'forbidden' : 'server', message.slice(0, 300), data?.field ?? nested?.field);
     // The server's own code for what happened (e.g. 'starting' when a GPU is being started for the call), kept apart
     // from ``code``, which says only how the request failed.
