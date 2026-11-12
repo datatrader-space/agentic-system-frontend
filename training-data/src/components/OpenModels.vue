@@ -158,6 +158,9 @@ function moveChoice(event, name, options) {
           <div class="om-added-actions">
             <div class="om-row-manage">
               <a class="button" :href="hubLink(m.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${m.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/>Hugging Face</a>
+              <!-- A failed fetch is fetched again from its row (live, 2026-11-12: Remove was the only way out, then Add again). The
+                   same dialog as Add: its price first; the backend pins it anew (open_models.add). -->
+              <UiButton v-if="mayAdd && m.state==='failed'" variant="primary" :disabled="adding===m.repo" @click="askAdd(m)"><RefreshCw :size="14" aria-hidden="true"/>{{ adding===m.repo ? 'Fetching…' : 'Fetch again' }}</UiButton>
               <UiButton v-if="mayAdd" :disabled="m.state==='fetching'" :title="m.state==='fetching' ? 'It can be removed once its fetch has ended.' : ''" @click="askRemove(m)"><Trash2 :size="14" aria-hidden="true"/>Remove</UiButton>
             </div>
             <div class="om-row-use">

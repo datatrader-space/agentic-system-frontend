@@ -214,3 +214,10 @@ test('Add opens the app\'s own dialog with the backend\'s numbers, and the works
   assert.match(page, /is charged by the second it takes<template v-if="state\?\.price">, \{\{ state\.price \}\}<\/template>\./);
   assert.equal(/by the second it takes<template v-if="state\?\.price"> \(/.test(page), false);
 });
+
+// Live, 2026-11-12: a model whose fetch failed (RunPod had no machine free) could only be removed and added again.
+test('an added model whose fetch failed offers Fetch again, through the same priced dialog as Add', () => {
+  const page = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
+  assert.match(page, /v-if="mayAdd && m\.state==='failed'"[^>]*@click="askAdd\(m\)"/);
+  assert.match(page, /'Fetch again'/);
+});
