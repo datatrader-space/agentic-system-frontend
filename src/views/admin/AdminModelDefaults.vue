@@ -42,7 +42,7 @@
       <div v-if="row.slot === 'audio_model'" class="md-row" data-test="default-audio-voice">
         <div class="md-what">
           <label class="md-label" for="md-voice">Reply voice</label>
-          <span class="md-hint">The voice an agent answers a voice note in. No voice: answers are text only.</span>
+          <span class="md-hint">The voice an agent answers a voice note in. No voice: voice notes are answered in text only.</span>
         </div>
         <div class="md-pick">
           <p v-if="(draft.audio_model ?? null) !== (saved.audio_model ?? null)" class="md-hint md-voice-note">
