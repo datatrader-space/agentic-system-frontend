@@ -10,6 +10,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 const chat = reactive({
   messages: [], hitlRequests: [], isBusy: false, connectionLost: false, conversationId: null,
   repoId: 0, newChatRepoId: null, selectedAgentId: '7', surfaceHandler: null, todos: [],
+  parkedRuns: {}, parkedFrameHandler: null,
   reset: vi.fn(function () { chat.messages = [] }), setAgent: vi.fn((id) => { chat.selectedAgentId = id }),
   sendMessage: vi.fn(() => Promise.resolve(true)), sendRaw: vi.fn(), stop: vi.fn(), openConversation: vi.fn(),
   respondHitl: vi.fn(), dismissHitl: vi.fn(), skipHitl: vi.fn(),
@@ -393,5 +394,102 @@ describe('UnifiedAgentChat: @ mentions and the selection reach the agent as code
       path: 'app/views.py', start_line: 10, end_line: 24, text: 'def index(request):' } } })
     expect(w.find('[data-test="uac-selection"]').exists()).toBe(false)
     w.unmount()
+  })
+})
+
+describe('UnifiedAgentChat: one tab per chat, several running at once (ADM-1221)', () => {
+  const open = async () => (await import('@/services/api')).default
+
+  beforeEach(() => {
+    chat.conversationId = null; chat.isBusy = false; chat.parkedRuns = {}; chat.parkedFrameHandler = null
+    chat.openConversation = vi.fn(async (id) => { chat.conversationId = String(id) })
+    try { localStorage.clear() } catch { /* no storage */ }
+  })
+
+  it('New chat opens a new tab and never stops the chat that is running', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88, title: 'Add the cart' }] })
+    const w = await mountChat()
+    chat.isBusy = true
+    await w.find('[data-test="uac-new-chat"]').trigger('click')
+    await flushPromises()
+    expect(chat.stop).not.toHaveBeenCalled()
+    expect(chat.reset).toHaveBeenCalled()
+    const tabs = w.findAll('[data-test="uac-tab"]')
+    expect(tabs).toHaveLength(2)
+    expect(tabs[0].text()).toContain('Add the cart')
+    w.unmount()
+  })
+
+  it('a tab opens its chat, and a chat from Chat history gets a tab of its own', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValue({ data: [{ id: 88, title: 'Add the cart' }, { id: 70, title: 'Fix the footer' }] })
+    const w = await mountChat()
+    expect(chat.openConversation).toHaveBeenCalledWith(88)
+    await w.find('button[aria-label="Chat history"]').trigger('click')
+    await flushPromises()
+    const item = w.findAll('.uac-hitem').find((b) => b.text().includes('Fix the footer'))
+    await item.trigger('click')
+    await flushPromises()
+    expect(chat.openConversation).toHaveBeenLastCalledWith(70)
+    const titles = w.findAll('[data-test="uac-tab"]').map((t) => t.text())
+    expect(titles.join('|')).toContain('Add the cart')
+    expect(titles.join('|')).toContain('Fix the footer')
+    await w.findAll('[role="tab"]')[0].trigger('click')
+    await flushPromises()
+    expect(chat.openConversation).toHaveBeenLastCalledWith('88')
+    api.getConversations.mockReset()
+    api.getConversations.mockImplementation(() => Promise.resolve({ data: [] }))
+    w.unmount()
+  })
+
+  it("a chat running in the background shows its state on its tab", async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88, title: 'Add the cart' }, { id: 70, title: 'Fix the footer' }] })
+    localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '88'], active: '88' }))
+    const w = await mountChat()
+    chat.parkedRuns = { 70: 'needs_input' }
+    await flushPromises()
+    const dot = w.findAll('[data-test="uac-tab"]')[0].find('.uac-tab-dot')
+    expect(dot.classes()).toContain('needs_input')
+    expect(dot.attributes('aria-label')).toBe('Needs your answer')
+    w.unmount()
+  })
+
+  it('the tabs a project had open are opened again, on the one that was active', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }, { id: 60 }] })
+    localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '60', '999'], active: '60' }))
+    const w = await mountChat()
+    expect(chat.openConversation).toHaveBeenCalledWith('60')
+    expect(w.findAll('[data-test="uac-tab"]')).toHaveLength(2)          // 999 is no longer in its history
+    const selected = w.findAll('[role="tab"]').filter((t) => t.attributes('aria-selected') === 'true')
+    expect(selected).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('closing a tab never stops its chat; the arrow keys move between tabs', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }] })
+    localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '88'], active: '88' }))
+    const w = await mountChat()
+    await w.find('[role="tablist"]').trigger('keydown', { key: 'ArrowLeft' })
+    await flushPromises()
+    expect(chat.openConversation).toHaveBeenLastCalledWith('70')
+    chat.isBusy = true
+    await w.findAll('[data-test="uac-tab-close"]')[0].trigger('click')
+    await flushPromises()
+    expect(chat.stop).not.toHaveBeenCalled()
+    expect(w.findAll('[data-test="uac-tab"]')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it("a background chat's changed files reload the project's files, as this one's do", async () => {
+    const w = await mountChat()
+    expect(typeof chat.parkedFrameHandler).toBe('function')
+    chat.parkedFrameHandler('70', { type: 'lets_code_changes', files: [] })
+    expect(w.emitted('changes')).toBeTruthy()
+    w.unmount()
+    expect(chat.parkedFrameHandler).toBe(null)
   })
 })

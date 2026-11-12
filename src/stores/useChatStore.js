@@ -260,6 +260,14 @@ export const useChatStore = defineStore('chat', {
     error: '',
 
     _conn: null,
+    // A chat the page LEFT while its turn was running keeps its own socket, so the turn keeps its connection and
+    // runs to the end (closing a turn's socket starts the server's 15-minute stop; ADM-1221). conversationId ->
+    // the ChatConnection. Opening that chat again takes the socket back; the turn's end closes it.
+    _parked: {},
+    // What each such chat is doing, for the tabs that show it: 'working' | 'needs_input' | 'done' | 'failed'.
+    parkedRuns: {},
+    // A surface's hook for the frames of a chat it left (Let's Code: the files a background turn changed).
+    parkedFrameHandler: null,
     _assistantId: null,
     _planResumeSentAt: 0,   // when this page last sent the turn that carries out an approved plan
     newChatProjectId: null, // the project a NEW chat is started in (?project= on /dashboard/chat/new)
@@ -648,7 +656,10 @@ export const useChatStore = defineStore('chat', {
     // ---- Conversation lifecycle ----
     reset() {
       // "New chat" stays on the SAME repo endpoint — keep the socket, just clear state and detach the
-      // conversation (the first message creates a new one and conversation_created sets the id).
+      // conversation (the first message creates a new one and conversation_created sets the id). A turn still
+      // running is never stopped by it: its chat keeps its socket and runs on (_parkIfBusy), and the new chat
+      // gets a socket of its own, since one socket runs one turn at a time.
+      this._parkIfBusy()
       this._clearTurnState()
       this.messages = []
       this.conversationId = null
@@ -826,6 +837,19 @@ export const useChatStore = defineStore('chat', {
       const sameId = String(this.conversationId) === String(id)
       if (sameId && String(this._loadingConversationId) === String(id)) return
       if (sameId && String(this._loadFailedConversationId) !== String(id) && (this.messages.length || this._conn)) return
+      // A chat left while its turn ran: take its socket back, so its live stream reaches this view (the server
+      // sends a turn's frames to the socket that runs it). The chat on screen keeps running on its own socket if
+      // it is busy, or its idle socket closes. A busy chat left for any other chat keeps running the same way.
+      const _parked = this._parked[String(id)]
+      if (_parked) {
+        if (!this._parkIfBusy()) this._teardown(false)
+        this._unpark(String(id), false)
+        _parked.handlers = this._connectionHandlers()
+        this._conn = _parked
+      } else {
+        this._parkIfBusy()
+      }
+      this._clearParkedRun(String(id))
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
       this._loadingConversationId = String(id)
@@ -869,6 +893,8 @@ export const useChatStore = defineStore('chat', {
           this.ensureAgent(agentPk)   // not awaited: the history renders now, the agent's name follows
         }
         this._connect()
+        // The socket taken back still points at this chat, so connecting asks nothing: ask whether its turn runs.
+        if (_parked && this._conn === _parked) this._conn.sendIfOpen({ type: 'resume', conversation_id: String(id) })
       } catch {
         if (String(this.conversationId) !== String(id)) return
         this._loadFailedConversationId = String(id)
@@ -1393,6 +1419,64 @@ export const useChatStore = defineStore('chat', {
     },
 
     // ---- Connection + streaming internals ----
+    // Leave the chat on screen while its turn runs: its socket stays open with its own small handler (the turn's
+    // end closes it), and this view gets a fresh socket for the next chat. False when nothing was running.
+    _parkIfBusy() {
+      const id = this.conversationId ? String(this.conversationId) : ''
+      const conn = this._conn
+      if (!id || !conn || !this.isBusy) return false
+      this._stopProgressPolling()
+      conn.handlers = this._parkedHandlers(id)
+      this._parked = { ...this._parked, [id]: conn }
+      this._setParkedRun(id, 'working')
+      this._conn = null
+      // Its approval cards come back when the chat is opened again (the server re-sends pending ones on resume).
+      this.hitlRequests = []
+      this._workRunActive = false
+      this._taskRunActive = false
+      return true
+    },
+
+    _parkedHandlers(id) {
+      const noop = () => {}
+      return { onEvent: (msg) => this._onParkedEvent(id, msg), onOpen: noop, onError: noop, onConnectionState: noop,
+               onClose: noop }
+    },
+
+    _onParkedEvent(id, msg) {
+      const t = msg && msg.type
+      try { if (this.parkedFrameHandler) this.parkedFrameHandler(id, msg) } catch { /* a surface's hook never breaks a run */ }
+      // An approval card or a permission ask: the chat waits for the person.
+      if ((t === 'hitl_request' || t === 'permission_request')
+          && (!msg.conversation_id || String(msg.conversation_id) === id)) this._setParkedRun(id, 'needs_input')
+      // The turn ended (sent to every socket of the person, so it names its chat): its socket is no longer needed.
+      if (t === 'run_finished' && String(msg.conversation_id || '') === id) {
+        this._setParkedRun(id, (msg.status || 'completed') === 'error' ? 'failed' : 'done')
+        this._unpark(id, true)
+      }
+    },
+
+    _setParkedRun(id, state) {
+      this.parkedRuns = { ...this.parkedRuns, [id]: state }
+    },
+
+    _clearParkedRun(id) {
+      if (!(id in this.parkedRuns)) return
+      const next = { ...this.parkedRuns }
+      delete next[id]
+      this.parkedRuns = next
+    },
+
+    _unpark(id, close) {
+      const conn = this._parked[id]
+      if (!conn) return null
+      const next = { ...this._parked }
+      delete next[id]
+      this._parked = next
+      if (close) { try { conn.close() } catch { /* already closed */ } }
+      return conn
+    },
+
     _connectionHandlers() {
       return {
         onEvent: (msg) => this._onEvent(msg),

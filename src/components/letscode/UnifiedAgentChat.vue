@@ -31,13 +31,34 @@
             </template>
           </div>
         </div>
-        <button type="button" class="uac-hbtn" title="New chat" aria-label="New chat" @click="newChat">
-          <Icon icon="lucide:square-pen" />
-        </button>
       </div>
     </div>
 
-    <div ref="scrollEl" class="uac-stream" role="log" aria-label="Coding agent conversation" aria-live="polite" aria-relevant="additions">
+    <!-- One tab per chat on this project (ADM-1221): several tasks run at once, each on its own socket. Leaving a tab
+         never stops its run; its dot says whether it is working, waiting for you, done or failed. -->
+    <div class="uac-tabs" data-test="uac-tabs">
+      <div ref="tabListEl" class="uac-tablist" role="tablist" aria-label="Chats on this project" @keydown="onTabKey">
+        <div v-for="t in tabs" :key="t.key" class="uac-tab" :class="{ active: isActiveTab(t) }" data-test="uac-tab">
+          <button
+            :id="`uac-tab-${t.key}`" type="button" role="tab" class="uac-tab-main"
+            :aria-selected="isActiveTab(t) ? 'true' : 'false'" aria-controls="uac-panel"
+            :tabindex="isActiveTab(t) ? 0 : -1" :title="tabTitle(t)" @click="selectTab(t)"
+          >
+            <span class="uac-tab-dot" :class="tabState(t)" :aria-label="tabStateLabel(t)" role="img"></span>
+            <span class="uac-tab-t">{{ tabTitle(t) }}</span>
+          </button>
+          <button type="button" class="uac-tab-x" :aria-label="`Close ${tabTitle(t)}`" title="Close tab (the chat stays in Chat history)"
+                  tabindex="-1" data-test="uac-tab-close" @click.stop="closeTab(t)">
+            <Icon icon="lucide:x" />
+          </button>
+        </div>
+      </div>
+      <button type="button" class="uac-tab-new" title="New chat" aria-label="New chat" data-test="uac-new-chat" @click="newChat">
+        <Icon icon="lucide:plus" />
+      </button>
+    </div>
+
+    <div id="uac-panel" ref="scrollEl" class="uac-stream" role="log" aria-label="Coding agent conversation" aria-live="polite" aria-relevant="additions">
       <div v-if="!chat.messages.length" class="uac-empty">
         <Icon icon="lucide:sparkles" aria-hidden="true" />
         <p>Describe a change or ask about the code. The agent reads, edits and runs it in the project's sandbox. Review its changes in Source control, then commit, push or discard them.</p>
@@ -391,18 +412,109 @@ function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send() }
 }
 
+// ── Tabs (ADM-1221): one per chat. A tab without an id is a new chat not sent yet; its first message gives it one. ──
+const tabs = ref([])
+const tabListEl = ref(null)
+let tabSeq = 0
+const TABS_KEY = () => `aadml.lc.tabs.${props.repoId}`
+const titles = ref({})                    // conversation id -> its title, from Chat history
+
+function newTab(id = null) { return { key: id ? `c${id}` : `n${++tabSeq}`, id: id ? String(id) : null } }
+function isActiveTab(t) { return t.id ? String(t.id) === String(chat.conversationId || '') : !chat.conversationId }
+function activeTab() { return tabs.value.find(isActiveTab) || null }
+function tabTitle(t) {
+  if (isActiveTab(t)) {
+    const first = chat.messages.find((m) => m.role === 'user' && (m.content || '').trim())
+    if (first) return first.content.trim().slice(0, 60)
+  }
+  if (t.id && titles.value[t.id]) return titles.value[t.id]
+  return t.id ? 'Chat' : 'New chat'
+}
+function tabState(t) {
+  if (isActiveTab(t)) {
+    if (chat.hitlRequests.length || permissionRequests.value.length) return 'needs_input'
+    return chat.isBusy ? 'working' : 'idle'
+  }
+  return (t.id && (chat.parkedRuns || {})[t.id]) || 'idle'
+}
+const STATE_WORDS = { working: 'Working', needs_input: 'Needs your answer', done: 'Finished', failed: 'Failed', idle: 'Idle' }
+function tabStateLabel(t) { return STATE_WORDS[tabState(t)] || 'Idle' }
+function saveTabs() {
+  try {
+    localStorage.setItem(TABS_KEY(), JSON.stringify({ ids: tabs.value.filter((t) => t.id).map((t) => t.id),
+                                                       active: chat.conversationId || null }))
+  } catch { /* private window: the tabs are not remembered */ }
+}
+function readSavedTabs() {
+  try { return JSON.parse(localStorage.getItem(TABS_KEY()) || 'null') } catch { return null }
+}
+// The first message of a new tab gives it its conversation id.
+watch(() => chat.conversationId, (id) => {
+  if (!id) return
+  const sid = String(id)
+  if (!tabs.value.some((t) => t.id === sid)) {
+    const fresh = tabs.value.find((t) => !t.id)
+    if (fresh) { fresh.id = sid; fresh.key = `c${sid}` } else tabs.value.push(newTab(sid))
+  }
+  saveTabs()
+})
+
+async function selectTab(t) {
+  if (isActiveTab(t)) return
+  resumeCancelled = true
+  historyOpen.value = false
+  if (t.id) await openConversation({ id: t.id })
+  else chat.reset()                       // a running chat is never stopped: it keeps its socket (the store parks it)
+  saveTabs()
+  nextTick(() => document.getElementById(`uac-tab-${t.key}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
+}
 function newChat() {
   resumeCancelled = true                 // a New chat pressed while the last one loads is not overridden
-  if (chat.isBusy) chat.stop()
-  chat.reset()
+  let t = tabs.value.find((x) => !x.id)
+  if (!t) { t = newTab(); tabs.value.push(t) }
+  chat.reset()                            // never stops the chat on screen: a running one keeps going in its tab
   historyOpen.value = false
-  nextTick(() => inputEl.value && inputEl.value.focus())
+  saveTabs()
+  nextTick(() => {
+    document.getElementById(`uac-tab-${t.key}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    inputEl.value && inputEl.value.focus()
+  })
+}
+async function closeTab(t) {
+  const i = tabs.value.indexOf(t)
+  if (i < 0) return
+  const wasActive = isActiveTab(t)
+  tabs.value.splice(i, 1)
+  if (!tabs.value.length) tabs.value.push(newTab())
+  if (wasActive) await selectTab(tabs.value[Math.min(i, tabs.value.length - 1)])
+  saveTabs()
+}
+// Arrow keys move between tabs, Home and End jump to the ends (the WAI-ARIA tabs pattern).
+function onTabKey(e) {
+  const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End']
+  if (!keys.includes(e.key) || !tabs.value.length) return
+  e.preventDefault()
+  const cur = Math.max(0, tabs.value.findIndex(isActiveTab))
+  const n = tabs.value.length
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (cur + (e.key === 'ArrowRight' ? 1 : -1) + n) % n
+  const t = tabs.value[next]
+  selectTab(t).then(() => nextTick(() => document.getElementById(`uac-tab-${t.key}`)?.focus()))
+}
+// A chat left running reports the files its turn changed, so the tree and Source control reload as for this one.
+function onParkedFrame(_id, d) {
+  if (d && d.type === 'lets_code_changes') emit('changes')
+}
+function rememberTitles(list) {
+  const next = { ...titles.value }
+  for (const c of list || []) next[String(c.id)] = convTitle(c)
+  titles.value = next
 }
 async function loadHistory() {
   loadingHistory.value = true
   try {
     const { data } = await api.getConversations({ repository: props.repoId })
     conversations.value = data?.results || data || []
+    rememberTitles(conversations.value)
   } catch (e) { conversations.value = [] }
   finally { loadingHistory.value = false }
 }
@@ -412,6 +524,9 @@ function toggleHistory() {
 }
 async function openConversation(c) {
   historyOpen.value = false
+  // A chat opened from Chat history gets a tab of its own (or its open tab is shown).
+  if (!tabs.value.some((t) => t.id === String(c.id))) tabs.value.push(newTab(c.id))
+  if (c.title || c.last_message) rememberTitles([c])
   if (String(c.id) === String(chat.conversationId)) return
   await chat.openConversation(c.id)
   chat.repoId = Number(props.repoId)                     // a chat of this project stays on this project's socket
@@ -455,12 +570,27 @@ function openPreview(c) {
 // chats (the server lists only the person's own, newest first) is opened, never over a chat already begun here:
 // nothing typed, nothing sent, no conversation open. New chat and the history menu work as before.
 let resumeCancelled = false
+// With tabs: the tabs this project had open are opened again (those still in its history), on the one that was
+// active; with none remembered, the newest chat, as before.
 async function resumeLastChat() {
   try {
     const { data } = await api.getConversations({ repository: props.repoId })
-    const latest = (data?.results || data || [])[0]
-    if (!latest || resumeCancelled) return
+    const list = data?.results || data || []
+    rememberTitles(list)
+    if (resumeCancelled) return
     if (chat.conversationId || chat.isBusy || chat.messages.length || input.value.trim()) return
+    const known = new Set(list.map((c) => String(c.id)))
+    const saved = readSavedTabs()
+    const ids = ((saved && saved.ids) || []).map(String).filter((id) => known.has(id))
+    if (ids.length) {
+      tabs.value = ids.map((id) => newTab(id))
+      const active = saved.active && ids.includes(String(saved.active)) ? String(saved.active) : ids[ids.length - 1]
+      await openConversation({ id: active })
+      return
+    }
+    const latest = list[0]
+    if (!latest) return
+    tabs.value = [newTab(latest.id)]
     await openConversation(latest)
   } catch { /* the blank chat stays: nothing was lost */ }
 }
@@ -481,12 +611,15 @@ onMounted(() => {
   chat.repoId = Number(props.repoId)
   chat.newChatRepoId = Number(props.repoId)
   chat.surfaceHandler = onProjectFrame
+  chat.parkedFrameHandler = onParkedFrame
+  tabs.value = [newTab()]
   loadAgent()
   resumeLastChat()
 })
 onBeforeUnmount(() => {
   resumeCancelled = true
   if (chat.surfaceHandler === onProjectFrame) chat.surfaceHandler = null
+  if (chat.parkedFrameHandler === onParkedFrame) chat.parkedFrameHandler = null
   chat.newChatRepoId = null
   chat.reset()
   // Give the main chat back what it had: its own socket endpoint and agent.
@@ -527,6 +660,32 @@ defineExpose({ send, addSelection })
 .uac-hitem.active { background: var(--vm-violet-soft); }
 .uac-hitem-title { font: 600 13px var(--vm-font-sans); color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uac-hitem-meta { font-size: 11.5px; color: var(--vm-ink-faint); }
+
+/* ── Tabs: one per chat on the project (ADM-1221) ── */
+.uac-tabs { flex: 0 0 auto; display: flex; align-items: stretch; gap: 2px; padding: 0 6px; border-bottom: 1px solid var(--vm-line); background: var(--vm-surface); }
+.uac-tablist { flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: 2px; overflow-x: auto; scrollbar-width: thin; }
+.uac-tab { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 180px; border-bottom: 2px solid transparent; color: var(--vm-ink-soft); transition: color .15s, border-color .15s; }
+.uac-tab:hover { color: var(--vm-ink); }
+.uac-tab.active { color: var(--vm-ink); border-bottom-color: var(--vm-violet); }
+.uac-tab-main { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 32px; padding: 0 2px 0 8px; border: none; background: transparent; color: inherit; font: 600 12.5px var(--vm-font-sans); cursor: pointer; }
+.uac-tab-main:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: -2px; border-radius: 6px; }
+.uac-tab-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uac-tab-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--vm-line-2); }
+.uac-tab-dot.working { background: var(--vm-violet); animation: uacpulse 1.4s ease-in-out infinite; }
+.uac-tab-dot.needs_input { background: var(--vm-amber); }
+.uac-tab-dot.done { background: var(--vm-green); }
+.uac-tab-dot.failed { background: var(--vm-danger); }
+@keyframes uacpulse { 50% { opacity: .35; } }
+.uac-tab-x { flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 2px; border: none; border-radius: 5px; background: transparent; color: var(--vm-ink-faint); cursor: pointer; opacity: 0; transition: opacity .15s, background-color .15s, color .15s; }
+.uac-tab:hover .uac-tab-x, .uac-tab.active .uac-tab-x, .uac-tab-x:focus-visible { opacity: 1; }
+.uac-tab-x:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.uac-tab-x:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 0; }
+.uac-tab-x :deep(svg) { width: 13px; height: 13px; }
+.uac-tab-new { flex: 0 0 auto; align-self: center; display: grid; place-items: center; width: 28px; height: 28px; border: none; border-radius: 7px; background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: background-color .15s, color .15s; }
+.uac-tab-new:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.uac-tab-new:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 1px; }
+.uac-tab-new :deep(svg) { width: 15px; height: 15px; }
+@media (pointer: coarse) { .uac-tab-x { opacity: 1; width: 32px; height: 32px; } .uac-tab-new { width: 44px; height: 44px; } .uac-tab-main { min-height: 44px; } }
 
 /* ── The conversation: the shared transcript, fitted to this narrow side panel (as Video Studio does) ── */
 .uac-stream { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
@@ -636,6 +795,6 @@ defineExpose({ send, addSelection })
   .uac-box-top textarea { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .uac-mic.live, .uac-mic.busy, .uac-restore-btn .spin { animation: none; }
+  .uac-mic.live, .uac-mic.busy, .uac-restore-btn .spin, .uac-tab-dot.working { animation: none; }
 }
 </style>
