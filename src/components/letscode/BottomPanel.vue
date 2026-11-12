@@ -9,9 +9,13 @@
         <Icon :icon="collapsed ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
     </div>
-    <div v-show="!collapsed && tab !== 'terminal' && tab !== 'preview'" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
+    <div v-show="!collapsed && (tab === 'log' || tab === 'activity')" ref="body" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
       <pre v-if="lines.length"><span v-for="(l, i) in lines" :key="i" class="ln" :class="lineClass(l)">{{ l }}</span></pre>
       <div v-else class="bp-empty">{{ tab === 'activity' ? 'The coding agent has not run a tool yet.' : 'No log lines yet.' }}</div>
+    </div>
+    <!-- Problems and References (ADM-1205 phase F item 16): the project's language servers, through the editor. -->
+    <div v-if="languages" v-show="!collapsed && (tab === 'problems' || tab === 'references')" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
+      <ProblemsPanel :mode="tab === 'references' ? 'references' : 'problems'" />
     </div>
     <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
     <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
@@ -26,10 +30,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, inject } from 'vue'
 import { Icon } from '@iconify/vue'
 import TerminalPanel from './TerminalPanel.vue'
 import PreviewPanel from './PreviewPanel.vue'
+import ProblemsPanel from './ProblemsPanel.vue'
+import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
 
 const props = defineProps({
   pipelineLog: { type: Array, default: () => [] },
@@ -45,8 +51,13 @@ const props = defineProps({
 const emit = defineEmits(['toggle', 'maximize'])
 
 // Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls; Terminal = shells in the
-// project's sandbox and the commands the Coding Agent ran; Preview = the project's running ports and an app on one.
+// project's sandbox and the commands the Coding Agent ran; Preview = the project's running ports and an app on one;
+// Problems / References = what the project's language servers report (where the Let's Code page provides them).
+const languages = inject(LANGUAGE_SERVERS, null)
+const problemCount = computed(() => (languages ? languages.problems.value.length : 0))
 const tabs = computed(() => [
+  ...(languages ? [{ id: 'problems', label: problemCount.value ? `Problems (${problemCount.value})` : 'Problems' },
+    { id: 'references', label: 'References' }] : []),
   { id: 'log', label: 'Log' },
   { id: 'activity', label: 'Activity' },
   ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }, { id: 'preview', label: 'Preview' }] : []),
@@ -71,6 +82,9 @@ async function openPreview(port) {
   previewPanel.value?.openPort(port)
 }
 defineExpose({ openPreview })
+
+// The editor's Find All References (Shift+F12) shows its results here.
+if (languages) watch(() => languages.panel.value.at, () => { if (languages.panel.value.tab) selectTab(languages.panel.value.tab) })
 
 const lines = computed(() => (tab.value === 'activity' ? props.activity : props.pipelineLog))
 function lineClass(l) {

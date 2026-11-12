@@ -220,7 +220,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -235,6 +235,7 @@ import { cloneRequest } from '@/utils/cloneByUrl'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
+import { LANGUAGE_SERVERS, createLanguageServers } from '@/stores/useLanguageServers'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
@@ -257,6 +258,12 @@ const agentChat = ref(null)
 // goes to its box.
 const chatTabs = createCodingChatTabs()
 provide(CODING_CHAT_TABS, chatTabs)
+// The editor's language servers and the bottom panel's Problems / References (ADM-1205 phase F item 16): one store,
+// for the project that is open; another project starts from nothing.
+const languages = createLanguageServers({ systemId: () => Number(active.value?.system_id),
+  repoId: () => Number(active.value?.repo_id) })
+provide(LANGUAGE_SERVERS, languages)
+watch(() => active.value && active.value.repo_id, () => languages.reset())
 function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
@@ -678,7 +685,7 @@ function openLinkedProject() {
   router.replace({ query: link.query })
 }
 onBeforeUnmount(() => {
-  statusPoller.stop(); closeWs()
+  statusPoller.stop(); closeWs(); languages.dispose()
 })
 </script>
 

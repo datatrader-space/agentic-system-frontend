@@ -317,6 +317,7 @@ import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
+import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -557,7 +558,14 @@ function onEditorMount(editor) {
   addAskAction(editorInst)
   applyLanguage()
   revealPending()
+  // The project's language servers (ADM-1205 phase F item 16): hover, completion, go to definition, references and
+  // problems for the files open in tabs; another file opens here through openAt.
+  if (languages && props.editable) {
+    languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
+  }
 }
+const languages = inject(LANGUAGE_SERVERS, null)
+onBeforeUnmount(() => { if (languages) languages.unbind() })
 
 // "Ask the Coding Agent about this" (ADM-1205 phase E): the selected lines, or the line the cursor is on, go to the
 // chat with their file and line numbers. In the editor's right-click menu and on Ctrl+L, as in other code editors.

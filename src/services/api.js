@@ -521,6 +521,10 @@ export default {
   // The project's backup before its sandbox is deleted (ADM-1205 phase F, item 18): a .tar.gz with a git bundle,
   // the files git does not ignore and RESTORE.txt. Its file name is in Content-Disposition.
   downloadProjectBackup: (systemId, repoId) => getBlob(`/systems/${systemId}/repositories/${repoId}/backup/`),
+  // Check project (ADM-1205 phase F item 16): the whole project checked by its own tsc, for the Problems tab.
+  // -> { ran, problems: [{ path, line, column, severity, code, message, source }], count, error? }
+  checkProjectProblems: (systemId, repoId) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/problems/check/`, { noCache: true, timeout: 660000 }),
   // Search inside the files: { q, case, word, regex, ignored } -> { matches: [{ path, line, column, text | redacted }] }
   searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored } = {}) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/files/search/`, {
