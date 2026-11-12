@@ -228,4 +228,16 @@ describe('the store', () => {
     expect(e.monaco.typescript.typescriptDefaults.setModeConfiguration).toHaveBeenCalledWith(expect.objectContaining({ hovers: false, diagnostics: false }))
     expect(e.monaco.typescript.javascriptDefaults.setDiagnosticsOptions).toHaveBeenCalledWith(expect.objectContaining({ noSemanticValidation: true }))
   })
+
+  it("an old editor's release never tears down a newer editor's binding", async () => {
+    const a = editorCtx()
+    const b = editorCtx()
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    const releaseA = s.bind(a.ctx)
+    s.bind(b.ctx)                 // the re-created editor binds first ...
+    releaseA()                    // ... then the old one unmounts
+    s.open({ path: 'x.ts', line: 1, column: 1 })
+    expect(b.ctx.openAt).toHaveBeenCalled()
+    expect(a.ctx.openAt).not.toHaveBeenCalled()
+  })
 })

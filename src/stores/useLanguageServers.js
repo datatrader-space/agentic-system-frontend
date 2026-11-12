@@ -447,7 +447,11 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         if (before !== undefined && now !== before && ctx.activeTab.value) saved(ctx.activeTab.value.path)
       })
     })
-    return unbind
+    // The release of THIS binding only. The editor is re-created when a project turns ready (CodeBrowser's key), and
+    // the old one's unmount came after the new one had bound: a plain unbind() tore down the new binding (no didChange,
+    // no markers, Monaco's own TypeScript left on; live 2026-11-12).
+    const mine = editorCtx
+    return () => { if (ctx === mine) unbind() }
   }
 
   function unbind() {

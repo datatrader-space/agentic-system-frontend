@@ -561,11 +561,14 @@ function onEditorMount(editor) {
   // The project's language servers (ADM-1205 phase F item 16): hover, completion, go to definition, references and
   // problems for the files open in tabs; another file opens here through openAt.
   if (languages && props.editable) {
-    languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
+    releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
   }
 }
 const languages = inject(LANGUAGE_SERVERS, null)
-onBeforeUnmount(() => { if (languages) languages.unbind() })
+// Only this editor's own binding is released: a newer editor may already have bound (the editor is re-created when
+// the project turns ready).
+let releaseLanguages = null
+onBeforeUnmount(() => { if (releaseLanguages) releaseLanguages() })
 
 // "Ask the Coding Agent about this" (ADM-1205 phase E): the selected lines, or the line the cursor is on, go to the
 // chat with their file and line numbers. In the editor's right-click menu and on Ctrl+L, as in other code editors.
