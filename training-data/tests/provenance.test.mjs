@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { shortSha, usedGroups, configPart, runtimeRows, costText, attemptCost, attemptRow, attemptWhen, providerText } from '../src/api/provenance.js';
+import { shortSha, usedGroups, configPart, runtimeRows, costText, attemptCost, attemptRow, attemptWhen, providerText, usd } from '../src/api/provenance.js';
 
 const SHA = 'a'.repeat(52) + '0123456789ab';
 const COMMIT = '0123456789abcdef0123456789abcdef01234567';
@@ -164,4 +164,25 @@ test('the four views show the block and the one attempts table; the block starts
   const table = await read('AttemptsTable.vue');
   for (const column of ['Machine time', 'Cost', 'Log']) assert.ok(table.includes(`data-label="${column}"`), column);
   assert.ok(table.includes(':title="a.job"'), 'the job name has its full value in a title');
+});
+
+test('a cost under a cent is shown to a hundredth of a cent, so the attempts add up to their run', () => {
+  assert.equal(usd('0.0264'), '$0.0264');
+  assert.equal(usd('0.0080'), '$0.008');
+  assert.equal(usd('0.0300'), '$0.03');
+  assert.equal(usd('1.5000'), '$1.50');
+  assert.equal(usd('0.0000'), '$0.00');
+  assert.equal(usd(null), '$0.00');
+  assert.equal(costText({ paid: true, settled: '0.0344', held: '0.0000', total: '0.0344' }), '$0.0344 charged.');
+  assert.deepEqual(attemptCost({ cost: { settled: '0.0264', held: '0.0000', total: '0.0264' } }), { text: '$0.0264', note: '' });
+  assert.deepEqual(attemptCost({ cost: { settled: '0.0080', held: '0.0000', total: '0.0080' } }), { text: '$0.008', note: '' });
+});
+
+test("the Runtime part leaves out what only repeats the Machine's instance type, and keeps what differs", () => {
+  const card = 'NVIDIA RTX PRO 6000 MIG 1g.24gb';
+  const runtime = groups => groups.find(g => g.key === 'runtime')?.rows.map(r => r.label) || [];
+  const used = { instance_type: card, runtime: { gpu: card, instance_type: card, python: '3.12.3' } };
+  assert.deepEqual(runtime(usedGroups(used, 'run')), ['python']);
+  const moved = { instance_type: card, runtime: { gpu: 'NVIDIA A40', instance_type: card, python: '3.12.3' } };
+  assert.deepEqual(runtime(usedGroups(moved, 'run')), ['gpu', 'python']);
 });

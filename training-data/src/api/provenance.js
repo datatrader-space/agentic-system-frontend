@@ -99,7 +99,11 @@ export function usedGroups(used, what = 'run') {
   ]));
 
   if (what === 'run') {
-    groups.push(group('runtime', 'Runtime', runtimeRows(used.runtime)));
+    // What the job reported about itself; a value that only repeats the Machine's instance type (its "gpu" and its
+    // "instance_type", seen twice on the live page on 2026-11-12) is left out. One that differs stays: it is news.
+    const asked = empty(used.instance_type) ? null : String(used.instance_type);
+    groups.push(group('runtime', 'Runtime', runtimeRows(used.runtime)
+      .filter(r => !(asked && ['gpu', 'instance_type'].includes(r.label) && r.text === asked))));
     const made = used.model || {};
     groups.push(group('made', 'What it made', [row('Model file', '', made.artifact_sha256), row('ONNX file', '', made.onnx_sha256)]));
   } else if (llm) {
@@ -119,8 +123,10 @@ export function usedGroups(used, what = 'run') {
   return groups.filter(Boolean);
 }
 
-// USD as text ("1.20") as a person reads it ("$1.20").
-const usd = value => `$${Number(value || 0).toFixed(2)}`;
+// USD as text as a person reads it: cents as cents ("1.20" is "$1.20"), and a fraction of a cent to a hundredth of a
+// cent ("0.0264" is "$0.0264"). A short job costs a fraction of a cent, and its attempts each rounded to the cent did
+// not add up to the run's own cost ($0.03 + $0.01 under "$0.03 charged", seen live on 2026-11-12).
+export const usd = value => `$${Number(value || 0).toFixed(4).replace(/(\.\d{2}\d*?)0+$/, '$1')}`;
 const someHeld = cost => Number(cost?.held || 0) > 0;
 
 // The Cost line: on AADML's own computer or the person's own machine it costs nothing; else the total, and while it
