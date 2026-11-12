@@ -29,6 +29,6 @@ defineProps({ reply: { type: Object, required: true } })
 .vr-failed { color: var(--vm-ink-soft); }
 .vr-failed svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--vm-red-ink); }
 .vr-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vm-violet); animation: vrPulse 1.2s ease-in-out infinite; }
-@keyframes vrPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+@keyframes vrPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .vr-dot { animation: none; } }
 </style>
