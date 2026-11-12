@@ -221,6 +221,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
@@ -240,8 +241,10 @@ import ProjectCommands from '../components/letscode/ProjectCommands.vue'
 import ProjectEnv from '../components/letscode/ProjectEnv.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
-import { isReady, phaseTone, relativeTime, githubWebUrl } from '../components/letscode/projectStatus'
+import { isReady, phaseTone, relativeTime, githubWebUrl, linkedProject } from '../components/letscode/projectStatus'
 
+const route = useRoute()
+const router = useRouter()
 const projects = ref([])
 const projectsLoading = ref(true)
 const active = ref(null)
@@ -663,7 +666,17 @@ function onChanges() { codeBrowser.value?.refresh?.() }
 function onViewChanges() { codeBrowser.value?.showSourceControl?.() }
 function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
 
-onMounted(async () => { await loadProjects(); loadGithubRepos() })
+onMounted(async () => { await loadProjects(); openLinkedProject(); loadGithubRepos() })
+
+// `/dashboard/lets-code?project=<id>` opens that project (the notification before a sandbox is deleted links here,
+// ADM-1205 phase F item 18). Only one of the person's own projects opens; the link's query is then removed.
+function openLinkedProject() {
+  const link = linkedProject(projects.value, route.query)
+  if (!link) return
+  if (link.project) openProject(link.project)
+  else notify.error("That project is not in your Let's Code projects any more.")
+  router.replace({ query: link.query })
+}
 onBeforeUnmount(() => {
   statusPoller.stop(); closeWs()
 })

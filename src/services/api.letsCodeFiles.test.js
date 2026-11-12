@@ -3,13 +3,15 @@
 // application/json (the instance's default) and the server read no files: "Choose files to upload."
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// api.js wraps instance.post (cache invalidation), so the spy is held apart from the instance.
-const h = vi.hoisted(() => ({ instance: null, rawPost: null }))
+// api.js wraps instance.get and instance.post (caching, cache invalidation), so the spies are held apart from the
+// instance.
+const h = vi.hoisted(() => ({ instance: null, rawPost: null, rawGet: null }))
 
 vi.mock('axios', () => {
   h.rawPost = vi.fn(() => Promise.resolve({ data: {} }))
+  h.rawGet = vi.fn(() => Promise.resolve({ data: {} }))
   h.instance = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
+    get: h.rawGet,
     post: h.rawPost,
     put: vi.fn(), patch: vi.fn(), delete: vi.fn(),
     interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
@@ -55,5 +57,25 @@ describe('the other file calls', () => {
       ['/systems/5/repositories/4/files/rename/', { path: 'a.py', new_path: 'b.py' }],
       ['/systems/5/repositories/4/files/delete/', { path: 'b.py' }],
     ])
+  })
+})
+
+describe('downloads (the explorer and the backup)', () => {
+  it('are asked for as a Blob; the backup has its own address', async () => {
+    h.rawGet.mockClear()
+    h.rawGet.mockResolvedValueOnce({ data: new Blob(['x']), headers: {} })
+    await api.downloadProjectBackup(5, 4)
+    const [url, config] = h.rawGet.mock.calls[0]
+    expect(url).toBe('/systems/5/repositories/4/backup/')
+    expect(config.responseType).toBe('blob')
+  })
+
+  it("an error answer is read back as JSON, so the server's code and words reach the caller", async () => {
+    const body = new Blob([JSON.stringify({ code: 'RUNNER_STARTING', error: 'Starting', retry_after_seconds: 5 })])
+    h.rawGet.mockRejectedValueOnce({ response: { status: 503, data: body } })
+    await expect(api.downloadRepositoryEntry(5, 4, 'src')).rejects
+      .toMatchObject({ response: { data: { code: 'RUNNER_STARTING', error: 'Starting' } } })
+    h.rawGet.mockRejectedValueOnce({ response: { status: 502, data: new Blob(['not json']) } })
+    await expect(api.downloadProjectBackup(5, 4)).rejects.toMatchObject({ response: { data: {} } })
   })
 })

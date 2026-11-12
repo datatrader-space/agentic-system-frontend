@@ -210,7 +210,7 @@ import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import LoadError from '../components/common/LoadError.vue'
 import { useRequestScope, isAbortError } from '../composables/useRequestScope'
-import { saveBlob } from '../utils/saveBlob'
+import { saveBlob, filenameFrom } from '../utils/saveBlob'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
@@ -392,8 +392,7 @@ async function exportCsv() {
   try {
     const response = await api.get('/llm/requests/export/', { params: filterParams(), responseType: 'blob' })
     const headers = response.headers || {}
-    const name = (String(headers['content-disposition'] || '').match(/filename="([^"]+)"/) || [])[1] || 'activity.csv'
-    saveBlob(response.data, name)
+    saveBlob(response.data, filenameFrom(headers, 'activity.csv'))
     if (headers['x-export-truncated'] === 'true') {
       const rows = Number(headers['x-export-rows'] || 0).toLocaleString()
       exportNote.value = `The newest ${rows} runs were exported. Choose a shorter date range for older ones.`

@@ -11,6 +11,10 @@
                 :title="status.merging ? 'Resolve or abort the merge first' : 'Pull: bring in GitHub\'s commits'" aria-label="Pull from GitHub" @click="pull">
           <Icon icon="lucide:arrow-down-to-line" :class="{ spin: action === 'pull' }" aria-hidden="true" />
         </button>
+        <button type="button" class="scm-refresh" :disabled="busy" title="Download a backup of the project (every commit and every file)"
+                aria-label="Download a backup of the project" @click="downloadBackup">
+          <Icon :icon="action === 'backup' ? 'lucide:loader' : 'lucide:hard-drive-download'" :class="{ spin: action === 'backup' }" aria-hidden="true" />
+        </button>
         <button type="button" class="scm-refresh" :disabled="loading || busy || status.merging" title="New branch (keeps your changes)"
                 aria-label="New branch" :aria-expanded="branchOpen ? 'true' : 'false'" @click="branchOpen = !branchOpen">
           <Icon icon="lucide:git-branch-plus" aria-hidden="true" />
@@ -163,7 +167,7 @@
         <p v-if="status.has_remote" class="scm-foot">
           <Icon icon="lucide:clock" aria-hidden="true" />
           These changes are in this project's sandbox. Changes you have not pushed are kept for 3 days after
-          you last use the project.
+          you last use the project. Push them, or download a backup.
         </p>
       </div>
       <!-- History: the branch's commits, newest first, page by page; a commit opens to its files, a file to its two
@@ -197,11 +201,17 @@
         </button>
       </div>
 
-      <p v-if="loaded && !status.has_remote" class="scm-foot warn">
-        <Icon icon="lucide:triangle-alert" aria-hidden="true" />
-        This project is only in its sandbox, which is deleted 3 days after you last use the project. Publish it
-        to GitHub to keep a copy.
-      </p>
+      <div v-if="loaded && !status.has_remote" class="scm-keep">
+        <p class="scm-foot warn">
+          <Icon icon="lucide:triangle-alert" aria-hidden="true" />
+          This project is only in its sandbox, which is deleted 3 days after you last use the project. Publish it
+          to GitHub to keep a copy, or download a backup.
+        </p>
+        <button type="button" class="scm-btn scm-backup" :disabled="busy" @click="downloadBackup">
+          <Icon :icon="action === 'backup' ? 'lucide:loader' : 'lucide:hard-drive-download'" :class="{ spin: action === 'backup' }" aria-hidden="true" />
+          {{ action === 'backup' ? 'Packing the backup…' : 'Download backup' }}
+        </button>
+      </div>
     </template>
   </div>
 </template>
@@ -213,6 +223,7 @@ import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
+import { saveBlob, filenameFrom } from '@/utils/saveBlob'
 import { projectCache } from '@/services/projectCache'
 
 const props = defineProps({
@@ -292,6 +303,22 @@ async function load() {
     error.value = e?.response?.data?.error || 'Could not load source control status.'
   } finally {
     loading.value = false
+  }
+}
+
+// A backup to keep before the sandbox is deleted (ADM-1205 phase F, item 18): every commit as a git bundle, the
+// files git does not ignore and RESTORE.txt, saved on the person's computer. Nothing in the project changes.
+async function downloadBackup() {
+  action.value = 'backup'
+  try {
+    const res = await whileSandboxStarts(() => api.downloadProjectBackup(props.systemId, props.repoId),
+      { onWaiting: (s) => { waiting.value = s }, isCancelled: () => gone })
+    saveBlob(res.data, filenameFrom(res.headers, `${props.projectName || 'project'}-backup.tar.gz`))
+    notify.success('Backup downloaded')
+  } catch (e) {
+    notify.error(e?.response?.data?.error || 'The backup could not be downloaded. Try again.')
+  } finally {
+    action.value = ''
   }
 }
 
@@ -504,6 +531,7 @@ defineExpose({ refresh: load })
 .scm-refresh { margin-left: auto; border: none; background: transparent; color: var(--vm-ink-soft); cursor: pointer; border-radius: 6px; width: 28px; height: 28px; display: grid; place-items: center; }
 .scm-refresh:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
 .scm-refresh:disabled { cursor: progress; }
+.scm-refresh:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 1px; }
 .scm-refresh :deep(svg) { width: 14px; height: 14px; }
 .scm-empty { padding: 16px 12px; color: var(--vm-ink-soft); display: flex; align-items: center; gap: 6px; line-height: 1.45; }
 .scm-empty.err { color: var(--vm-red-ink); }
@@ -587,6 +615,8 @@ defineExpose({ refresh: load })
 .scm-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vm-ink); font-family: var(--vm-font-mono); font-size: 12px; }
 .scm-foot { display: flex; align-items: flex-start; gap: 6px; margin: 8px 12px 12px; font-size: 12px; line-height: 1.5; color: var(--vm-ink-soft); }
 .scm-foot :deep(svg) { width: 12px; height: 12px; flex: 0 0 auto; margin-top: 3px; }
+.scm-keep .scm-foot { margin-bottom: 8px; }
+.scm-backup { margin: 0 12px 12px 30px; }
 .spin { animation: scm-spin 1s linear infinite; } @keyframes scm-spin { to { transform: rotate(360deg); } }
 @media (max-width: 640px) {
   .scm-row { min-height: 44px; } .scm-refresh, .scm-discard { width: 44px; height: 44px; } .scm-discard { opacity: 1; }

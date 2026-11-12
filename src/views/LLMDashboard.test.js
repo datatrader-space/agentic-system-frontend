@@ -5,7 +5,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 const api = vi.hoisted(() => ({ get: vi.fn(), getAgentPicker: vi.fn() }))
 vi.mock('../services/api', () => ({ default: api, isAbortError: () => false }))
 const saveBlob = vi.hoisted(() => vi.fn())
-vi.mock('../utils/saveBlob', () => ({ saveBlob }))
+vi.mock('../utils/saveBlob', async (orig) => ({ ...(await orig()), saveBlob }))
 
 import LLMDashboard from './LLMDashboard.vue'
 

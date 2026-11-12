@@ -23,9 +23,11 @@ vi.mock('@/services/api', () => ({
     pushSourceControl: vi.fn(),
     openPullRequest: vi.fn(),
     publishProject: vi.fn(),
+    downloadProjectBackup: vi.fn(),
   },
 }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/utils/saveBlob', async (orig) => ({ ...(await orig()), saveBlob: vi.fn() }))
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn(() => Promise.resolve(true)) }))
 
 import api from '@/services/api'
@@ -297,5 +299,34 @@ describe('SourceControlPanel: the last status shows at once (ADM-1196)', () => {
     expect(w.find('[role="alert"]').text()).toContain('git failed')
     expect(w.text()).not.toContain('app.py')
     w.unmount()
+  })
+
+  // ADM-1205 phase F item 18: a backup to keep before the sandbox is deleted, saved under the server's file name.
+  describe('Download backup', () => {
+    it('the header button saves the backup under its own name and changes nothing in the project', async () => {
+      const { saveBlob } = await import('@/utils/saveBlob')
+      const { notify } = await import('@/composables/useNotify')
+      const blob = new Blob(['tgz'])
+      api.downloadProjectBackup.mockResolvedValueOnce({
+        data: blob, headers: { 'content-disposition': 'attachment; filename="shop-backup-2026-11-12.tar.gz"' } })
+      const w = await mountPanel()
+      await w.find('[aria-label="Download a backup of the project"]').trigger('click')
+      await flushPromises()
+      expect(api.downloadProjectBackup).toHaveBeenCalledWith(5, 4)
+      expect(saveBlob).toHaveBeenCalledWith(blob, 'shop-backup-2026-11-12.tar.gz')
+      expect(notify.success).toHaveBeenCalledWith('Backup downloaded')
+      expect(w.emitted('changed')).toBeFalsy()
+    })
+
+    it("a project only in its sandbox offers it under the warning; a failure is the server's words", async () => {
+      const { notify } = await import('@/composables/useNotify')
+      api.getSourceControlStatus.mockResolvedValueOnce(dirty({ has_remote: false, has_commit: true, on_remote: false }))
+      api.downloadProjectBackup.mockRejectedValueOnce({ response: { status: 413, data: { error: 'shop is 300 MB.' } } })
+      const w = await mountPanel()
+      expect(w.find('.scm-foot.warn').text()).toContain('or download a backup')
+      await w.find('.scm-backup').trigger('click')
+      await flushPromises()
+      expect(notify.error).toHaveBeenCalledWith('shop is 300 MB.')
+    })
   })
 })

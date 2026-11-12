@@ -41,3 +41,13 @@ describe('saveBlob', () => {
     }
   })
 })
+
+describe('filenameFrom', () => {
+  it("is the server's attachment name, else the fallback", async () => {
+    const { filenameFrom } = await import('./saveBlob')
+    expect(filenameFrom({ 'content-disposition': 'attachment; filename="shop-backup-2026-11-12.tar.gz"' }, 'x'))
+      .toBe('shop-backup-2026-11-12.tar.gz')
+    expect(filenameFrom({}, 'activity.csv')).toBe('activity.csv')
+    expect(filenameFrom(undefined)).toBe('download')
+  })
+})

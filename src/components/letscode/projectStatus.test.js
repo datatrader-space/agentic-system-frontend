@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { phaseLabel, phaseTone, isReady, failedStep, pipelineSteps, githubWebUrl } from './projectStatus'
+import { phaseLabel, phaseTone, isReady, failedStep, pipelineSteps, githubWebUrl, linkedProject } from './projectStatus'
+
+describe('linkedProject', () => {
+  const projects = [{ repo_id: 4, name: 'shop' }, { repo_id: 16, name: 'site' }]
+  it('names the linked project and drops the link from the query', () => {
+    expect(linkedProject(projects, { project: '16', tab: 'x' })).toEqual({ project: projects[1], query: { tab: 'x' } })
+  })
+  it('a project that is not the person’s is null; no link is nothing', () => {
+    expect(linkedProject(projects, { project: '99' })).toEqual({ project: null, query: {} })
+    expect(linkedProject(projects, {})).toBeNull()
+    expect(linkedProject(projects, undefined)).toBeNull()
+  })
+})
 
 const states = (p) => pipelineSteps(p).map(s => s.state)
 

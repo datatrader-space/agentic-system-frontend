@@ -1329,14 +1329,8 @@ async function downloadEntry(node) {
   const path = node ? node.path : ''
   const name = node ? node.name : (props.projectName || 'project')
   try {
-    const res = await whileSandboxStarts(() => api.downloadRepositoryEntry(props.systemId, props.repositoryId, path)
-      .catch(async (e) => {
-        const d = e?.response?.data
-        if (typeof Blob !== 'undefined' && d instanceof Blob) {
-          try { e.response.data = JSON.parse(await d.text()) } catch { e.response.data = {} }
-        }
-        throw e
-      }), { isCancelled: () => unmounted })
+    const res = await whileSandboxStarts(() => api.downloadRepositoryEntry(props.systemId, props.repositoryId, path),
+      { isCancelled: () => unmounted })
     const isDir = !node || node.type === 'directory'
     saveBlob(res.data, isDir ? `${name}.tar.gz` : name)
   } catch (e) {

@@ -104,3 +104,15 @@ export function relativeTime(iso, now = Date.now()) {
 export function githubWebUrl(url) {
   return String(url || '').replace(/\.git$/, '')
 }
+
+/**
+ * The project a `?project=<repo_id>` link names (the notification before a sandbox is deleted links there, ADM-1205
+ * phase F item 18): `{ project, query }`, `project` null when it is not one of the person's projects, `query` the
+ * route's query without the link. `null` when there is no link.
+ */
+export function linkedProject(projects, query) {
+  const id = String(query?.project || '')
+  if (!id) return null
+  const { project: _drop, ...rest } = query
+  return { project: (projects || []).find((p) => String(p.repo_id) === id) || null, query: rest }
+}

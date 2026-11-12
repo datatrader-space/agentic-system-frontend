@@ -21,4 +21,10 @@ export function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS)
 }
 
+// The file name the server gave a download (`Content-Disposition: attachment; filename="…"`), else `fallback`.
+export function filenameFrom(headers, fallback = 'download') {
+  const m = String(headers?.['content-disposition'] || '').match(/filename="([^"]+)"/)
+  return (m && m[1]) || fallback
+}
+
 export const _REVOKE_AFTER_MS = REVOKE_AFTER_MS
