@@ -268,6 +268,9 @@ export const useChatStore = defineStore('chat', {
     parkedRuns: {},
     // A surface's hook for the frames of a chat it left (Let's Code: the files a background turn changed).
     parkedFrameHandler: null,
+    // Whether leaving a running chat parks it. The Coding Agent's tabs turn it on (owner 2026-11-12: "this is only
+    // for coding agent"); every other chat keeps its one socket, as before.
+    keepRunsOnLeave: false,
     _assistantId: null,
     _planResumeSentAt: 0,   // when this page last sent the turn that carries out an approved plan
     newChatProjectId: null, // the project a NEW chat is started in (?project= on /dashboard/chat/new)
@@ -1424,7 +1427,7 @@ export const useChatStore = defineStore('chat', {
     _parkIfBusy() {
       const id = this.conversationId ? String(this.conversationId) : ''
       const conn = this._conn
-      if (!id || !conn || !this.isBusy) return false
+      if (!this.keepRunsOnLeave || !id || !conn || !this.isBusy) return false
       this._stopProgressPolling()
       conn.handlers = this._parkedHandlers(id)
       this._parked = { ...this._parked, [id]: conn }

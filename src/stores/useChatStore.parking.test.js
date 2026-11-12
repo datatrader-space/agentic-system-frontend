@@ -39,6 +39,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 
 function busyChat(id) {
   const chat = useChatStore()
+  chat.keepRunsOnLeave = true        // the Coding Agent's tabs turn parking on
   chat.repoId = 7
   chat.conversationId = String(id)
   chat._connect()
@@ -53,6 +54,18 @@ beforeEach(() => {
 })
 
 describe('a running chat keeps going when the person leaves it (ADM-1221)', () => {
+  it('only where a surface turns it on: the main chat keeps its one socket, as before', () => {
+    const chat = useChatStore()
+    chat.repoId = 7
+    chat.conversationId = '1'
+    chat._connect()
+    chat.isStreaming = true
+    const conn = chat._conn
+    chat.reset()
+    expect(chat._conn).toBe(conn)
+    expect(Object.keys(chat._parked)).toEqual([])
+  })
+
   it('New chat parks the running chat on its own socket instead of stopping it', () => {
     const chat = busyChat(1)
     const first = chat._conn

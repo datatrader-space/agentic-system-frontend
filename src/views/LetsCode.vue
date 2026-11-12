@@ -188,11 +188,21 @@
         <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
-      <div ref="ideMainEl" class="ide-main">
+      <div class="ide-main">
         <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection">
+              <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). -->
+              <template #chat>
+                <UnifiedAgentChat
+                  ref="agentChat"
+                  :key="active.repo_id"
+                  :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
+                  @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
+                />
+              </template>
+            </CodeBrowser>
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }"
                :style="{ '--bp-h': bottomHeight + 'px' }">
@@ -204,27 +214,13 @@
             <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
           </div>
         </div>
-        <div class="ide-rightpane" :style="{ '--rp-w': rightPaneWidth + 'px' }">
-          <!-- Drag the left border to resize the chat area (arrow keys work too when focused). -->
-          <div
-            class="rp-resize" :class="{ active: resizing }" role="separator" aria-orientation="vertical"
-            aria-label="Resize the chat" tabindex="0" :aria-valuenow="rightPaneWidth"
-            @mousedown="startResize" @keydown="onResizeKey"
-          ></div>
-          <UnifiedAgentChat
-            ref="agentChat"
-            :key="active.repo_id"
-            :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
-            @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
-          />
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
@@ -237,6 +233,7 @@ import { useIdeTheme } from '@/composables/useIdeTheme'
 import { cloneRequest } from '@/utils/cloneByUrl'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
+import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
@@ -253,8 +250,11 @@ const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
 const bottomPanel = ref(null)
 const agentChat = ref(null)
-// The editor's "Ask the Coding Agent about this" (ADM-1205 phase E): the selected code goes to the chat's box.
-function onAskSelection(sel) { agentChat.value?.addSelection(sel) }
+// The editor's "Ask the Coding Agent about this" (ADM-1205 phase E): the chat tab comes in front and the selected code
+// goes to its box.
+const chatTabs = createCodingChatTabs()
+provide(CODING_CHAT_TABS, chatTabs)
+function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
   if (bottomPanel.value) bottomPanel.value.openPreview(port)
@@ -276,45 +276,6 @@ const retryingId = ref(null)
 
 const ready = computed(() => isReady(active.value))
 const isFailed = (p) => phaseTone(p) === 'err'
-
-// ── Resizable chat pane (drag the left border, or arrow keys on the handle) ──
-const ideMainEl = ref(null)
-const RP_MIN = 300
-const rightPaneWidth = ref(Number(localStorage.getItem('lc.rightPaneWidth')) || 384)
-const resizing = ref(false)
-function clampWidth(w) {
-  const rect = ideMainEl.value?.getBoundingClientRect()
-  const max = rect ? Math.max(RP_MIN, rect.width - 360) : 900    // leave ≥360px for the editor
-  return Math.round(Math.max(RP_MIN, Math.min(w, max)))
-}
-function startResize(e) {
-  e.preventDefault()
-  resizing.value = true
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  window.addEventListener('mousemove', onResize)
-  window.addEventListener('mouseup', stopResize)
-}
-function onResize(e) {
-  if (!resizing.value) return
-  const rect = ideMainEl.value?.getBoundingClientRect()
-  if (!rect) return
-  rightPaneWidth.value = clampWidth(rect.right - e.clientX)     // pane hugs the right edge
-}
-function stopResize() {
-  resizing.value = false
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  window.removeEventListener('mousemove', onResize)
-  window.removeEventListener('mouseup', stopResize)
-  localStorage.setItem('lc.rightPaneWidth', String(rightPaneWidth.value))
-}
-function onResizeKey(e) {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-  e.preventDefault()
-  rightPaneWidth.value = clampWidth(rightPaneWidth.value + (e.key === 'ArrowLeft' ? 24 : -24))
-  localStorage.setItem('lc.rightPaneWidth', String(rightPaneWidth.value))
-}
 
 // ── Resizable bottom panel (drag its top border, or arrow keys on the handle; ADM-1205) ──
 const ideLeftEl = ref(null)
@@ -705,7 +666,6 @@ function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
 onMounted(async () => { await loadProjects(); loadGithubRepos() })
 onBeforeUnmount(() => {
   statusPoller.stop(); closeWs()
-  window.removeEventListener('mousemove', onResize); window.removeEventListener('mouseup', stopResize)
 })
 </script>
 
@@ -882,22 +842,13 @@ onBeforeUnmount(() => {
 .ide-bottom.collapsed { height: auto; }
 .ide-left.bottom-max .ide-editor { flex: 0 0 0; overflow: hidden; }
 .ide-bottom.max { flex: 1 1 auto; height: auto; min-height: 0; }
-.ide-rightpane { position: relative; width: var(--rp-w, 384px); flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--vm-line); }
-.ide-rightpane > :not(.rp-resize) { flex: 1; min-height: 0; min-width: 0; }
-/* Drag handle sitting over the left border. */
-.rp-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 6; border-radius: 0; }
-.rp-resize::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background-color .15s; }
-.rp-resize:hover::after, .rp-resize.active::after, .rp-resize:focus-visible::after { background: var(--vm-violet); }
-.rp-resize:focus-visible { outline: none; }
 
-/* Narrow screens: editor on top, chat below; the page scrolls instead of squeezing both side by side. */
+/* Narrow screens: the page scrolls instead of squeezing the editor. */
 @media (max-width: 900px) {
   .lc { overflow-y: auto; }
   .lc-ide { height: auto; min-height: 100%; }
   .ide-main { flex-direction: column; }
   .ide-left { min-height: 70vh; }
-  .ide-rightpane { width: 100%; height: 80vh; border-left: none; border-top: 1px solid var(--vm-line); }
-  .rp-resize { display: none; }
   .ide-gh { margin-left: 0; }
 }
 @media (max-width: 640px) {

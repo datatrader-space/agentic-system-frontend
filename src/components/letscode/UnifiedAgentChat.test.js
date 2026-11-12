@@ -10,7 +10,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 const chat = reactive({
   messages: [], hitlRequests: [], isBusy: false, connectionLost: false, conversationId: null,
   repoId: 0, newChatRepoId: null, selectedAgentId: '7', surfaceHandler: null, todos: [],
-  parkedRuns: {}, parkedFrameHandler: null,
+  parkedRuns: {}, parkedFrameHandler: null, keepRunsOnLeave: false,
   reset: vi.fn(function () { chat.messages = [] }), setAgent: vi.fn((id) => { chat.selectedAgentId = id }),
   sendMessage: vi.fn(() => Promise.resolve(true)), sendRaw: vi.fn(), stop: vi.fn(), openConversation: vi.fn(),
   respondHitl: vi.fn(), dismissHitl: vi.fn(), skipHitl: vi.fn(),
@@ -43,9 +43,14 @@ const ChatMessageList = {
 }
 const stubs = { Icon: true, HITLModal: true, PermissionCard: true, AgentModelPicker: true, ChatMessageList }
 
+// The page's chat-tab controller (the editor draws its tabs); each mount gets a fresh one, as each page does.
+let ctl = null
 async function mountChat() {
   const Chat = (await import('./UnifiedAgentChat.vue')).default
-  const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
+  const { CODING_CHAT_TABS, createCodingChatTabs } = await import('@/stores/useCodingChatTabs')
+  ctl = createCodingChatTabs()
+  const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true },
+                          global: { stubs, provide: { [CODING_CHAT_TABS]: ctl } } })
   await flushPromises()
   return w
 }
@@ -183,7 +188,7 @@ describe('UnifiedAgentChat: reopening a project continues its last chat (ADM-120
     let resolve
     api.getConversations.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
     const w = await mountChat()
-    await w.find('button[aria-label="New chat"]').trigger('click')
+    ctl.newChat()                                    // the editor's New chat button
     resolve({ data: [{ id: 88 }] })
     await flushPromises()
     expect(chat.openConversation).not.toHaveBeenCalled()
@@ -397,13 +402,24 @@ describe('UnifiedAgentChat: @ mentions and the selection reach the agent as code
   })
 })
 
-describe('UnifiedAgentChat: one tab per chat, several running at once (ADM-1221)', () => {
+describe('UnifiedAgentChat: the chats are editor tabs, several running at once (ADM-1221)', () => {
+  // The editor's tab bar draws the controller's tabs and calls these; the chat panel answers them.
   const open = async () => (await import('@/services/api')).default
 
   beforeEach(() => {
-    chat.conversationId = null; chat.isBusy = false; chat.parkedRuns = {}; chat.parkedFrameHandler = null
+    chat.conversationId = null; chat.isBusy = false; chat.parkedRuns = {}; chat.messages = []
     chat.openConversation = vi.fn(async (id) => { chat.conversationId = String(id) })
     try { localStorage.clear() } catch { /* no storage */ }
+  })
+
+  it('binds the tabs while the project is open and puts the chat in front; unbinds on close', async () => {
+    const w = await mountChat()
+    expect(ctl.bound).toBe(true)
+    expect(ctl.front).toBe(true)
+    expect(ctl.tabs).toHaveLength(1)
+    w.unmount()
+    expect(ctl.bound).toBe(false)
+    expect(ctl.tabs).toHaveLength(0)
   })
 
   it('New chat opens a new tab and never stops the chat that is running', async () => {
@@ -411,48 +427,48 @@ describe('UnifiedAgentChat: one tab per chat, several running at once (ADM-1221)
     api.getConversations.mockResolvedValueOnce({ data: [{ id: 88, title: 'Add the cart' }] })
     const w = await mountChat()
     chat.isBusy = true
-    await w.find('[data-test="uac-new-chat"]').trigger('click')
+    ctl.newChat()
     await flushPromises()
     expect(chat.stop).not.toHaveBeenCalled()
     expect(chat.reset).toHaveBeenCalled()
-    const tabs = w.findAll('[data-test="uac-tab"]')
-    expect(tabs).toHaveLength(2)
-    expect(tabs[0].text()).toContain('Add the cart')
+    expect(ctl.tabs).toHaveLength(2)
+    expect(ctl.title(ctl.tabs[0])).toBe('Add the cart')
+    expect(ctl.title(ctl.tabs[1])).toBe('New chat')
     w.unmount()
   })
 
-  it('a tab opens its chat, and a chat from Chat history gets a tab of its own', async () => {
+  it('a tab opens its chat, and a chat from Chat history gets a tab of its own, in front', async () => {
     const api = await open()
     api.getConversations.mockResolvedValue({ data: [{ id: 88, title: 'Add the cart' }, { id: 70, title: 'Fix the footer' }] })
     const w = await mountChat()
     expect(chat.openConversation).toHaveBeenCalledWith(88)
+    ctl.showFiles()
     await w.find('button[aria-label="Chat history"]').trigger('click')
     await flushPromises()
-    const item = w.findAll('.uac-hitem').find((b) => b.text().includes('Fix the footer'))
-    await item.trigger('click')
+    await w.findAll('.uac-hitem').find((b) => b.text().includes('Fix the footer')).trigger('click')
     await flushPromises()
     expect(chat.openConversation).toHaveBeenLastCalledWith(70)
-    const titles = w.findAll('[data-test="uac-tab"]').map((t) => t.text())
-    expect(titles.join('|')).toContain('Add the cart')
-    expect(titles.join('|')).toContain('Fix the footer')
-    await w.findAll('[role="tab"]')[0].trigger('click')
+    expect(ctl.front).toBe(true)
+    expect(ctl.tabs.map((t) => ctl.title(t))).toEqual(['Add the cart', 'Fix the footer'])
+    await ctl.select(ctl.tabs[0])
     await flushPromises()
     expect(chat.openConversation).toHaveBeenLastCalledWith('88')
+    expect(ctl.isActive(ctl.tabs[0])).toBe(true)
     api.getConversations.mockReset()
     api.getConversations.mockImplementation(() => Promise.resolve({ data: [] }))
     w.unmount()
   })
 
-  it("a chat running in the background shows its state on its tab", async () => {
+  it('a chat running in the background shows its state on its tab', async () => {
     const api = await open()
-    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88, title: 'Add the cart' }, { id: 70, title: 'Fix the footer' }] })
+    api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }] })
     localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '88'], active: '88' }))
     const w = await mountChat()
     chat.parkedRuns = { 70: 'needs_input' }
-    await flushPromises()
-    const dot = w.findAll('[data-test="uac-tab"]')[0].find('.uac-tab-dot')
-    expect(dot.classes()).toContain('needs_input')
-    expect(dot.attributes('aria-label')).toBe('Needs your answer')
+    expect(ctl.state(ctl.tabs[0])).toBe('needs_input')
+    expect(ctl.stateLabel(ctl.tabs[0])).toBe('Needs your answer')
+    chat.isBusy = true
+    expect(ctl.state(ctl.tabs[1])).toBe('working')
     w.unmount()
   })
 
@@ -462,34 +478,68 @@ describe('UnifiedAgentChat: one tab per chat, several running at once (ADM-1221)
     localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '60', '999'], active: '60' }))
     const w = await mountChat()
     expect(chat.openConversation).toHaveBeenCalledWith('60')
-    expect(w.findAll('[data-test="uac-tab"]')).toHaveLength(2)          // 999 is no longer in its history
-    const selected = w.findAll('[role="tab"]').filter((t) => t.attributes('aria-selected') === 'true')
-    expect(selected).toHaveLength(1)
+    expect(ctl.tabs.map((t) => t.id)).toEqual(['70', '60'])            // 999 is no longer in its history
     w.unmount()
   })
 
-  it('closing a tab never stops its chat; the arrow keys move between tabs', async () => {
+  it('closing a tab never stops its chat; closing the last one puts the files in front', async () => {
     const api = await open()
     api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }] })
     localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '88'], active: '88' }))
     const w = await mountChat()
-    await w.find('[role="tablist"]').trigger('keydown', { key: 'ArrowLeft' })
-    await flushPromises()
-    expect(chat.openConversation).toHaveBeenLastCalledWith('70')
     chat.isBusy = true
-    await w.findAll('[data-test="uac-tab-close"]')[0].trigger('click')
+    await ctl.close(ctl.tabs[1])
     await flushPromises()
     expect(chat.stop).not.toHaveBeenCalled()
-    expect(w.findAll('[data-test="uac-tab"]')).toHaveLength(1)
+    expect(chat.openConversation).toHaveBeenLastCalledWith('70')
+    await ctl.close(ctl.tabs[0])
+    expect(ctl.tabs).toHaveLength(0)
+    expect(ctl.front).toBe(false)
+    ctl.showChat()                                    // "Ask the Coding Agent about this" with no chat tab open
+    expect(ctl.tabs).toHaveLength(1)
+    expect(ctl.front).toBe(true)
     w.unmount()
   })
 
   it("a background chat's changed files reload the project's files, as this one's do", async () => {
     const w = await mountChat()
-    expect(typeof chat.parkedFrameHandler).toBe('function')
     chat.parkedFrameHandler('70', { type: 'lets_code_changes', files: [] })
     expect(w.emitted('changes')).toBeTruthy()
     w.unmount()
     expect(chat.parkedFrameHandler).toBe(null)
+  })
+
+  it('a tab left for another keeps the first message it was opened with', async () => {
+    const w = await mountChat()
+    chat.messages = [{ id: 1, role: 'user', content: 'Look up the latest Next.js' }]
+    chat.conversationId = '91'
+    await flushPromises()
+    ctl.newChat()
+    chat.messages = []
+    chat.conversationId = null
+    await flushPromises()
+    expect(ctl.title(ctl.tabs[0])).toBe('Look up the latest Next.js')
+    expect(ctl.title(ctl.tabs[1])).toBe('New chat')
+    w.unmount()
+  })
+
+  it('the server\'s "New Conversation" is no title: the last message names the chat', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [
+      { id: 88, title: 'New Conversation', last_message: { content: 'Fix the footer links' } }] })
+    localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['88'], active: '88' }))
+    const w = await mountChat()
+    chat.conversationId = null
+    expect(ctl.title(ctl.tabs[0])).toBe('Fix the footer links')
+    w.unmount()
+  })
+})
+
+describe('UnifiedAgentChat: running chats are kept only for the Coding Agent (owner 2026-11-12)', () => {
+  it('turns parking on while the project is open, and off when it closes', async () => {
+    const w = await mountChat()
+    expect(chat.keepRunsOnLeave).toBe(true)
+    w.unmount()
+    expect(chat.keepRunsOnLeave).toBe(false)
   })
 })

@@ -137,14 +137,35 @@
     <!-- Center: Editor Panel -->
     <div class="editor-panel">
       <!-- Tab Bar -->
-      <div class="tab-bar" v-if="openTabs.length > 0">
+      <div class="tab-bar" v-if="openTabs.length > 0 || chatOn">
+        <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). Each
+             runs on its own: leaving one never stops it, and its dot says what it is doing. -->
+        <div
+          v-for="ct in (chatOn ? chatTabs.tabs : [])"
+          :key="'chat-' + ct.key"
+          role="tab" tabindex="0" :aria-selected="chatTabFront(ct) ? 'true' : 'false'"
+          data-test="cb-chat-tab" :title="chatTabs.title(ct)"
+          @click="chatTabs.select(ct)"
+          @keydown.enter.self="chatTabs.select(ct)"
+          :class="['tab', 'chat-tab', { active: chatTabFront(ct) }]">
+          <Icon class="tab-icon chat-tab-icon" icon="lucide:sparkles" aria-hidden="true" />
+          <span class="tab-name">{{ chatTabs.title(ct) }}</span>
+          <span v-if="chatTabs.state(ct) !== 'idle'" class="chat-dot" :class="chatTabs.state(ct)" role="img"
+                :aria-label="chatTabs.stateLabel(ct)" data-test="cb-chat-dot"></span>
+          <button type="button" @click.stop="chatTabs.close(ct)" class="tab-close" data-test="cb-chat-close"
+                  :aria-label="`Close ${chatTabs.title(ct)}`" title="Close (the chat stays in Chat history)"><Icon icon="lucide:x" /></button>
+        </div>
+        <button v-if="chatOn" type="button" class="tab-new-chat" data-test="cb-new-chat" title="New Coding Agent chat"
+                aria-label="New Coding Agent chat" @click="chatTabs.newChat()">
+          <Icon icon="lucide:plus" aria-hidden="true" />
+        </button>
         <div
           v-for="tab in openTabs"
           :key="tab.id"
-          role="tab" tabindex="0" :aria-selected="activeTabId === tab.id ? 'true' : 'false'"
-          @click="activeTabId = tab.id"
-          @keydown.enter.self="activeTabId = tab.id"
-          :class="['tab', { active: activeTabId === tab.id }]">
+          role="tab" tabindex="0" :aria-selected="!chatFront && activeTabId === tab.id ? 'true' : 'false'"
+          @click="showFile(tab.id)"
+          @keydown.enter.self="showFile(tab.id)"
+          :class="['tab', { active: !chatFront && activeTabId === tab.id }]">
           <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
           <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
                 :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
@@ -165,6 +186,10 @@
 
       <!-- Monaco Editor -->
       <div class="editor-container">
+        <!-- The Coding Agent's chat (the page passes it in): kept mounted while a file is in front, so a running chat
+             is never stopped or reloaded by switching tabs. -->
+        <div v-show="chatFront" class="chat-host" data-test="cb-chat-host"><slot name="chat" /></div>
+        <template v-if="!chatFront">
         <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
              as VS Code shows it. Read-only: edits are made in the file's own tab. -->
         <template v-if="activeTab && activeTab.type === 'diff'">
@@ -228,13 +253,14 @@
           <p class="empty-editor-t">No file open</p>
           <p class="empty-editor-s">Pick a file from the list to open it here.</p>
         </div>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h, inject } from 'vue'
 import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //
@@ -290,6 +316,7 @@ import { filesFromDrop, filesFromPicker, uploadParts, tooLarge, MAX_FILE_BYTES }
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
+import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -366,6 +393,14 @@ const _wait = { onWaiting: (s) => { treeWaiting.value = s }, isCancelled: () => 
 const searchResults = ref([])         // flat results when the search box is non-empty
 const searching = ref(false)
 const openTabs = ref([])
+// The Coding Agent's chat tabs: only where the Let's Code page provides them (and its chat, in the "chat" slot, is bound).
+const chatTabs = inject(CODING_CHAT_TABS, null)
+const chatOn = computed(() => !!(chatTabs && chatTabs.bound))
+const chatFront = computed(() => chatOn.value && chatTabs.front)
+function chatTabFront(ct) { return chatFront.value && chatTabs.isActive(ct) }
+function showFilesInFront() { if (chatTabs) chatTabs.showFiles() }
+// A file tab, or a file opened from the tree, search or Source control, comes in front of the chat.
+function showFile(id) { showFilesInFront(); activeTabId.value = id }
 // A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
 watch(monacoLanguages, (langs) => {
   if (!langs) return
@@ -417,6 +452,7 @@ const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
 // A change from Source control opens as its own tab ("app.py (changes)"), like VS Code's diff editor.
 // From History, ``sha`` (and ``from`` for a rename): the file as that commit changed it, its own tab "app.py (abc1234)".
 async function openDiff({ path, sha = '', short = '', from = '' }) {
+  showFilesInFront()
   const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha)
   if (existing) { activeTabId.value = existing.id; return }
   const tab = {
@@ -876,6 +912,7 @@ async function loadImageInto(live) {
   }
 }
 async function openImage(filePath) {
+  showFilesInFront()
   noteOpened(props.repositoryId, filePath)              // Go to file lists it among the recently opened
   const existing = openTabs.value.find(t => t.path === filePath && t.type === 'image')
   if (existing) { activeTabId.value = existing.id; return }
@@ -890,6 +927,7 @@ async function openImage(filePath) {
 onBeforeUnmount(() => { for (const t of openTabs.value) if (t.type === 'image' && t.url) URL.revokeObjectURL(t.url) })
 
 async function openFile(filePath, { asCode = false } = {}) {
+  showFilesInFront()
   if (!asCode && IMAGE_EXT.has(extOf(filePath))) return openImage(filePath)
   // Check if already open (as text: a picture tab or a changes tab of the same path is another tab)
   const existing = openTabs.value.find(t => t.path === filePath && t.type === 'file')
@@ -1792,6 +1830,25 @@ const FileTreeNode = {
 }
 
 .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); flex: 0 0 auto; }
+/* The Coding Agent's chat tabs (ADM-1221): a file tab with the agent's mark and a dot for what the chat is doing. */
+.chat-tab-icon { color: var(--vm-violet); }
+.chat-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--vm-line-2); }
+.chat-dot.working { background: var(--vm-violet); animation: cbchatpulse 1.4s ease-in-out infinite; }
+.chat-dot.needs_input { background: var(--vm-amber); }
+.chat-dot.done { background: var(--vm-green); }
+.chat-dot.failed { background: var(--vm-danger); }
+@keyframes cbchatpulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .chat-dot.working { animation: none; } }
+.tab-new-chat {
+  flex: 0 0 auto; align-self: center; display: grid; place-items: center; width: 28px; height: 28px; margin: 0 4px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--vm-ink-soft); cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.tab-new-chat :deep(svg) { width: 15px; height: 15px; }
+.tab-new-chat:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
+.tab-new-chat:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.chat-host { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.chat-host > * { flex: 1; min-height: 0; }
 .tab-actions { margin-left: auto; display: flex; align-items: center; padding: 0 8px; }
 .tab-gear {
   display: grid; place-items: center; width: 30px; height: 30px; margin-right: 6px; border: 0; border-radius: 6px;
