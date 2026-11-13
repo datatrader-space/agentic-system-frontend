@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ProjectSettings from '../../training-data/src/components/ProjectSettings.vue';
+import { projectKinds } from '../../training-data/src/api/projectKinds.js';
 import ProjectCreate from '../../training-data/src/components/ProjectCreate.vue';
 import * as api from '../../training-data/src/api/training.js';
 
@@ -12,7 +13,8 @@ const project = { ref: '~1', name: 'Synthetic walls', rights: ['manage'], family
 let values;
 const wrappers = [];
 const render = (component, props) => {
-  const wrapper = mount(component, { props });
+  const resource = projectKinds(async () => ({ kinds: [{ key: 'instance_segmentation', task: 'fmw_walls', available: true }] }));
+  const wrapper = mount(component, { props, global: { provide: { kinds: resource.kinds, projectKinds: resource } } });
   wrappers.push(wrapper);
   return wrapper;
 };

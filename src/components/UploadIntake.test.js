@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { projectKinds } from '../../training-data/src/api/projectKinds.js';
 import CameraCapture from '../../training-data/src/components/CameraCapture.vue';
 import ProjectCreate from '../../training-data/src/components/ProjectCreate.vue';
 import VideoFramesDialog from '../../training-data/src/components/VideoFramesDialog.vue';
@@ -125,8 +125,9 @@ test('successful creation immediately requests the new project upload page', asy
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   const project = { ref: '~901', name: 'Synthetic project' };
   const submit = vi.fn().mockResolvedValue(project);
+  const resource = projectKinds(async () => ({ kinds: [{ key: 'instance_segmentation', task: 'fmw_walls', available: true }] }));
   const wrapper = mount(ProjectCreate, { props: { submit }, global: {
-    provide: { kinds: ref([{ key: 'instance_segmentation', available: true }]) },
+    provide: { kinds: resource.kinds, projectKinds: resource },
     stubs: { UiDialog: { template: '<div><slot/></div>' } },
   } }); wrappers.push(wrapper);
   await wrapper.get('#new-project-name').setValue('Synthetic project');
