@@ -72,7 +72,10 @@ function cancel() { if (dirty.value) cancelDialog.value = true; else emit('cance
 async function create() {
   if (busy.value || !available.value) return;
   busy.value = true; errors.value = [];
-  try { created.value = await props.submit({ ...form, name: form.name.trim(), purpose: form.purpose.trim(), group: form.group.trim() }); }
+  try {
+    created.value = await props.submit({ ...form, name: form.name.trim(), purpose: form.purpose.trim(), group: form.group.trim() });
+    emit('done', 'upload', created.value);
+  }
   catch (error) { errors.value = [error.message]; await nextTick(); document.getElementById('create-errors')?.focus(); }
   finally { busy.value = false; }
 }
