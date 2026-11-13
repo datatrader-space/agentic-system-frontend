@@ -110,3 +110,29 @@ test('a fresh project has no hardcoded classes and cannot preview or label until
   await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
   expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['product logo'], '');
 });
+
+const samSource = where => ({ id: 'sam3', name: 'SAM 3', family: 'SAM 3', maker: 'Meta', labels: 'polygons', detail: 'SAM 3 on AADML GPU on RunPod', where });
+test('SAM 3 execution location stays visible when no connected machine is eligible', async () => {
+  api.detectSources.mockResolvedValue({ sources: [samSource([])] });
+  const w = render(); await flushPromises();
+  expect(w.get('.source-where').text()).toContain('AADML GPU · RunPod');
+  expect(w.get('.source-where').text()).toContain('No eligible connected machine');
+  expect(api.detect).not.toHaveBeenCalled();
+});
+test('connected machine and AADML GPU remain explicit choices and route previews correctly', async () => {
+  api.detectSources.mockResolvedValue({ sources: [samSource([{ id: 'machine:7', name: 'Synthetic GPU', gpu: 'NVIDIA fixture', price: '$0.10/hour', state: 'ready' }])] });
+  const w = render(); await flushPromises();
+  await w.findAll('.source-place').find(b => b.text().includes('Your machine')).trigger('click');
+  expect(api.detect).not.toHaveBeenCalled();
+  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet'], 'machine:7');
+  await w.findAll('.source-place').find(b => b.text().includes('AADML GPU')).trigger('click');
+  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet'], '');
+});
+test('models without SAM 3 visibly identify their actual provider', async () => {
+  const w = render(); await flushPromises();
+  expect(w.get('.source-where').text()).toContain('Where this model runs');
+  expect(w.get('.source-where').text()).toContain('Synthetic fixture');
+  expect(w.find('.source-place').exists()).toBe(false);
+});

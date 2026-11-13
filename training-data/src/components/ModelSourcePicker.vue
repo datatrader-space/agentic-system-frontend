@@ -41,6 +41,7 @@ const ways = computed(() => waysOf(current.value));
 // The machines the chosen model's SAM 3 may run on, and the one chosen (none: AADML's GPU server).
 const places = computed(() => current.value?.where || []);
 const place = computed(() => places.value.find(p => p.id === props.where) || null);
+const usesSam3 = computed(() => /^(sam3(?:-masks)?$|vision-sam3(?:-masks)?:)/.test(props.modelValue));
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase();
   return groups.value
@@ -128,11 +129,11 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
         {{ way === 'masks' ? 'Masks' : 'Polygons' }}
       </button>
     </div>
-    <div v-if="current && places.length" class="source-where" role="radiogroup" :aria-labelledby="`${uid}-where`">
+    <div v-if="current && (usesSam3 || places.length)" class="source-where" role="radiogroup" :aria-labelledby="`${uid}-where`">
       <span :id="`${uid}-where`" class="source-where-label">Where SAM 3 runs</span>
       <button type="button" role="radio" :aria-checked="!place" :class="['source-place', { on: !place }]" :disabled="disabled" @click="setWhere('')">
         <Cloud :size="18" aria-hidden="true"/>
-        <span class="source-place-text"><strong>AADML's GPU server</strong><small>Paid from your balance, by the second</small></span>
+        <span class="source-place-text"><strong>AADML GPU · RunPod</strong><small>Paid from your balance, by the second</small></span>
         <Check v-if="!place" :size="16" aria-hidden="true"/>
       </button>
       <button v-for="p in places" :key="p.id" type="button" role="radio" :aria-checked="place?.id===p.id"
@@ -143,6 +144,7 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
           <small :class="{ 'source-off': !!p.unavailable }">{{ p.unavailable || `${p.price} · ${p.gpu}` }}</small></span>
         <Check v-if="place?.id===p.id" :size="16" aria-hidden="true"/>
       </button>
+      <p v-if="!places.length" class="source-location-note" role="status">No eligible connected machine is available for this project. Check your machine connection and this project’s own-machine data-use setting.</p>
       <div v-if="place && place.state==='licence'" class="source-licence" role="group" :aria-labelledby="`${uid}-licence`">
         <ScrollText :size="18" aria-hidden="true"/>
         <div class="source-licence-text">
@@ -157,6 +159,7 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
         <button type="button" class="source-stop" :disabled="disabled" @click="emit('stop-machine', place)">Stop it</button></p>
       <p v-if="placeError" class="source-off source-error" role="alert">{{ placeError }}</p>
     </div>
+    <div v-else-if="current" class="source-where"><span class="source-where-label">Where this model runs</span><p class="source-location-note">{{ current.detail || 'Location information is unavailable. Reload the models before running.' }}</p></div>
   </div>
 </template>
 
@@ -200,6 +203,7 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
 .source-ways button.on { background: #fff; color: #16213a; box-shadow: 0 1px 3px #10182826; }
 .source-ways button:focus-visible { outline: 2px solid var(--aadml-focus); outline-offset: 1px; }
 .source-where { display: flex; flex-direction: column; gap: 6px; }
+.source-location-note { margin: 0; font-size: 12px; line-height: 1.5; color: #667085; }
 .source-where-label { font-size: 13px; font-weight: 600; color: #344054; }
 .source-place { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px; border: 1px solid #d0d5dd;
   border-radius: 10px; background: #fff; color: #475467; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
