@@ -12,7 +12,7 @@ beforeEach(()=>{
   vi.stubGlobal('ResizeObserver',class {observe(){} disconnect(){}});
   vi.spyOn(SVGElement.prototype,'getBoundingClientRect').mockReturnValue({left:0,top:0,width:600,height:300,right:600,bottom:300});
   api.editor.mockResolvedValue({photo:{width:1200,height:800},shapes:initial,classes,tags:[],readonly:'',approving:false,
-    detect:{sources:[{id:'sam3',name:'SAM 3',maker:'Meta',family:'SAM 3',labels:'polygons',where:[],platform:true,detail:'Synthetic fixture'}],auto:'sam3'},started_from:'from_scratch'});
+    detect:{sources:[{id:'sam3',point_selection:true,name:'SAM 3',maker:'Meta',family:'SAM 3',labels:'polygons',where:[],platform:true,detail:'Synthetic fixture'}],auto:'sam3'},started_from:'from_scratch'});
   api.comments.mockResolvedValue({comments:[]});
   api.segmentPoint.mockResolvedValue({state:'ready',source:'sam3',saved:false,shapes:[{kind:'product logo',points:[[500,300],[700,300],[700,500]]}]});
 });
@@ -47,4 +47,15 @@ test('empty project does not silently draw a wall and point selection requires i
   await w.get('[aria-label="SAM 3 click to label (A)"]').trigger('click');
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
   expect(api.segmentPoint).not.toHaveBeenCalled();expect(w.findAll('.shape-list button')).toHaveLength(0);
+});
+
+test('restored SAM disables point tool and keyboard while retaining automatic and manual tools', async()=>{
+  const body = await api.editor(); body.detect.sources[0].point_selection=false; api.editor.mockResolvedValue(body); api.editor.mockClear();
+  const w=render();await flushPromises();
+  expect(w.get('[aria-label="SAM 3 click to label (A)"]').element.disabled).toBe(true);
+  expect(w.text()).toContain('Mouse selection is temporarily unavailable');
+  expect(w.get('[aria-label="Draw polygon (P)"]').element.disabled).toBe(false);
+  window.dispatchEvent(new KeyboardEvent('keydown',{key:'a',bubbles:true}));
+  w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
+  expect(api.segmentPoint).not.toHaveBeenCalled(); expect(api.detect).not.toHaveBeenCalled();
 });
