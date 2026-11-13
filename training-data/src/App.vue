@@ -1,6 +1,8 @@
 <script setup>
 import { watch, ref, computed, inject, onMounted, onUnmounted, provide } from 'vue';
 import { signOut } from './api/session.js';
+import { projectSubmission } from './api/projectSubmission.js';
+import { projectKinds } from './api/projectKinds.js';
 import { trashProject, getProject, listProjects, createProject, createFolder, renameFolder, deleteFolder, inFolder, filterAfterDelete, folderRows, moveProject, renameProject, saveDataUse, saveLlmDataUse, listKinds, dataUseAnswers, llmDataUseAnswers, TYPE_KIND, toCard } from './api/training.js';
 import ConnectApp from './components/ConnectApp.vue';
 import LlmUpload from './components/LlmUpload.vue';
@@ -104,18 +106,17 @@ async function moveTo(project, id){const folder=folders.value.find(f=>String(f.i
 async function rename(project, name){try { const row=await renameProject(project.ref, name); project.name=row.name; } catch (error) { notice.value=error.message; }}
 // New project: create it, then save its data policy as the project's data-use answers. Returns the new card.
 async function submitProject(form){
-  const kind=TYPE_KIND[form.task]; const chosen=kinds.value.find(k=>k.key===kind); const task=chosen?.task||'';
-  // A language-model project names its kind too: the kind sets where its training starts.
-  const row=await createProject({name:form.name, description:form.purpose, task, ...(chosen?.family==='llm'?{kind}:{})});
-  await saveDataUse(row.ref, dataUseAnswers(form));
-  if (row.family==='llm') await saveLlmDataUse(row.ref, llmDataUseAnswers(form));
+  const row=await submitDraft(form);
   const card=toCard({...row, visibility: dataUseAnswers(form).viewers==='me'?'private':'shared'}, projects.value.length);
   projects.value.unshift(card);
   return card;
 }
 function finishCreate(where, card){ dialog.value=false; selected.value=where==='projects'?null:card; navigate(where); }
-const kinds=ref([]);
+const kindResource=projectKinds(listKinds);
+const kinds=kindResource.kinds;
 provide('kinds', kinds);
+provide('projectKinds', kindResource);
+const submitDraft=projectSubmission({requireKind: kindResource.requireKind, create: createProject, savePolicy: saveDataUse, saveLlmPolicy: saveLlmDataUse, dataUse: dataUseAnswers, llmDataUse: llmDataUseAnswers, typeKind: TYPE_KIND});
 const mobile = ref(false);const navCollapsed=ref(false);const sidebarDialog=ref('');
 let media;
 function syncMobile() { mobile.value = media.matches; }
@@ -146,7 +147,7 @@ watch(page, now => { if (notice.value && now !== noticePage) notice.value = ''; 
 // Back on Projects from another page: the cards are read again, so what was done there (photos, models) shows.
 watch(page, (now, before) => { if (now === 'projects' && before && before !== 'projects') loadProjects(); });
 function openProject(project) { selected.value = project; savedBatch.value = null; projectFlyout.value = false; navigate(dataOnly(project) ? 'records' : 'upload'); }
-onMounted(() => { media = window.matchMedia('(max-width: 700px)'); syncMobile(); media.addEventListener('change', syncMobile); window.addEventListener('keydown', onKey); readHash(); window.addEventListener('hashchange', readHash); loadProjects(); loadUnread(); unreadTimer=setInterval(loadUnread,60000); listKinds().then(body => { kinds.value = body.kinds; }).catch(() => {}); });
+onMounted(() => { media = window.matchMedia('(max-width: 700px)'); syncMobile(); media.addEventListener('change', syncMobile); window.addEventListener('keydown', onKey); readHash(); window.addEventListener('hashchange', readHash); loadProjects(); loadUnread(); unreadTimer=setInterval(loadUnread,60000); kindResource.refresh().catch(() => {}); });
 onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hashchange', readHash); window.removeEventListener('keydown', onKey); media?.removeEventListener('change', syncMobile); });
 </script>
 <template>
