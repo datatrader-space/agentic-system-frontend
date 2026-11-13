@@ -68,6 +68,36 @@ test('video selection excludes the ending timestamp and respects the requested r
   expect(wrapper.findAll('.video-selected button')).toHaveLength(0);
 });
 
+test('sampling slider and interval stay synchronized, and blank values cannot extract', async () => {
+  const wrapper = render(VideoFramesDialog, { file: new File(['test'], 'clip.mp4') });
+  const video = wrapper.get('video');
+  Object.defineProperty(video.element, 'duration', { value: 30 });
+  await video.trigger('loadedmetadata');
+  const slider = wrapper.get('[aria-label="Video sampling rate"]');
+  const interval = wrapper.get('[aria-label="Seconds between frames"]');
+  await slider.setValue(-1);
+  expect(interval.element.valueAsNumber).toBeCloseTo(1 / 30);
+  expect(wrapper.get('[aria-label="Estimated image count"]').text()).toBe('901');
+  await slider.setValue(0);
+  expect(interval.element.valueAsNumber).toBe(1);
+  expect(wrapper.get('[aria-label="Estimated image count"]').text()).toBe('31');
+  await interval.setValue('');
+  expect(button(wrapper, 'Extract 0 frames').element.disabled).toBe(true);
+  await slider.setValue(1);
+  expect(interval.element.valueAsNumber).toBe(30);
+  await button(wrapper, 'Manual selection').trigger('click');
+  expect(slider.element.disabled).toBe(true);
+  for (const time of [3, 7]) {
+    video.element.currentTime = time; await video.trigger('timeupdate');
+    await button(wrapper, 'Add current frame').trigger('click');
+  }
+  await button(wrapper, 'Previous').trigger('click');
+  expect(video.element.currentTime).toBe(3);
+  await video.trigger('timeupdate');
+  await button(wrapper, 'Next').trigger('click');
+  expect(video.element.currentTime).toBe(7);
+});
+
 test('staged uploads send ordered bounded chunks and cancel failed sessions', async () => {
   const file = new File(['0123456789'], 'dataset.zip');
   const base = '/training-data/app/projects/~1/uploads/';

@@ -13,6 +13,6 @@ watch(() => props.open, async (open) => {
 });
 </script>
 <template><dialog ref="dialog" class="dialog" :aria-labelledby="titleId" @cancel.prevent="emit('close')">
-  <header><h2 :id="titleId">{{ title }}</h2><button class="icon-button" aria-label="Close dialog" @click="emit('close')"><X :size="20" /></button></header>
+  <header><h2 :id="titleId"><slot name="title">{{ title }}</slot></h2><button class="icon-button" aria-label="Close dialog" @click="emit('close')"><X :size="20" /></button></header>
   <slot />
 </dialog></template>

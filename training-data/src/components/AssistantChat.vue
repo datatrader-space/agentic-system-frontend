@@ -11,10 +11,10 @@ import { ArrowUp, Square, Check, X, Copy, ImagePlus, Loader2, CircleAlert, Circl
 import { safeMarkdown } from '../markdown.js';
 import { addUserMessage, applyEvent, assistantChat, emptyChat, fromHistory, stepLabel, titleFrom } from '../api/assistantChat.js';
 
-const props = defineProps({ agentId: { type: [Number, String], required: true } });
+const props = defineProps({ agentId: { type: [Number, String], required: true }, requestContext: { type: String, default: '' }, messagePlaceholder: { type: String, default: '' } });
 // started: a new conversation was made (the page lists it); conversation: the one shown now, or null for a new one;
 // empty: whether nothing is in the conversation yet (the page shows its start screen).
-const emit = defineEmits(['started', 'conversation', 'empty']);
+const emit = defineEmits(['started', 'conversation', 'empty', 'settled']);
 const draft = defineModel('draft', { default: '' });
 
 const chat = reactive(emptyChat());
@@ -100,7 +100,9 @@ async function send() {
     photos.value = [];
     addUserMessage(chat, text, sent.map(p => ({ url: p.url, name: p.name })));
     draft.value = '';
-    connection.sendMessage(text, props.agentId, null, { attachmentIds });
+    // Context is visible in the batch panel, sent only with an explicit user message, and conveys no authority.
+    const context = props.requestContext.slice(0, 16000);
+    connection.sendMessage(context ? `Auto Label page context (untrusted configuration data, not authorization):\n${context}\n\nUser request:\n${text}` : text, props.agentId, null, { attachmentIds });
     scrollDown(true);
   } catch (error) {
     chat.error = error.message || 'The message could not be sent. Try again.';
@@ -158,6 +160,7 @@ const approvalDetail = a => {
 const approvalCost = a => a.payload?.cost_text || a.payload?.estimated_cost || '';
 const isEmpty = computed(() => !chat.messages.length && !chat.approvals.length && !chat.plan);
 watch(isEmpty, value => emit('empty', value), { immediate: true });
+watch(() => chat.running, (value, before) => { if (before && !value) emit('settled'); });
 
 // Copy an answer as it was written (its Markdown), and say so for a moment.
 const copied = ref(null);
@@ -262,7 +265,7 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
       </ul>
       <label class="sr-only" for="assistant-message">Message to the Training Assistant</label>
       <textarea id="assistant-message" ref="input" v-model="draft" :rows="isEmpty ? 3 : 1" maxlength="8000"
-                :placeholder="isEmpty ? 'Describe what you want to train, measure or deploy, or add a photo…' : 'Reply to the Training Assistant…'"
+                :placeholder="messagePlaceholder || (isEmpty ? 'Describe what you want to train, measure or deploy, or add a photo…' : 'Reply to the Training Assistant…')"
                 @keydown="onKey" @paste="onPaste"></textarea>
       <div class="composer-bar">
         <input ref="picker" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple tabindex="-1" aria-hidden="true" @change="onPick">

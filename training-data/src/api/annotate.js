@@ -10,8 +10,8 @@ const json = (path, method = 'GET', body) => apiFetch(path, method === 'GET' ? {
 // How long a model may take to draw one photo (detect, below).
 export const DETECT_MS = 240000;
 
-// The classes a person asks the AI for in a project (owner, 2026-11-09: wall, window and door stay in a walls project,
-// and unticked the models do not look for them). Kept in this browser, per project, as the classes left OUT, so a class
+// The classes a person asks the AI for, from the project's own vocabulary.
+// Kept in this browser, per project, as the classes left OUT, so a class
 // added later is asked for. Every read and write survives a browser that keeps nothing (private window).
 const skippedKey = ref => `aadml.autolabel.skipped.${ref}`;
 export function askedClasses(ref, names) {
@@ -24,8 +24,6 @@ export function keepAskedClasses(ref, names, asked) {
   try { localStorage.setItem(skippedKey(ref), JSON.stringify(names.filter(name => !asked.includes(name)))); } catch { /* not kept */ }
 }
 
-// The kinds the backend's labels hold (labels.py: wall, window, door), coloured as the sample classes were.
-export const CLASSES = [{ name: 'wall', color: '#8b5cf6' }, { name: 'window', color: '#10b981' }, { name: 'door', color: '#f59e0b' }];
 // The editor draws in 600 × 300 units stretched over the photo; the backend keeps photo pixels.
 export const UNITS = { width: 600, height: 300 };
 
@@ -73,7 +71,7 @@ function card(row) {
 
 export function liveAnnotate(ref) {
   const store = reactive({
-    live: true, ref, loading: true, error: '', batches: [], images: [], classes: CLASSES, tags: [], selectedImage: null,
+    live: true, ref, loading: true, error: '', batches: [], images: [], classes: [], tags: [], selectedImage: null,
     invitationDrafts: [], models: [], workflows: [], versions: [], runs: [], activeRules: [],
     counts: { to_label: 0, to_approve: 0, ready: 0, trained_on: 0 }, can: { batch: false, upload: false }, refused: '',
     labellers: null, roles: null,
@@ -96,10 +94,10 @@ export async function loadBoard(store) {
   finally { store.loading = false; }
 }
 
-// The project's classes (label_classes.py): wall, window and door, which a walls model learns, then the classes the
-// project added, which are label-only. `trained` says which is which.
+// Classes are supplied by the project API; a new project has no default vocabulary.
 export function classesOf(rows) {
-  return (rows || []).map(c => ({ name: c.name, color: c.color, description: c.description || '', trained: !!c.trained }));
+  return (rows || []).map(c => ({ name: c.name, color: c.color, description: c.description || '', trained: !!c.trained,
+    ...(c.editable === undefined ? {} : { editable: c.editable }), ...(c.removable === undefined ? {} : { removable: c.removable }) }));
 }
 export async function loadClasses(store) {
   const body = await json(`${base(store.ref)}/classes/`);
@@ -191,6 +189,8 @@ export const api = {
   acceptSamLicence: ref => json(`${base(ref)}/sam-licence/`, 'POST', { accept: true }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
+  segmentPoint: (ref, photo, name, points, where = '') => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
+    { method: 'POST', body: { class: name, points, where }, timeoutMs: DETECT_MS }),
   updateClass: (ref, name, body) => json(`${base(ref)}/classes/${enc(name)}/`, 'PATCH', body),
   removeClass: (ref, name) => json(`${base(ref)}/classes/${enc(name)}/`, 'DELETE'),
   saveLabel: (ref, photo, body) => json(`${base(ref)}/photos/${enc(photo)}/label/`, 'POST', body),

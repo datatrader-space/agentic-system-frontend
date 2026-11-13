@@ -41,7 +41,7 @@ async function run(call, done) {
 function saveClass() {
   const { row } = dialog.value; const body = { color: form.value.color, description: form.value.description };
   if (row) return run(() => classesApi.updateClass(props.projectRef, row.name, body), () => `"${row.name}" is changed.`);
-  return run(() => classesApi.addClass(props.projectRef, { ...body, name: form.value.name.trim() }), a => `"${a.added}" is added. It is drawn and kept with the labels, and is not trained on.`);
+  return run(() => classesApi.addClass(props.projectRef, { ...body, name: form.value.name.trim() }), a => `"${a.added}" is added to this project's classes.`);
 }
 const removeClass = () => run(() => classesApi.removeClass(props.projectRef, dialog.value.row.name), () => `"${dialog.value.row.name}" is removed.`);
 const renameTag = () => run(() => classesApi.tag(props.projectRef, 'rename', { tag: dialog.value.row.name, to: form.value.to }), a => a.said);
@@ -70,7 +70,7 @@ async function toggleLock(event) {
         <label v-if="tab==='Classes'" class="lock" :class="{off:!data.may.lock}" :title="data.may.lock ? '' : 'Only the project\'s Owner locks the classes'">
           <input type="checkbox" :checked="data.locked" :disabled="busy||!data.may.lock" @change="toggleLock"> <Lock :size="14"/> Lock classes</label>
       </div>
-      <p v-if="tab==='Classes'" class="classes-meta">Wall, window and door are the classes every walls model learns; they cannot be removed. A class the project adds is drawn and kept with the labels, and is not trained on.<template v-if="data.locked"> The classes are locked: nobody adds, changes or removes one.</template></p>
+      <p v-if="tab==='Classes'" class="classes-meta">Define the objects you want to label. Classes used by existing labels or imported annotations are preserved. Training support depends on the selected model.<template v-if="data.locked"> The classes are locked: nobody adds, changes or removes one.</template></p>
       <p v-else class="classes-meta">Tags are put on photos on the Dataset page. Renaming or removing a tag here changes every photo that carries it.</p>
       <div class="table-wrap">
         <table>
@@ -78,12 +78,12 @@ async function toggleLock(event) {
           <tbody>
             <tr v-for="row in rows" :key="row.name">
               <td><span v-if="tab==='Classes'" class="class-dot" :style="{background:row.color}"/><UiBadge v-else>Tag</UiBadge></td>
-              <td><strong>{{ row.name }}</strong><UiBadge v-if="row.trained" tone="purple">Trained on</UiBadge><span v-if="row.description" class="classes-meta"> · {{ row.description }}</span></td>
+              <td><strong>{{ row.name }}</strong><UiBadge v-if="row.trained" tone="purple">Model class</UiBadge><span v-if="row.description" class="classes-meta"> · {{ row.description }}</span></td>
               <td>{{ tab==='Classes' ? usageText(row) : `${row.photos} photo${row.photos===1?'':'s'}` }}</td>
               <td class="modify">
                 <template v-if="tab==='Classes'">
-                  <UiButton :disabled="busy||!data.may.classes" @click="open('class', row)">Edit</UiButton>
-                  <UiButton v-if="!row.trained" class="danger" :disabled="busy||!data.may.classes" @click="open('removeClass', row)">Remove</UiButton>
+                  <UiButton :disabled="busy||!data.may.classes||row.editable===false" @click="open('class', row)">Edit</UiButton>
+                  <UiButton v-if="row.removable!==false" class="danger" :disabled="busy||!data.may.classes" @click="open('removeClass', row)">Remove</UiButton>
                 </template>
                 <template v-else>
                   <UiButton :disabled="busy||!data.may.tags" @click="open('rename', row)">Rename</UiButton>
