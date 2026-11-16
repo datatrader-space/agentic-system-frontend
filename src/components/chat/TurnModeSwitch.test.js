@@ -113,154 +113,87 @@ describe('the welcome composer keeps its own controls', () => {
   })
 })
 
-describe('TurnModeSwitch — two buttons, three states', () => {
-  // THE DUPLICATE. An "Auto" button carrying a resolved-mode chip rendered as
-  // "Auto [Chat] · Chat · Work" -- the word Chat twice, meaning two different things. Auto is the
-  // absence of an override, so it is a STATE of this control, never one of its options.
-  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
-
-  it('offers exactly two modes', () => {
+describe('TurnModeSwitch — three modes, no Auto (LONG_RUN phase 5)', () => {
+  it('offers exactly Chat, Work and Plan, and no Auto', () => {
     const w = mount(TurnModeSwitch)
-    expect(w.findAll('.tms__opt').length).toBe(2)
+    expect(w.findAll('[role="radio"]').map((b) => b.text())).toEqual(['Chat', 'Work', 'Plan'])
     expect(w.find('[data-test="turnmode-auto"]').exists()).toBe(false)
   })
 
-  it('still rests on Auto internally, sending no override', () => {
-    const chat = useChatStore()
-    expect(chat.turnMode).toBe('auto')
-    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe(undefined)
-  })
-
-  it('on Auto the highlight REPORTS what the model chose, and is not drawn as a pin', () => {
-    const chat = useChatStore()
-    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
-    const w = mount(TurnModeSwitch)
-    const work = w.find('[data-test="turnmode-work"]')
-    expect(work.classes()).toContain('is-on')
-    expect(work.classes()).not.toContain('is-pinned')
-    // …and it is not announced as the user's own choice.
-    expect(work.attributes('aria-pressed')).toBe('false')
-  })
-
-  it('shows Chat before any turn has run — most turns never need to work', () => {
-    const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
-    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
-  })
-
-  it('clicking pins the mode, and the pin IS sent', async () => {
+  it('is a radio group: one mode is always selected, and clicking it again keeps it', async () => {
     const chat = useChatStore()
     const w = mount(TurnModeSwitch)
-    await w.find('[data-test="turnmode-chat"]').trigger('click')
-    expect(chat.turnMode).toBe('chat')
-    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('chat')
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-pinned')
-    expect(w.find('[data-test="turnmode-chat"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[role="radiogroup"]').exists()).toBe(true)
+    expect(w.find('[data-test="turnmode-chat"]').attributes('aria-checked')).toBe('true')
+    await w.find('[data-test="turnmode-plan"]').trigger('click')
+    await w.find('[data-test="turnmode-plan"]').trigger('click')
+    expect(chat.turnMode).toBe('plan')
+    expect(w.find('[data-test="turnmode-plan"]').attributes('aria-checked')).toBe('true')
+    expect(w.findAll('[aria-checked="true"]')).toHaveLength(1)
   })
 
-  it('clicking the pinned mode releases it back to Auto — otherwise there is no way back', async () => {
+  it('arrow keys move the selection', async () => {
     const chat = useChatStore()
-    const w = mount(TurnModeSwitch)
-    await w.find('[data-test="turnmode-work"]').trigger('click')
+    const w = mount(TurnModeSwitch, { attachTo: document.body })
+    await w.find('[data-test="turnmode-chat"]').trigger('keydown', { key: 'ArrowRight' })
     expect(chat.turnMode).toBe('work')
-    await w.find('[data-test="turnmode-work"]').trigger('click')
-    expect(chat.turnMode).toBe('auto')
+    await w.find('[data-test="turnmode-work"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(chat.turnMode).toBe('chat')
+    await w.find('[data-test="turnmode-chat"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(chat.turnMode).toBe('plan')
+    w.unmount()
   })
 
-  it('a pin overrides the model — Chat stays lit even after a turn resolved as Work', async () => {
-    const chat = useChatStore()
-    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
+  it('only the selected mode is in the tab order', () => {
     const w = mount(TurnModeSwitch)
-    await w.find('[data-test="turnmode-chat"]').trigger('click')
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
-    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
+    expect(w.find('[data-test="turnmode-chat"]').attributes('tabindex')).toBe('0')
+    expect(w.find('[data-test="turnmode-work"]').attributes('tabindex')).toBe('-1')
   })
 
-  it('a Work run in flight is shown as Work even with Chat pinned — the switch reports what is running', async () => {
-    // Reported 2026-09-17: the Brain opened a Work goal on a Chat-pinned turn (a pin is a preference it
-    // weighs), the run went iteration by iteration, and the switch kept saying Chat.
-    const chat = useChatStore()
-    chat.setTurnMode('chat')
+  it('says what Work means in words a person reads', () => {
     const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
-
-    chat._workRunActive = true                     // what `work_segment` sets
-    await w.vm.$nextTick()
-    const work = w.find('[data-test="turnmode-work"]')
-    expect(work.classes()).toContain('is-on')
-    expect(work.classes()).not.toContain('is-pinned')   // a readout, not the user's choice
-    expect(w.find('[data-test="turnmode-chat"]').classes()).not.toContain('is-on')
-    expect(w.find('[data-test="turnmode-chat"]').attributes('aria-pressed')).toBe('true')  // the pin is kept
-
-    chat._workRunActive = false                    // what `work_goal` sets when the run closes
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-pinned')
+    const hint = w.find('[data-test="turnmode-work"]').attributes('title')
+    expect(hint).toContain('three or more steps')
+    expect(hint).toContain('notified')
+    expect(hint).not.toMatch(/credit|helper|notice/i)
   })
 
-  it('the live frame drives it end to end: work_segment lights Work, work_goal hands back to the pin', async () => {
+  it('a name that is not a mode changes nothing; there is no Auto to fall back to', () => {
     const chat = useChatStore()
-    chat.setTurnMode('chat')
-    const w = mount(TurnModeSwitch)
-    chat._refreshWorkRun = () => {}               // network refresh — not what is under test
-    chat._onEvent({ type: 'work_segment', segment: 1, max: 3 })
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="turnmode-work"]').classes()).toContain('is-on')
-
-    chat._onEvent({ type: 'work_goal', state: 'met', segments: 1, max: 3 })
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
-  })
-
-  it('an unrecognised value falls back to Auto, never to a silent override', () => {
-    const chat = useChatStore()
-    chat.setTurnMode('banana')
-    expect(chat.turnMode).toBe('auto')
+    chat.setTurnMode('work')
+    chat.setTurnMode('auto')
+    chat.setTurnMode('sudo')
+    expect(chat.turnMode).toBe('work')
   })
 })
 
-describe('TurnModeSwitch — a stored default is not a pin', () => {
-  // THE REGRESSION, from production conv 1552. The old store defaulted turnMode to 'chat' and
-  // persisted it, while the send site only ever transmitted 'work' -- so a stored 'chat' meant "send
-  // nothing". When 'chat' became a real override that stale value became a pin nobody set, and the
-  // backend logged "the user chose 'chat' for this turn" on EVERY turn: _freeze_work_goal returned
-  // before the Brain's proposal was read, so a long multi-step wall-detection task could never open a
-  // work goal. Auto looked fine on screen the entire time.
-  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
-
-  const fresh = () => { setActivePinia(createPinia()); return useChatStore() }
-
-  it('ignores the pre-Auto key, so an old default cannot suppress Work', () => {
-    localStorage.setItem('aadml.turnMode', 'chat')
-    const chat = fresh()
-    expect(chat.turnMode).toBe('auto')
-    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe(undefined)
+describe("TurnModeSwitch — the mode is the conversation's", () => {
+  it("a new chat starts on Chat, a new Let's Code project chat on Work", () => {
+    const chat = useChatStore()
+    chat.setTurnMode('plan')
+    chat.reset()
+    expect(chat.turnMode).toBe('chat')
+    chat.newChatRepoId = 12
+    chat.reset()
+    expect(chat.turnMode).toBe('work')
   })
 
-  it('drops the legacy key outright, so no later version can read it back', () => {
-    localStorage.setItem('aadml.turnMode', 'chat')
-    fresh()
-    expect(localStorage.getItem('aadml.turnMode')).toBe(null)
+  it('nothing is read from the browser any more: the server keeps the choice', () => {
+    localStorage.setItem('aadml.turnMode.v2', 'work')
+    setActivePinia(createPinia())
+    expect(useChatStore().turnMode).toBe('chat')
+    const store = src('../../stores/useChatStore.js')
+    expect(store).not.toContain('aadml.turnMode')
+    expect(store).toContain("this.turnMode = TURN_MODES.includes(data.turn_mode) ? data.turn_mode : 'chat'")
   })
 
-  it('a deliberate pin DOES survive a reload — it was a real click', () => {
-    const chat = fresh()
-    chat.setTurnMode('work')
-    expect(localStorage.getItem('aadml.turnMode.v2')).toBe('work')
-    expect(fresh().turnMode).toBe('work')
+  it('the mode is always sent with the message', () => {
+    const store = src('../../stores/useChatStore.js')
+    expect(store).not.toContain("this.turnMode === 'auto'")
+    expect(store).toContain('turnMode: this.turnMode,')
   })
 
-  it('and releasing back to Auto survives a reload too', () => {
-    const chat = fresh()
-    chat.setTurnMode('chat')
-    chat.setTurnMode('auto')
-    expect(fresh().turnMode).toBe('auto')
-  })
-
-  it('an old WORK value is also not honoured — it predates the pin having meaning', () => {
-    // 'work' was genuinely sent by the old code, but it was sticky with no way to clear it, so it is
-    // no more trustworthy as a standing instruction than the 'chat' default was.
-    localStorage.setItem('aadml.turnMode', 'work')
-    expect(fresh().turnMode).toBe('auto')
+  it("the Coding Agent's project chat opens on Work", () => {
+    expect(src('../letscode/UnifiedAgentChat.vue')).toContain("chat.setTurnMode('work')")
   })
 })

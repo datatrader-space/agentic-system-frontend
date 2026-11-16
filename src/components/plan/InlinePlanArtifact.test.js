@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
-// NO FLAG. The rail is the implementation for a Work run, wired unconditionally.
-//
-// What selects it is the run's own shape, not a rollout switch: a Work run spans segments, and a card
-// per segment is what made the transcript unreadable. An ordinary run is a handful of steps the
-// existing card reads fine, so it keeps it — the same way every other behaviour here follows the run's
-// mode rather than a toggle.
+// Every run, in Chat or Work alike, is shown on the same inline plan card (one engine, LONG_RUN phase 5): Work mode's
+// rail, goal row and iteration bar are gone with Work mode's goal and segments.
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -16,8 +12,6 @@ const PLAN = {
   run_id: RUN, run_status: 'executing', plan_status: 'executing', plan_status_user: 'active',
   plan_status_label: 'Active',
   steps: [{ step_id: 'op_1', title: 'Validate the wall coordinates', status: 'completed', status_user: 'completed' }],
-  work_goal: { state: 'ACTIVE', outcome: 'detect the walls', segments_used: 2, max_segments: 12,
-               last_verdict: 'not_met', last_findings: [], attempts: [], available_actions: [] },
 }
 
 describe('InlinePlanArtifact — which surface a run gets', () => {
@@ -28,27 +22,16 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
     plan.hydrationStatusByRunId[RUN] = 'ready'
   })
 
-  it('a WORK run gets the rail, with no flag to turn it on', () => {
+  it('a run gets the plan card, with no rail beside it', () => {
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.find('[data-test="run-timeline"]').exists()).toBe(true)
-  })
-
-  it('never shows both at once — one surface, not two', () => {
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.find('[data-test="run-timeline"]').exists()).toBe(true)
-    expect(w.findAll('.uplan__step, .iplan__step').length).toBe(0)
-  })
-
-  it('an ORDINARY run keeps the existing card', () => {
-    const plan = usePlanStore()
-    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null }
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('section').exists()).toBe(true)
     expect(w.find('[data-test="run-timeline"]').exists()).toBe(false)
+    expect(w.text()).toContain('Validate the wall coordinates')
   })
 
   it('a stepless ordinary plan that already stopped draws nothing (prod conv 1662)', () => {
     const plan = usePlanStore()
-    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, steps: [], total_step_count: 0,
+    plan.plansByRunId[RUN] = { ...PLAN, steps: [], total_step_count: 0,
                                plan_status: 'blocked', plan_status_user: 'blocked', plan_status_label: 'Blocked' }
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
     expect(w.html()).not.toContain('Blocked')
@@ -57,7 +40,7 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
 
   it('a stepless plan that is still planning draws nothing either (prod conv 1666)', () => {
     const plan = usePlanStore()
-    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, steps: [], total_step_count: 0,
+    plan.plansByRunId[RUN] = { ...PLAN, steps: [], total_step_count: 0,
                                plan_status: 'planning', plan_status_user: 'active', plan_status_label: 'Planning' }
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
     expect(w.find('section').exists()).toBe(false)
@@ -65,84 +48,32 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
 
   it('the card appears as soon as the plan has a step', () => {
     const plan = usePlanStore()
-    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, plan_status: 'planning', plan_status_user: 'active' }
+    plan.plansByRunId[RUN] = { ...PLAN, plan_status: 'planning', plan_status_user: 'active' }
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
     expect(w.find('section').exists()).toBe(true)
   })
 })
 
-// ONE SURFACE, and this is the test that was missing when the rail shipped beside the old ones.
-//
-// REPORTED LIVE: the rail rendered correctly AND the segment card, the iteration bar and the
-// per-message activity list all kept rendering. The same findings appeared twice under two different
-// headings ("Not there yet — continuing." and "Not there yet — running the failed steps again"), the
-// segment and attempt counts appeared twice, and the steps appeared twice — once as numbered rail
-// entries and once as a flat "Loading tools / Waiting for your approval…" list.
-//
-// Replacing a surface means the old one STOPS. Nothing asserted that, so nothing caught it.
-describe('InlinePlanArtifact — a Work run has exactly one surface', () => {
+// Plan mode (backend phase 4): the plan is answered on plan mode's own card, so its inline card shows the plan but
+// never offers Approve a second time.
+describe('InlinePlanArtifact — a plan answered on plan mode\'s card', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     const plan = usePlanStore()
-    plan.plansByRunId[RUN] = PLAN
+    plan.plansByRunId[RUN] = { ...PLAN, plan_status: 'pending_approval', plan_status_user: 'awaiting_approval',
+                               plan_status_label: 'Awaiting approval', available_actions: ['approve', 'reject', 'request_changes'] }
     plan.hydrationStatusByRunId[RUN] = 'ready'
   })
 
-  it('does NOT render the old goal row beside the rail', () => {
+  it('outside plan mode the card offers its decision buttons', () => {
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.find('[data-test="run-timeline"]').exists()).toBe(true)
-    expect(w.find('[data-test="wg-attempt-pips"]').exists()).toBe(false)
-    expect(w.find('[data-test="wg-attempts"]').exists()).toBe(false)
+    expect(w.find('.ipc-ft').exists()).toBe(true)
   })
 
-  it('does NOT restate the segment counter at the top', () => {
-    // The old card's header, carried onto the rail, is not what the target does. The run's state
-    // belongs in the page header as a status pill, and the reason the loop turned again rides on the
-    // `loop.continuing` node that caused it. A counter at the top restates on every render a thing the
-    // rail already shows by SHAPE.
+  it('in plan mode the same plan has no second set of buttons', () => {
+    usePlanStore().markPlanModeRun(RUN, 'pv-1')
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.text()).not.toMatch(/Segment\s+\d+\s+of\s+\d+/)
-  })
-
-  it('keeps the goal controls, because there is nowhere else to put them', () => {
-    const plan = usePlanStore()
-    plan.plansByRunId[RUN] = {
-      ...PLAN, work_goal: { ...PLAN.work_goal, available_actions: ['pause'] },
-    }
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.find('[data-test="rt-head"]').exists()).toBe(true)
-  })
-
-  it('states the findings ONCE', () => {
-    const plan = usePlanStore()
-    plan.plansByRunId[RUN] = {
-      ...PLAN,
-      work_goal: { ...PLAN.work_goal, last_verdict: 'not_met',
-                   last_findings: [{ observation: 'Exclusions validation never ran.',
-                                     repair_instruction: 'Run it.' }] },
-    }
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    const hits = w.text().split('Exclusions validation never ran.').length - 1
-    expect(hits).toBe(1)
-  })
-
-  it('still offers the goal actions from the rail', async () => {
-    const plan = usePlanStore()
-    plan.plansByRunId[RUN] = {
-      ...PLAN, work_goal: { ...PLAN.work_goal, available_actions: ['pause'] },
-    }
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    // An icon button now, named by its tooltip and aria-label rather than by visible text.
-    const btn = w.find('[data-test="rt-action-pause"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.attributes('aria-label')).toBe('Pause work')
-  })
-
-  it('an ORDINARY run keeps the old card AND its goal row untouched', () => {
-    // The old surfaces are not deleted — they are what a non-Work run still uses.
-    const plan = usePlanStore()
-    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null }
-    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    expect(w.find('[data-test="run-timeline"]').exists()).toBe(false)
+    expect(w.find('.ipc-ft').exists()).toBe(false)
+    expect(w.text()).toContain('Validate the wall coordinates')
   })
 })

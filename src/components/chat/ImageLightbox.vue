@@ -1,10 +1,8 @@
 <!--
   Click-to-preview for an image rendered inside an answer (ADM-486).
 
-  ONE component, because the preview lived only in ChatMessage.vue. A Work answer is drawn on the rail
-  (RunTimeline.vue) with the same `enhanceChatMedia` markup, and ChatMessage suppresses its bubble there
-  (`answerOnRail`), so on a Work run clicking an image did nothing: the handler that knew about images was
-  in a component that was not on screen.
+  ONE component, so every surface that renders `enhanceChatMedia` markup (ChatMessage.vue and the others) opens
+  the same preview.
 
   The owner calls `open(src)` from its own delegated click handler (the answer is `v-html`, so there is no
   element to bind to). Teleported to <body> so it overlays the app whatever container it was opened from.

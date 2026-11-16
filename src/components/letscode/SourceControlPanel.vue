@@ -27,7 +27,7 @@
                 aria-label="History" :aria-expanded="historyOpen ? 'true' : 'false'" @click="toggleHistory">
           <Icon icon="lucide:history" aria-hidden="true" />
         </button>
-        <button type="button" class="scm-refresh" :disabled="loading || busy" title="Refresh" aria-label="Refresh source control" @click="load">
+        <button type="button" class="scm-refresh" :disabled="loading || busy" title="Refresh" aria-label="Refresh source control" @click="refreshAll">
           <Icon icon="lucide:refresh-cw" :class="{ spin: loading }" />
         </button>
       </div>
@@ -49,7 +49,7 @@
     <div v-if="status.merging" class="scm-merge" role="status">
       <p class="scm-merge-t">
         <Icon icon="lucide:git-merge" aria-hidden="true" />
-        <template v-if="conflicts.length">Merging GitHub's commits: {{ conflicts.length }} {{ conflicts.length === 1 ? 'file has' : 'files have' }} a conflict. Open each one, keep the lines you want (remove the &lt;&lt;&lt;&lt;&lt;&lt;&lt; ======= &gt;&gt;&gt;&gt;&gt;&gt;&gt; markers), then Mark resolved.</template>
+        <template v-if="conflicts.length">Merging {{ mergingWhat }}: {{ conflicts.length }} {{ conflicts.length === 1 ? 'file has' : 'files have' }} a conflict. Open each one, keep the lines you want (remove the &lt;&lt;&lt;&lt;&lt;&lt;&lt; ======= &gt;&gt;&gt;&gt;&gt;&gt;&gt; markers), then Mark resolved.</template>
         <template v-else>Every conflict is resolved. Commit to finish the merge.</template>
       </p>
       <button type="button" class="scm-btn" :disabled="busy" @click="abortMerge">
@@ -201,6 +201,11 @@
         </button>
       </div>
 
+      <!-- Chats that work in their own copy of the project (backend phase 7b): merge or discard each one's branch. -->
+      <ChatBranchesSection ref="chatBranches" :system-id="systemId" :repo-id="repoId"
+                           @open-diff="emit('open-diff', $event)" @changed="onChatMerged"
+                           @branches="emit('chat-branches', $event)" @merge-conflict="mergingFrom = $event.branch" />
+
       <div v-if="loaded && !status.has_remote" class="scm-keep">
         <p class="scm-foot warn">
           <Icon icon="lucide:triangle-alert" aria-hidden="true" />
@@ -225,6 +230,7 @@ import { confirm } from '@/composables/useConfirm'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { saveBlob, filenameFrom } from '@/utils/saveBlob'
 import { projectCache } from '@/services/projectCache'
+import ChatBranchesSection from './ChatBranchesSection.vue'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -234,7 +240,8 @@ const props = defineProps({
 })
 // open-file: a conflicted file opens in the editor to be resolved.
 // `branch`: the branch the project is on, as git reports it (the page's branch picker follows it).
-const emit = defineEmits(['count', 'open-diff', 'open-file', 'changed', 'published', 'branch'])
+// `chat-branches`: the chats that work in their own copy, read by the Chats' branches section (their tabs show it).
+const emit = defineEmits(['count', 'open-diff', 'open-file', 'changed', 'published', 'branch', 'chat-branches'])
 
 const status = reactive({ branch: '', default_branch: '', on_default: false, unpushed: 0, on_remote: false,
                           has_remote: true, has_commit: true, clean: true, changes: [], untracked: [], merging: false })
@@ -253,6 +260,10 @@ const branch = ref('')
 const action = ref('')            // 'commit' | 'push' | 'pr' | 'discard' | 'publish' while one runs
 const actionError = ref('')
 const prUrl = ref('')
+// A chat's branch whose merge stopped on conflicts: the merge banner names it instead of GitHub.
+const mergingFrom = ref('')
+const chatBranches = ref(null)
+const mergingWhat = computed(() => (mergingFrom.value ? `the chat's branch ${mergingFrom.value}` : "GitHub's commits"))
 let gone = false
 
 const busy = computed(() => !!action.value)
@@ -278,6 +289,7 @@ function apply(data) {
   const now = new Set([...status.changes, ...status.untracked].map(c => c.path))
   for (const p of [...unticked.value]) if (!now.has(p)) unticked.value.delete(p)
   unticked.value = new Set(unticked.value)
+  if (!data.merging) mergingFrom.value = ''
   projectCache.status.set(props.repoId, data)
   emit('count', status.changes.length + status.untracked.length)
   if (status.branch) emit('branch', status.branch)
@@ -412,6 +424,16 @@ function tickAll(g, on) {
   const next = new Set(unticked.value)
   for (const it of g.items) { if (on) next.delete(it.path); else next.add(it.path) }
   unticked.value = next
+}
+
+// A chat's branch was merged (or stopped on conflicts) into the shared copy: read the shared copy again.
+function onChatMerged() {
+  load()
+  emit('changed')
+}
+function refreshAll() {
+  load()
+  if (chatBranches.value) chatBranches.value.refresh()
 }
 
 function pull() {

@@ -124,6 +124,9 @@
             </button>
             <!-- The same pick as the main chat for a shared agent: the person's own model for the Coding Agent. -->
             <AgentModelPicker v-if="agentId" :agent-id="agentId" />
+            <!-- Chat / Work / Plan: the main chat's own switch (one control, the shared chat store). Plan mode's file
+                 lives in this project (`.aadml/plans/<run>.md`), so a project chat is where it matters most. -->
+            <TurnModeSwitch compact class="uac-turnmode" />
           </div>
           <button v-if="chat.isBusy" type="button" class="uac-circle stop" title="Stop" aria-label="Stop" @click="chat.stop()">
             <Icon icon="lucide:square" />
@@ -159,6 +162,7 @@ import ChatTaskList from '@/components/chat/ChatTaskList.vue'
 import HITLModal from '@/components/HITLModal.vue'
 import PermissionCard from '@/components/letscode/PermissionCard.vue'
 import AgentModelPicker from '@/components/agent/AgentModelPicker.vue'
+import TurnModeSwitch from '@/components/chat/TurnModeSwitch.vue'
 import AttachmentStrip from '@/components/chat/AttachmentStrip.vue'
 import FileResultList from '@/components/letscode/FileResultList.vue'
 import { useComposerAttachments } from '@/composables/useComposerAttachments'
@@ -230,6 +234,7 @@ function onProjectFrame(d) {
     // What this turn changed: paths and status only. The person reviews, commits and pushes in Source control.
     const c = cardFor(lastAssistant())
     if (c) c.changes = { files: d.files || [], total: d.total || 0 }
+    noteWorktree(d)
     emit('changes')
     scrollDown(); return true
   }
@@ -470,8 +475,22 @@ const tabHandlers = { select: selectTab, newChat, close: closeTab, title: tabTit
                       stateLabel: tabStateLabel, isActive: isActiveTab }
 // A chat left running reports the files its turn changed, so the tree and Source control reload as for this one.
 function onParkedFrame(_id, d) {
-  if (d && d.type === 'lets_code_changes') emit('changes')
+  if (d && d.type === 'lets_code_changes') { noteWorktree(d); emit('changes') }
 }
+// A chat the Coding Agent moved into its own copy (backend phase 7b): the frame names the chat and its branch, and
+// that chat's tab shows the branch.
+function noteWorktree(d) {
+  const w = d && d.worktree
+  if (w && w.chat_id != null && w.branch) tabsStore.setBranch(w.chat_id, w.branch)
+}
+// On opening the project: which chats already work in their own copy, so their tabs show it at once.
+async function loadChatBranches() {
+  try {
+    const { data } = await api.getChatWorktrees(props.systemId, props.repoId)
+    if (!resumeCancelledByUnmount) tabsStore.setBranches(data?.worktrees || [])
+  } catch { /* the tabs show no branch until a turn or Source control names one */ }
+}
+let resumeCancelledByUnmount = false
 function rememberTitles(list) {
   const next = { ...titles.value }
   for (const c of list || []) next[String(c.id)] = convTitle(c)
@@ -581,6 +600,7 @@ onMounted(() => {
   chat.reset()
   chat.repoId = Number(props.repoId)
   chat.newChatRepoId = Number(props.repoId)
+  chat.setTurnMode('work')                 // the Coding Agent's project chats work by default; the person may pick Chat
   chat.surfaceHandler = onProjectFrame
   chat.parkedFrameHandler = onParkedFrame
   chat.keepRunsOnLeave = true
@@ -589,9 +609,11 @@ onMounted(() => {
   tabsStore.front = true                   // the project opens on its chat, as Claude Code's does in VS Code
   loadAgent()
   resumeLastChat()
+  loadChatBranches()
 })
 onBeforeUnmount(() => {
   resumeCancelled = true
+  resumeCancelledByUnmount = true
   if (chat.surfaceHandler === onProjectFrame) chat.surfaceHandler = null
   if (chat.parkedFrameHandler === onParkedFrame) chat.parkedFrameHandler = null
   chat.newChatRepoId = null

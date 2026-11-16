@@ -18,6 +18,10 @@ export function createCodingChatTabs() {
     front: false,
     // Set while the chat panel is bound: the editor shows chat tabs only then.
     bound: false,
+    // A chat that works in its own copy of the project (its git worktree, backend phase 7b): chat id -> branch.
+    // Filled by the turn's `lets_code_changes` frame (its `worktree`) and by Source control's list of chats' branches;
+    // its editor tab shows the branch name.
+    branches: {},
   })
   let handlers = null
   Object.assign(ctl, markRaw({
@@ -28,6 +32,7 @@ export function createCodingChatTabs() {
       ctl.bound = false
       ctl.tabs = []
       ctl.front = false
+      ctl.branches = {}
     },
     // The person picks a chat tab: it comes to the front and its chat opens.
     select(tab) { ctl.front = true; return handlers?.select(tab) },
@@ -43,6 +48,20 @@ export function createCodingChatTabs() {
     state(tab) { return handlers?.state(tab) || 'idle' },
     stateLabel(tab) { return handlers?.stateLabel(tab) || '' },
     isActive(tab) { return !!handlers?.isActive(tab) },
+    branch(tab) { return (tab && tab.id && ctl.branches[String(tab.id)]) || '' },
+    setBranch(chatId, branch) {
+      if (!chatId) return
+      const next = { ...ctl.branches }
+      if (branch) next[String(chatId)] = String(branch)
+      else delete next[String(chatId)]
+      ctl.branches = next
+    },
+    // The whole list from Source control: every chat in its own copy, and only those.
+    setBranches(list) {
+      const next = {}
+      for (const w of list || []) if (w && w.chat_id != null && w.branch && w.present !== false) next[String(w.chat_id)] = String(w.branch)
+      ctl.branches = next
+    },
   }))
   return ctl
 }

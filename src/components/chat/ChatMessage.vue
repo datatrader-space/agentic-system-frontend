@@ -1,35 +1,7 @@
 <template>
-  <div class="msg" :class="[message.role, { 'on-rail': deferToRail && message.role === 'assistant' }]"
-       :data-test="deferToRail && message.role === 'assistant' ? 'msg-on-rail' : null">
-    <!-- A WORK RUN'S MESSAGE DRAWS NOTHING OF ITS OWN. The rail below it carries the answer, the
-         steps, the verdicts, the tokens and the actions, in the order they happened. Drawing the
-         avatar, a token line and copy/regenerate here put the END of the run ABOVE the run (prod conv
-         1578). What remains is what the rail cannot say: the moment before it exists, and an error. -->
-    <template v-if="message.role === 'assistant' && deferToRail">
-      <div class="rail-slot">
-        <!-- ANCHORED, NOT FLOATING. The line itself stays a line — growing it into a card is what made
-             a Work run draw a card and then swap it for the rail (conv 1578), and that is not being
-             re-litigated here. What was wrong was that it had nothing beside it: every other assistant
-             turn opens with the avatar, so a lone chip under a right-aligned user bubble read as a
-             stray element rather than as the assistant starting to answer.
-             The avatar sits in the SAME 44px gutter the rail will use, so when the rail replaces this
-             line nothing moves sideways. -->
-        <div v-if="isStreaming && !railShown" class="prep-row" data-test="rail-pending">
-          <div class="avatar assistant-avatar prep-avatar" aria-hidden="true">
-            <BrandMark />
-          </div>
-          <div class="prep-status">
-            <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
-          </div>
-        </div>
-        <div v-if="message.status === 'error'" class="error-row">
-          <span class="error-text">⚠ {{ message.error || 'Something went wrong.' }}</span>
-          <button v-if="message.retryable !== false" class="retry-btn" @click="$emit('retry')">Retry</button>
-        </div>
-      </div>
-    </template>
+  <div class="msg" :class="[message.role]">
     <!-- Assistant -->
-    <template v-else-if="message.role === 'assistant'">
+    <template v-if="message.role === 'assistant'">
       <div class="avatar assistant-avatar">
         <BrandMark />
       </div>
@@ -37,24 +9,16 @@
         <!-- Live activity timeline: Thinking → Searching → Generating → Done. Renders ONLY friendly,
              param-free labels — never raw tool calls / params / output. Live values come from the store
              while streaming; a pinned snapshot after. This is the sole activity renderer. -->
-        <!-- SUPPRESSED FOR A WORK RUN. The rail already tells this story as numbered steps that
-             activate in place; this renders the same work again as a flat list -- "Analyzing your
-             request / Loading tools / Waiting for your approval… / Looking at the image" -- with no
-             indication of which step any row belongs to. Two tellings of one run is what made the
-             transcript unreadable. Ordinary chat is unchanged: there is no rail there, and this is
-             still the sole activity renderer. -->
         <!-- WHILE A TURN IS ONLY PREPARING, ONE LINE. "Analyzing your request / Loading tools / Finding
-             the right tools / Gathering context…" arrive before anything is decided -- including whether
-             the turn is Work. Growing them into a card meant a Work run drew that card and then swapped
-             it for the rail (conv 1578). The line becomes the card the moment real work or reasoning
-             starts, with every row intact; on a Work run the rail takes those rows as its first step. -->
+             the right tools / Gathering context…" arrive before anything is decided. The line becomes the card
+             the moment real work or reasoning starts, with every row intact. -->
         <div v-if="preparingOnly" class="prep-status" data-test="preparing-line"
              role="status" aria-live="polite">
           <span class="prep-orb" aria-hidden="true"></span>
           <span class="prep-label">{{ preparingLabel }}</span>
         </div>
         <AgentActivityTimeline
-          v-if="!preparingOnly && !deferToRail && (isStreaming ? chat.richActive : !!message.timeline)"
+          v-if="!preparingOnly && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -65,8 +29,7 @@
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
-          :running="!turnReallyFinished && !pausedLabel"
-          :work-iteration="message.workIteration || null" />
+          :running="!turnReallyFinished && !pausedLabel" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->
@@ -79,11 +42,11 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub). Generated images are
              embedded as /media/... markdown in the answer text by the backend and rendered by
              enhanceChatMedia — a single, refresh-stable mechanism (no separate media list). -->
-        <div v-if="displayContent && !answerOnRail" ref="bubbleEl" class="bubble assistant" v-html="rendered"
+        <div v-if="displayContent" ref="bubbleEl" class="bubble assistant" v-html="rendered"
              @click="onCodeCopy"></div>
 
         <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md): recording, then playable, or why not. -->
-        <VoiceReply v-if="message.voiceReply && !answerOnRail" :reply="message.voiceReply" />
+        <VoiceReply v-if="message.voiceReply" :reply="message.voiceReply" />
 
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
         <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
@@ -206,9 +169,9 @@
           <span v-if="message.content && !isVoiceNote">{{ message.content }}</span>
           <span v-if="message.voiceNoteError" class="user-voice-error" role="alert">{{ message.voiceNoteError }}</span>
           <span v-if="message.queued" class="user-queued"
-                :title="message.queuedAfter ? 'A separate request — it is answered on its own when the current run finishes' : 'Sent while the agent is working — it will pick this up between steps'">
+                title="Sent while the agent is working: it reads this at its next step">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
-            {{ message.queuedAfter ? 'Queued · runs after this one' : 'Queued · steering the running agent' }}
+            Queued · the agent reads it at its next step
           </span>
         </div>
 
@@ -247,9 +210,6 @@
 <script setup>
 import { computed, ref, shallowRef, nextTick, watch } from 'vue'
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
-// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
-// followed (security audit, frontend finding A12).
-const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { marked } from 'marked'
 import BrandMark from '../common/BrandMark.vue'
 import MediaThumb from '../common/MediaThumb.vue'
@@ -262,7 +222,6 @@ import { ensureMath, mathVersion } from '../../utils/mathRenderer'
 import { highlightCodeIn } from '../../utils/codeHighlight'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
-import { usePlanStore } from '../../stores/usePlanStore'
 import TokenUsage from '../activity/TokenUsage.vue'
 import MemoryChips from './MemoryChips.vue'
 import SourcesList from './SourcesList.vue'
@@ -275,67 +234,11 @@ import { stripThinkBlocks } from '../../utils/thinkFilter'
 import { fileLinkPayload } from '../../composables/fileLinks'
 
 const chat = useChatStore()
-const _plan = usePlanStore()
 
 const props = defineProps({
   message: { type: Object, required: true },
 })
 
-// IS **THIS MESSAGE** COVERED BY A RAIL — asked per message, never per conversation.
-//
-// The rail belongs to a run. Asking `plan.hasWorkRail(conversationId)` instead asked whether the
-// THREAD had ever run Work, and because the store's run list is append-only that answer never goes
-// back to false: after one Work run, every later chat-mode turn in the same conversation lost its
-// activity timeline and its answer bubble. Ordinary chat must render exactly as it did before the
-// rail existed, and the only way to guarantee that is to make the rail's claim reach no further than
-// its own run.
-//
-// How a message names its run, most authoritative first:
-//   1. `turnModeResolved` — what the server says the turn ACTUALLY ran as, decided after the Brain's
-//      proposal and the user's override were both applied. Stamped by every writer
-//      (agent/services/turn_metadata.py), so it answers for a reloaded thread too.
-//   2. `runId` — the run itself, live from plan_event or durable from the same server stamp; the plan
-//      store then says whether that run carries a work goal.
-//   3. `planArtifacts` — the durable plan anchor, which only the FIRST message of a run receives.
-//   4. `workIteration` — the older Work stamp, kept so messages written before turn_metadata shipped
-//      still render correctly.
-// A message with none of these is an ordinary chat turn and is left completely alone.
-const onWorkRail = computed(() => {
-  const m = props.message
-  if (m.turnModeResolved) return m.turnModeResolved === 'work'
-  // The user PINNED Work for this turn: known before the server says a word, so the turn opens as a
-  // Work turn instead of drawing an ordinary chat timeline first and then swapping it out. Only while
-  // streaming — once the turn ends the server's own stamp decides.
-  if (m.status === 'streaming' && chat.turnMode === 'work') return true
-  if (_plan.isWorkRun(m.runId)) return true
-  for (const a of (m.planArtifacts || [])) if (_plan.isWorkRun(a && a.run_id)) return true
-  return !!m.workIteration
-})
-
-// THE ANSWER IS ON THE RAIL for a Work run, between the steps that produced it and the verdict that
-// judged it. Rendering the bubble too would state the model's output twice -- the same duplication the
-// rail was built to remove, and the most expensive one to read because the answer is the longest thing
-// on screen. STREAMING IS EXEMPT: the rail is built from a committed snapshot, so while tokens are
-// still arriving the bubble is the only thing that has them, and suppressing it would make a live
-// answer look like nothing is happening.
-const answerOnRail = computed(() => deferToRail.value && props.message.role === 'assistant')
-
-// DEFER TO THE RAIL ONLY WHILE ONE CAN STILL APPEAR. A finished Work message whose run never produced a
-// rail (no plan snapshot for it) used to render NOTHING — no bubble, no rail — which is what prod conv 1592
-// showed: a Platform Super Agent answer of 1,103 characters, invisible. While the turn streams the rail may
-// still be on its way; once it has ended, a message with no rail is drawn as an ordinary answer.
-const deferToRail = computed(() => onWorkRail.value && (isStreaming.value || railShown.value))
-
-// Is this message's rail on screen yet. Until the run's first plan snapshot lands there is nothing to
-// defer to, so the message shows one live status line rather than an empty gap.
-const railShown = computed(() => {
-  const m = props.message
-  if (_plan.isWorkRun(m.runId)) return true
-  if ((m.planArtifacts || []).some((a) => _plan.isWorkRun(a && a.run_id))) return true
-  // A message written before run ids were stamped names no run; its thread's rail is the one it is on.
-  // (A live message is always stamped with its run by the time its rail exists, so this is for history.)
-  return !m.runId && m.status !== 'streaming' && _plan.hasWorkRail(chat.conversationId)
-})
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 
 // Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain
@@ -647,10 +550,6 @@ const copy = async () => {
   padding: 0 8px;
 }
 .msg.user { justify-content: flex-end; }
-/* A Work run's message: the rail right after it owns the space. */
-.msg.on-rail { margin-bottom: 0; }
-.msg.on-rail .rail-slot { flex: 1; min-width: 0; padding-left: 44px; }
-.msg.on-rail .rail-slot:empty { display: none; }
 
 .avatar {
   width: 32px;
@@ -706,23 +605,6 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
    the whole interface. A bare 12px border-spinner and grey text floating in an empty column read as a
    page that had not finished loading rather than an assistant that had started thinking. It now occupies
    the slot the answer will occupy, as a surface, so the eye has somewhere to rest while the turn builds. */
-/* The preparing line, anchored in the rail's own gutter. `margin-left: -44px` pulls the avatar into
-   the space `.msg.on-rail .rail-slot` reserves, so the pill's left edge sits exactly where the rail's
-   content will start — the line is replaced by the rail without anything sliding sideways. */
-.prep-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: -44px;
-}
-.prep-avatar {
-  flex: none;
-}
-@media (max-width: 640px) {
-  /* The gutter collapses on narrow screens, so the pull would drag the avatar off-canvas. */
-  .prep-row { margin-left: 0; }
-}
-
 .prep-status {
   display: inline-flex;
   align-items: center;

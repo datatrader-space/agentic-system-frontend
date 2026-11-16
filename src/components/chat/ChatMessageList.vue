@@ -12,18 +12,10 @@
       </div>
 
       <template v-for="m in chat.messages" :key="m.id">
-        <!-- Work mode sections the thread by iteration. A Work run is N dispatches and each produces
-             its own answer, so without this a long run reads as an undifferentiated wall of attempts
-             with no way to tell which iteration any of them came from. Absent from ordinary chat. -->
-        <WorkIterationBar v-if="!hasWorkRail && !chat._workRunActive && chat.iterationBoundaries.has(m.id)"
-                          :divider="chat.iterationBoundaries.get(m.id)" />
-        <!-- RUN SCAFFOLDING IS NOT SOMETHING THE USER SAID. A work run's continuation segments are
-             persisted as role='user' rows (the runtime reads the conversation back as turns), so the
-             thread drew "Continue the task you were working on… DO THE NEXT PIECE OF WORK" as the
-             operator's own blue bubble — twice, in production conv 1561. The rail and the iteration
-             bar already say a new segment started, so the prompt itself is suppressed rather than
-             restyled. Only the bubble is skipped: anything anchored to the message (plan artifacts
-             below) still renders in place. -->
+        <!-- RUN SCAFFOLDING IS NOT SOMETHING THE USER SAID. A resumed run's continuation prompt is persisted
+             as a role='user' row (the runtime reads the conversation back as turns), so the thread drew it as
+             the operator's own blue bubble (production conv 1561). The prompt is suppressed rather than
+             restyled. Only the bubble is skipped: anything anchored to the message still renders in place. -->
         <!-- "APPROVE & RUN" IS AN APPROVAL, NOT A MESSAGE. The turn that carries out the plan is given
              a fixed instruction the person never typed; it was drawn as their own bubble after a reload. -->
         <div v-if="m.kind === 'plan_approval'" class="msg-approval" data-test="plan-approval-row">
@@ -53,19 +45,8 @@
                                 :run-id="a.run_id" :plan-id="a.plan_id" />
           </div>
         </template>
-        <!-- A Work run with no plan anchor anywhere in the thread still gets its rail, at its first message. -->
-        <div v-else-if="unanchoredRailAt.get(m.id)" class="msg-plan">
-          <InlinePlanArtifact :run-id="unanchoredRailAt.get(m.id)" />
-        </div>
       </template>
 
-      <!-- The foot of the thread: which iteration is running now, or how the run ended. This is the
-           gap the user actually reported — between two iterations nothing is streaming at all while
-           the backend verifies the goal and dispatches the next segment, and with nothing rendered
-           there the run looked finished. -->
-        <!-- Not while a Work run is live: `work_segment` lands a moment before the run's first plan
-             snapshot, and in that moment this bar flashed up and was replaced by the rail (conv 1578). -->
-        <WorkIterationBar v-if="!hasWorkRail && !chat._workRunActive" />
       </div>
     </div>
 
@@ -88,24 +69,19 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
-import WorkIterationBar from './WorkIterationBar.vue'
-import { usePlanStore } from '../../stores/usePlanStore'
 
 // Optional display-only adapter; store messages and requests are never modified.
 defineProps({ presentMessage: Function, prepareEdit: Function })
 
 const chat = useChatStore()
-// The rail owns the Work narrative; the iteration bar repeats its segment and attempt counts.
-const _plan = usePlanStore()
-const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
 
-// A role='user' row the SERVER wrote to carry a work run forward, not something the operator typed.
+// A role='user' row the SERVER wrote to carry a run forward, not something the operator typed.
 // `authoredBy` is stamped by agent/headless_consumer.py; it is absent on every ordinary message and
 // on every row written before the marker existed, so both read as the user's own — which is correct.
 const isRunScaffolding = (m) => m.role === 'user' && m.authoredBy === 'system'
 
 // The FIRST anchor of each RUN (message id + plan id). Keyed by run, not plan: the card renders the run
-// (`InlinePlanArtifact` reads `planFor(runId)`), and a run's plan id can change — a Work run whose plan was
+// (`InlinePlanArtifact` reads `planFor(runId)`), and a run's plan id can change — a run whose plan was
 // created by its second attempt carried two anchors with different plan ids and drew the same rail twice
 // (prod conv 1627), three times after a further attempt. Recomputed with the thread, so a late anchor
 // landing on an earlier message still wins and the card does not jump.
@@ -119,24 +95,6 @@ const firstAnchorByRun = computed(() => {
   }
   return out
 })
-// message id -> run id, for the FIRST message of each Work run that no message anchors. Only runs the plan
-// store knows to be Work runs, so an ordinary chat turn never grows a rail.
-const unanchoredRailAt = computed(() => {
-  const anchored = new Set()
-  for (const m of (chat.messages || [])) {
-    for (const a of (m.planArtifacts || [])) if (a && a.run_id) anchored.add(String(a.run_id))
-  }
-  const out = new Map()
-  const seen = new Set()
-  for (const m of (chat.messages || [])) {
-    const rid = m.role === 'assistant' && m.runId ? String(m.runId) : ''
-    if (!rid || anchored.has(rid) || seen.has(rid)) continue
-    seen.add(rid)
-    if (_plan.isWorkRun(rid)) out.set(m.id, rid)
-  }
-  return out
-})
-
 function isFirstAnchor(messageId, planId, runId) {
   return firstAnchorByRun.value[runId || planId] === `${messageId}|${planId}`
 }

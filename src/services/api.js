@@ -532,13 +532,28 @@ export default {
       noCache: true,
     }),
   // Source Control (VS Code–style SCM over the repo clone)
-  getSourceControlStatus: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
+  // `chat`: a chat that works in its own copy (its git worktree, backend phase 7b) is read there; without it, the
+  // project's shared copy, as always.
+  getSourceControlStatus: (systemId, repoId, { chat } = {}) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`,
+      chat ? { params: { chat }, noCache: true } : undefined),
   // A file's change in the working tree, or as commit `sha` changed it (History; `from` for a renamed file).
-  getSourceControlDiff: (systemId, repoId, path, { sha, from } = {}) =>
+  getSourceControlDiff: (systemId, repoId, path, { sha, from, chat } = {}) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, {
-      params: { path, ...(sha ? { sha } : {}), ...(from ? { from } : {}) }, ...(sha ? {} : { noCache: true }),
+      params: { path, ...(sha ? { sha } : {}), ...(from ? { from } : {}), ...(chat ? { chat } : {}) },
+      ...(sha ? {} : { noCache: true }),
     }),
+  // Chats' own copies (backend phase 7b): -> { worktrees: [{ chat_id, chat_title, chat_exists, branch, base, sha, ahead,
+  // behind, present, changes, active, working, has_work }], count, into }.
+  getChatWorktrees: (systemId, repoId) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/worktrees/`, { noCache: true }),
+  // Merge a chat's branch into the shared copy; `message` commits the chat's uncommitted changes first.
+  mergeChatWorktree: (systemId, repoId, chatId, message) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/worktrees/merge/`,
+      { chat_id: chatId, ...(message ? { message } : {}) }),
+  // Delete a chat's own copy and its branch: its changes and commits not merged are lost.
+  discardChatWorktree: (systemId, repoId, chatId) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/worktrees/discard/`, { chat_id: chatId }),
   // More of Source control (ADM-1205, phase C): pull, a merge's conflicts, discard all, a branch, history.
   pullSourceControl: (systemId, repoId) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull/`, {}),
@@ -693,6 +708,16 @@ export default {
   markNotifRead: (id) => api.patch(`/notifications/${id}/read/`, {}),
   getNotifPreferences: () => api.get('/notifications/preferences/', { noCache: true }),
   updateNotifPreferences: (data) => api.put('/notifications/preferences/', data),
+  // Sessions: the person's runs across their chats (backend run_coordinator/services/run_sessions.py).
+  getSessions: (params) => api.get('/run-coordinator/sessions/', { params, noCache: true }),
+  getSessionNeedsInputCount: () => api.get('/run-coordinator/sessions/needs-input-count/', { noCache: true }),
+  getSessionForConversation: (conversationId) =>
+    api.get(`/run-coordinator/sessions/conversations/${encodeURIComponent(conversationId)}/`, { noCache: true }),
+  // The person's own pending approvals, from every source (a chat, an MCP client, a parked unattended run), and the
+  // answer to one of them from the Sessions page.
+  getPendingApprovals: () => api.get('/run-coordinator/approvals/', { noCache: true }),
+  answerApproval: (id, { approved, feedback = '' }) =>
+    api.post(`/run-coordinator/approvals/${encodeURIComponent(id)}/answer/`, { approved: !!approved, feedback: feedback || '' }),
   // Help Center: derived per-step onboarding checklist status (provider/agent/
   // connector/run/workflow/budget/guardrails) + aggregate progress.
   getOnboardingStatus: () => api.get('/onboarding/status/'),
@@ -1211,9 +1236,6 @@ export default {
 
   // New Agent Knowledge
   analyzeContextFile: (fileId) => api.post(`/context_files/${fileId}/analyze/`),
-
-  // Session Reconnection
-  getSessionEvents: (sessionId) => api.get(`/sessions/${sessionId}/events/`),
 
   // Services
   //

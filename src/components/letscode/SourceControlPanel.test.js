@@ -18,6 +18,7 @@ vi.mock('@/services/api', () => ({
   default: {
     getSourceControlStatus: vi.fn(),
     getSourceControlDiff: vi.fn(),
+    getChatWorktrees: vi.fn(() => Promise.resolve({ data: { worktrees: [], count: 0, into: 'main' } })),
     discardSourceControlFile: vi.fn(),
     commitSourceControl: vi.fn(),
     pushSourceControl: vi.fn(),

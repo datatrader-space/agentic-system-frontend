@@ -41,7 +41,7 @@
       <!-- Bottom toolbar: "+" attach menu + mode pill (left), send/stop (right) -->
       <div class="composer-bar">
         <div class="bar-left">
-          <!-- Chat / Work. IN THE COMPOSER ONCE A CONVERSATION EXISTS, and centred above the thread
+          <!-- Chat / Work / Plan. IN THE COMPOSER ONCE A CONVERSATION EXISTS, and centred above the thread
                before one does. The choice is most consequential on the empty screen — it decides what
                kind of thing the whole session becomes — and least once messages are flowing, where it is
                a per-turn adjustment like the mode pill beside it and belongs in the same row. -->

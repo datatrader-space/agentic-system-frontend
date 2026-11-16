@@ -127,7 +127,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @chat-branches="onChatBranches" @published="emit('published', $event)" @branch="emit('branch', $event)" />
         </div>
 
         <!-- Run and Debug (ADM-1205 phase F item 17). -->
@@ -165,6 +165,11 @@
           :class="['tab', 'chat-tab', { active: chatTabFront(ct) }]">
           <Icon class="tab-icon chat-tab-icon" icon="lucide:sparkles" aria-hidden="true" />
           <span class="tab-name">{{ chatTabs.title(ct) }}</span>
+          <!-- A chat in its own copy of the project (backend phase 7b) says which branch it works on. -->
+          <span v-if="chatTabs.branch(ct)" class="chat-branch" data-test="cb-chat-branch"
+                :title="`This chat works in its own copy, on the branch ${chatTabs.branch(ct)}`">
+            <Icon icon="lucide:git-branch" aria-hidden="true" /><span class="chat-branch-name">{{ chatTabs.branch(ct) }}</span>
+          </span>
           <span v-if="chatTabs.state(ct) !== 'idle'" class="chat-dot" :class="chatTabs.state(ct)" role="img"
                 :aria-label="chatTabs.stateLabel(ct)" data-test="cb-chat-dot"></span>
           <button type="button" @click.stop="chatTabs.close(ct)" class="tab-close" data-test="cb-chat-close"
@@ -417,6 +422,8 @@ const chatOn = computed(() => !!(chatTabs && chatTabs.bound))
 const chatFront = computed(() => chatOn.value && chatTabs.front)
 function chatTabFront(ct) { return chatFront.value && chatTabs.isActive(ct) }
 function showFilesInFront() { if (chatTabs) chatTabs.showFiles() }
+// Source control read the chats' branches: the chat tabs show theirs.
+function onChatBranches(list) { if (chatTabs && chatTabs.setBranches) chatTabs.setBranches(list) }
 // A file tab, or a file opened from the tree, search or Source control, comes in front of the chat.
 function showFile(id) { showFilesInFront(); activeTabId.value = id }
 // A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
@@ -471,12 +478,14 @@ const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
 
 // A change from Source control opens as its own tab ("app.py (changes)"), like VS Code's diff editor.
 // From History, ``sha`` (and ``from`` for a rename): the file as that commit changed it, its own tab "app.py (abc1234)".
-async function openDiff({ path, sha = '', short = '', from = '' }) {
+// From a chat's branch in Source control, ``chat`` (and ``chatLabel``): the file as that chat's own copy changed it.
+async function openDiff({ path, sha = '', short = '', from = '', chat = '', chatLabel = '' }) {
   showFilesInFront()
-  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha)
+  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha && (t.chat || '') === String(chat || ''))
   if (existing) { activeTabId.value = existing.id; return }
+  const tag = sha ? (short || sha.slice(0, 7)) : (chat ? (chatLabel || 'chat') : 'changes')
   const tab = {
-    id: nextTabId(), type: 'diff', path, sha, from, name: `${path.split('/').pop()} (${sha ? (short || sha.slice(0, 7)) : 'changes'})`,
+    id: nextTabId(), type: 'diff', path, sha, from, chat: chat ? String(chat) : '', name: `${path.split('/').pop()} (${tag})`,
     language: detectLanguage(path), loading: true, note: '', noteIcon: '', originalText: '', modified: '',
   }
   openTabs.value.push(tab)
@@ -490,7 +499,9 @@ async function loadDiffInto(live) {
   try {
     const { data } = await whileSandboxStarts(() => (live.sha
       ? api.getSourceControlDiff(props.systemId, props.repositoryId, live.path, { sha: live.sha, from: live.from })
-      : api.getSourceControlDiff(props.systemId, props.repositoryId, live.path)),
+      : (live.chat
+        ? api.getSourceControlDiff(props.systemId, props.repositoryId, live.path, { chat: live.chat })
+        : api.getSourceControlDiff(props.systemId, props.repositoryId, live.path))),
       { onWaiting: (s) => { live.waiting = s }, isCancelled: () => unmounted })
     if (data.redacted) { live.note = 'This file holds secrets, so its values are not shown.'; live.noteIcon = 'lucide:lock' }
     else if (data.binary) { live.note = 'Binary file. There is no text to compare.' }
@@ -1863,6 +1874,11 @@ const FileTreeNode = {
 .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); flex: 0 0 auto; }
 /* The Coding Agent's chat tabs (ADM-1221): a file tab with the agent's mark and a dot for what the chat is doing. */
 .chat-tab-icon { color: var(--vm-violet); }
+.chat-branch { display: inline-flex; align-items: center; gap: 3px; max-width: 120px; padding: 1px 6px; border-radius: 999px;
+               background: var(--vm-surface-soft); border: 1px solid var(--vm-line); color: var(--vm-ink-soft);
+               font: 600 11px var(--vm-font-mono); flex: 0 1 auto; min-width: 0; }
+.chat-branch :deep(svg) { width: 11px; height: 11px; flex: 0 0 auto; }
+.chat-branch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--vm-line-2); }
 .chat-dot.working { background: var(--vm-violet); animation: cbchatpulse 1.4s ease-in-out infinite; }
 .chat-dot.needs_input { background: var(--vm-amber); }
