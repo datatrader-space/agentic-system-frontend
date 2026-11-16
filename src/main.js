@@ -276,6 +276,8 @@ const router = createRouter({
         { path: 'organization', name: 'dashboard-organization', component: OrganizationPage },
         { path: 'organization/:module', name: 'dashboard-organization-module', component: OrganizationModulePage },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
+        // The person's runs across their chats (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md 3.6).
+        { path: 'sessions', name: 'dashboard-sessions', component: () => import('./views/SessionsPage.vue') },
         { path: 'help-center', name: 'dashboard-help-center', component: HelpCenter },
         { path: 'help-center/get-started', name: 'dashboard-help-get-started', component: GettingStarted },
         { path: 'help-center/documentation', name: 'dashboard-help-documentation', component: DocumentationHome },

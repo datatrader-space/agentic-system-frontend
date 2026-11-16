@@ -27,6 +27,8 @@
           <div v-if="sectionLabels[item.to]" class="nav-section" :class="{ 'is-first': i === 0, 'is-collapsed': collapsed }" aria-hidden="true"><span v-if="!collapsed">{{ sectionLabels[item.to] }}</span></div>
           <SidebarNavItem
             v-bind="item"
+            :badge="item.to === '/dashboard/sessions' && sessions.needsInputCount ? String(sessions.needsInputCount) : ''"
+            :badge-label="item.to === '/dashboard/sessions' ? `${sessions.needsInputCount} need you` : ''"
             :index="i"
             :collapsed="collapsed"
             @toggle="toggleNavGroup(item)"
@@ -67,11 +69,13 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import { useRoute, useRouter } from 'vue-router'
-import { House, CodeXml, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { House, ListChecks, CodeXml, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
 import { prefetchFromEvent, prefetchRoutesWhenIdle } from '../../utils/prefetchRoute'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
+import { useSessionsStore } from '../../stores/useSessionsStore'
+import { usePoller } from '../../composables/usePoller'
 import SidebarNavItem from './SidebarNavItem.vue'
 import SidebarProjects from './SidebarProjects.vue'
 import NotificationBell from './NotificationBell.vue'
@@ -88,6 +92,11 @@ const props = defineProps({
 
 const layout = useLayoutStore()
 const chat = useChatStore()
+// The number of runs waiting on the person, on the Sessions entry (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md 3.6). Polled like
+// the bell's count (paused while the tab is hidden); the Sessions page keeps it current live while it is open.
+const sessions = useSessionsStore()
+const sessionsPoller = usePoller(() => sessions.refreshCount(), { interval: 30000, maxInterval: 300000 })
+onMounted(() => sessionsPoller.start())
 const route = useRoute()
 const router = useRouter()
 
@@ -119,6 +128,8 @@ const initials = computed(() => {
 const sectionLabels = { '/dashboard': 'Workspace', '/dashboard/workflow-builder': 'Create', '/dashboard/schedules': 'Manage' }
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', iconComponent: House },
+  // Every run across the person's chats, and what each needs (the badge counts the ones waiting on them).
+  { to: '/dashboard/sessions', match: '/dashboard/sessions', label: 'Sessions', 'data-tour': 'sessions', iconComponent: ListChecks },
   { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', iconComponent: CodeXml },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', iconComponent: Bot },
   { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', iconComponent: BookOpen },

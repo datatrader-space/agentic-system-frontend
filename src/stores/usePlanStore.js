@@ -11,7 +11,20 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { normalizeEvent, dedupKey, toFrontendType } from '../composables/planEvents'
-import { runHasEnded } from './useRunTimeline'
+
+//: Run statuses after which nothing more runs.
+const TERMINAL_RUN_STATUSES = ['completed', 'insufficient_evidence', 'failed', 'cancelled']
+
+/** True when the run is over: a terminal (or blocked) run status, or the server's user-facing plan status says it
+ * stopped. THE SERVER'S USER-FACING PLAN STATUS IS THE AUTHORITY (prod conv 1799: the card read "Blocked 0/2" while
+ * the chip beside the composer read "Active plan 0/2"). `paused` too: it is what the server says for a run that is
+ * only unfinished (a Stop, or a turn that ended with steps left). An approval wait is NOT ended. */
+export function runHasEnded(plan) {
+  if (!plan) return false
+  const status = String(plan.run_status || '')
+  if (TERMINAL_RUN_STATUSES.includes(status) || status === 'blocked') return true
+  return ['blocked', 'paused'].includes(String(plan.plan_status_user || ''))
+}
 
 // Module-level debounce timers (non-reactive) for conversation re-hydration.
 const _hydrateTimers = {}
@@ -24,31 +37,17 @@ export const usePlanStore = defineStore('plan', {
     hydrationStatusByRunId: {},    // run_id -> 'idle'|'loading'|'ready'|'stale'|'error'
     seenEventKeysByRunId: {},      // run_id -> Set(dedup_key)  (dedup)
     pendingActionByRunId: {},      // run_id -> bool (in-flight approval; prevents double submit)
+    // Runs (and plan versions) whose plan is answered on plan mode's own card (a `plan_approval` hitl_request):
+    // their inline card shows the plan but not its Approve buttons, so one plan never has two cards.
+    planModeKeys: {},              // 'r:<run_id>' | 'v:<plan_version_id>' -> true
   }),
 
   getters: {
+    isPlanModeRun: (s) => (runId, planVersionId) => !!((runId && s.planModeKeys[`r:${runId}`])
+      || (planVersionId && s.planModeKeys[`v:${planVersionId}`])),
     planFor: (s) => (runId) => s.plansByRunId[runId] || null,
     runsForConversation: (s) => (cid) => (s.activeRunIdsByConversation[String(cid)] || [])
       .map((rid) => s.plansByRunId[rid]).filter(Boolean),
-    // Does this conversation have a Work run, and therefore a RAIL that owns the whole narrative?
-    //
-    // ONE SURFACE OR NONE. The rail draws the goal header, the steps, the retry badges, the verdict
-    // and the ending. Every other Work surface in the thread is then a SECOND telling of the same
-    // story: the iteration bar repeats the segment and attempt counts, and the per-message activity
-    // timeline repeats the steps as a flat list of "Loading tools / Waiting for your approval…".
-    // Rendered together they were not complementary, they were confusing -- the same findings
-    // appeared twice under two different headings.
-    hasWorkRail: (s) => (cid) => (s.activeRunIdsByConversation[String(cid)] || [])
-      .some((rid) => !!(s.plansByRunId[rid] && s.plansByRunId[rid].work_goal)),
-    // IS THIS ONE RUN A WORK RUN. Ask this, not `hasWorkRail`, whenever the answer decides how a
-    // MESSAGE renders.
-    //
-    // `activeRunIdsByConversation` is append-only -- `_track` adds and nothing removes -- so
-    // `hasWorkRail(cid)` is "this thread has EVER run Work", and it stays true for the rest of the
-    // conversation's life. Gating a chat message on it meant that one Work run permanently stripped
-    // the activity timeline and the answer bubble off every ordinary chat turn that followed it in
-    // the same thread. The rail belongs to a run; so does the decision to defer to it.
-    isWorkRun: (s) => (runId) => !!(runId && s.plansByRunId[runId] && s.plansByRunId[runId].work_goal),
     isHydrating: (s) => (runId) => s.hydrationStatusByRunId[runId] === 'loading',
     isActionPending: (s) => (runId) => !!s.pendingActionByRunId[runId],
     // Connection/freshness state for a run — drives the card's "reconnecting…" indicator.
@@ -79,6 +78,13 @@ export const usePlanStore = defineStore('plan', {
   },
 
   actions: {
+    markPlanModeRun(runId, planVersionId) {
+      const next = { ...this.planModeKeys }
+      if (runId) next[`r:${runId}`] = true
+      if (planVersionId) next[`v:${planVersionId}`] = true
+      this.planModeKeys = next
+    },
+
     _track(cid, runId) {
       if (cid == null) return
       const key = String(cid)
@@ -263,45 +269,6 @@ export const usePlanStore = defineStore('plan', {
         return res.data
       } catch (e) {
         // 409 conflict → refresh the durable snapshot rather than silently applying
-        if (e?.response?.status === 409 && e.response.data?.plan_view) {
-          this._applySnapshot(e.response.data.plan_view)
-        } else {
-          await this.hydrateRun(runId)
-        }
-        return { ok: false, status: e?.response?.status === 409 ? 'conflict' : 'error',
-          conflict: e?.response?.status === 409, detail: e?.response?.data?.detail || 'request failed' }
-      } finally {
-        this.pendingActionByRunId[runId] = false
-      }
-    },
-
-    // ── work-mode goal actions (pause / resume / edit / clear) ─────────────────────
-    //
-    // Shares `pendingActionByRunId` with `decide` deliberately: both are "one durable action against one
-    // run", and two ideas of whether something is in flight is how a UI ends up with two buttons that
-    // both think they are allowed to fire.
-    //
-    // WHICH actions are offered is the backend's answer (`work_goal.available_actions`), never this
-    // store's. A UI that works it out for itself drifts from the runtime, and the first symptom is a
-    // button that silently does nothing.
-    async goalAction(runId, action, { outcome = null } = {}) {
-      if (this.pendingActionByRunId[runId]) return { ok: false, status: 'busy' }
-      const plan = this.plansByRunId[runId]
-      this.pendingActionByRunId[runId] = true
-      try {
-        const res = await api.post(
-          `/run-coordinator/runs/${encodeURIComponent(runId)}/goal-action/`,
-          {
-            action,
-            outcome,
-            expected_revision: plan?.revision,
-            idempotency_key: `${runId}:goal:${action}:${plan?.revision}`,
-          })
-        if (res.data?.plan_view) this._applySnapshot(res.data.plan_view)
-        return res.data
-      } catch (e) {
-        // Same recovery as `decide`: a conflict means the run moved under us, so show what is true now
-        // rather than applying a decision made against a snapshot that no longer exists.
         if (e?.response?.status === 409 && e.response.data?.plan_view) {
           this._applySnapshot(e.response.data.plan_view)
         } else {

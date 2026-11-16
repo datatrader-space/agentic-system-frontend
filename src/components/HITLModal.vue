@@ -2,7 +2,9 @@
   <Teleport to="body" :disabled="inline">
     <Transition name="modal-fade">
       <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isDocked, 'hitl-overlay--inline': inline }" @click.self="handleOverlayClick">
-        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
+        <!-- Plan mode's card (the agent's plan, its steps and the answers the server offers) is a card of its own. -->
+        <PlanModeCard v-if="isPlanApproval" :request="currentRequest" @respond="(e) => emit('respond', e)" />
+        <div v-else class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
@@ -34,6 +36,12 @@
                  rule, or a browser signed in to an account. Without it a card for a harmless tool reads
                  as a fault (seen live 2026-10-09, conversation 2667: "Approve ECHO?" and nothing else). -->
             <p v-if="heldBecause" class="held-because" data-test="hitl-held-because">Asked because {{ heldBecause }}.</p>
+            <!-- A PARKED approval (backend phase 2b): the run stopped before this step and waits for the person; their
+                 answer continues it. No clock: it waits as long as it takes. -->
+            <p v-if="isParked" class="parked-note" role="status" data-test="hitl-parked">
+              <svg class="parked-note__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+              <span>The run is waiting for you. It continues after you answer.</span>
+            </p>
 
             <!-- Tool-approval: show EXACTLY what will run before approving -->
             <div v-if="actionPreview" class="action-preview">
@@ -325,8 +333,9 @@
               <span v-if="currentRequest.timeout_at && inline" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}" data-test="hitl-time-left">
                 {{ isExpired ? 'This request has expired' : `Answer within ${timeRemaining}` }}
               </span>
-              <span v-else-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}">
-                ⏱ {{ timeRemaining }}
+              <span v-else-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}" data-test="hitl-time-left">
+                <svg class="timeout-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                {{ timeRemaining }}
               </span>
               <span v-if="pendingRequests.length > 1" class="queue-indicator">
                 {{ pendingRequests.length }} pending requests
@@ -349,6 +358,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { notify } from '@/composables/useNotify'
+import PlanModeCard from '@/components/chat/PlanModeCard.vue'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
 const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
@@ -386,6 +396,9 @@ const isCompactAsk = computed(() =>
   ['choice', 'question', 'clarification'].includes(currentRequest.value?.interaction_type)
 );
 
+// A parked approval (backend phase 2b, `payload.parked`): its run waits for this answer and continues after it.
+const isParked = computed(() => currentRequest.value?.payload?.parked === true || currentRequest.value?.parked === true);
+
 // A tool-approval card ("Approve SSH_EXEC?") — the command is shown in the action preview.
 const isToolApproval = computed(() => currentRequest.value?.payload?.kind === 'tool_approval');
 
@@ -401,7 +414,10 @@ const markConnectOpened = () => { connectOpened.value = true; };
 
 // Docked = a small card that sits just above the chat composer (Claude-style) instead of a
 // full-screen blocking modal. Used for quick decisions: clarifications, tool approvals, and connects.
-const isDocked = computed(() => isCompactAsk.value || isToolApproval.value || isOAuthConnect.value);
+// Plan mode's plan (backend phase 4): `kind: 'plan_approval'`, drawn by PlanModeCard, docked above the composer.
+const isPlanApproval = computed(() => currentRequest.value?.payload?.kind === 'plan_approval');
+
+const isDocked = computed(() => isCompactAsk.value || isToolApproval.value || isOAuthConnect.value || isPlanApproval.value);
 
 // Control-only payload keys that should NOT surface a "View Details" dump to the user.
 const CONTROL_PAYLOAD_KEYS = ['allow_text', 'text_label', 'interpretation', 'confidence',
@@ -574,8 +590,9 @@ const handleOverlayClick = () => {
 // Timer for countdown
 let intervalId = null;
 onMounted(() => {
+  // Ticks only for a card with a clock: a card with `timeout_at: null` (every hosted or parked approval) has none.
   intervalId = setInterval(() => {
-    currentTime.value = Date.now();
+    if (currentRequest.value?.timeout_at) currentTime.value = Date.now();
   }, 1000);
 });
 
@@ -810,6 +827,9 @@ watch(currentRequest, () => {
 .hitl-modal--approval .modal-body { padding: 4px 16px 12px; }
 .hitl-modal--approval .summary { font-size: 14px; font-weight: 500; color: var(--vm-ink); margin-bottom: 8px; }
 .held-because { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--vm-ink); overflow-wrap: anywhere; }
+.parked-note { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
+.parked-note__icon { flex-shrink: 0; margin-top: 3px; color: var(--vm-ink-faint); }
+.timeout-icon { vertical-align: -1px; margin-right: 2px; }
 .hitl-modal--approval .action-preview { margin-bottom: 12px; }
 .hitl-modal--approval .action-preview__cmd { max-height: 160px; font-size: 12px; }
 .hitl-modal--approval .button-group { gap: 8px; }

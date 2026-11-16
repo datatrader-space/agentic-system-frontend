@@ -68,6 +68,28 @@ describe('NotificationBell', () => {
     await flushPromises()
   })
 
+  it('an approval waiting in a chat shows "Open the chat" and goes to that chat', async () => {
+    api.getNotifications.mockResolvedValue({ data: {
+      results: [
+        { id: 9, notif_type: 'approval_pending', title: 'Reporter needs your approval', body: 'It is waiting for you.',
+          is_read: false, created_at: new Date().toISOString(),
+          metadata: { kind: 'approval_pending', request_id: 'r1', conversation_id: '41', agent_id: 3,
+                      action_url: '/dashboard/chat/41', action_label: 'Open the chat' } },
+        { id: 10, notif_type: 'run_completed', title: 'Run done', is_read: true, metadata: {} },
+      ],
+      has_next: false, count: 2, unread_count: 1,
+    } })
+    api.markNotifRead.mockResolvedValue({})
+    await openBell()
+    const actions = document.querySelectorAll('[data-test="nb-action"]')
+    expect(actions).toHaveLength(1)                       // only the row that names an action
+    expect(actions[0].textContent).toContain('Open the chat')
+    document.querySelector('.nb-item').click()
+    expect(push).toHaveBeenCalledWith('/dashboard/chat/41')
+    expect(api.markNotifRead).toHaveBeenCalledWith(9)
+    await flushPromises()
+  })
+
   it('cancels the idle start on unmount, so a removed bell never polls', async () => {
     const ric = vi.fn(() => 42)
     const cic = vi.fn()

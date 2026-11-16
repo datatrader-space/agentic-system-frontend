@@ -61,21 +61,17 @@ describe('useChatStore — a turn the server started', () => {
     expect(steer && steer.label).toBe('end with PINEAPPLE')
   })
 
-  it('keeps a SEPARATE request as its own waiting bubble, then answers it as its own turn', () => {
-    // 2026-10-21, the owner's rule: only a message about the running work is taken in; a different request
-    // waits for the run to finish and is answered on its own.
+  it('answers a message sent after the run ended as its own turn', () => {
+    // Every message sent while the run works goes to the model (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md 3.4). One that
+    // arrives after its last step is handed over and answered as its own turn.
     const chat = useChatStore()
     chat.conversationId = 2163
     chat._beginAssistant()
     chat.messages.push({ id: 'u2', role: 'user', content: 'weather in Lahore?', queued: true })
-    chat._onEvent({ type: 'steering_deferred', message: 'weather in Lahore?' })
     const bubble = chat.messages.find((m) => m.id === 'u2')
-    expect(bubble).toMatchObject({ queued: true, queuedAfter: true })
-    expect(chat.liveSteps.some((s) => s.isSteer)).toBe(false)
-
     chat._onEvent({ type: 'assistant_message_complete', full_message: 'Go releases …' })
     chat._onEvent({ type: 'followup_turn_started', conversation_id: 2163, messages: ['weather in Lahore?'] })
-    expect(bubble).toMatchObject({ queued: false, queuedAfter: false })
+    expect(bubble).toMatchObject({ queued: false })
     const roles = chat.messages.map((m) => m.role)
     expect(roles.slice(-2)).toEqual(['user', 'assistant'])   // its own answer opens below it
   })
@@ -89,9 +85,6 @@ describe('useChatStore — a turn the server started', () => {
     chat.messages.push({ id: 'b', role: 'user', content: 'again', queued: true, clientMessageId: 'c-b' })
     chat._onEvent({ type: 'message_queued', conversation_id: '2163', message: 'again', message_id: 11, client_message_id: 'c-a' })
     chat._onEvent({ type: 'message_queued', conversation_id: '2163', message: 'again', message_id: 12, client_message_id: 'c-b' })
-    chat._onEvent({ type: 'steering_deferred', message: 'again', message_id: 11 })
-    expect(chat.messages.find((m) => m.id === 'a').queuedAfter).toBe(true)
-    expect(chat.messages.find((m) => m.id === 'b').queuedAfter).toBeFalsy()
     chat._onEvent({ type: 'steering_applied', message: 'again', message_id: 12 })
     expect(chat.messages.find((m) => m.id === 'b')).toBeUndefined()
     expect(chat.messages.find((m) => m.id === 'a')).toBeTruthy()
@@ -109,6 +102,18 @@ describe('useChatStore — a turn the server started', () => {
     window.removeEventListener('composer-restore', onRestore)
     expect(chat.messages.find((m) => m.id === 'w')).toBeUndefined()
     expect(seen).toEqual(['weather in Lahore?'])
+  })
+
+  it("finds the given-back message by the page's own id when it has no saved id yet", () => {
+    // Stop gives waiting messages back at once (phase 2a): one pressed before `message_queued` came back.
+    const chat = useChatStore()
+    chat.conversationId = 2163
+    chat.messages.push({ id: 'x', role: 'user', content: 'same words', queued: true, clientMessageId: 'c-x' })
+    chat.messages.push({ id: 'y', role: 'user', content: 'same words', queued: true, clientMessageId: 'c-y' })
+    chat._onEvent({ type: 'queued_messages_cancelled', conversation_id: '2163',
+                    messages: [{ message_id: 99, client_message_id: 'c-x', text: 'same words' }] })
+    expect(chat.messages.find((m) => m.id === 'x')).toBeUndefined()
+    expect(chat.messages.find((m) => m.id === 'y')).toBeTruthy()
   })
 
   it('ignores a follow-up meant for a conversation the user is no longer looking at', () => {

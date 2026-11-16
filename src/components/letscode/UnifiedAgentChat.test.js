@@ -3,7 +3,7 @@
 // ChatMessageList draws it. This panel only points the store at the project (its socket and the shared Coding
 // Agent), sends through it, and adds a project turn's own lines under the answer: the files it changed (which open
 // Source control) and the running app. There is no diff card: the person commits and pushes in Source control.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -15,6 +15,8 @@ const chat = reactive({
   sendMessage: vi.fn(() => Promise.resolve(true)), sendRaw: vi.fn(), stop: vi.fn(), openConversation: vi.fn(),
   respondHitl: vi.fn(), dismissHitl: vi.fn(), skipHitl: vi.fn(),
   pendingAttachments: [], refreshRestorePoints: vi.fn(),
+  turnMode: 'chat',
+  setTurnMode: vi.fn(function (m) { chat.turnMode = m }),
   addAttachments: vi.fn(function (files) { chat.pendingAttachments.push(...Array.from(files).map((f) => ({ name: f.name, file: f }))) }),
   removeAttachment: vi.fn(function (i) { chat.pendingAttachments.splice(i, 1) }),
 })
@@ -24,6 +26,7 @@ vi.mock('@/services/api', () => ({
     unifiedConfig: vi.fn(() => Promise.resolve({ data: { agent_id: 3527 } })),
     getProjectPreview: vi.fn(() => Promise.resolve({ data: { url: 'https://3000-abcdefgh12345678.proxy.x' } })),
     getConversations: vi.fn(() => Promise.resolve({ data: [] })),
+    getChatWorktrees: vi.fn(() => Promise.resolve({ data: { worktrees: [], count: 0, into: 'main' } })),
     restoreLetsCodeMessage: vi.fn(() => Promise.resolve({ data: { restored: true } })),
     getRepositoryFiles: vi.fn(() => Promise.resolve({ data: { entries: [
       { name: 'views.py', path: 'app/views.py', type: 'file' }, { name: 'app', path: 'app', type: 'directory' }] } })),
@@ -55,6 +58,10 @@ async function mountChat() {
   return w
 }
 
+// The panel's first import compiles its whole tree (the shared chat list, the composer, Monaco's loaders) and took
+// 9 s on a loaded machine, past the 5 s a test gets: compile it once before the tests, with the time it needs.
+beforeAll(async () => { await import('./UnifiedAgentChat.vue') }, 120000)
+
 beforeEach(() => {
   chat.messages = []; chat.repoId = 0; chat.selectedAgentId = '7'; chat.surfaceHandler = null; chat.pendingAttachments = []
   vi.clearAllMocks()
@@ -81,6 +88,18 @@ describe('UnifiedAgentChat on the shared chat', () => {
     await flushPromises()
     expect(chat.sendMessage).toHaveBeenCalledWith('fix the header')
     expect(w.text()).not.toContain('Ask')
+    w.unmount()
+  })
+
+  it('opens on Work, and offers the shared Chat / Work / Plan switch', async () => {
+    // Plan mode's file lives in the project (`.aadml/plans/<run>.md`), so a project chat has the same switch.
+    chat.turnMode = 'chat'
+    const w = await mountChat()
+    expect(chat.setTurnMode).toHaveBeenCalledWith('work')   // the Coding Agent's project chats work by default
+    const plan = w.findAll('button').find((b) => b.text().trim() === 'Plan')
+    expect(plan, 'a Plan choice in the project composer').toBeTruthy()
+    await plan.trigger('click')
+    expect(chat.setTurnMode).toHaveBeenCalledWith('plan')
     w.unmount()
   })
 
@@ -541,5 +560,31 @@ describe('UnifiedAgentChat: running chats are kept only for the Coding Agent (ow
     expect(chat.keepRunsOnLeave).toBe(true)
     w.unmount()
     expect(chat.keepRunsOnLeave).toBe(false)
+  })
+})
+
+// A chat in its own copy of the project (backend phase 7b): its tab names the branch.
+describe('a chat in its own working copy', () => {
+  it("the turn's lets_code_changes names the chat's branch, and that chat's tab shows it", async () => {
+    await mountChat()
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [], total: 0, worktree: { chat_id: 77, branch: 'aadml/chat-77' } })
+    expect(ctl.branches['77']).toBe('aadml/chat-77')
+    expect(ctl.branch({ id: '77' })).toBe('aadml/chat-77')
+    expect(ctl.branch({ id: '78' })).toBe('')
+  })
+
+  it('a chat left running names its branch too', async () => {
+    await mountChat()
+    chat.parkedFrameHandler('80', { type: 'lets_code_changes', files: [], worktree: { chat_id: 80, branch: 'aadml/chat-80' } })
+    expect(ctl.branches['80']).toBe('aadml/chat-80')
+  })
+
+  it('on opening the project the chats already in their own copy are read, so their tabs show it at once', async () => {
+    const api = (await import('@/services/api')).default
+    api.getChatWorktrees.mockResolvedValueOnce({ data: { worktrees: [
+      { chat_id: 5, branch: 'aadml/chat-5', present: true }, { chat_id: 6, branch: 'aadml/chat-6', present: false }] } })
+    await mountChat()
+    expect(api.getChatWorktrees).toHaveBeenCalledWith(5, 14)
+    expect(ctl.branches).toEqual({ 5: 'aadml/chat-5' })
   })
 })

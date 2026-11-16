@@ -296,10 +296,8 @@ export class ChatConnection {
       // Let's Code (ADM-1205 phase E): { files: [path], selection: { path, start_line, end_line, text } }. The server
       // reads each file in the person's own project and checks protected files as CODE_READ_FILE does.
       code_context: opts.codeContext || undefined,
-      // Chat / Work. The USER'S choice for this turn, and it outranks the Brain's own judgement in
-      // BOTH directions: 'work' starts a goal-driven run even for a request the Brain would have
-      // answered in one turn, and 'chat' suppresses one it would have opened. Omitted entirely when the
-      // user has expressed no preference, which leaves the Brain deciding exactly as it does today.
+      // Chat / Work / Plan: the person's mode for this conversation. The server keeps it on the conversation
+      // (agent/services/turn_modes.py); omitted, the turn takes the conversation's kept mode or its default.
       turn_mode: opts.turnMode || undefined,
       // Full-document cost gate: the user's decision on the re-sent turn — {decision, focus_query}.
       // approve = read the whole (context-overflowing) doc; reject = targeted on the original question;

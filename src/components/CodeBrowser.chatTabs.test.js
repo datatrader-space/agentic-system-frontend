@@ -98,3 +98,30 @@ describe('CodeBrowser: the Coding Agent chats are editor tabs (ADM-1221)', () =>
     w.unmount()
   })
 })
+
+describe('CodeBrowser: a chat in its own working copy (backend phase 7b)', () => {
+  it('its tab shows the branch it works on; a chat on the shared copy shows none', async () => {
+    const { ctl } = boundController()
+    ctl.setBranch('92', 'aadml/chat-92')
+    const w = await browser(ctl)
+    const tabs = w.findAll('[data-test="cb-chat-tab"]')
+    expect(tabs[0].find('[data-test="cb-chat-branch"]').exists()).toBe(false)
+    expect(tabs[1].find('[data-test="cb-chat-branch"]').text()).toBe('aadml/chat-92')
+    ctl.setBranch('92', '')                     // merged or discarded: back on the shared copy
+    await flushPromises()
+    expect(w.findAll('[data-test="cb-chat-tab"]')[1].find('[data-test="cb-chat-branch"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it("a chat's change from Source control opens as that chat's diff, read from its own copy", async () => {
+    const api = (await import('../services/api')).default
+    api.getSourceControlDiff = vi.fn(() => Promise.resolve({ data: { original: 'a', modified: 'b' } }))
+    const { ctl } = boundController()
+    const w = await browser(ctl)
+    await w.vm.$.setupState.openDiff({ path: 'app/page.tsx', status: 'modified', chat: '92', chatLabel: 'aadml/chat-92' })
+    await flushPromises()
+    expect(api.getSourceControlDiff).toHaveBeenCalledWith(5, 4, 'app/page.tsx', { chat: '92' })
+    expect(w.text()).toContain('page.tsx (aadml/chat-92)')
+    w.unmount()
+  })
+})

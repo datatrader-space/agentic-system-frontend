@@ -32,6 +32,11 @@
               <span class="nb-body">
                 <span class="nb-title">{{ n.title }}</span>
                 <span v-if="n.body" class="nb-text">{{ n.body }}</span>
+                <!-- What the click does, when the notification names it (an approval waiting in a chat: "Open the
+                     chat"). The whole row is the button, so this is its visible label, never a second control. -->
+                <span v-if="actionLabel(n)" class="nb-action" data-test="nb-action">
+                  {{ actionLabel(n) }}<ArrowRight :size="12" :stroke-width="2" aria-hidden="true" />
+                </span>
                 <span class="nb-time">{{ ago(n.created_at) }}</span>
               </span>
             </button>
@@ -51,7 +56,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Bell } from 'lucide-vue-next'
+import { Bell, ArrowRight } from 'lucide-vue-next'
 import api from '../../services/api'
 import LoadError from '../common/LoadError.vue'
 import { usePoller } from '../../composables/usePoller'
@@ -119,6 +124,11 @@ async function toggle() {
 }
 async function markAll() {
   try { await api.markAllNotifsRead(); items.value = items.value.map(n => ({ ...n, is_read: true })); unread.value = 0 } catch (e) { /* silent */ }
+}
+// The label of the row's action, when the notification has somewhere to go and names it (`metadata.action_label`).
+function actionLabel(n) {
+  const md = n?.metadata || {}
+  return md.action_url && md.action_label ? String(md.action_label) : ''
 }
 // Navigate FIRST, then mark read in the background: the click must not wait on the PATCH (a slow or
 // failed mark-read used to hold the navigation).
@@ -209,6 +219,9 @@ onBeforeUnmount(() => {
 .nb-title { font-size: 13px; font-weight: 700; color: var(--vm-ink); }
 .nb-text { font-size: 12px; color: var(--vm-ink-faint); line-height: 1.4; }
 .nb-time { font-size: 11px; color: var(--vm-ink-faint); margin-top: 2px; }
+.nb-action { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--vm-link); }
+.nb-item:hover .nb-action { text-decoration: underline; }
+.nb-item:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 .nb-foot { padding: 8px; border-top: 1px solid var(--vm-line-2); text-align: center; }
 .nb-more { border: 0; background: transparent; color: var(--vm-link); font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .nb-pop-enter-active, .nb-pop-leave-active { transition: opacity .15s, transform .15s; }

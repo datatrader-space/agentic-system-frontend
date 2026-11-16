@@ -34,15 +34,13 @@ const STREAM_ID_TYPES = new Set([
   'assistant_message_chunk', 'assistant_message_complete', 'tool_result', 'tool_call',
 ])
 
-// Frames a headless Work-mode iteration forwards through the shared `user_<id>` group. Must match
-// `_WORK_STREAM_TYPES` in agent/headless_consumer.py — each one names its conversation so _onEvent can
-// drop anything meant for a different tab.
+// Frames another process forwards through the shared `user_<id>` group (`work_stream`: a chat turn whose socket
+// dropped while the person reconnected on another worker). Must match `_WORK_STREAM_TYPES` in
+// agent/headless_consumer.py — each one names its conversation so _onEvent can drop anything meant for a different tab.
 const WORK_FORWARDED_TYPES = new Set([
   'assistant_message_chunk', 'assistant_message_complete', 'reasoning_delta', 'reasoning_done',
-  'tool_call', 'tool_result', 'tool_blocked', 'work_segment', 'work_goal', 'error',
-  // The activity timeline (useAgentTimeline's RICH_EVENT_TYPES) plus the live token counter. Without
-  // these a later iteration rendered no timeline at all and fell back to the bare plan-progress line,
-  // so the same run showed two different interfaces depending on which iteration you were watching.
+  'tool_call', 'tool_result', 'tool_blocked', 'error',
+  // The activity timeline (useAgentTimeline's RICH_EVENT_TYPES) plus the live token counter.
   'agent_status', 'agent_step_started', 'agent_step_completed', 'agent_step_failed',
   'source_citation', 'agent_turn_summary', 'token_usage',
 ])
@@ -52,7 +50,7 @@ const WORK_FORWARDED_TYPES = new Set([
 // a frame that ends a turn.
 const TURN_ALIVE_TYPES = new Set([
   'assistant_message_chunk', 'reasoning_delta', 'reasoning_done', 'tool_call', 'tool_result',
-  'tool_blocked', 'work_segment', 'agent_status', 'agent_step_started', 'agent_step_completed',
+  'tool_blocked', 'agent_status', 'agent_step_started', 'agent_step_completed',
   'agent_step_failed', 'source_citation', 'token_usage', 'todo_update',
 ])
 
@@ -102,10 +100,9 @@ function mergeById(current, incoming) {
   return current.concat(incoming.filter((s) => !seen.has(String(s.id))))
 }
 
-//: Where the user's Chat/Work PIN is remembered. Versioned on purpose — see the read below: the
-//: unversioned key held a default, not a decision, and treating the two alike suppressed Work mode
-//: for everyone who had ever used the old switch.
-const TURN_MODE_KEY = 'aadml.turnMode.v2'
+//: The composer's modes (LONG_RUN_LIKE_CLAUDE_CODE_PLAN §3.2). There is no "auto": the mode is the conversation's,
+//: kept by the server (`turn_mode` on the conversation) and read when the chat opens.
+export const TURN_MODES = ['chat', 'work', 'plan']
 
 // What a sent message's bubble shows of each attachment (a voice note plays from its local recording until the
 // saved copy is loaded).
@@ -142,39 +139,15 @@ export const useChatStore = defineStore('chat', {
     // DEEP RESEARCH mode (per-turn signal, sticky in the composer) + the DEPTH the user picked.
     // The depth is a COST decision, so it is the user's and not the model's: it sets how many independent
     // sub-questions one research fan-out may open and how many source pages each of those must read. Sent
-    // as `research_mode` / `research_depth`; the backend enforces both in RESEARCH_IN_PARALLEL and states
+    // as `research_mode` / `research_depth`; the backend enforces both when the agent launches a research subagent and states
     // the budget in the turn's tool guidance, so the agent plans to it instead of discovering it.
     researchMode: false,
     researchDepth: 'standard',
-    // AUTO IS THE DEFAULT, AND AUTO IS NOT A THIRD BEHAVIOUR — it is the absence of an override.
-    //
-    // The backend has always decided this: `_freeze_work_goal` opens a Work goal when the Brain's
-    // single semantic call proposes one, and the composer's control only OVERRIDES that decision in
-    // one direction or the other. This store defaulted to 'chat' and sent nothing for it, so the
-    // default silently meant auto while the switch drew "Chat" as a deliberate choice -- and picking
-    // Chat explicitly was indistinguishable from not choosing, which made the suppression branch in
-    // `_freeze_work_goal` unreachable from the UI. Someone who said "just answer me" could still be
-    // handed an hours-long run. Naming the default is what makes the other two mean something.
-    turnMode: (() => {
-      try {
-        // THE LEGACY KEY IS NOT A CHOICE, AND READING IT AS ONE BROKE AUTO FOR EVERY EXISTING USER.
-        //
-        // Before Auto existed this store defaulted `turnMode` to 'chat' and PERSISTED it on every
-        // setTurnMode call -- but the send site only ever transmitted 'work', so a stored 'chat' meant
-        // "send nothing", which is precisely what Auto means today. Once 'chat' became a real override
-        // that value turned into a pin nobody had set: production logged "the user chose 'chat' for
-        // this turn" on EVERY turn, and `_freeze_work_goal` returned before the Brain's proposal was
-        // ever looked at. A wall-detection task that should have opened a work goal never got the
-        // chance, and the switch looked correct the whole time.
-        //
-        // A new key is the fix rather than a migration guess: a value written under `.v2` can only
-        // have come from a deliberate click on this control. The old key is dropped so it cannot be
-        // re-read by any later version either.
-        try { localStorage.removeItem('aadml.turnMode') } catch (_e) { /* private mode */ }
-        const v = localStorage.getItem(TURN_MODE_KEY)
-        return (v === 'work' || v === 'chat') ? v : 'auto'
-      } catch (_e) { return 'auto' }
-    })(),
+    // CHAT / WORK / PLAN for the open conversation — one engine, three defaults (see TurnModeSwitch). Set from the
+    // conversation when it opens (`turn_mode`, the person's choice kept by the server, else its default: Work in a
+    // Coding Agent project chat, Chat elsewhere) and sent with every message, so the server keeps the choice.
+    // A new chat starts on Chat; a new Let's Code project chat on Work (`reset`, `newChatRepoId`).
+    turnMode: 'chat',
     // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
@@ -196,25 +169,17 @@ export const useChatStore = defineStore('chat', {
     // agent_session_complete / agent_event session_complete.
     _taskRunActive: false,
 
-    // ── Work mode: a run that keeps going in bounded ITERATIONS ────────────────────────────────────
-    // A Work run is N separate dispatches. Iteration 1 executes on this socket; every later one is a
-    // Celery task resuming the same durable plan, and each ends with its OWN assistant_message_complete.
-    // With no other signal the turn ended on the first of those: the stop button vanished, the timeline
-    // said done, and the run carried on working for another ten minutes (production conv 1529, three
-    // iterations). `_workRunActive` keeps the RUN busy across those boundaries while each iteration
-    // still closes its own bubble, so the answers stay separate and the composer stays honest.
-    //
-    // It is deliberately NOT reset in _beginAssistant: a later iteration's first chunk opens a new
-    // bubble, and clearing the flag there would undo the announcement that had just arrived. It belongs
-    // to the run, so it is cleared when the run closes (work_goal) or when the user starts a new one.
-    workIteration: null,     // { segment, max } while a Work run is in flight, else null
-    workGoal: null,          // { state, segments, max, findings } once the run's goal closes
-    _workRunActive: false,
-
     // Once-guard: event_ids of plan DECISION events (approved / changes_requested / cancelled) already
     // bridged to a resume. The canonical outbox may re-deliver a plan_event (sweeper / reconnect), so
     // this prevents an approved run from being re-sent (and re-executed) more than once.
     _resolvedDecisionEventIds: new Set(),
+    // The last turn THIS page sent was in plan mode: its plan comes as a `plan_approval` card, and the run's
+    // older `plan_approval_required` event for the same plan is display-only (never a second card, never a pause).
+    _planModeTurn: false,
+    // The last run event this page APPLIED, per conversation (backend phase 1b: `run_events_replay` events carry
+    // the run's own `seq`). A reconnect asks for what came after it; an event at or below it is never applied
+    // twice. Cleared when a conversation is opened from history: the page then has no turn on screen to continue.
+    _runSeq: {},
 
     // Legacy native plan-mode WS approval signal (vestigial). The unified plan UI now handles
     // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
@@ -300,6 +265,11 @@ export const useChatStore = defineStore('chat', {
     //: True after several failed reconnects in a row: the chat shows "Connection lost" with a
     //: "Reconnect now" action while the socket keeps retrying on its own (it never gives up).
     connectionLost: false,
+    //: True while the run host that runs this chat's turn restarts (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md phase 1d): the
+    //: server sent `agent_status` reason RUN_HOST_RESTART and has not yet said the turn continues. The turn is
+    //: handed on, not ended: it keeps showing it runs (Stop stays), and nothing here settles or errors it while the
+    //: next host picks it up. Cleared by RESUMED_AFTER_RESTART, `turn_resumed` with `after_restart`, or the turn's end.
+    runHostRestarting: false,
     //: openConversation bookkeeping (F-C3): the conversation being loaded right now, and the one whose
     //: last load FAILED, so re-opening that chat loads it again instead of no-oping on an empty thread.
     _loadingConversationId: null,
@@ -307,17 +277,6 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
-    // WHAT THE LAST TURN ACTUALLY RAN AS — 'work', 'chat', or '' when nothing has run yet or the
-    // thread predates the server stamp. Reported by the backend after the Brain's proposal and any
-    // user override have both been applied, so it is the outcome, never the intent: with the switch on
-    // Auto the intent is deliberately "no opinion", and only this can say what came of it.
-    lastResolvedMode: (s) => {
-      for (let i = s.messages.length - 1; i >= 0; i -= 1) {
-        const m = s.messages[i]
-        if (m && m.role === 'assistant' && m.turnModeResolved) return m.turnModeResolved
-      }
-      return ''
-    },
     // Inline plan artifact: true when the loaded history carries durable plan anchors. Drives the
     // active-plan chip near the composer (the plan card itself always renders inline at its anchor).
     hasDurablePlanAnchors: (s) =>
@@ -348,33 +307,8 @@ export const useChatStore = defineStore('chat', {
       a + ((m.usage && shownCost(m.usage))
            || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.cost) || 0), 0),
 
-    //: True while the RUN is working, which is not the same as "this bubble is streaming". A Work run
-    //: keeps going across iteration boundaries, and between them nothing is streaming at all — the
-    //: previous iteration has closed its bubble and the next has not opened one, while the backend is
-    //: running the objective judge and dispatching the next segment. That gap is what the user saw as
-    //: "the stop button disappears, then it takes a breath and comes back working". The composer reads
-    //: this so the run reads as busy for as long as it actually is.
-    isBusy: (s) => s.isStreaming || s._workRunActive,
-    //: "Iteration 2 of 12" while a Work run is in flight, else ''. The user could not tell which
-    //: iteration was running or which had finished; nothing in any frame carried the number.
-    workIterationLabel: (s) => (s.workIteration
-      ? `Iteration ${s.workIteration.segment}${s.workIteration.max ? ` of ${s.workIteration.max}` : ''}`
-      : ''),
-    //: Message id → the iteration that STARTS at it, for the dividers that group a long run. Only where
-    //: the number actually changes, so a run's iterations read as sections rather than every bubble
-    //: carrying a badge. Empty for ordinary chat, which is the overwhelming majority of threads.
-    iterationBoundaries: (s) => {
-      const out = new Map()
-      let last = null
-      for (const m of s.messages) {
-        const seg = m && m.workIteration && Number(m.workIteration.segment)
-        if (seg && seg !== last) {
-          out.set(m.id, m.workIteration)
-          last = seg
-        }
-      }
-      return out
-    },
+    //: True while a turn is working (the composer reads it to keep Stop up).
+    isBusy: (s) => s.isStreaming,
 
     // ── Live activity timeline (the currently-streaming message) — the SOLE activity renderer
     // (AgentActivityTimeline): friendly, param-free steps (Searching → Generating), reasoning, tokens. ──
@@ -675,6 +609,8 @@ export const useChatStore = defineStore('chat', {
       this.messages = []
       this.conversationId = null
       this.todos = []
+      // A new chat starts on its default mode: Work for a Coding Agent project chat (Let's Code), Chat elsewhere.
+      this.turnMode = this.newChatRepoId ? 'work' : 'chat'
       this.error = ''
       this.messagesHasMore = false
       this.messagesTotal = 0
@@ -703,9 +639,8 @@ export const useChatStore = defineStore('chat', {
     // no run timeline to hold it, it stays a bubble: the person's words are never dropped.
     // The waiting bubble a steering frame is about: by the saved row's id, then by the page's own client id, then
     // (an older server) by its words. Newest first, so two equal messages resolve to the latest.
-    _queuedBubble(msg, { notDeferred = false } = {}) {
-      const waiting = [...this.messages].reverse().filter(
-        (m) => m.role === 'user' && m.queued && !(notDeferred && m.queuedAfter))
+    _queuedBubble(msg) {
+      const waiting = [...this.messages].reverse().filter((m) => m.role === 'user' && m.queued)
       if (msg.message_id != null) {
         const byId = waiting.find((m) => m.serverId != null && String(m.serverId) === String(msg.message_id))
         if (byId) return byId
@@ -776,16 +711,8 @@ export const useChatStore = defineStore('chat', {
         // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
         answerBasis: info.answer_basis || null,
         citations: (info.answer_basis && info.answer_basis.citations) || [],
-        // Work mode: which iteration produced this answer, so a reopened thread keeps its iteration
-        // sections. The live tagging happens client-side from `work_segment`; without this the
-        // grouping would disappear on the reload the user does precisely to look back over the run.
-        workIteration: info.work_iteration || null,
-        // WHICH RUN PRODUCED THIS MESSAGE, and what the turn actually ran as — stamped by the server
-        // on every writer (agent/services/turn_metadata.py). This is the durable answer to "is this
-        // message already drawn on a run's rail?"; before it existed the client asked the CONVERSATION
-        // instead, and that question stays true forever once a thread has run Work even once.
+        // WHICH RUN PRODUCED THIS MESSAGE — stamped by the server on every writer (agent/services/turn_metadata.py).
         runId: info.run_id || '',
-        turnModeResolved: info.turn_mode_resolved || '',
         // WHO WROTE A USER-ROLE MESSAGE. A work run's continuation segments are persisted as
         // role='user' rows because the runtime reads the conversation back as turns — but the user
         // never typed them, and drawing them as their own blue bubble is what made conv 1561 read as
@@ -850,6 +777,7 @@ export const useChatStore = defineStore('chat', {
       const sameId = String(this.conversationId) === String(id)
       if (sameId && String(this._loadingConversationId) === String(id)) return
       if (sameId && String(this._loadFailedConversationId) !== String(id) && (this.messages.length || this._conn)) return
+      this._forgetRunSeq(id)
       // A chat left while its turn ran: take its socket back, so its live stream reaches this view (the server
       // sends a turn's frames to the socket that runs it). The chat on screen keeps running on its own socket if
       // it is busy, or its idle socket closes. A busy chat left for any other chat keeps running the same way.
@@ -882,6 +810,9 @@ export const useChatStore = defineStore('chat', {
         const data = res.data || {}
         this.conversationProjectId = data.project ?? null
         this.todos = normalizeTodos(data.todos)
+        // The conversation's mode: the person's choice kept by the server, else its default (Work in a Coding Agent
+        // project chat, Chat elsewhere) — the server answers both in `turn_mode`.
+        this.turnMode = TURN_MODES.includes(data.turn_mode) ? data.turn_mode : 'chat'
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
@@ -993,11 +924,10 @@ export const useChatStore = defineStore('chat', {
     // and `canvas_selection` targets a specific element. For web_builder we send the STABLE element id
     // (not outerHTML) so the backend's builder tools can edit that exact entity (Phase 3B A13/A14);
     // static keeps sending the captured element markup.
-    // Chat / Work — the user's explicit choice, persisted per conversation so switching tabs or
-    // reloading does not silently drop them back into Chat mid-task.
+    // Chat / Work / Plan for the open conversation. Sent with the next message, which is when the server keeps it as
+    // the conversation's choice; a name that is not a mode changes nothing.
     setTurnMode(mode) {
-      this.turnMode = (mode === 'work' || mode === 'chat') ? mode : 'auto'
-      try { localStorage.setItem(TURN_MODE_KEY, this.turnMode) } catch (_e) { /* private mode */ }
+      if (TURN_MODES.includes(mode)) this.turnMode = mode
     },
 
     _canvasSendOpts() {
@@ -1090,7 +1020,7 @@ export const useChatStore = defineStore('chat', {
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
           codeContext: opts.codeContext || undefined,
-          turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
+          turnMode: this.turnMode,
           imageMode: opts.imageMode || this.imageMode || undefined,
           videoRequest: opts.videoRequest || undefined,
           imageRequest: opts.imageRequest || undefined,
@@ -1131,13 +1061,7 @@ export const useChatStore = defineStore('chat', {
       })
       // Claimed by this turn; the message bubble keeps the preview urls. A voice note leaves them for the next message.
       if (!voiceNote) this.pendingAttachments = []
-      // A NEW USER TURN CLEARS THE PREVIOUS RUN'S WORK STATE. This is the right home for it rather than
-      // `_beginAssistant`, which also fires when a LATER iteration of a still-running Work run opens its
-      // bubble — clearing it there would undo the announcement that had just arrived and end the turn
-      // at the first iteration boundary, which is the bug this whole path exists to fix.
-      this._workRunActive = false
-      this.workIteration = null
-      this.workGoal = null
+      this._planModeTurn = this.turnMode === 'plan'
       this._beginAssistant()
 
       // Upload attachments to the conversation BEFORE sending the text — the backend auto-attaches
@@ -1177,9 +1101,8 @@ export const useChatStore = defineStore('chat', {
         ...this._canvasSendOpts(),
         // Let's Code: the files the person mentioned with @ and the code they selected (ADM-1205 phase E).
         codeContext: opts.codeContext || undefined,
-        // 'auto' sends NOTHING, which is what lets the Brain decide. 'chat' is now sent, so choosing
-        // it actually suppresses a Work goal instead of reading as "no preference".
-        turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
+        // The mode is always sent: the server keeps it as the conversation's choice.
+        turnMode: this.turnMode,
         imageMode: opts.imageMode || this.imageMode || undefined,
         videoRequest: opts.videoRequest || undefined,
         imageRequest: opts.imageRequest || undefined,
@@ -1212,20 +1135,6 @@ export const useChatStore = defineStore('chat', {
 
     stop() {
       this._conn?.stop()
-      // STOP HAS TO REACH THE WORK THAT IS ACTUALLY RUNNING.
-      //
-      // `_conn.stop()` cancels a turn on THIS SOCKET. A Work run's first iteration is such a turn, and
-      // every later one is a Celery task with no socket at all — so once the run moved on, the button
-      // was visible, enabled, and did nothing. Reported live: "I'm clicking on stop button nothing
-      // happening" on iteration 2 of 12.
-      //
-      // That gap is mine: binding the composer to `isBusy` is what kept the button up across the
-      // boundary, which was right, but a control that is shown must act.
-      //
-      // Routed through the goal action the backend already advertises (`work_goal.available_actions`),
-      // the same one the goal row's Pause button uses — not a second cancellation path with its own
-      // idea of what stopping means.
-      this._stopWorkRun()
       // Clear any pending approval so _endAssistant is allowed to finalize (Stop must always end the
       // turn, even mid-approval). The backend's stop_execution also cancels the server-side HITL wait.
       this.hitlRequests = []
@@ -1233,41 +1142,27 @@ export const useChatStore = defineStore('chat', {
       this._endAssistant()
     },
 
-    // Halt the run itself when a Work goal is still in flight. Best-effort and never throws into
-    // `stop()`: failing to reach the run must not also prevent the local turn from ending.
-    _stopWorkRun() {
-      try {
-        const plan = usePlanStore()
-        const runs = plan.runsForConversation(this.conversationId) || []
-        for (let i = runs.length - 1; i >= 0; i -= 1) {
-          const g = runs[i] && runs[i].work_goal
-          if (!g || g.state !== 'ACTIVE') continue
-          // `pause` when the backend offers it — it is reversible and preserves the work. `clear`
-          // only if that is all it will accept; anything else and we would be inventing an action the
-          // runtime might refuse, which is the drift `goalAction`'s own comment warns about.
-          const offered = g.available_actions || []
-          const action = offered.includes('pause') ? 'pause'
-            : (offered.includes('clear') ? 'clear' : null)
-          if (!action) break
-          this._workRunActive = false      // the run is stopping; do not keep the composer busy
-          this.workIteration = null
-          plan.goalAction(runs[i].run_id, action)
-          break
-        }
-      } catch (_e) { /* the socket stop above still stands */ }
-    },
-
     // ── HITL approval responses (sent over the same WS the backend awaits on) ──
     respondHitl({ request_id, response_value, feedback }) {
+      const _answered = this.hitlRequests.find((r) => r.request_id === request_id)
       this._conn?.sendHitlResponse(request_id, response_value, feedback)
       // Optimistically clear; the hitl_response_ack will also clear it.
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== request_id)
-      if (this.hitlRequests.length === 0) this.awaitingApproval = false
+      if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
+      // A PARKED card's answer continues its run as a NEW turn on the run host (phase 2b), which no `chat_message`
+      // of this page started: open its bubble now, so the frames it sends over the user group have a place to land
+      // and never overwrite the previous answer. Only for the conversation on screen, only when nothing streams.
+      if (_answered && _answered.parked && !this.isStreaming && this.conversationId != null
+          && String(_answered.conversation_id || this.conversationId) === String(this.conversationId)) {
+        this._beginAssistant()
+        const _cm = this._cur()
+        if (_cm) _cm.prepStatus = 'Continuing after your answer'
+      }
     },
 
     dismissHitl(requestId) {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
-      if (this.hitlRequests.length === 0) this.awaitingApproval = false
+      if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
     },
 
     // ── Manual Mode plan approval (v3 Layer 2) ──
@@ -1454,7 +1349,6 @@ export const useChatStore = defineStore('chat', {
       this._conn = null
       // Its approval cards come back when the chat is opened again (the server re-sends pending ones on resume).
       this.hitlRequests = []
-      this._workRunActive = false
       this._taskRunActive = false
       return true
     },
@@ -1564,6 +1458,7 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = false
       this._assistantId = null
       this._recovering = false
+      this.runHostRestarting = false
     },
 
     // "Reconnect now" (shown once a few reconnects in a row have failed): try at once, fresh backoff.
@@ -1617,6 +1512,10 @@ export const useChatStore = defineStore('chat', {
     //: this page has gone deaf, or the turn is genuinely stalled. Re-reading history answers it either
     //: way, and costs one cheap request.
     _DEAF_AFTER_MS: 120000,
+    //: The same, while the run host restarts: the turn is silent until the next host resumes it, which takes as long
+    //: as the restart does. The server settles a turn that cannot continue (`error` + `run_finished`), so this is
+    //: only the backstop for a page that has gone deaf.
+    _RESTART_DEAF_AFTER_MS: 600000,
 
     // NOTHING HAS ARRIVED FOR TOO LONG — go and look instead of waiting for a frame that may never come.
     //
@@ -1634,7 +1533,8 @@ export const useChatStore = defineStore('chat', {
       this._lastFrameAt = Date.now()
       this._deafTimer = setInterval(() => {
         if (!this.isStreaming) { this._stopDeafWatchdog(); return }
-        if (Date.now() - (this._lastFrameAt || 0) < this._DEAF_AFTER_MS) return
+        const _quietFor = this.runHostRestarting ? this._RESTART_DEAF_AFTER_MS : this._DEAF_AFTER_MS
+        if (Date.now() - (this._lastFrameAt || 0) < _quietFor) return
         this._stopDeafWatchdog()
         try { this._recoverAfterReconnect() } catch (e) { /* never let a watchdog break a turn */ }
       }, 20000)
@@ -1680,7 +1580,8 @@ export const useChatStore = defineStore('chat', {
       // question with a snapshot (it answers with nothing when nothing runs). The silence watchdog is
       // re-armed on the way out, so a turn that later goes quiet is looked at again.
       const since = Date.now()
-      const stillRunning = () => this._turnAliveAt > since
+      // A turn whose run host is restarting is still this turn: it is handed on, never settled here.
+      const stillRunning = () => this._turnAliveAt > since || this.runHostRestarting
       const backToListening = () => {
         if (!this.isStreaming) return
         this._startDeafWatchdog()
@@ -1811,18 +1712,14 @@ export const useChatStore = defineStore('chat', {
           // refresh in between dropped a finished iteration's activity off the rail (prod conv 1586,
           // "Got ready" vanished for 14s between segments).
           timeline: (m.model_info && m.model_info.timeline) || (_prev && _prev.timeline) || null,
-          // Same durable run link as the main loader — a reconnect must not lose it, or a reconnected
-          // thread would start drawing Work answers twice.
+          // Same durable run link as the main loader — a reconnect must not lose it.
           runId: (m.model_info && m.model_info.run_id) || (_prev && _prev.runId) || '',
-          turnModeResolved: (m.model_info && m.model_info.turn_mode_resolved)
-            || (_prev && _prev.turnModeResolved) || '',
           // Same continuation marker as the main loader — a reconnect must not resurrect the
           // machine-authored prompts as user bubbles.
           authoredBy: (m.model_info && m.model_info.authored_by) || 'user',
           // Same restore point as the main loader: a turn's checkpoint lands on its user row while it runs.
           restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id)
             || (_prev && _prev.restoreCheckpointId) || null,
-          workIteration: (m.model_info && m.model_info.work_iteration) || (_prev && _prev.workIteration) || null,
           planArtifacts: pickArray(m.plan_artifacts).length ? pickArray(m.plan_artifacts)
             : ((_prev && _prev.planArtifacts) || []),
           citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations)
@@ -1859,10 +1756,6 @@ export const useChatStore = defineStore('chat', {
         const runIds = new Set()
         for (const m of this.messages) {
           for (const a of (m.planArtifacts || [])) if (a && a.run_id) runIds.add(a.run_id)
-          // A Work run whose plan never got a durable anchor (a small, tracking-only plan) is named only by
-          // its messages' `run_id` stamp. Without reading it, a reload dropped that run's whole rail and its
-          // answers fell back to bubbles (prod conv 1608, turn 2).
-          if (m.role === 'assistant' && m.runId && m.turnModeResolved === 'work') runIds.add(m.runId)
         }
         if (runIds.size) { for (const rid of runIds) plan.hydrateRun(rid); return }
         if (!this.messages.some((m) => m.role === 'assistant')) return   // no plan possible
@@ -1986,18 +1879,6 @@ export const useChatStore = defineStore('chat', {
     // for a run the server had finished — ACHIEVED after three attempts (event 21). A segment starting and
     // the goal closing are the two moments the rail must be current, so they fetch the truth instead of
     // trusting that every push landed. Best-effort; the store applies a snapshot only if it is newer.
-    _refreshWorkRun() {
-      try {
-        const cid = this.conversationId
-        if (cid == null) return
-        const plan = usePlanStore()
-        const runs = plan.runsForConversation(cid) || []
-        const latest = runs[runs.length - 1]
-        if (latest && latest.run_id) plan.hydrateRun(latest.run_id)
-        else plan.hydrateConversation(cid)
-      } catch { /* a refresh must never break the stream */ }
-    },
-
     _stampPlanStep(msg) {
       // The server names the step when it knows it (each call of a parallel round is attributed to its
       // own step); the snapshot's single `current_step_id` is only the fallback for frames that do not.
@@ -2056,7 +1937,10 @@ export const useChatStore = defineStore('chat', {
       // premature "complete" for the step-0 text while the agent is actually blocked on an approval
       // card; finalizing here would show "Done", hide the Stop button, and orphan the pending card.
       // The REAL completion (after the human responds, once hitlRequests is empty) ends the turn.
-      if (this.hitlRequests.length > 0) return
+      // A PARKED card (phase 2b) does not hold the turn: its run has already ended its turn and continues as a new
+      // one when the person answers, so a turn on screen that ends next to it ends.
+      if (this.hitlRequests.some((r) => !r.parked)) return
+      this.runHostRestarting = false
       this._stopProgressPolling()
       const m = this._cur()
       if (m) {
@@ -2124,6 +2008,7 @@ export const useChatStore = defineStore('chat', {
 
     _errAssistant(err, retryable = true, fromServer = false) {
       this._stopDeafWatchdog()
+      this.runHostRestarting = false
       const m = this._cur()
       if (m) {
         m.status = 'error'
@@ -2140,10 +2025,79 @@ export const useChatStore = defineStore('chat', {
       this._assistantId = null
     },
 
+    // ── Reload / reconnect catch-up: the run's ordered events (backend phase 1b) ─────────────────────────────
+    _forgetRunSeq(conversationId) {
+      const key = String(conversationId ?? '')
+      if (!key || !(key in this._runSeq)) return
+      const next = { ...this._runSeq }
+      delete next[key]
+      this._runSeq = next
+    },
+
+    // Ask the server for this conversation's run events after the last one applied here. Nothing applied yet
+    // (a reload): from the start, and the turn on screen is rebuilt from them (see _applyRunEvents).
+    _askRunEvents(sinceSeq) {
+      const cid = this.conversationId
+      if (!cid || !this._conn) return
+      const since = sinceSeq != null ? sinceSeq : (this._runSeq[String(cid)] || 0)
+      this._conn.send({ type: 'run_events_since', conversation_id: cid, since_seq: since })
+    },
+
+    // `run_events_replay`: { conversation_id, events: [{seq, type, frame?, payload, plan_version, ts}], last_seq,
+    // has_more?, live? }. Events are applied in `seq` order and a `seq` already applied is dropped, so an event that
+    // comes both in the replay and live is shown once. An event with a `frame` is a chat frame and goes through the
+    // normal frame handling. `events_missing` means the server recorded a gap: it is logged, nothing is shown.
+    _applyRunEvents(msg) {
+      const cid = msg.conversation_id != null ? String(msg.conversation_id) : String(this.conversationId ?? '')
+      if (!cid || this.conversationId == null || cid !== String(this.conversationId)) return
+      const events = (Array.isArray(msg.events) ? msg.events : [])
+        .filter((e) => e && Number.isFinite(Number(e.seq)))
+        .sort((a, b) => Number(a.seq) - Number(b.seq))
+      const before = this._runSeq[cid] || 0
+      // A replayed batch (not live) belongs on screen only while this page shows the run's turn as running; a turn
+      // that ended is already in the loaded history, so its events only move the cursor.
+      const onScreen = !!msg.live || this.isStreaming || this._recovering
+      // From the start, onto a turn already drawn here (a dropped socket the page lived through): the bubble is
+      // rebuilt from the log instead of the log being added to what it already shows.
+      if (!msg.live && before === 0 && onScreen && events.some((e) => e.frame && Number(e.seq) > 0)) {
+        const m = this._cur()
+        if (m) { m.content = ''; _think.reset() }
+        _tl.reset()
+      }
+      let last = before
+      for (const e of events) {
+        const seq = Number(e.seq)
+        if (seq <= last) continue
+        last = seq
+        if (e.type === 'events_missing') {
+          console.info('[chat] the run recorded a gap in its events', e.payload || {})
+          continue
+        }
+        if (!onScreen || !e.frame || typeof e.frame !== 'object') continue
+        const frame = e.frame.conversation_id == null ? { ...e.frame, conversation_id: cid } : e.frame
+        try { this._onEvent(frame) } catch (_e) { /* one bad frame never stops the catch-up */ }
+      }
+      if (last !== before) this._runSeq = { ...this._runSeq, [cid]: last }
+      // A long run comes in pages: ask again from the last one received.
+      if (msg.has_more && !msg.live && last > before) this._askRunEvents(last)
+    },
+
     _onEvent(msg) {
       this._lastFrameAt = Date.now()
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      // A turn the run host runs (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md phase 1c) has no socket: every frame it sends comes
+      // over the user group, which carries every open tab, marked `via_user_group` by the server. One addressed to
+      // another conversation is dropped BEFORE the surface sees it, so a project chat's changed files, preview link or
+      // permission card never reach another chat's panel.
+      if (msg?.via_user_group === true && msg.conversation_id != null && this.conversationId != null &&
+          String(msg.conversation_id) !== String(this.conversationId)) {
+        return
+      }
+      if (t === 'run_events_replay') {
+        this._applyRunEvents(msg)
+        return
+      }
       if (this.surfaceHandler) {
         try { if (this.surfaceHandler(msg)) return } catch (_e) { /* a surface's card must never break the chat */ }
       }
@@ -2158,6 +2112,7 @@ export const useChatStore = defineStore('chat', {
       // Scoped to the types that can actually be forwarded: `run_finished` also carries a
       // conversation_id and is deliberately cross-conversation (it fires the browser notification while
       // the user is looking at a different chat), so a blanket guard would silence it.
+      // (A frame marked `via_user_group` for another conversation was already dropped above, before the surface.)
       if (msg?.conversation_id != null && this.conversationId != null &&
           WORK_FORWARDED_TYPES.has(t) && String(msg.conversation_id) !== String(this.conversationId)) {
         return
@@ -2195,23 +2150,6 @@ export const useChatStore = defineStore('chat', {
         if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
           try {
             usePlanStore().applyPlanEvent(msg)
-            // A SECOND WITNESS THAT THE RUN IS OVER. The composer stays busy until `work_goal`, and a
-            // run that ended where nothing sent it left the Stop button up indefinitely (prod conv
-            // 1578). The plan snapshot carries the goal's persisted state, so a closed goal there
-            // releases the turn even if the closing frame never reached this tab.
-            if (this._workRunActive) {
-              const _rid = msg.run_id || (msg.plan_view && msg.plan_view.run_id)
-              const _runs = usePlanStore().runsForConversation(this.conversationId) || []
-              const _latest = _runs[_runs.length - 1]
-              // Only the conversation's LATEST run may release it: a late snapshot of an earlier,
-              // finished run must not end the one running now.
-              const _snap = _rid && _latest && String(_latest.run_id) === String(_rid) ? _latest : null
-              const _gs = _snap && _snap.work_goal && String(_snap.work_goal.state || '')
-              if (['ACHIEVED', 'EXHAUSTED', 'PAUSED', 'ABANDONED'].includes(_gs)) {
-                this._workRunActive = false
-                this.workIteration = null
-              }
-            }
             // Live anchor: attach this plan to the current assistant turn so its inline card renders
             // immediately (before the durable anchor is persisted + reloaded on next open). This matches
             // the eventual server anchor (same turn's assistant message).
@@ -2293,6 +2231,19 @@ export const useChatStore = defineStore('chat', {
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
       if (isRichEvent(msg)) {
+        // THE RUN HOST RESTARTS UNDER THIS TURN (phase 1d), and later resumes it. While restarting, the turn keeps
+        // showing it runs: the bubble stays open, Stop stays, the line says it continues in a moment.
+        if (t === 'agent_status' && msg.reason === 'RUN_HOST_RESTART') {
+          this.runHostRestarting = true
+          // A page that opened (or settled) during the restart is told the turn continues: give it its bubble.
+          if (!this.isStreaming) this._beginAssistant()
+          this._turnAliveAt = Date.now()
+          const _rsm = this._cur()
+          if (_rsm) _rsm.reconnecting = false
+          this._startDeafWatchdog()   // re-armed, with the restart's longer threshold
+        } else if (t === 'agent_status' && msg.reason === 'RESUMED_AFTER_RESTART') {
+          this.runHostRestarting = false
+        }
         // Which plan step owns this activity — see `_stampPlanStep`.
         this._stampPlanStep(msg)
         _tl.ingest(msg)
@@ -2381,11 +2332,21 @@ export const useChatStore = defineStore('chat', {
           // streaming assistant bubble so the live tokens land, and show WHERE the run actually is —
           // step, running tool and elapsed time — instead of a bare "still working…", which a user
           // cannot tell apart from a hung run.
+          // AFTER A RUN-HOST RESTART (phase 1d) it is the SAME turn, continued by the next host: a bubble still
+          // streaming keeps it (its timeline, its text so far), and the restart line gives way to the run's frames.
+          const _afterRestart = msg.after_restart === true
+          if (_afterRestart) this.runHostRestarting = false
           if (!this.isStreaming) this._beginAssistant()
           this._turnAliveAt = Date.now()   // the server has just said this turn is running
           const rm = this._cur()
           if (rm) { rm.reconnecting = false; rm.prepStatus = resumeStatusLine(msg.progress, msg.status) }
           if (rm && msg.turn_id) rm._serverTurn = msg.turn_id   // its `run_finished` names this turn
+          // CATCH UP FROM THE RUN'S OWN LOG (backend phase 1b): everything the run sent while this page was away (a
+          // reload, a dropped socket) is replayed in order, after the last event this page applied.
+          this._askRunEvents()
+          // A resumed-after-restart turn runs on the run host, which sends this page every frame over the user
+          // group: there is nothing to poll, and a poll answered "nothing runs here" must not read as a dead turn.
+          if (_afterRestart) { this._startDeafWatchdog(); break }
           // A turn owned by ANOTHER worker (the usual shape for a signal / schedule / webhook run) never
           // streams a token to this socket, so the line just set would sit frozen until the run ends.
           // Poll the snapshot so it keeps moving; a same-worker turn cancels this on its first live event.
@@ -2399,6 +2360,8 @@ export const useChatStore = defineStore('chat', {
             // The turn ended between polls. Stop polling and let the history refetch land the answer —
             // unless the server says it died unanswered (worker restarted), where there is nothing to land.
             this._stopProgressPolling()
+            // Nothing runs WHILE the run host restarts: the turn waits for the next host, it did not die.
+            if (this.runHostRestarting && this.isStreaming) break
             if (msg.interrupted && this.isStreaming) {
               this._recovering = false
               this._errAssistant('This reply was interrupted because the server restarted. Send your message again.', true, true)
@@ -2421,6 +2384,13 @@ export const useChatStore = defineStore('chat', {
           // persisted mid-run, so the loaded history can end at the user's message. If so, re-fetch once to
           // pull in the completed answer (no-op when there's nothing new).
           this._stopProgressPolling()
+          // Nothing runs WHILE the run host restarts (phase 1d): the turn is queued for the next host, not dead.
+          if (this.runHostRestarting && (this.isStreaming || this._recovering)) {
+            this._recovering = false
+            const _rm = this._cur()
+            if (_rm) _rm.reconnecting = false
+            break
+          }
           // The server says the turn DIED unanswered (its worker restarted mid-turn; conv 1947, 2026-09-25).
           // There is no answer to wait for, so say so now and offer a resend, instead of polling history
           // for 90s and then clearing the bubble without a word.
@@ -2569,11 +2539,7 @@ export const useChatStore = defineStore('chat', {
             // completion path (direct_answer / has_generated_media / fast_path), not just one branch. The
             // !includes(url) guard keeps it idempotent with the persisted markdown, so a refresh (which
             // loads the same embedded markdown) never double-renders it.
-            // A WORK run shows each call's media inside the step that produced it (the timeline row carries
-            // it), and the final answer embeds them all at the end. Appending here as well drew the images
-            // into an early "answer" on the rail while the steps were still running.
-            const _onRail = m.turnModeResolved === 'work' || !!m.workIteration
-            for (const a of (_onRail ? [] : (msg.media_artifacts || []))) {
+            for (const a of (msg.media_artifacts || [])) {
               // Prefer the ABSOLUTE url (the TASK/runner path adds abs_url); only append absolute URLs so a
               // relative /media/ path (which 404s on the SPA origin) is never injected. The chat path lacks
               // abs_url and renders media through its own final-answer embed, so it's simply skipped here.
@@ -2595,10 +2561,23 @@ export const useChatStore = defineStore('chat', {
           // integration and the Aadml dashboard are separate windows; a card must not leak across them). A
           // legacy card with no conversation_id still falls through (never silently hide a real approval).
           const _hcid = String(msg.conversation_id || msg.payload?.conversation_id || '')
+          // An MCP client's approval ("mcp:<session>") belongs to no chat: it is answered on the Sessions page.
+          if (_hcid.startsWith('mcp:')) break
           if (_hcid && _hcid !== String(this.conversationId || '')) break
+          // Plan mode's card: its run's plan is answered HERE, so the inline plan card shows the plan without its
+          // own Approve buttons, and a `plan_approval_required` for it is not a second card.
+          if (msg.payload && msg.payload.kind === 'plan_approval') {
+            this.pendingPlan = null
+            try { usePlanStore().markPlanModeRun(msg.payload.run_id, msg.payload.plan_version_id) } catch (_e) { /* plan store optional */ }
+          }
+          // A PARKED approval (phase 2b, agent/services/hitl/parked_approvals.py): a run nobody watched stopped
+          // before this step and ended its turn; the person's answer continues it. No clock, no "for the session".
+          const _parked = !!(msg.payload && msg.payload.parked === true)
           // Avoid duplicates if the event is re-delivered.
           if (!this.hitlRequests.some((r) => r.request_id === msg.request_id)) {
             this.hitlRequests.push({
+              parked: _parked,
+              conversation_id: _hcid || null,
               request_id: msg.request_id,
               interaction_type: msg.interaction_type,
               response_type: msg.response_type,
@@ -2610,6 +2589,9 @@ export const useChatStore = defineStore('chat', {
               timeout_at: msg.timeout_at || null,
             })
           }
+          // Nothing is running for a parked card: its run waits for the answer, so the chat does not claim a turn
+          // is streaming (that would start the silence watchdog, which would then call the turn interrupted).
+          if (_parked) break
           // Keep the turn ALIVE while this approval is pending. The task/CRS path can emit a premature
           // "complete" for the step-0 text BEFORE this card arrives — which already flipped the turn to
           // "Done" and hid the Stop control. Re-open the streaming turn (re-binding the assistant
@@ -2633,7 +2615,7 @@ export const useChatStore = defineStore('chat', {
           // hitl_response_ack = THIS socket answered; hitl_resolved = broadcast so EVERY window clears the
           // card once it's answered anywhere (no stale card lingering on another window/surface).
           this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
-          if (this.hitlRequests.length === 0) this.awaitingApproval = false
+          if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
           break
         // ── Mid-run steering: a message the user sent while the agent was working ──
         case 'message_queued': {
@@ -2643,15 +2625,10 @@ export const useChatStore = defineStore('chat', {
           if (qm && msg.message_id != null) qm.serverId = msg.message_id
           break
         }
-        case 'steering_deferred': {
-          // The running agent judged this message a SEPARATE request: it is not taken into the run, and is
-          // answered as its own turn when the run ends. It stays a bubble of its own, marked as waiting.
-          const qm = this._queuedBubble(msg, { notDeferred: true })
-          if (qm) qm.queuedAfter = true
-          break
-        }
         case 'steering_applied': {
-          // The running agent took in a message the person sent while it worked. It belongs INSIDE the run:
+          // The running agent took in a message the person sent while it worked: EVERY one is, and the model decides
+          // whether it changes the current work or is a request to do after it (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md
+          // 3.4; the separate-request "deferred" path and its judge were removed). It belongs INSIDE the run:
           // it leaves the bottom of the thread (where it was typed, below the working run) and becomes a
           // "You added: …" line in the run's step list at this point — the work before it above, the work and
           // the answer after it below. Saved with the run's timeline, and the server marks the row a STEER, so
@@ -2669,7 +2646,8 @@ export const useChatStore = defineStore('chat', {
               String(msg.conversation_id) !== String(this.conversationId)) break
           const back = []
           for (const it of (Array.isArray(msg.messages) ? msg.messages : [])) {
-            const qm = this._queuedBubble({ message_id: it.message_id, message: it.text })
+            const qm = this._queuedBubble({ message_id: it.message_id, client_message_id: it.client_message_id,
+                                            message: it.text })
             if (qm) this.messages.splice(this.messages.indexOf(qm), 1)
             if ((it.text || '').trim()) back.push(it.text.trim())
           }
@@ -2689,8 +2667,7 @@ export const useChatStore = defineStore('chat', {
           //
           // Production conv 2163: 'hi' was answered, 'what you can do' was queued and answered, and on
           // screen the second answer had replaced the first — both rows were correct in the database.
-          // Opening the bubble here is what keeps the two answers apart, the same way `work_segment`
-          // does for a later Work iteration.
+          // Opening the bubble here is what keeps the two answers apart.
           //
           // Scoped to THIS conversation on purpose. The frame is not in `WORK_FORWARDED_TYPES`, so the
           // cross-conversation guard in `_onEvent` does not cover it, and a user who navigated to
@@ -2707,64 +2684,10 @@ export const useChatStore = defineStore('chat', {
               if (m.role !== 'user' || !m.queued) continue
               const mine = ids && m.serverId != null ? ids.has(String(m.serverId))
                 : (!names || names.has(m.content || ''))
-              if (mine) {
-                m.queued = false
-                m.queuedAfter = false
-              }
+              if (mine) m.queued = false
             }
           }
           if (!this.isStreaming) this._beginAssistant()
-          break
-        }
-        // ── Work mode: a run that keeps going in bounded ITERATIONS ──────────────────────────────
-        // Each iteration is a separate dispatch and ends with its own assistant_message_complete, so
-        // the bubble still closes per iteration (the answers stay separate, which is what the user
-        // wants to read). What must NOT end is the RUN: these two frames are the only thing that says
-        // where an iteration boundary is, because the backend does not know whether work continues
-        // until AFTER the finalize node has already spoken.
-        case 'work_segment': {
-          this._refreshWorkRun()
-          this._workRunActive = true
-          this.workGoal = null
-          this.workIteration = { segment: Number(msg.segment) || 1, max: Number(msg.max) || 0 }
-          // A LATER ITERATION GETS ITS OWN MESSAGE. Iterations after the first run in a worker and
-          // reach this tab over the user group, after the previous iteration's bubble has already
-          // closed — so there was no live message, every chunk was dropped, and the iteration's
-          // `assistant_message_complete` fell back to the LAST assistant message and overwrote the
-          // previous iteration's answer with its own (prod conv 1578: attempt 1's answer vanished and
-          // attempt 2's took its place). Opening the message here is what keeps the two apart.
-          let _wm = this._cur()
-          const _seg = this.workIteration.segment
-          const _prevSeg = _wm && _wm.workIteration && Number(_wm.workIteration.segment)
-          if (!_wm || (_prevSeg && _prevSeg !== _seg && String(_wm.content || '').trim())) {
-            const _prior = [...this.messages].reverse().find((x) => x.role === 'assistant' && x.runId)
-            if (_wm) this._endAssistant()
-            this._beginAssistant()
-            _wm = this._cur()
-            if (_wm && _prior) _wm.runId = _prior.runId
-          }
-          // Tag the bubble this iteration is about to fill. `turnModeResolved` too: the server stamps
-          // it only when the message is saved, and until then the message could not tell it belonged
-          // on the rail — so it rendered as an ordinary chat turn first and then jumped.
-          if (_wm) {
-            _wm.workIteration = { ...this.workIteration }
-            _wm.turnModeResolved = 'work'
-          }
-          break
-        }
-        case 'work_goal': {
-          // THE CLOSING HALF, AND IT IS NOT OPTIONAL: the composer stays busy from work_segment until
-          // this arrives, so a run that never sends it would lock the composer. The backend emits it on
-          // every ending — achieved, exhausted, unverifiable and the error paths.
-          this._refreshWorkRun()
-          this._workRunActive = false
-          this.workIteration = null
-          this.workGoal = {
-            state: String(msg.state || ''), segments: Number(msg.segments) || 0,
-            max: Number(msg.max) || 0, findings: Array.isArray(msg.findings) ? msg.findings : [],
-          }
-          const _wg = this._cur()
-          if (_wg) this._endAssistant()      // idempotent; the last iteration may already have closed
           break
         }
         // ── Task/CRS run lifecycle: a multi-step run (plan → tools) streams an assistant_message_complete
@@ -2808,10 +2731,22 @@ export const useChatStore = defineStore('chat', {
         // THE TURN IS OVER WHEN THIS ARRIVES: the server sends it and ends the turn, with no completion
         // frame after it. Left streaming, the page kept a spinning "Working" and a Stop button over a plan
         // that waited for the person (prod conv 2814, 2026-10-15).
-        case 'plan_approval_required':
-          this.pendingPlan = msg.plan || {}
+        case 'plan_approval_required': {
+          // PLAN MODE: the plan is answered on its `plan_approval` card (a `hitl_request` that keeps the turn open),
+          // so the run's older event for the same plan is display-only. Pausing here would end the turn under the card.
+          const _p = msg.plan || {}
+          let _planMode = this._planModeTurn
+            || this.hitlRequests.some((r) => r.payload && r.payload.kind === 'plan_approval')
+          if (!_planMode) {
+            try {
+              _planMode = usePlanStore().isPlanModeRun(_p.run_id || msg.run_id, _p.plan_version_id || msg.plan_version_id)
+            } catch (_e) { /* plan store optional */ }
+          }
+          if (_planMode) break
+          this.pendingPlan = _p
           this._pauseAssistant('plan_approval')
           break
+        }
         // Human approved server-side → resume by re-sending the original instruction (it now
         // executes because the plan is approved). Rejection just clears the card + ends the turn.
         case 'plan_approved':

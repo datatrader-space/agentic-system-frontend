@@ -22,7 +22,8 @@
       />
     </svg>
     <span v-if="!collapsed" class="nav-label">{{ label }}</span>
-    <span v-if="!collapsed && badge" class="nav-badge">{{ badge }}</span>
+    <span v-if="!collapsed && badge" class="nav-badge" :aria-label="badgeLabel || undefined">{{ badge }}</span>
+    <span v-if="collapsed && badge" class="nav-badge-dot" :aria-label="badgeLabel || badge" />
     <svg v-if="!collapsed && expandable" class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" :class="{ open }">
       <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
@@ -39,6 +40,8 @@ const props = defineProps({
   iconComponent: { type: [Object, Function], default: null },
   icon: { type: Array, default: () => [] }, // array of SVG path `d` strings
   badge: { type: String, default: '' },
+  // What the badge means, for a screen reader ("3 need you"); the number alone says nothing.
+  badgeLabel: { type: String, default: '' },
   exact: { type: Boolean, default: false },
   // Optional prefix used for active-state matching when it differs from `to`
   // (e.g. Settings links to /settings/general but is active across all tabs).
@@ -69,6 +72,6 @@ const onClick = () => {
 </script>
 
 <style scoped>
-.nav-item{position:relative;display:flex;align-items:center;gap:12px;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--vm-ink-soft);text-decoration:none;font-family:var(--font-sans);font-size:13px;line-height:20px;font-weight:450;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s,border-color .15s}.nav-item:hover{background:var(--vm-surface-soft);color:var(--vm-ink)}.nav-item.active{background:var(--vm-surface-soft);border-color:var(--vm-line-2);color:var(--vm-link);font-weight:550}.nav-item.active::before{content:"";position:absolute;left:-1px;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:#2563eb}.nav-icon{width:18px;height:18px;flex-shrink:0;color:var(--vm-ink-faint);stroke-width:1.7}.nav-item:hover .nav-icon{color:var(--vm-link)}.nav-item.active .nav-icon{color:var(--vm-link)}.nav-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.nav-badge{margin-left:auto;padding:1px 6px;border-radius:5px;background:#e5ecf7;color:var(--vm-link);font-size:10px;line-height:16px;font-weight:500}.nav-chevron{width:14px;height:14px;flex-shrink:0;color:var(--vm-ink-faint);transition:transform .15s}.nav-chevron.open{transform:rotate(90deg)}.nav-item.collapsed{justify-content:center;min-height:40px;padding:10px 0}.nav-item.child:not(.collapsed){margin-left:22px;min-height:33px;padding:6px 9px;gap:9px;font-size:12px}.nav-item.child:not(.collapsed) .nav-icon{width:15px;height:15px}.nav-item:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.nav-item{position:relative;display:flex;align-items:center;gap:12px;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--vm-ink-soft);text-decoration:none;font-family:var(--font-sans);font-size:13px;line-height:20px;font-weight:450;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s,border-color .15s}.nav-item:hover{background:var(--vm-surface-soft);color:var(--vm-ink)}.nav-item.active{background:var(--vm-surface-soft);border-color:var(--vm-line-2);color:var(--vm-link);font-weight:550}.nav-item.active::before{content:"";position:absolute;left:-1px;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:#2563eb}.nav-icon{width:18px;height:18px;flex-shrink:0;color:var(--vm-ink-faint);stroke-width:1.7}.nav-item:hover .nav-icon{color:var(--vm-link)}.nav-item.active .nav-icon{color:var(--vm-link)}.nav-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.nav-badge{margin-left:auto;padding:1px 6px;border-radius:5px;background:#e5ecf7;color:var(--vm-link);font-size:10px;line-height:16px;font-weight:500}.nav-badge-dot{position:absolute;top:6px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--vm-amber);box-shadow:0 0 0 2px var(--vm-surface-soft)}.nav-chevron{width:14px;height:14px;flex-shrink:0;color:var(--vm-ink-faint);transition:transform .15s}.nav-chevron.open{transform:rotate(90deg)}.nav-item.collapsed{justify-content:center;min-height:40px;padding:10px 0}.nav-item.child:not(.collapsed){margin-left:22px;min-height:33px;padding:6px 9px;gap:9px;font-size:12px}.nav-item.child:not(.collapsed) .nav-icon{width:15px;height:15px}.nav-item:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.nav-item,.nav-chevron{transition:none}}
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="chat-split" ref="splitEl" :class="{ 'canvas-open': dockOpen, 'canvas-mobile': dockOpen && isMobile }">
    <div class="chat-workspace" :style="dockOpen && !isMobile ? { flex: `1 1 0`, minWidth: '360px' } : null">
-    <!-- Chat / Work, centred at the top of the surface it governs. It is not a composer pill: those are
+    <!-- Chat / Work / Plan, centred at the top of the surface it governs. It is not a composer pill: those are
          per-message settings (which agent, which run mode, does this message make an image), and this
          chooses what KIND of thing the session does. A control at that altitude reads wrongly when it
          sits beside the attach button. -->
@@ -120,10 +120,7 @@
            agent-id comes from selectedAgentId (always set once a conversation loads), NOT
            currentAgent — the latter only resolves if the agent is in the workspace-scoped agents
            list, so it would hide the mode picker for cross-workspace/unloaded agents. -->
-      <!-- `isBusy`, not `isStreaming`: a Work run keeps going across iteration boundaries, and between
-           two iterations nothing is streaming at all while the backend verifies the goal and dispatches
-           the next segment. Binding the Stop button to the bubble made it vanish mid-run and come back
-           moments later, which read as the run finishing and then restarting. -->
+      <!-- `isBusy`: the turn is working, so Stop stays up. -->
       <!-- Video jobs of this chat: estimates waiting for Generate, renders in flight (Video mode). -->
       <VideoJobsTray :conversation-id="chat.conversationId" />
       <!-- The agent's task list for this chat (TODO_WRITE): hidden until the agent writes one. -->

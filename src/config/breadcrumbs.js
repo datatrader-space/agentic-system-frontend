@@ -35,6 +35,7 @@ export default {
   'dashboard-schedules': { label: 'Schedules', parent: 'dashboard-home' },
   'dashboard-budgets': { label: 'Budgets', parent: 'dashboard-home' },
   'dashboard-activity': { label: 'Activity', parent: 'dashboard-home' },
+  'dashboard-sessions': { label: 'Sessions', parent: 'dashboard-home' },
   'dashboard-billing': { label: 'Billing', parent: 'dashboard-home' },
   'dashboard-settings': { label: 'Settings', parent: 'dashboard-home' },
 

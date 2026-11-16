@@ -222,6 +222,25 @@ export function useAgentTimeline() {
         if (media.length) row.media = [...(row.media || []), ...media]
       }
     }
+    // PLAN MODE ONLY READS (backend phase 4): a call that would change something is refused with `tool_blocked`
+    // and reason `plan_mode`. That is the mode doing its job, not a failure: the step says so plainly, and the run
+    // is not marked as having failures. The row of that call (still running) takes the note; else one is added.
+    if (evt && evt.type === 'tool_blocked' && evt.reason === 'plan_mode') {
+      const note = 'Not run: plan mode only reads'
+      const open = [...steps.value].reverse().find((x) => x.status === 'running' && !x.isPhase && evt.tool && x.tool === evt.tool)
+      if (open) {
+        open.status = 'held'
+        open.reason = note
+      } else {
+        _closeOpenPhases()
+        steps.value.push({
+          stepId: `held_${steps.value.length}_${_now()}`, toolCallId: '', phase: 'held', tool: evt.tool || '',
+          argsPreview: '', label: note, status: 'held', summary: '', durationMs: null, reason: '', nextAction: '',
+          coalescedCount: 0, startedAt: _now(),
+        })
+      }
+      return false
+    }
     if (!isRichEvent(evt)) return false
     switch (evt.type) {
       case 'agent_status': {
@@ -306,6 +325,8 @@ export function useAgentTimeline() {
 
       case 'agent_step_completed': {
         const s = _find(evt.step_id)
+        // A call plan mode refused stays "Not run" whatever its closing frame says.
+        if (s && s.status === 'held') return true
         if (s) {
           s.status = !evt.status || evt.status === 'ok' ? 'ok' : evt.status
           if (evt.label) s.label = evt.label
@@ -320,6 +341,7 @@ export function useAgentTimeline() {
 
       case 'agent_step_failed': {
         const s = _find(evt.step_id)
+        if (s && s.status === 'held') return true
         if (s) {
           s.status = 'failed'
           if (evt.label) s.label = evt.label

@@ -21,6 +21,8 @@ vi.mock('@/services/api', () => ({
     commitSourceControl: vi.fn(), pushSourceControl: vi.fn(), openPullRequest: vi.fn(), publishProject: vi.fn(),
     pullSourceControl: vi.fn(), abortMerge: vi.fn(), markResolved: vi.fn(), discardAllSourceControl: vi.fn(),
     createBranch: vi.fn(), getSourceControlLog: vi.fn(), getCommitFiles: vi.fn(),
+    getChatWorktrees: vi.fn(() => Promise.resolve({ data: { worktrees: [], count: 0, into: 'main' } })), mergeChatWorktree: vi.fn(),
+    discardChatWorktree: vi.fn(),
   },
 }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
@@ -171,5 +173,23 @@ describe('history', () => {
     expect(api.getCommitFiles).toHaveBeenCalledWith(5, 4, 'a'.repeat(40))
     await w.find('.scm-cfiles .scm-row').trigger('click')
     expect(w.emitted('open-diff').at(-1)[0]).toEqual({ path: 'app.py', status: 'modified', sha: 'a'.repeat(40), short: 'aaaaaaa', from: '' })
+  })
+})
+
+// Chats' branches (backend phase 7b): a chat's merge that stopped on conflicts is resolved in the shared copy, with the
+// same Mark resolved / Commit / Abort merge controls, and the merge banner names the chat's branch, not GitHub.
+describe("chats' branches", () => {
+  it('shows each chat in its own copy, and a chat merge stopped on conflicts names that branch in the merge banner', async () => {
+    api.getChatWorktrees.mockResolvedValue({ data: { worktrees: [{ chat_id: 77, chat_title: 'Add the cart', chat_exists: true,
+      branch: 'aadml/chat-77', ahead: 1, behind: 0, present: true, changes: 0, working: false, has_work: true }], count: 1, into: 'main' } })
+    api.mergeChatWorktree.mockRejectedValue({ response: { status: 409, data: { code: 'MERGE_CONFLICT', conflicts: ['app.py'] } } })
+    const w = await mountPanel()
+    expect(w.find('[data-test="chat-branches"]').text()).toContain('aadml/chat-77')
+    expect(w.emitted('chat-branches')[0][0]).toHaveLength(1)
+    api.getSourceControlStatus.mockResolvedValue(state({ merging: true, changes: [{ path: 'app.py', status: 'conflict' }], untracked: [] }))
+    await w.find('[data-test="cbs-merge-77"]').trigger('click')
+    await flushPromises()
+    expect(w.find('.scm-merge').text()).toContain("Merging the chat's branch aadml/chat-77: 1 file has a conflict")
+    expect(w.find('.scm-merge').text()).toContain('Abort merge')
   })
 })

@@ -27,7 +27,7 @@ it('the shared list defaults to unchanged messages and opts into presentation wi
   vi.stubGlobal('ResizeObserver',class {observe(){} disconnect(){}})
   const chat=useChatStore()
   chat.messages=[{id:'u1',role:'user',content:'I am on the Image page. I am using my own idea.\n\nhi',status:'done'}]
-  wrapper=mount(ChatMessageList,{global:{stubs:{ChatMessage:true,WorkIterationBar:true,InlinePlanArtifact:true}}})
+  wrapper=mount(ChatMessageList,{global:{stubs:{ChatMessage:true,InlinePlanArtifact:true}}})
   const message=()=>wrapper.findComponent({name:'ChatMessage'}).props('message')
   expect(message().content).toBe(chat.messages[0].content)
   const edit=vi.spyOn(chat,'editAndResend').mockImplementation(()=>{})
@@ -94,7 +94,7 @@ it('shows the adapted helper reply through the real shared transcript list', () 
   setActivePinia(createPinia()); vi.stubGlobal('ResizeObserver',class {observe(){} disconnect(){}})
   const chat=useChatStore()
   chat.messages=[{id:'u',role:'user',content:'I am on the Image page in Manual mode. Write an editable creative prompt.',status:'done'},{id:'a',role:'assistant',content:'{"question":"Which product?","prompt":null}',status:'done'}]
-  wrapper=mount(ChatMessageList,{props:{presentMessage:m=>presentStudioMessage(m,chat.messages)},global:{stubs:{ChatMessage:true,WorkIterationBar:true,InlinePlanArtifact:true}}})
+  wrapper=mount(ChatMessageList,{props:{presentMessage:m=>presentStudioMessage(m,chat.messages)},global:{stubs:{ChatMessage:true,InlinePlanArtifact:true}}})
   expect(wrapper.findAllComponents({name:'ChatMessage'}).map(c=>c.props('message').content)).toEqual(['You asked for a prompt','The agent asked: Which product?'])
   expect(chat.messages[1].content).toContain('"question"')
 })
