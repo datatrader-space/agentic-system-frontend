@@ -236,6 +236,7 @@ import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
 import { LANGUAGE_SERVERS, createLanguageServers } from '@/stores/useLanguageServers'
+import { DEBUGGER, createDebugger } from '@/stores/useDebugger'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
@@ -264,6 +265,11 @@ const languages = createLanguageServers({ systemId: () => Number(active.value?.s
   repoId: () => Number(active.value?.repo_id) })
 provide(LANGUAGE_SERVERS, languages)
 watch(() => active.value && active.value.repo_id, () => languages.reset())
+// The editor's debugger (ADM-1205 phase F item 17): Run and Debug, breakpoints, the Debug Console; one per project.
+const debuggerStore = createDebugger({ systemId: () => Number(active.value?.system_id),
+  repoId: () => Number(active.value?.repo_id) })
+provide(DEBUGGER, debuggerStore)
+watch(() => active.value && active.value.repo_id, () => debuggerStore.reset())
 function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
@@ -685,7 +691,7 @@ function openLinkedProject() {
   router.replace({ query: link.query })
 }
 onBeforeUnmount(() => {
-  statusPoller.stop(); closeWs(); languages.dispose()
+  statusPoller.stop(); closeWs(); languages.dispose(); debuggerStore.dispose()
 })
 </script>
 

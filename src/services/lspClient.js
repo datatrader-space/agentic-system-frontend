@@ -6,10 +6,15 @@
 // Our own small client (plan D6): requests and their replies, notifications both ways, and the server's requests
 // answered by `onRequest`. A closed socket fails every request still waiting, so no caller waits for ever.
 
-export function lspSocketUrl(repoId, lang, loc = window.location, env = import.meta.env) {
+// AADML's address of one of a project's editor sockets (`lsp/<language>`, `dap/<adapter>`): this site, its own host.
+export function projectSocketUrl(repoId, tail, loc = window.location, env = import.meta.env) {
   const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = (env && env.VITE_WS_HOST) || loc.host
-  return `${proto}//${host}/ws/lets-code/${repoId}/lsp/${lang}/`
+  return `${proto}//${host}/ws/lets-code/${repoId}/${tail}/`
+}
+
+export function lspSocketUrl(repoId, lang, loc = window.location, env = import.meta.env) {
+  return projectSocketUrl(repoId, `lsp/${lang}`, loc, env)
 }
 
 export class LspConnection {

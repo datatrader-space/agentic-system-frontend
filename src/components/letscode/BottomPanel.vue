@@ -17,6 +17,10 @@
     <div v-if="languages" v-show="!collapsed && (tab === 'problems' || tab === 'references')" class="bp-body vm-scroll" role="tabpanel" tabindex="0">
       <ProblemsPanel :mode="tab === 'references' ? 'references' : 'problems'" />
     </div>
+    <!-- The Debug Console (ADM-1205 phase F item 17). -->
+    <div v-if="dbg" v-show="!collapsed && tab === 'debug-console'" class="bp-body" role="tabpanel">
+      <DebugConsole />
+    </div>
     <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
     <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
       <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
@@ -35,7 +39,9 @@ import { Icon } from '@iconify/vue'
 import TerminalPanel from './TerminalPanel.vue'
 import PreviewPanel from './PreviewPanel.vue'
 import ProblemsPanel from './ProblemsPanel.vue'
+import DebugConsole from './DebugConsole.vue'
 import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
+import { DEBUGGER } from '@/stores/useDebugger'
 
 const props = defineProps({
   pipelineLog: { type: Array, default: () => [] },
@@ -54,10 +60,12 @@ const emit = defineEmits(['toggle', 'maximize'])
 // project's sandbox and the commands the Coding Agent ran; Preview = the project's running ports and an app on one;
 // Problems / References = what the project's language servers report (where the Let's Code page provides them).
 const languages = inject(LANGUAGE_SERVERS, null)
+const dbg = inject(DEBUGGER, null)
 const problemCount = computed(() => (languages ? languages.problems.value.length : 0))
 const tabs = computed(() => [
   ...(languages ? [{ id: 'problems', label: problemCount.value ? `Problems (${problemCount.value})` : 'Problems' },
     { id: 'references', label: 'References' }] : []),
+  ...(dbg ? [{ id: 'debug-console', label: 'Debug Console' }] : []),
   { id: 'log', label: 'Log' },
   { id: 'activity', label: 'Activity' },
   ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }, { id: 'preview', label: 'Preview' }] : []),
@@ -85,6 +93,8 @@ defineExpose({ openPreview })
 
 // The editor's Find All References (Shift+F12) shows its results here.
 if (languages) watch(() => languages.panel.value.at, () => { if (languages.panel.value.tab) selectTab(languages.panel.value.tab) })
+// Starting a debug session shows its console.
+if (dbg) watch(() => dbg.panel.value.at, () => { if (dbg.panel.value.tab) selectTab(dbg.panel.value.tab) })
 
 const lines = computed(() => (tab.value === 'activity' ? props.activity : props.pipelineLog))
 function lineClass(l) {

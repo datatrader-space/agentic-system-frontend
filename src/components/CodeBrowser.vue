@@ -29,6 +29,16 @@
             <span class="sidebar-tab-label">Source control</span>
             <span v-if="scmCount > 0" class="scm-tabcount" :aria-label="`${scmCount} changes`">{{ scmCount }}</span>
           </button>
+          <button
+            v-if="debuggerStore && editable"
+            type="button" role="tab" :aria-selected="sidebarTab === 'debug' ? 'true' : 'false'"
+            @click="sidebarTab = 'debug'"
+            :class="{ active: sidebarTab === 'debug' }"
+            class="sidebar-tab" title="Run and Debug">
+            <Icon icon="lucide:bug-play" aria-hidden="true" />
+            <span class="sidebar-tab-label">Run and Debug</span>
+            <span v-if="debuggerStore.running.value" class="scm-tabcount" aria-label="debugging">●</span>
+          </button>
         </div>
       </div>
 
@@ -118,6 +128,11 @@
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
           <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
+        </div>
+
+        <!-- Run and Debug (ADM-1205 phase F item 17). -->
+        <div v-else-if="sidebarTab === 'debug' && debuggerStore" class="scm-pane">
+          <RunDebugPanel />
         </div>
 
         <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
@@ -318,6 +333,8 @@ import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
 import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
+import { DEBUGGER } from '@/stores/useDebugger'
+import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -432,6 +449,8 @@ const editorOptions = computed(() => ({
   bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
   guides: { bracketPairs: 'active', indentation: true, highlightActiveIndentation: true },
   'semanticHighlighting.enabled': true,
+  // The gutter where breakpoints are set (the debugger, ADM-1205 phase F item 17).
+  glyphMargin: !!(props.editable && debuggerStore),
 }))
 
 const diffOptions = computed(() => ({
@@ -563,12 +582,19 @@ function onEditorMount(editor) {
   if (languages && props.editable) {
     releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
   }
+  // The debugger (ADM-1205 phase F item 17): breakpoints in the gutter, the paused line, F5 / F9.
+  if (debuggerStore && props.editable) {
+    releaseDebugger = debuggerStore.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openAt })
+  }
 }
 const languages = inject(LANGUAGE_SERVERS, null)
 // Only this editor's own binding is released: a newer editor may already have bound (the editor is re-created when
 // the project turns ready).
 let releaseLanguages = null
 onBeforeUnmount(() => { if (releaseLanguages) releaseLanguages() })
+const debuggerStore = inject(DEBUGGER, null)
+let releaseDebugger = null
+onBeforeUnmount(() => { if (releaseDebugger) releaseDebugger() })
 
 // "Ask the Coding Agent about this" (ADM-1205 phase E): the selected lines, or the line the cursor is on, go to the
 // chat with their file and line numbers. In the editor's right-click menu and on Ctrl+L, as in other code editors.
@@ -2028,4 +2054,19 @@ const FileTreeNode = {
 @media (max-width: 640px) { .code-browser .tree-node { min-height: 40px; } }
 @media (hover: none), (pointer: coarse) { .code-browser .node-more { opacity: 1; width: 32px; height: 36px; } }
 @media (prefers-reduced-motion: reduce) { .code-browser .node-spin { animation: none; } }
+/* The debugger's marks in the editor (ADM-1205 phase F item 17), as VS Code's: a red dot per breakpoint, a ringed dot
+   for a conditional one, a diamond for a logpoint, a hollow one the debugger could not set; the paused line in amber. */
+.code-browser .lc-bp, .code-browser .lc-bp-cond, .code-browser .lc-bp-log, .code-browser .lc-paused-arrow { cursor: pointer; }
+.code-browser .lc-bp::before, .code-browser .lc-bp-cond::before, .code-browser .lc-bp-log::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 50%; background: #e51400; box-sizing: border-box;
+}
+.code-browser .lc-bp-cond::before { border: 2px solid #e51400; background: #fff; }
+.code-browser .lc-bp-log::before { border-radius: 2px; transform: rotate(45deg); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; }
+.code-browser .lc-bp-unverified::before { background: transparent; border: 1.5px solid #8a8a8a; }
+.code-browser .lc-paused-line { background: color-mix(in srgb, #ffcc00 22%, transparent); }
+.code-browser .lc-paused-arrow::after {
+  content: ''; position: absolute; left: 50%; top: 50%; margin: -6px 0 0 -4px;
+  border-style: solid; border-width: 6px 0 6px 9px; border-color: transparent transparent transparent #ffcc00;
+}
 </style>
