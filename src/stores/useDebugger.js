@@ -133,7 +133,9 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
     try { Object.assign(breakpoints, JSON.parse((store && store.getItem(STORE_KEY(val(repoId)))) || '{}')) } catch { /* none kept */ }
   }
   function saveBreakpoints() {
-    try { store && store.setItem(STORE_KEY(val(repoId)), JSON.stringify(breakpoints)) } catch { /* kept for this visit */ }
+    // What a session said about a breakpoint belongs to that session, not to the next visit.
+    const kept = (k, v) => (['ids', 'placed', 'verified'].includes(k) ? undefined : v)
+    try { store && store.setItem(STORE_KEY(val(repoId)), JSON.stringify(breakpoints, kept)) } catch { /* kept for this visit */ }
   }
   loadBreakpoints()
 
@@ -160,16 +162,29 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
     saveBreakpoints()
     pushBreakpoints(path)
   }
+  // A breakpoint is verified when any session placed it. js-debug's parent session never does; its child answers
+  // "provisional" and confirms later with a `breakpoint` event, matched by the id its reply gave.
+  function mark(b, sid, v) {
+    b.ids = { ...b.ids, [sid]: v.id }
+    b.placed = { ...b.placed, [sid]: !!v.verified }
+    b.verified = Object.values(b.placed).some(Boolean)
+  }
+  let pushing = Promise.resolve()                // breakpoint changes the adapters have not answered yet
   async function pushBreakpoints(path, sessions) {
     paint()
     if (!conn || !root) return
-    for (const s of sessions || [...conn.sessions.values()].filter((x) => configured.has(x.id))) {
-      const list = breakpoints[path] || []
+    const list = breakpoints[path] || []
+    // Every session's request is written now, in one go, so a Continue pressed after a change reaches the program
+    // after it. Awaiting the parent's reply first once let a quick Continue hit a removed breakpoint again in the
+    // child, where js-debug's program runs (ADM-1205 live check 2026-11-16).
+    const done = Promise.all((sessions || [...conn.sessions.values()].filter((x) => configured.has(x.id))).map(async (s) => {
       try {
         const r = await s.request('setBreakpoints', { source: { path: abs(path) }, breakpoints: list.map(sourceBreakpoint) })
-        ;(r.breakpoints || []).forEach((v, i) => { if (list[i]) list[i].verified = !!v.verified })
+        ;(r.breakpoints || []).forEach((v, i) => { if (list[i]) mark(list[i], s.id, v) })
       } catch { /* a session that has ended */ }
-    }
+    }))
+    pushing = Promise.all([pushing, done])
+    await done
     paint()
   }
 
@@ -187,6 +202,9 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
     const item = configs.value.find((c) => c.id === id)
     if (!item) { error.value = 'Choose what to run.'; return }
     stop({ quiet: true })
+    // Session ids start again from 1 on a new connection: the last session's ids and answers would match wrongly.
+    for (const list of Object.values(breakpoints)) for (const b of list) { delete b.ids; delete b.placed; b.verified = null }
+    pushing = Promise.resolve()
     lastConfig = item
     state.value = 'starting'
     error.value = ''
@@ -254,6 +272,11 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
       stoppedThread = body.threadId ?? null
       state.value = 'paused'
       await loadStack()
+    } else if (ev === 'breakpoint') {
+      const v = body.breakpoint || {}
+      if (body.reason !== 'changed' || v.id == null) return
+      for (const list of Object.values(breakpoints)) for (const b of list) if (b.ids && b.ids[s.id] === v.id) mark(b, s.id, v)
+      paint()
     } else if (ev === 'continued') {
       if (s === active) clearPause()
     } else if (ev === 'output') {
@@ -363,6 +386,7 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
       return
     }
     clearPause()
+    await pushing                                   // a breakpoint just removed is gone before the program moves
     await s.request(command, { threadId: stoppedThread ?? 0 }).catch((e) => say('err', e.message))
   }
 

@@ -118,7 +118,8 @@ describe('breakpoints', () => {
     e.listeners.mouse({ target: { type: 2, position: { lineNumber: 4 } } })
     e.listeners.mouse({ target: { type: 6, position: { lineNumber: 5 } } })       // the text, not the gutter
     expect(dbg.breakpointList.value).toEqual([{ path: 'calc.py', line: 4, condition: '', hitCondition: '', logMessage: '', verified: null }])
-    expect(JSON.parse(storage.m.get('lc-breakpoints:4'))).toEqual({ 'calc.py': [{ line: 4, condition: '', hitCondition: '', logMessage: '', verified: null }] })
+    // What a session said about it (verified, its ids) is not kept for the next visit.
+    expect(JSON.parse(storage.m.get('lc-breakpoints:4'))).toEqual({ 'calc.py': [{ line: 4, condition: '', hitCondition: '', logMessage: '' }] })
     const deco = e.collection.set.mock.calls.at(-1)?.[0] || e.ed.createDecorationsCollection.mock.calls.at(-1)[0]
     expect(deco.map((d) => d.options.glyphMarginClassName)).toEqual(['lc-bp'])
     dbg.updateBreakpoint('calc.py', 4, { condition: 'p > 2' })
@@ -226,6 +227,71 @@ describe('a debug session', () => {
     ws.event(2, 'terminated')                         // the child ends; the parent still runs
     await flush()
     expect(dbg.state.value).not.toBe('ended')
+  })
+
+  // js-debug: a parent session, and the child (startDebugging) where the program runs.
+  async function nodeSessions(dbg, e) {
+    e.tab.value = { id: 1, type: 'file', path: 'app.js' }
+    dbg.bind(e.ctx)
+    await flush()
+    dbg.start('file')
+    const ws = FakeWS.made.at(-1)
+    ws.status({ state: 'ready', root: ROOT })
+    await flush()
+    ws.onmessage({ data: JSON.stringify({ s: 1, m: { type: 'request', seq: 5, command: 'startDebugging',
+      arguments: { request: 'attach', configuration: { type: 'pwa-node', __pendingTargetId: 't1' } } } }) })
+    await flush()
+    ws.event(1, 'initialized')
+    ws.event(2, 'initialized')
+    await flush()
+    return ws
+  }
+
+  it('a breakpoint removed while paused reaches the child before Continue does (live check 2026-11-16)', async () => {
+    const { dbg } = make()
+    const e = editor()
+    dbg.toggleBreakpoint('app.js', 4)
+    const ws = await nodeSessions(dbg, e)
+    ws.event(2, 'stopped', { reason: 'breakpoint', threadId: 0 })
+    await flush()
+    // The parent's answer takes a round trip through the server; the removal must not wait for it.
+    const late = []
+    FakeWS.adapter = (m, s) => (m.command === 'setBreakpoints' && s === 1 ? (late.push(m), undefined) : answer(m))
+    dbg.toggleBreakpoint('app.js', 4)                // removed
+    const going = dbg.step('continue')               // and Continue pressed at once
+    await flush()
+    const childRemoval = ws.sent.findIndex((f) => f.s === 2 && f.m.command === 'setBreakpoints' && !f.m.arguments.breakpoints.length)
+    expect(childRemoval).toBeGreaterThan(-1)
+    expect(ws.commands(2)).not.toContain('continue')  // not before every session has answered the change
+    ws.reply(1, late[0], { breakpoints: [] })
+    await going
+    const cont = ws.sent.findIndex((f) => f.s === 2 && f.m.command === 'continue')
+    expect(cont).toBeGreaterThan(childRemoval)
+    expect(ws.args('continue').at(-1)).toEqual({ threadId: 0 })
+  })
+
+  it("js-debug's provisional breakpoint turns verified when its child session places it", async () => {
+    FakeWS.adapter = (m) => (m.command === 'setBreakpoints'
+      ? { breakpoints: m.arguments.breakpoints.map(() => ({ id: 1, verified: false, message: 'breakpoint.provisionalBreakpoint' })) }
+      : answer(m))
+    const { dbg, storage } = make()
+    const e = editor()
+    dbg.toggleBreakpoint('app.js', 4)
+    const ws = await nodeSessions(dbg, e)
+    expect(dbg.breakpointList.value[0].verified).toBe(false)
+    expect(e.collection.set.mock.calls.at(-1)[0][0].options.glyphMarginClassName).toBe('lc-bp lc-bp-unverified')
+    ws.event(2, 'breakpoint', { reason: 'changed', breakpoint: { id: 99, verified: true } })   // not ours
+    expect(dbg.breakpointList.value[0].verified).toBe(false)
+    ws.event(2, 'breakpoint', { reason: 'changed', breakpoint: { id: 1, verified: true, line: 4 } })
+    await flush()
+    expect(dbg.breakpointList.value[0].verified).toBe(true)
+    expect(e.collection.set.mock.calls.at(-1)[0][0].options.glyphMarginClassName).toBe('lc-bp')
+    ws.event(1, 'breakpoint', { reason: 'changed', breakpoint: { id: 1, verified: false } })  // the parent: still placed
+    expect(dbg.breakpointList.value[0].verified).toBe(true)
+    expect(storage.m.get('lc-breakpoints:4')).not.toMatch(/verified|placed|ids/)
+    // A new session starts from nothing known: its ids start again from 1.
+    dbg.restart()
+    expect(dbg.breakpointList.value[0].verified).toBeNull()
   })
 
   it('Restart starts a new connection; the old session\'s late events change nothing', async () => {
