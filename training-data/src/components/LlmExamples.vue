@@ -10,7 +10,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import LlmConversation from './LlmConversation.vue';
 import DeletedOnRequest from './DeletedOnRequest.vue';
-import { llmApi, KIND_LABEL, SOURCE_LABEL, STATE_LABEL, SPLIT_LABEL, ACTION_LABEL, findingText } from '../api/llm.js';
+import { llmApi, KIND_LABEL, SOURCE_LABEL, STATE_LABEL, SPLIT_LABEL, ACTION_LABEL, findingText, settingsUnsaved } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
 
@@ -81,6 +81,10 @@ async function saveSettings() {
 async function runPreparation() {
   running.value = true; error.value = ''; told.value = '';
   try {
+    // What is shown is what runs: settings shown but not saved yet are saved first, by a person who may change them.
+    if (rights.value.includes('manage') && settingsUnsaved(prep.value?.settings, settings.value)) {
+      prep.value = await llmApi.saveSettings(props.project.ref, { ...settings.value, max_length: Number(settings.value.max_length) });
+    }
     const r = await llmApi.runPreparation(props.project.ref);
     told.value = r.state === 'done' ? `Run ${r.number} is done: ${r.report.kept} kept, ${r.report.left_out} left out, ${r.report.flagged} flagged for review.` : `Run ${r.number} failed: ${r.failure}`;
     run.value = null; await loadPreparation(); await openRun(r.number);
@@ -138,7 +142,7 @@ onMounted(loadExamples);
         <p>Every example is rendered through the base model's own chat template and counted in its tokens. Personal data is handled by the project's answer: <strong>{{ prep?.personal_data ? {redact:'removed from the text',drop:'the example is left out',keep:'kept, as the Owner accepted'}[prep.personal_data] : 'not answered yet' }}</strong>. Keys, tokens and passwords are always removed.</p>
         <div v-if="prep" class="llm-column-grid">
           <label class="field-label">Base model<select v-model="settings.base_model" class="text-input" :disabled="!rights.includes('manage')">
-            <option v-for="m in prep.base_models" :key="m.key" :value="m.key">{{ m.name }} · {{ m.size }} · {{ m.licence }}{{ m.ready ? '' : ' · not ready' }}</option></select></label>
+            <option v-for="m in prep.base_models" :key="m.key" :value="m.key">{{ m.name }} · {{ m.size }} · {{ m.licence }}{{ m.open ? ' · added to this workspace' : '' }}{{ m.ready ? '' : ' · not ready' }}</option></select></label>
           <label class="field-label">Longest example (tokens)<input v-model="settings.max_length" class="text-input" type="number" :min="prep.limits.min_length" :max="prep.limits.max_length" :disabled="!rights.includes('manage')"></label>
         </div>
         <p v-if="chosenModel" class="field-help"><UiBadge :tone="chosenModel.use==='research' ? 'dark' : 'green'">{{ USE[chosenModel.use] }}</UiBadge> {{ chosenModel.description }}<template v-if="!chosenModel.ready"> It is not ready on this server yet: the platform's operator makes it ready once.</template></p>

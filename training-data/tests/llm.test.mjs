@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts, settingsUnsaved } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -191,4 +191,13 @@ test('more than 500 examples at once is refused with the server\'s sentence (400
   const { opts } = fakeFetch({ error: 'At most 500 examples are approved at once, and 501 were chosen. Approve them in parts.', code: 'too_many', field: 'items' }, 400);
   await assert.rejects(llmApi.decideMany('chat', 2, Array.from({ length: 501 }, (_, i) => i + 1), opts),
     e => e.status === 400 && e.serverCode === 'too_many' && e.message === 'At most 500 examples are approved at once, and 501 were chosen. Approve them in parts.');
+});
+
+test('preparation settings shown but never saved, or changed since, are saved before a run', () => {
+  const shown = { base_model: 'qwen2.5-0.5b-instruct', max_length: '1024' };
+  assert.equal(settingsUnsaved({ base_model: 'qwen2.5-0.5b-instruct', max_length: 1024, version: null }, shown), true);
+  assert.equal(settingsUnsaved(undefined, shown), true);
+  assert.equal(settingsUnsaved({ base_model: 'qwen2.5-0.5b-instruct', max_length: 1024, version: 1 }, shown), false);
+  assert.equal(settingsUnsaved({ base_model: 'smollm2-135m-instruct', max_length: 1024, version: 1 }, shown), true);
+  assert.equal(settingsUnsaved({ base_model: 'qwen2.5-0.5b-instruct', max_length: 512, version: 2 }, shown), true);
 });

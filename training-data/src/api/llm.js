@@ -268,6 +268,14 @@ export const FINDING = {
 };
 export const findingText = code => FINDING[code] || code;
 
+// Whether the preparation settings shown are not the saved ones: none saved yet (a new project shows its defaults), or
+// changed since. "Run preparation" saves them first, so what is shown is what runs (live, 2026-11-16: a new project's
+// Run was refused with "The Owner chooses the base model and the longest example first" while both were shown).
+export function settingsUnsaved(saved, shown) {
+  if (!saved?.version) return true;
+  return saved.base_model !== shown.base_model || Number(saved.max_length) !== Number(shown.max_length);
+}
+
 // The turns an example shows, in order: the system message, the conversation, then a preference's answers or a
 // document's text. Each is {role, label, text}.
 export function turnsOf(content) {
