@@ -118,17 +118,13 @@ const stats = ref({})
 
 const fmt = (n) => (n == null ? '0' : Number(n).toLocaleString())
 
-// Store counts, each tagged with the backend it lives in (db vs disk).
+// Store counts. Every LLM context store is in the database (ADM-1239): the disk modes, and their counts, are gone.
 const cards = computed(() => {
   const s = stats.value || {}
   return [
     { label: 'Tool Memory (DB)', value: s.tool_memory_db_records, backend: 'db', hint: 'ToolResultRecord rows' },
-    { label: 'Tool Memory (disk)', value: s.tool_memory_disk_convs, backend: 'disk', hint: 'conversations with refs.json' },
     { label: 'Checkpoints (DB)', value: s.checkpoint_db_rows, backend: 'db', hint: 'ConversationCheckpoint rows' },
-    { label: 'Checkpoints (disk)', value: s.checkpoint_files, backend: 'disk', hint: 'checkpoint.json files' },
-    { label: 'Artifact Index (DB)', value: s.artifact_index_rows, backend: 'db', hint: 'Artifact rows' },
-    { label: 'Artifact Files', value: s.artifact_files, backend: 'disk', hint: 'tool-output artifacts' },
-    { label: 'Long Answers', value: s.long_answer_files, backend: 'disk', hint: 'stubbed assistant answers' },
+    { label: 'Artifacts (DB)', value: s.artifact_index_rows, backend: 'db', hint: 'Artifact rows (long answers too)' },
     { label: 'Vector Chunks', value: s.vector_chunks, backend: 'db', hint: 'ConversationChunk rows' },
   ]
 })
