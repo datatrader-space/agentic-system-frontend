@@ -49,4 +49,7 @@ test('Auto Label steps through the whole batch, and asks only about a photo it o
   assert.match(go, /ask\(previews\.value\[i\]\)/);
   assert.match(auto, /\['INPUT', 'TEXTAREA', 'SELECT'\]\.includes\(t\.tagName\)/);                     // typing is not stepping
   assert.doesNotMatch(auto, /preview\{\{ picked\.length===1\?'':'s' \}\} · \{\{ media\.length \}\} in batch/);
+  // Live, 2026-11-16: centred with overflow, a tall photo's top (and the refusal above it) was cut off out of reach.
+  assert.match(auto, /\.auto-canvas\{[^}]*align-items:safe center;justify-content:safe center;[^}]*overflow:auto\}/);
+  assert.match(auto, /<p v-if="shown\.state==='refused'" class="auto-refused" role="alert">/);
 });
