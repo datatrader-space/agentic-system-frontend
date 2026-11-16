@@ -34,7 +34,7 @@ const tone = s => ({ succeeded: 'green', failed: 'red', cancelled: 'neutral' }[s
           <td data-label="What happened">{{ a.what }}{{ a.exit != null ? ` (exit ${a.exit})` : '' }}<small v-if="a.when">{{ a.when }}</small></td>
           <td data-label="Machine time" class="attempt-number">{{ a.machineTime }}</td>
           <td data-label="Cost" class="attempt-number">{{ a.cost.text }}<small v-if="a.cost.note">{{ a.cost.note }}</small></td>
-          <td data-label="Log"><a v-if="a.log" :href="a.log" download>Download log<span class="sr-only"> of attempt {{ a.number }}</span></a><span v-else class="attempts-muted">Never started</span></td>
+          <td data-label="Log" class="attempt-log"><a v-if="a.log" :href="a.log" download>Download log<span class="sr-only"> of attempt {{ a.number }}</span></a><span v-else class="attempts-muted">Never started</span></td>
         </tr>
       </tbody>
     </table>
@@ -54,6 +54,8 @@ const tone = s => ({ succeeded: 'green', failed: 'red', cancelled: 'neutral' }[s
 .attempts-table td small{display:block;color:#5f6d82;font-size:11px;line-height:1.5;margin-top:4px}
 .attempts-table .attempt-job{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attempts-table .attempt-number{font-variant-numeric:tabular-nums;white-space:nowrap}
+/* "Never started" and "Download log" are read as one phrase: no break inside a word (seen live 2026-11-16, ADM-1210). */
+.attempts-table .attempt-log{white-space:nowrap;overflow-wrap:normal}
 .attempts-table a{color:var(--aadml-primary);font-weight:550}
 .attempts-table a:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px;border-radius:3px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -66,5 +68,6 @@ const tone = s => ({ succeeded: 'green', failed: 'red', cancelled: 'neutral' }[s
   .attempts-table td[data-label]::before{content:attr(data-label);display:block;font-size:11px;color:#5f6d82;margin-bottom:2px}
   .attempts-table .attempt-job{max-width:100%;white-space:normal;overflow-wrap:anywhere}
   .attempts-table .attempt-number{white-space:normal}
+  .attempts-table .attempt-log{white-space:normal}
 }
 </style>
