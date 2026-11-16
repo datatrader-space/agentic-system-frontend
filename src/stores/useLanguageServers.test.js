@@ -91,9 +91,10 @@ describe('the store', () => {
     const c = FakeConnection.made[0]
     c.ready()
     await Promise.resolve(); await Promise.resolve()
-    expect(c.methods()).toEqual(['initialize', 'initialized', 'textDocument/didOpen'])
+    expect(c.methods()).toEqual(['initialize', 'initialized', 'workspace/didChangeConfiguration', 'textDocument/didOpen'])
+    expect(c.sent[2][2]).toEqual({ settings: {} })
     expect(c.sent[0][2].rootUri).toBe('file:///home/northrays/workspace/repo-4')
-    expect(c.sent[2][2].textDocument).toMatchObject({ uri: toUri(ROOT, 'app/page.tsx'), languageId: 'typescriptreact', version: 1 })
+    expect(c.sent[3][2].textDocument).toMatchObject({ uri: toUri(ROOT, 'app/page.tsx'), languageId: 'typescriptreact', version: 1 })
     expect(s.servers.typescript.state).toBe('ready')
   })
 
@@ -147,6 +148,19 @@ describe('the store', () => {
     expect(c.onRequest('workspace/configuration', { items: [{ section: 'python.analysis' }, { section: 'other' }] }))
       .toEqual([{ diagnosticMode: 'workspace' }, null])
     expect(c.onRequest('client/registerCapability', {})).toBeNull()
+  })
+
+  it("pyright is told its settings after initialized (it does nothing until then)", async () => {
+    const e = editorCtx()
+    e.tabs.value = [{ id: 1, type: 'file', path: 'main.py', content: 'x = 1' }]
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: (r, l) => l })
+    s.bind(e.ctx)
+    const c = FakeConnection.made[0]
+    c.ready()
+    await Promise.resolve(); await Promise.resolve()
+    const i = c.methods().indexOf('workspace/didChangeConfiguration')
+    expect(i).toBe(c.methods().indexOf('initialized') + 1)
+    expect(c.sent[i][2]).toEqual({ settings: { python: { analysis: { diagnosticMode: 'workspace' } } } })
   })
 
   it("Check project adds tsc's problems, and says when there is no compiler", async () => {

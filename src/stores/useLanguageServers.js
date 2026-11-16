@@ -97,6 +97,8 @@ export function completionsOf(result, wordRange) {
 
 // ── the store ─────────────────────────────────────────────────────────────────────────────────────────────────
 const MONACO_LANGS = ['typescript', 'javascript', 'python']
+// Each server's settings: pyright reports the whole project (plan D8), the TypeScript server its defaults.
+const SETTINGS = { python: { python: { analysis: { diagnosticMode: 'workspace' } } } }
 const val = (x) => (typeof x === 'function' ? x() : x)
 
 // `systemId` / `repoId`: values, or functions giving the open project's (the page keeps one store and swaps projects).
@@ -176,6 +178,9 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         },
       })
       entry.conn.notify('initialized', {})
+      // The settings, pushed once, as VS Code's client does: pyright does no work at all until it is told its
+      // configuration changed (live 2026-11-16: "ready", then no diagnostics and no hover reply).
+      entry.conn.notify('workspace/didChangeConfiguration', { settings: SETTINGS[lang] || {} })
       entry.ready = true
       servers[lang] = { ...servers[lang], state: 'ready' }
       quietBuiltins()
