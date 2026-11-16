@@ -43,6 +43,15 @@ describe('MediaThumb', () => {
     expect(w.get('img').attributes('src')).toBe('/media/full.png')
   })
 
+  it('is lazy by default and loads at once when asked (ADM-1247: lazy pictures in a dialog never loaded)', async () => {
+    const item = { attachment_id: 'a1', media_type: 'image' }
+    expect(mount(MediaThumb, { props: { item } }).get('img').attributes('loading')).toBe('lazy')
+    const eager = mount(MediaThumb, { props: { item, src: '/media/full.png', eager: true } })
+    expect(eager.get('img').attributes('loading')).toBe('eager')
+    await eager.get('img').trigger('error')            // the original it falls back to loads at once too
+    expect(eager.get('img').attributes('loading')).toBe('eager')
+  })
+
   it('falls back to the video itself for a video, and to the original for a local preview with no id', async () => {
     const w = mount(MediaThumb, { props: { item: { attachment_id: 'v1', media_type: 'video' }, src: '/media/clip.mp4' } })
     await w.get('img').trigger('error')

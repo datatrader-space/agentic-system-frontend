@@ -72,6 +72,10 @@ import { useChatStore } from '../../stores/useChatStore'
 import { useStudioViewport } from '../../composables/useStudioViewport'
 
 const route = useRoute()
+// The Studio palette goes on <body> BEFORE the shell first renders. Added in onMounted, the first frame of a hard load
+// painted with the app's light tokens: a dark logo on the dark sidebar and a light page (seen live 2026-11-16,
+// ADM-1247). Guarded for the prerender build, which has no document. onMounted below keeps the rest of the setup.
+if (typeof document !== 'undefined') document.body.classList.add('vs-theme')
 const chat = useChatStore()
 const { height: viewportHeight, keyboardOpen } = useStudioViewport()
 const user = ref(null)
@@ -134,7 +138,6 @@ watch([menuOpen, mobile], async ([open, narrow]) => {
     await nextTick(); sidebar.value?.querySelector('a')?.focus()
   } else if (overflowLocked) { document.body.style.overflow = previousOverflow; overflowLocked = false }
 })
-const email = computed(() => (user.value && (user.value.email || user.value.username)) || '')
 // Back to the chat this video belongs to, else a new chat.
 const backTo = computed(() => (chat.conversationId ? `/dashboard/chat/${chat.conversationId}` : '/dashboard/chat/new'))
 

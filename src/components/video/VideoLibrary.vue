@@ -79,6 +79,10 @@
               <!-- The chat it came from, one click away (owner, 2026-10-20). -->
               <router-link v-if="it.conversation_id" :to="chatLink(it)" class="lib-chat" :title="'Open the chat: ' + fromChat(it)"
                            data-test="lib-chat" @click="leave">From {{ fromChat(it) }}</router-link>
+              <!-- Every other file says where it came from too (owner, 2026-11-16, ADM-1247): a Studio page, an MCP client,
+                   the API, Canvas, a workflow, the system, or that it was not recorded. The server writes the words. -->
+              <span v-else-if="it.origin && it.origin.label" class="lib-origin" :title="it.origin.label"
+                    data-test="lib-origin">{{ it.origin.label }}</span>
               <span v-if="it.ingredients && it.ingredients.length" class="lib-ing">{{ it.ingredients.join(', ') }}</span>
               <!-- A document is listed to open; a video uses images, clips and sounds. -->
               <div v-if="it.media_type === 'document'" class="lib-actions">
@@ -385,6 +389,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
   white-space: nowrap; }
 .lib-chat:hover { text-decoration: underline; text-underline-offset: 2px; }
 .lib-chat:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
+.lib-origin { font-size: 12px; color: var(--vm-ink-soft, #64748b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lib-doc { display: grid; place-items: center; align-content: center; gap: 4px; background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
 .lib-doc svg { width: 34px; height: 34px; }
 .lib-doc-ext { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--vm-ink, #0f172a); }

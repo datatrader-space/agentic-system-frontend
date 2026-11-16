@@ -46,6 +46,20 @@ describe('VideoLibrary', () => {
     w.unmount()
   })
 
+  it('a file with no chat says where it came from, on the card and in the preview (ADM-1247)', async () => {
+    const origin = { kind: 'studio', label: 'From Enhance ' + String.fromCharCode(183) + ' Trim', detail: 'Enhance ' + String.fromCharCode(183) + ' Trim', inferred: false }
+    api.get.mockResolvedValue({ data: { items: [{ ...ITEMS[0], conversation_id: null, origin }], ingredients: [] } })
+    const w = mount(VideoLibrary, { props: { mode: 'page' }, attachTo: document.body,
+                                    global: { stubs: { RouterLink: { props: ['to'], template: '<a><slot /></a>' } } } })
+    await flush()
+    expect(document.querySelector('[data-test="lib-chat"]')).toBeNull()
+    expect(document.querySelector('[data-test="lib-origin"]').textContent).toBe(origin.label)
+    document.querySelector('[data-test="lib-preview"]').click()
+    await flush()
+    expect(document.querySelector('[data-test="media-viewer-origin"]').textContent).toBe(origin.label)
+    w.unmount()
+  })
+
   it('the page lists the files of one look when opened from its "See all", and "Show all files" asks to drop the filter', async () => {
     const look = studioLooks.find((item) => LOOK_ID.test(item.id))
     const w = mount(VideoLibrary, { props: { mode: 'page', preset: look.id }, attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a><slot /></a>' } } } })

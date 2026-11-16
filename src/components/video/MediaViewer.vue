@@ -11,7 +11,8 @@
           <div class="mv-text">
             <p class="mv-title" :title="item.title">{{ item.title }}</p>
             <p class="mv-meta">{{ meta }}<template v-if="item.conversation_id">, from <router-link :to="chatLink" class="mv-chat"
-                data-test="media-viewer-chat" @click="emit('leave')">{{ fromChat }}</router-link></template></p>
+                data-test="media-viewer-chat" @click="emit('leave')">{{ fromChat }}</router-link></template><template
+                v-else-if="item.origin && item.origin.label">. <span data-test="media-viewer-origin">{{ item.origin.label }}</span></template></p>
           </div>
           <a :href="item.url" target="_blank" rel="noopener noreferrer" class="mv-btn">Open original</a>
           <button ref="closeEl" type="button" class="mv-btn mv-icon" aria-label="Close preview" data-test="media-viewer-close" @click="emit('close')">

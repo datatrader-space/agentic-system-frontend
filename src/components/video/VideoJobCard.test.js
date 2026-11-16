@@ -187,6 +187,32 @@ describe('VideoJobCard', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'failed', error: { message: 'Monthly limit reached.' } } } })
     expect(w.find('[role="alert"]').text()).toContain('Monthly limit reached.')
   })
+
+  it('a finished picture loads at once and opens in the Studio preview like a video (ADM-1247)', async () => {
+    // Live 2026-11-16: lazy pictures in the Jobs tray dialog never loaded, and an image result had no View result.
+    const picture = { ...base, operation: 'image', modality: 'image', state: 'ready', references: [],
+                      effective_config: { prompt: 'a red bicycle' }, output: { attachment_id: 'img1', url: '/media/b.png' } }
+    const w = mount(VideoJobCard, { props: { job: picture, inStudio: true } })
+    expect(w.find('img').attributes('loading')).toBe('eager')
+    const view = w.findAll('button').find((b) => b.text() === 'View result')
+    expect(view).toBeTruthy()
+    await view.trigger('click')
+    expect(w.emitted('open')).toBeTruthy()
+    // Outside the Studio a picture offers no "Open in Video Studio": only a video does.
+    const outside = mount(VideoJobCard, { props: { job: picture } })
+    expect(outside.findAll('button').some((b) => b.text() === 'Open in Video Studio')).toBe(false)
+  })
+
+  it('a job with no chat says where it came from, in the server\'s words (ADM-1247)', () => {
+    const fromMcp = { ...base, conversation_id: null, state: 'ready', output: { attachment_id: 'o', url: '/c.mp4' },
+                      origin: { kind: 'mcp', label: 'From MCP: ChatGPT', detail: 'ChatGPT', inferred: false } }
+    const w = mount(VideoJobCard, { props: { job: fromMcp } })
+    expect(w.find('[data-test="video-job-origin"]').text()).toBe('From MCP: ChatGPT')
+    // A job in a chat is shown in that chat; no second source line.
+    const inChat = mount(VideoJobCard, { props: { job: { ...fromMcp, conversation_id: 'c1',
+                                                         origin: { kind: 'chat', label: 'From chat x' } } } })
+    expect(inChat.find('[data-test="video-job-origin"]').exists()).toBe(false)
+  })
 })
 
 

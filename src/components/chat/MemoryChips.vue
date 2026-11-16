@@ -157,15 +157,17 @@ const unretire = (c) => act(c, () => api.undoLearnedNotHelpful(c.id), (data) => 
 </script>
 
 <style scoped>
-.mc-wrap { margin-top: 8px; }
-.mc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mc-wrap { margin-top: 8px; min-width: 0; max-width: 100%; }
+.mc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .mc-label {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .74rem; font-weight: 600; color: var(--vm-text-muted, var(--vm-ink-faint));
 }
 .mc-label svg { width: 14px; height: 14px; }
 .mc-chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 320px;
+  /* At most 320px, never wider than its row: a fixed 320px pushed the Studio's narrow agent panel into a sideways
+     scroll (ADM-1247). The text ellipsis below then does its job. */
+  display: inline-flex; align-items: center; gap: 6px; max-width: min(320px, 100%); min-width: 0;
   padding: 3px 10px; border-radius: 999px; border: 1px solid var(--vm-line-2); background: var(--vm-surface-soft);
   color: var(--vm-ink-soft); font-size: .76rem; line-height: 1.35; cursor: default; text-align: left;
   transition: background .15s, border-color .15s;

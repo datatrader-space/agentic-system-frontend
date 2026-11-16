@@ -10,6 +10,8 @@
 
     <p v-if="job.effective_config && job.effective_config.prompt" class="vjc-prompt">“{{ job.effective_config.prompt }}”</p>
     <p class="vjc-config">{{ configLine }}</p>
+    <!-- Where a job with no chat came from (a Studio page, an MCP client, the API, ...; ADM-1247). -->
+    <p v-if="!job.conversation_id && job.origin && job.origin.label" class="vjc-origin" data-test="video-job-origin">{{ job.origin.label }}</p>
 
     <!-- Estimate -->
     <template v-if="job.state === 'awaiting_authorization'">
@@ -63,19 +65,21 @@
       <video v-if="isVideo" class="vjc-video" :src="job.output.url" :poster="thumbnailFor({ ...job.output, media_type: 'video' }) || undefined"
              controls preload="none" playsinline></video>
       <audio v-else-if="job.modality === 'audio'" :src="job.output.url" controls preload="metadata" />
-      <MediaThumb v-else-if="!job.modality || job.modality === 'image'" class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
+      <MediaThumb v-else-if="!job.modality || job.modality === 'image'" eager class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
       <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open {{ job.modality }} result</a>
       <!-- The other pictures of the same request (extra_outputs), beside the first one. -->
       <ul v-if="extras.length" class="vjc-extras" :aria-label="`${extras.length} more result${extras.length > 1 ? 's' : ''}`" data-test="video-job-extras">
         <li v-for="(x, i) in extras" :key="x.attachment_id">
           <button v-if="inStudio" type="button" class="vjc-extra" :aria-label="`Open result ${i + 2}`" @click="emit('open', i + 1)">
-            <MediaThumb :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></button>
+            <MediaThumb eager :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></button>
           <a v-else class="vjc-extra" :href="x.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open result ${i + 2}`">
-            <MediaThumb :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></a>
+            <MediaThumb eager :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></a>
         </li>
       </ul>
       <div class="vjc-actions">
-        <button v-if="isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
+        <!-- Every finished result opens in the Studio's preview (an image or a sound too, ADM-1247); outside the Studio a
+             video still offers to open it there. -->
+        <button v-if="inStudio || isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
         <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
       </div>
     </template>
@@ -209,7 +213,8 @@ const elapsed = computed(() => {
 .vjc-state.bad { background: var(--vs-bad-bg, #fee2e2); color: var(--vs-bad-ink, #991b1b); }
 .vjc-state.wait { background: var(--vm-violet-soft, #eef2ff); color: var(--vs-accent-ink, var(--vm-violet-d, #4f46e5)); }
 .vjc-prompt { margin: 0; font-size: 13px; color: var(--vm-ink, #0f172a); }
-.vjc-config, .vjc-phase, .vjc-cost { margin: 0; font-size: 12.5px; color: var(--vm-ink-soft, #64748b); }
+.vjc-config, .vjc-phase, .vjc-cost, .vjc-origin { margin: 0; font-size: 12.5px; color: var(--vm-ink-soft, #64748b); }
+.vjc-origin { overflow-wrap: anywhere; }
 .vjc-price { margin: 0; font-size: 13px; font-weight: 600; }
 .vjc-adj { background: var(--vs-warn-bg, #fffbeb); border: 1px solid var(--vs-warn-line, #fde68a); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; }
 .vjc-adj-title { margin: 0 0 4px; font-weight: 600; }
