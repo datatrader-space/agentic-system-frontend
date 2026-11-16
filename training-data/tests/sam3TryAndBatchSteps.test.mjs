@@ -36,6 +36,8 @@ test('an answer by name says what was found by name, and a trained model keeps t
   assert.match(result, /return VERDICTS\[props\.answer\?\.status\]/);
   assert.match(result, /\{\{ nameOf\(o\.type\) \}\}<\/td>/);
   assert.doesNotMatch(result, /o\.type==='door' \? 'Door' : 'Window'/);
+  // Live, 2026-11-16: SAM 3 on AADML's GPU was said to answer "on its test server".
+  assert.match(result, /answer\.served_by==='platform' \? 'on AADML\\'s GPU server'/);
 });
 
 test('Auto Label steps through the whole batch, and asks only about a photo it opens once previewing', () => {

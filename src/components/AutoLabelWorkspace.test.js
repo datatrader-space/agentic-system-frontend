@@ -86,6 +86,9 @@ test('failed preview is never presented as ready to label', async () => {
   expect(wrapper.get('.auto-bar-state').text()).toContain('Preview needs attention');
   expect(wrapper.get('.auto-bar-state').text()).not.toContain('Ready to label');
   expect(wrapper.text()).toContain('Synthetic model unavailable');
+  // The reason is in view (live, 2026-11-16: it sat below the photo, and the bar only said "Check the image message").
+  expect(wrapper.get('.auto-bar-state').text()).toContain('Synthetic model unavailable');
+  expect(wrapper.get('.auto-refused[role="alert"]').text()).toBe('Synthetic model unavailable');
 });
 
 test('labeling keeps the existing explicit confirmation and source payload', async () => {
