@@ -208,7 +208,16 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
       runSession(parent, config, item.adapter)
     }
     if (s.state === 'error') { state.value = 'error'; error.value = s.error || 'The debugger could not start.' }
-    if (['closed', 'exited'].includes(s.state) && state.value !== 'error') end()
+    if (['closed', 'exited'].includes(s.state)) {
+      // The debugger's process ending while a session starts or runs is a failure, said as one; never a quiet "ended"
+      // (it once hid that every Python session died at its start, ADM-1205 live check 2026-11-16).
+      if (['starting', 'running', 'paused'].includes(state.value)) {
+        fail(new Error(state.value === 'starting'
+          ? 'The debugger stopped while it was starting. Try again; if it happens again, the Debug Console shows what it said.'
+          : 'The debugger stopped before the program ended.'))
+        frames.value = []; selectedFrame.value = null; scopes.value = []; configured.clear(); paint()
+      } else if (state.value !== 'error') end()
+    }
   }
 
   // Only the sessions of the connection in use count: after Restart, the old one's late events change nothing.
@@ -253,6 +262,11 @@ export function createDebugger({ systemId, repoId, Connection = DapConnection, u
     } else if (ev === 'exited') {
       say('info', `The program ended with exit code ${body.exitCode}.`)
     } else if (ev === 'terminated' || ev === 'aadml.ended') {
+      // AADML's bridge says why it stopped (its words are already in the console, as an output event).
+      if (ev === 'aadml.ended' && body.error && state.value !== 'ended') {
+        state.value = 'error'
+        error.value = `The debugger stopped: ${body.error}`
+      }
       configured.delete(s.id)
       if (s === parent || ![...configured].length) end()
     }

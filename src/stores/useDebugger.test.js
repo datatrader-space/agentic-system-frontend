@@ -271,3 +271,58 @@ describe('a debug session', () => {
     expect(dbg.selectedConfig.value).toBe('npm:dev')
   })
 })
+
+describe('the debugger stopping on its own', () => {
+  async function running() {
+    const { dbg } = make()
+    const e = editor()
+    dbg.bind(e.ctx)
+    await flush()
+    dbg.start()
+    const ws = FakeWS.made.at(-1)
+    ws.status({ state: 'ready', root: ROOT })
+    await flush()
+    return { dbg, ws }
+  }
+
+  it('its process ending while the session starts is an error, never a quiet "ended"', async () => {
+    const { dbg, ws } = await running()
+    expect(dbg.state.value).toBe('starting')
+    ws.status({ state: 'exited' })
+    await flush()
+    expect(dbg.state.value).toBe('error')
+    expect(dbg.error.value).toMatch(/stopped while it was starting/)
+  })
+
+  it('while the program runs, likewise', async () => {
+    const { dbg, ws } = await running()
+    ws.event(1, 'initialized')
+    await flush()
+    expect(dbg.state.value).toBe('running')
+    ws.status({ state: 'closed' })
+    await flush()
+    expect(dbg.state.value).toBe('error')
+    expect(dbg.error.value).toBe('The debugger stopped before the program ended.')
+  })
+
+  it("the bridge's own reason is shown, and the console has its words", async () => {
+    const { dbg, ws } = await running()
+    ws.event(1, 'output', { category: 'stderr', output: "AADML's debug bridge stopped: its input failed (EIO)\n" })
+    ws.event(1, 'aadml.ended', { error: 'its input failed (EIO)' })
+    await flush()
+    expect(dbg.state.value).toBe('error')
+    expect(dbg.error.value).toBe('The debugger stopped: its input failed (EIO)')
+    expect(dbg.consoleLines.value.at(-1)).toEqual({ kind: 'err', text: "AADML's debug bridge stopped: its input failed (EIO)" })
+  })
+
+  it('after the program ended, the socket closing is not an error', async () => {
+    const { dbg, ws } = await running()
+    ws.event(1, 'initialized')
+    ws.event(1, 'terminated')
+    await flush()
+    ws.status({ state: 'closed' })
+    await flush()
+    expect(dbg.state.value).toBe('ended')
+    expect(dbg.error.value).toBe('')
+  })
+})
