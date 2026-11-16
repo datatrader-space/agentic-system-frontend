@@ -82,6 +82,25 @@ const file = ref(null); const photoUrl = ref(''); const answer = ref(null); cons
 // A model on a platform server of its own (``served: 'platform'``, SAM 3) has nothing to make ready: its GPU server is
 // started, then it answers. Each photo is charged by the second (state.price).
 const onPlatform = computed(() => (state.value?.served || trying.value?.served) === 'platform');
+// What SAM 3 is asked to find, named by the person (owner, 2026-11-16: not fixed to walls, windows and doors). The
+// server takes up to 8 names of up to 60 characters (platform_servers.MAX_CLASSES); a comma would split a name.
+const MAX_CLASSES = 8;
+const DEFAULT_CLASSES = ['wall', 'window', 'door'];
+const classes = ref([...DEFAULT_CLASSES]);
+const classText = ref('');
+const findsByName = computed(() => onPlatform.value && state.value?.call === 'segment');
+function addClass() {
+  const name = classText.value.replace(/,/g, ' ').trim().toLowerCase().slice(0, 60);
+  classText.value = '';
+  if (!name || classes.value.includes(name) || classes.value.length >= MAX_CLASSES) return;
+  classes.value = [...classes.value, name];
+}
+function removeClass(name) { classes.value = classes.value.filter(c => c !== name); }
+function classKey(event) {
+  if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addClass(); }
+  else if (event.key === 'Backspace' && !classText.value && classes.value.length) classes.value = classes.value.slice(0, -1);
+}
+const classesSaid = computed(() => (classes.value.length ? classes.value.join(', ') : 'nothing yet'));
 const steps = computed(() => trySteps(state.value).filter(step => !onPlatform.value || step.key !== 'preparing'));
 let pollFailed = false;
 async function loadState() {
@@ -122,7 +141,8 @@ watch(state, () => {
 function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); photoUrl.value = ''; file.value = null; answer.value = null; held.value = null; }
 onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
-  forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; least.value = 0; loadState();
+  forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; least.value = 0;
+  classes.value = [...DEFAULT_CLASSES]; classText.value = ''; loadState();
   const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   requestAnimationFrame(() => document.getElementById('try-published')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }));
 }
@@ -143,7 +163,9 @@ async function choose(event) {
 }
 async function ask(picked) {
   asking.value = true; tryError.value = '';
-  try { answer.value = await publishedApi.predict(trying.value.key, picked); }
+  if (classText.value.trim()) addClass();               // a name typed and not yet added counts
+  if (findsByName.value && !classes.value.length) { tryError.value = 'Name at least one thing to find.'; asking.value = false; return; }
+  try { answer.value = await publishedApi.predict(trying.value.key, picked, findsByName.value ? classes.value : []); }
   catch (e) {
     if (e.serverCode === 'starting' && onPlatform.value) held.value = picked;
     else tryError.value = e.message;
@@ -309,7 +331,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&state?.machine">{{ trying.name }} finds the walls, windows and doors of your photo on {{ state.machine.name }}, your own machine. Each photo is charged by the second it takes<template v-if="state.price">, {{ state.price }}</template>.</p><p v-else-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&state?.machine">{{ trying.name }} finds what you name in your photo on {{ state.machine.name }}, your own machine. Each photo is charged by the second it takes<template v-if="state.price">, {{ state.price }}</template>.</p><p v-else-if="onPlatform">{{ trying.name }} finds what you name in your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -333,13 +355,23 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-else-if="ready&&onPlatform&&held" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>No GPU was running, so one is starting for your photo (a few minutes). The photo is sent as soon as it is up; nothing is charged until it is answered.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='waking'" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>Its GPU is starting; this takes a few minutes.</p>
               <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
-              <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+              <p v-else-if="ready&&onPlatform&&state.used_by_others" class="muted">Its GPU is running and others are using it too, so it can't be stopped now. It stops by itself after {{ state.idle_minutes }} minutes without a call; you pay only for your own photos.</p>
+              <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. Nobody else is using it now: stop it when you are done, or it stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
               <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
               <div class="try-actions">
                 <UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="startOn"><Play :size="14"/> {{ onPlatform ? 'Start its GPU server' : state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>
-                <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its test server</UiButton>
+                <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> {{ onPlatform && !state.machine ? 'Stop its GPU server' : onPlatform ? `Stop it on ${state.machine.name}` : 'Stop its test server' }}</UiButton>
+              </div>
+              <div v-if="findsByName" class="find-classes">
+                <label class="field-label" for="find-class-input">What to find <span class="muted">({{ classes.length }} of {{ MAX_CLASSES }})</span></label>
+                <div class="class-chips" @click="$refs.classInput?.focus()">
+                  <span v-for="name in classes" :key="name" class="class-chip">{{ name }}<button type="button" :aria-label="`Remove ${name}`" @click.stop="removeClass(name)"><X :size="12"/></button></span>
+                  <input id="find-class-input" ref="classInput" v-model="classText" :disabled="classes.length>=MAX_CLASSES" :placeholder="classes.length>=MAX_CLASSES ? 'Up to 8 things' : 'Type a thing, then Enter'" maxlength="60" aria-describedby="find-class-hint" @keydown="classKey" @blur="addClass">
+                </div>
+                <p id="find-class-hint" class="muted">Name things in plain words, such as wall, sofa or plant. {{ trying.name }} looks for these: {{ classesSaid }}.</p>
+                <UiButton v-if="file&&ready" :disabled="asking||!classes.length" @click="ask(file)"><Search :size="14"/> Find these in the same photo</UiButton>
               </div>
               <label class="test-input" :class="{off:!ready}">
                 <Upload :size="26"/>
@@ -670,6 +702,16 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
 .try-actions{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.find-classes{margin:14px 0 4px}
+.find-classes .field-label{display:block;margin-bottom:6px}
+.find-classes>p{font-size:11px!important;margin:6px 0 10px!important}
+.class-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:42px;padding:6px 8px;border:1px solid #d9dce5;border-radius:8px;background:#fff;cursor:text}
+.class-chips:focus-within{border-color:var(--aadml-primary);box-shadow:0 0 0 3px #2563eb1f}
+.class-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;background:var(--aadml-soft);color:var(--aadml-primary);border:1px solid var(--aadml-outline);border-radius:6px;font-size:12px;line-height:1.4}
+.class-chip button{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer}
+.class-chip button:hover{background:#2563eb1a}
+.class-chip button:focus-visible{outline:2px solid var(--aadml-primary);outline-offset:1px}
+.class-chips input{flex:1;min-width:140px;border:0;outline:0;padding:6px 2px;font-size:13px;background:transparent}
 .test-input{position:relative;cursor:pointer;margin:14px 0}
 .test-input.off{opacity:.5;cursor:not-allowed}
 .test-input input{position:absolute;inset:0;opacity:0;cursor:inherit}

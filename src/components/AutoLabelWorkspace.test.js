@@ -55,6 +55,30 @@ test('opening Auto Label never generates paid previews automatically', async () 
   expect(wrapper.get('.auto-progress [aria-current="step"]').text()).toContain('Preview');
 });
 
+test('steps through the whole batch: a step shows the photo, and once previewing asks about the photo it opens', async () => {
+  const three = [1, 2, 3].map(n => ({ id: `image-${n}`, batchId: batch.id, name: `Synthetic ${n}`, url: 'data:image/png;base64,AA==' }));
+  const wrapper = mount(AutoLabel, { props: { batch, state: state(), media: three }, global: {
+    stubs: { UiDialog: { props: ['open'], template: '<div v-if="open"><slot/></div>' } } } });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(wrapper.get('.auto-step-at').text()).toBe('1 of 3');
+  await wrapper.get('[aria-label="Next photo"]').trigger('click');
+  expect(wrapper.get('.auto-step-at').text()).toBe('2 of 3');
+  expect(api.detect).not.toHaveBeenCalled();                          // a step before any preview asks nothing
+  await button(wrapper, 'Generate Preview').trigger('click');
+  await flushPromises();
+  expect(api.detect.mock.calls.map(call => call[1])).toEqual(['image-2']);
+  await wrapper.get('[aria-label="Next photo"]').trigger('click');
+  await flushPromises();
+  expect(wrapper.get('.auto-step-at').text()).toBe('3 of 3');
+  expect(api.detect.mock.calls.map(call => call[1])).toEqual(['image-2', 'image-3']);
+  await wrapper.get('[aria-label="Previous photo"]').trigger('click');
+  await flushPromises();
+  expect(wrapper.get('.auto-step-at').text()).toBe('2 of 3');
+  expect(api.detect).toHaveBeenCalledTimes(2);                        // an answer already had is shown again, not asked
+  expect(wrapper.get('.auto-strip-count').text()).toBe('2 previewed · 3 in batch');
+});
+
 test('failed preview is never presented as ready to label', async () => {
   api.detect.mockRejectedValue(new Error('Synthetic model unavailable'));
   const wrapper = render(); await flushPromises();

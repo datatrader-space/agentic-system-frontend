@@ -234,9 +234,11 @@ export const publishedApi = {
   act: (key, action, machine = '') => apiFetch(`${APP}/published/${enc(key)}/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: SLOW }),
   machines: key => apiFetch(`${APP}/published/${enc(key)}/machines/`, { timeoutMs: SLOW }),
   // A model on a CPU can take a while on a large photo.
-  predict: (key, file) => {
+  // ``classes``: what SAM 3 is asked to find, by name (app_api._platform_try; the server's own when none).
+  predict: (key, file, classes = []) => {
     const form = new FormData();
     form.append('file', file);
+    if (classes.length) form.append('classes', classes.join(','));
     return apiFetch(`${APP}/published/${enc(key)}/predict/`, { method: 'POST', body: form, timeoutMs: 180000 });
   },
   // A workspace's open chat model: the conversation so far, its answer back (app_api.published_try_chat).

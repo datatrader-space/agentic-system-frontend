@@ -140,12 +140,44 @@ function toggle(image) {
   if (at >= 0) picked.value.splice(at, 1); else if (picked.value.length < 4) picked.value.push(image.id);
 }
 // One photo at a time: a model that is not running is started by the first one; the others then answer quickly.
+// Run Again asks again about every photo previewed so far (the ones stepped to included).
 async function generate() {
   timers.forEach(clearTimeout); timers = []; stopped = false;
-  previews.value = pickedImages.value.map(image => ({ image, state: 'asking', shapes: [], now: 'asking the model', error: '' }));
-  focus.value = 0;
+  const images = previews.value.length ? previews.value.map(p => p.image) : pickedImages.value;
+  previews.value = images.map(image => ({ image, state: 'asking', shapes: [], now: 'asking the model', error: '' }));
+  focus.value = Math.max(0, previews.value.findIndex(p => p.image.id === props.media[at.value]?.id));
   for (const preview of previews.value) await ask(preview);
 }
+// Stepping through the whole batch, one photo at a time (owner, 2026-11-16: "1 preview · 26 in batch" with no way to
+// go to the next photo). Before a preview is generated a step only shows the photo (nothing is asked or charged);
+// once previewing, the photo stepped to is asked about when it opens, and an answer already had is shown again as it was.
+const at = ref(0);
+watch(shown, now => { const i = now ? props.media.findIndex(m => m.id === now.image.id) : -1; if (i >= 0) at.value = i; });
+function goTo(index) {
+  if (!props.media.length) return;
+  at.value = (index + props.media.length) % props.media.length;
+  const image = props.media[at.value];
+  if (!previews.value.length) { picked.value = [image.id]; return; }
+  let i = previews.value.findIndex(p => p.image.id === image.id);
+  if (i < 0) {
+    if (blocked.value || !asked.value.length) { picked.value = [image.id]; previews.value = []; return; }
+    stopped = false;
+    previews.value.push({ image, state: 'asking', shapes: [], now: 'asking the model', error: '' });
+    i = previews.value.length - 1;
+    ask(previews.value[i]);
+  }
+  focus.value = i;
+}
+// The left and right arrow keys step too, unless the person is typing.
+function stepKey(event) {
+  if (tab.value !== 'preview' || choosing.value || confirmOpen.value || agentOpen.value) return;
+  const t = event.target; if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+  if (event.key === 'ArrowRight') { event.preventDefault(); goTo(at.value + 1); }
+  else if (event.key === 'ArrowLeft') { event.preventDefault(); goTo(at.value - 1); }
+}
+onMounted(() => window.addEventListener('keydown', stepKey));
+onUnmounted(() => window.removeEventListener('keydown', stepKey));
+const stripImages = computed(() => (choosing.value ? props.media : previews.value.length ? previews.value.map(p => p.image) : pickedImages.value));
 async function ask(preview) {
   while (!stopped) {
     try {
@@ -253,15 +285,20 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
           </div>
         </div>
         <div v-show="tab==='preview'" class="auto-strip">
+          <div v-if="media.length>1&&!choosing" class="auto-step" role="group" aria-label="Step through the batch">
+            <button class="icon-button" type="button" aria-label="Previous photo" title="Previous photo (←)" @click="goTo(at-1)"><ArrowLeft :size="16"/></button>
+            <span class="auto-step-at" aria-live="polite">{{ at+1 }} of {{ media.length }}</span>
+            <button class="icon-button" type="button" aria-label="Next photo" title="Next photo (→)" @click="goTo(at+1)"><ArrowRight :size="16"/></button>
+          </div>
           <div class="auto-thumbs" role="list" :aria-label="choosing ? 'Choose up to four photos to preview' : 'Preview photos'">
-            <button v-for="image in (choosing ? media : pickedImages)" :key="image.id" role="listitem" :class="{picked:choosing&&picked.includes(image.id), focused:!choosing&&shown?.image.id===image.id}"
-                    :aria-pressed="choosing ? picked.includes(image.id) : shown?.image.id===image.id" :title="image.name"
-                    @click="choosing ? toggle(image) : (focus = Math.max(0, previews.findIndex(p => p.image.id===image.id)))">
+            <button v-for="image in stripImages" :key="image.id" role="listitem" :class="{picked:choosing&&picked.includes(image.id), focused:!choosing&&(shown ? shown.image.id===image.id : media[at]?.id===image.id)}"
+                    :aria-pressed="choosing ? picked.includes(image.id) : (shown ? shown.image.id===image.id : media[at]?.id===image.id)" :title="image.name"
+                    @click="choosing ? toggle(image) : goTo(media.findIndex(m => m.id===image.id))">
               <img :src="image.thumb||image.url" :alt="image.name" @error="image.thumb=''"><Check v-if="choosing&&picked.includes(image.id)" :size="14"/>
             </button>
           </div>
           <UiButton :disabled="generating" @click="choosing=!choosing"><ImageIcon :size="15"/> {{ choosing ? 'Done choosing' : 'Choose preview images' }}</UiButton>
-          <span class="auto-strip-count">{{ picked.length }} preview{{ picked.length===1?'':'s' }} · {{ media.length }} in batch</span>
+          <span class="auto-strip-count">{{ previews.length || picked.length }} previewed · {{ media.length }} in batch</span>
         </div>
       </div>
     </div>
@@ -289,7 +326,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
 .auto-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fbfcfe;padding:12px 16px 0;gap:12px}.auto-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.auto-preview-head h3{font-size:12px;font-weight:500;margin:0}.auto-bar-state{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;color:#64748b}.auto-bar-state strong{font-weight:400}.auto-bar-state small{font-size:10px;max-width:300px}.auto-canvas{position:relative;flex:1;min-height:280px;border:1px solid #e2e8f0;border-radius:12px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}.auto-canvas:fullscreen{background:#101828}.auto-preview-idle{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:0}.auto-original-image{display:block;width:100%;height:100%;object-fit:contain}.auto-before-note{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;padding:7px 10px;border:1px solid #e2e8f0;border-radius:20px;background:#ffffffd9;color:#64748b;font-size:10px;pointer-events:none}.auto-welcome{display:flex;flex-direction:column;align-items:center;gap:12px;color:#64748b;text-align:center;font-size:13px}
 .auto-tools{position:absolute;top:12px;right:12px;z-index:2;display:flex;align-items:center;gap:6px;padding:4px 6px;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 2px 4px #0f172a08}.auto-switch{display:flex;align-items:center;gap:6px;font-size:11px;color:#475569;padding:0 6px;min-height:30px}.auto-switch input{position:absolute;opacity:0;width:1px;height:1px}.auto-switch span{width:28px;height:16px;position:relative;border-radius:8px;background:#cbd5e1}.auto-switch span::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:white}.auto-switch input:checked+span{background:#2563eb}.auto-switch input:checked+span::after{transform:translateX(12px)}.auto-switch input:focus-visible+span{outline:2px solid #60a5fa;outline-offset:3px}.auto-tools .icon-button{width:28px;height:28px;padding:5px}
 .auto-result{margin:0;width:100%;max-width:1000px}.auto-stage{position:relative;line-height:0;background:#e2e8f0}.auto-stage img{width:100%;height:auto;display:block}.auto-stage svg{position:absolute;inset:0;width:100%;height:100%}.auto-result figcaption{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:10px;margin-top:8px;color:#64748b}.auto-canvas:fullscreen figcaption{color:#e2e8f0}.auto-counts{display:flex;gap:10px}.auto-counts b{display:flex;align-items:center;gap:4px;font-weight:400}.auto-counts i{width:7px;height:7px;border-radius:50%}
-.auto-strip{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 -16px;padding:10px 12px;border-top:1px solid #e2e8f0;background:#fff;min-height:72px}.auto-thumbs{display:flex;gap:7px;flex-wrap:wrap}.auto-thumbs button{position:relative;width:52px;height:52px;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:#f1f5f9}.auto-thumbs img{width:100%;height:100%;object-fit:cover}.auto-thumbs .picked,.auto-thumbs .focused{border-color:#2563eb}.auto-thumbs svg{position:absolute;top:3px;right:3px;background:#2563eb;color:white;border-radius:50%;padding:1px}.auto-strip .button{font-size:10px;padding:5px 8px;border:0;box-shadow:none}.auto-strip-count{margin-left:auto;font-size:10px;color:#64748b}
+.auto-strip{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 -16px;padding:10px 12px;border-top:1px solid #e2e8f0;background:#fff;min-height:72px}.auto-thumbs{display:flex;gap:7px;flex-wrap:nowrap;overflow-x:auto;max-width:min(100%,520px);scrollbar-width:thin}.auto-thumbs button{flex:0 0 auto}.auto-step{display:flex;align-items:center;gap:4px}.auto-step .icon-button{width:36px;height:36px;display:grid;place-items:center;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.auto-step .icon-button:hover:not(:disabled){border-color:#2563eb;color:#2563eb}.auto-step .icon-button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}.auto-step .icon-button:disabled{opacity:.45;cursor:not-allowed}.auto-step-at{min-width:62px;text-align:center;font-size:11px;font-weight:600;color:#334155;font-variant-numeric:tabular-nums}.auto-thumbs button{position:relative;width:52px;height:52px;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:#f1f5f9}.auto-thumbs img{width:100%;height:100%;object-fit:cover}.auto-thumbs .picked,.auto-thumbs .focused{border-color:#2563eb}.auto-thumbs svg{position:absolute;top:3px;right:3px;background:#2563eb;color:white;border-radius:50%;padding:1px}.auto-strip .button{font-size:10px;padding:5px 8px;border:0;box-shadow:none}.auto-strip-count{margin-left:auto;font-size:10px;color:#64748b}
 .auto-breadcrumb,.auto-progress,.auto-cost,.auto-bar-state,.auto-bar-state small{font-size:11px}.auto-header-actions .button{font-size:11px}.auto-side h3{font-size:13px}.auto-help,.auto-class .text-input,.auto-agent-launch .button{font-size:12px}.auto-ask,.auto-add,.auto-view-tabs button,.auto-strip-count{font-size:11px}.auto-agent-side{height:100%}
 @container(max-width:800px){.auto-breadcrumb{display:none}.auto-body{grid-template-columns:240px minmax(0,1fr)}.auto-progress{gap:8px}.auto-header-actions{margin-left:0}.auto-head{gap:9px}.auto-side{padding:16px 12px}.auto-canvas{padding:12px}}
 @media(max-width:700px){.auto-label{height:auto;min-height:0}.auto-body{display:flex;flex-direction:column;overflow:visible}.auto-side{border-right:0;border-bottom:1px solid #e2e8f0;overflow:visible}.auto-main{min-height:520px}.auto-canvas{min-height:350px}.auto-head{padding:10px 12px}.auto-header-actions{width:100%;gap:6px}.auto-progress{margin-left:auto}.auto-cost{margin-left:auto}.auto-before-note{font-size:9px}.auto-header-actions .button{font-size:9px;padding:6px}.auto-strip-count{margin-left:0}}

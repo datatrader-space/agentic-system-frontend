@@ -13,7 +13,25 @@ const WALL_COLOURS = ['#2563eb', '#f59e0b', '#12b76a', '#c11574', '#7c3aed', '#0
 const KIND_COLOUR = { window: '#0ea5e9', door: '#f97316' };
 
 const shown = computed(() => filtered(props.answer, props.least));
-const verdict = computed(() => VERDICTS[props.answer?.status] || ['neutral', props.answer?.status || '', '']);
+// SAM 3 finds what the person named (``objects`` and ``classes`` in its answer), not only walls, windows and doors: its
+// verdict and its rows name those things.
+const byName = computed(() => Array.isArray(props.answer?.objects));
+const OTHER_COLOURS = ['#0ea5e9', '#f97316', '#12b76a', '#c11574', '#7c3aed', '#0e9384', '#b54708'];
+const named = computed(() => [...new Set([...(props.answer?.classes || []), ...(shown.value?.openings || []).map(o => o.type)])].filter(n => n !== 'wall'));
+const colourOf = type => KIND_COLOUR[type] || OTHER_COLOURS[Math.max(named.value.indexOf(type), 0) % OTHER_COLOURS.length];
+const nameOf = type => (type === 'door' ? 'Door' : type === 'window' ? 'Window' : `${type.charAt(0).toUpperCase()}${type.slice(1)}`);
+const counts = computed(() => {
+  const all = [...(shown.value?.walls || []).map(() => 'wall'), ...(shown.value?.openings || []).map(o => o.type)];
+  return Object.entries(all.reduce((acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }), {})).map(([t, n]) => `${n} ${t}${n === 1 ? '' : 's'}`).join(', ');
+});
+const verdict = computed(() => {
+  if (byName.value) {
+    const asked = (props.answer.classes || []).join(', ');
+    return counts.value ? ['green', 'Found', `Found ${counts.value}.`] : ['neutral', 'Nothing found', `The model found none of: ${asked || 'what you named'}.`];
+  }
+  return VERDICTS[props.answer?.status] || ['neutral', props.answer?.status || '', ''];
+});
+const othersLabel = computed(() => (!byName.value || (shown.value?.openings || []).every(o => o.type === 'window' || o.type === 'door') ? 'Windows and doors' : 'Other things'));
 const box = computed(() => (props.answer ? `0 0 ${props.answer.image.width} ${props.answer.image.height}` : '0 0 1 1'));
 const dot = computed(() => (props.answer ? Math.max(props.answer.image.width, props.answer.image.height) / 150 : 1));
 const font = computed(() => (props.answer ? Math.max(props.answer.image.width, props.answer.image.height) / 48 : 1));
@@ -37,12 +55,15 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
           <circle v-for="(c, j) in wall.corners" :key="j" :cx="c[0]" :cy="c[1]" :r="dot" fill="#fff" :stroke="WALL_COLOURS[i%WALL_COLOURS.length]" stroke-width="2" vector-effect="non-scaling-stroke"/>
           <text :x="middle(wall.corners)[0]" :y="middle(wall.corners)[1]" :font-size="font" text-anchor="middle" fill="#fff" stroke="#162139" stroke-width="3" paint-order="stroke" vector-effect="non-scaling-stroke">Wall {{ i+1 }} · {{ percent(wall.confidence) }}</text>
         </g>
-        <polygon v-for="(o, i) in shown.openings" :key="'o'+i" :points="pointsOf(o.polygon)" fill="none" :stroke="KIND_COLOUR[o.type]||'#0ea5e9'" stroke-width="3" vector-effect="non-scaling-stroke"/>
+        <g v-for="(o, i) in shown.openings" :key="'o'+i">
+          <polygon :points="pointsOf(o.polygon)" :fill="byName ? colourOf(o.type) : 'none'" :fill-opacity="byName ? .14 : null" :stroke="colourOf(o.type)" stroke-width="3" vector-effect="non-scaling-stroke"/>
+          <text v-if="byName" :x="middle(o.polygon)[0]" :y="middle(o.polygon)[1]" :font-size="font" text-anchor="middle" fill="#fff" stroke="#162139" stroke-width="3" paint-order="stroke" vector-effect="non-scaling-stroke">{{ nameOf(o.type) }} · {{ percent(o.confidence) }}</text>
+        </g>
       </svg>
     </div>
     <dl class="facts">
       <div><dt>Walls</dt><dd>{{ shown.walls.length }}</dd></div>
-      <div><dt>Windows and doors</dt><dd>{{ shown.openings.length }}</dd></div>
+      <div><dt>{{ othersLabel }}</dt><dd>{{ shown.openings.length }}</dd></div>
       <div><dt>Model time</dt><dd>{{ seconds(answer.timing_ms?.model) }}</dd></div>
       <div><dt>Whole answer</dt><dd>{{ seconds(answer.timing_ms?.total) }}</dd></div>
     </dl>
@@ -51,7 +72,7 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
       <table><thead><tr><th>Found</th><th>Confidence</th><th>Corners</th></tr></thead>
         <tbody>
           <tr v-for="(wall, i) in shown.walls" :key="'w'+i"><td><span class="swatch" :style="{background:WALL_COLOURS[i%WALL_COLOURS.length]}"></span>Wall {{ i+1 }}{{ wall.below_threshold ? ' (not sure)' : '' }}</td><td>{{ percent(wall.confidence) }}</td><td>{{ wall.corners.length }}</td></tr>
-          <tr v-for="(o, i) in shown.openings" :key="'o'+i"><td><span class="swatch" :style="{background:KIND_COLOUR[o.type]||'#0ea5e9'}"></span>{{ o.type==='door' ? 'Door' : 'Window' }}</td><td>{{ percent(o.confidence) }}</td><td>{{ o.polygon.length }}</td></tr>
+          <tr v-for="(o, i) in shown.openings" :key="'o'+i"><td><span class="swatch" :style="{background:colourOf(o.type)}"></span>{{ nameOf(o.type) }}</td><td>{{ percent(o.confidence) }}</td><td>{{ o.polygon.length }}</td></tr>
         </tbody></table>
     </div>
     <p v-if="answer.warnings?.length" class="test-meta">Notes from the model: {{ answer.warnings.join(', ') }}.</p>
