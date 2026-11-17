@@ -423,12 +423,25 @@ export function sourceForm(source = null) {
   return {
     name: source?.name || '', address: '', username: source?.username || '', password: '',
     project: (project && typeof project === 'object' ? project.ref : project) || '', consent: false,
+    machine: source?.machine?.id ? String(source.machine.id) : '',
   };
 }
 
 // The form's problems by field; an empty object when it may be sent. Editing, a blank address or password keeps the
 // saved one, and the consent was given when the source was added.
-export function sourceFormProblems(form, { editing = false } = {}) {
+// A camera on one of the person's machines (a connector camera): an rtsp:// or rtsps:// address on that machine's own
+// network, a private address expected (AADML never opens it; the machine does).
+export const CONNECTOR_ADDRESS_HELP = "A camera on your machine's network has an rtsp:// or rtsps:// address, as its own settings or the recorder show it (for example rtsp://192.168.1.20:554/stream1).";
+export function connectorAddressProblem(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return 'Enter the camera address.';
+  if (text.length > 2000 || /\s/.test(text)) return CONNECTOR_ADDRESS_HELP;
+  let url;
+  try { url = new URL(text); } catch { return CONNECTOR_ADDRESS_HELP; }
+  return ['rtsp:', 'rtsps:'].includes(url.protocol) && url.hostname ? '' : CONNECTOR_ADDRESS_HELP;
+}
+
+export function sourceFormProblems(form, { editing = false, connector = false } = {}) {
   const f = form || {};
   const problems = {};
   const name = String(f.name || '').trim();
@@ -436,9 +449,10 @@ export function sourceFormProblems(form, { editing = false } = {}) {
   else if (name.length > SOURCE_NAME_LIMIT) problems.name = `A name is at most ${SOURCE_NAME_LIMIT} characters.`;
   const address = String(f.address || '').trim();
   if (!editing || address) {
-    const problem = sourceAddressProblem(address);
+    const problem = connector ? connectorAddressProblem(address) : sourceAddressProblem(address);
     if (problem) problems.address = problem;
   }
+  if (connector && !editing && !f.machine) problems.machine = 'Choose the machine the camera is on.';
   if (String(f.username || '').length > CREDENTIAL_LIMIT) problems.username = `A user name is at most ${CREDENTIAL_LIMIT} characters.`;
   if (String(f.password || '').length > CREDENTIAL_LIMIT) problems.password = `A password is at most ${CREDENTIAL_LIMIT} characters.`;
   if (!editing && f.consent !== true) problems.consent = 'Confirm you own this camera or have permission to connect to it.';
@@ -455,7 +469,7 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
   const password = String(f.password || '');
   if (!editing) {
     return {
-      name, kind: 'url', address,
+      name, kind: f.machine ? 'connector' : 'url', address, ...(f.machine ? { machine: String(f.machine) } : {}),
       ...(username ? { username } : {}), ...(password ? { password } : {}), ...(f.project ? { project: f.project } : {}),
       consent: f.consent === true,
     };
@@ -472,7 +486,8 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
 
 // ── live view ────────────────────────────────────────────────────────────────────────────────────
 // Live view goes through AADML's media relay, which reads rtsp:// and rtsps:// cameras only for now.
-export const canWatch = source => /^rtsps?:\/\//i.test(sourceShown(source));
+// A connector camera is read by its machine, not by AADML's relay: no live view of it yet (CLOUD_STREAMING_PLAN.md §11).
+export const canWatch = source => source?.kind !== 'connector' && /^rtsps?:\/\//i.test(sourceShown(source));
 
 export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras only for now.';
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';

@@ -7,8 +7,22 @@ import {
   SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
-  recordingsApi, dayRange, windowText, sizeText, dayPriceText,
+  recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
 } from '../src/api/streaming.js';
+
+test('a camera on a machine: a private rtsp address, its machine, no live view', () => {
+  assert.equal(connectorAddressProblem('rtsp://192.168.1.20:554/stream1'), '');
+  assert.equal(connectorAddressProblem('rtsps://10.0.0.5/live'), '');
+  for (const bad of ['http://192.168.1.20/', 'file:///etc/passwd', 'rtsp://', 'rtsp://a b']) assert.equal(connectorAddressProblem(bad), CONNECTOR_ADDRESS_HELP, bad);
+  assert.equal(connectorAddressProblem(''), 'Enter the camera address.');
+  const form = { name: 'Loading bay', address: 'rtsp://192.168.1.20/s1', username: '', password: '', project: '', consent: true, machine: '' };
+  assert.equal(sourceFormProblems(form, { connector: true }).machine, 'Choose the machine the camera is on.');
+  assert.deepEqual(sourceFormProblems({ ...form, machine: '3' }, { connector: true }), {});
+  assert.equal(sourceFormProblems({ ...form, machine: '3' }).address !== undefined, true);   // as a camera URL it is private
+  assert.deepEqual(sourceBody({ ...form, machine: '3' }), { name: 'Loading bay', kind: 'connector', address: 'rtsp://192.168.1.20/s1', machine: '3', consent: true });
+  assert.equal(canWatch({ kind: 'connector', shown_address: 'rtsp://192.168.1.20:554' }), false);
+  assert.equal(canWatch({ kind: 'url', shown_address: 'rtsp://cam.example.com' }), true);
+});
 
 test('a recordings day is the UTC day the picker names, and a recording reads as its window and size', () => {
   assert.deepEqual(dayRange('2026-11-17'), { from: '2026-11-17T00:00:00Z', to: '2026-11-18T00:00:00Z' });
@@ -301,7 +315,7 @@ test('the add body carries what was filled and the consent; the edit body only w
 
   const original = { id: 4, name: 'Door', project: { ref: 'leads', name: 'Leads' }, username: 'admin' };
   const form = sourceForm(original);
-  assert.deepEqual(form, { name: 'Door', address: '', username: 'admin', password: '', project: 'leads', consent: false });
+  assert.deepEqual(form, { name: 'Door', address: '', username: 'admin', password: '', project: 'leads', consent: false, machine: '' });
   assert.deepEqual(sourceBody(form, { editing: true, original }), {});
   assert.deepEqual(sourceBody({ ...form, name: 'Back door', password: 'new' }, { editing: true, original }), { name: 'Back door', password: 'new' });
   assert.deepEqual(sourceBody({ ...form, project: '' }, { editing: true, original }), { project: null });
@@ -309,7 +323,7 @@ test('the add body carries what was filled and the consent; the edit body only w
     { address: 'rtsps://cam2.example.com/live', username: '' });
   // An answer that does not carry the user name: a blank one keeps the saved one.
   assert.deepEqual(sourceBody(sourceForm({ name: 'Door' }), { editing: true, original: { name: 'Door' } }), {});
-  assert.deepEqual(sourceForm(), { name: '', address: '', username: '', password: '', project: '', consent: false });
+  assert.deepEqual(sourceForm(), { name: '', address: '', username: '', password: '', project: '', consent: false, machine: '' });
 });
 
 test('the video sources calls use the contract\'s paths and bodies, with the workspace', async () => {

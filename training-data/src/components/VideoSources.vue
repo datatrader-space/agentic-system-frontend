@@ -18,6 +18,7 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { modelName, timeAgo } from '../api/workspace.js';
+import { machinesApi } from '../api/machines.js';
 import {
   videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
@@ -197,11 +198,24 @@ function checkField(name) {
   const problems = sourceFormProblems(form.value, { editing: !!editing.value });
   fieldErrors.value = { ...fieldErrors.value, [name]: problems[name] || '' };
 }
-const FIELDS = ['name', 'address', 'username', 'password', 'project', 'consent'];
+const FIELDS = ['machine', 'name', 'address', 'username', 'password', 'project', 'consent'];
+// A camera on one of the workspace's machines (CLOUD_STREAMING_PLAN.md §11): the "Connect a camera" tab, or editing one.
+const machineRows = ref(null); const machinesError = ref('');
+const connecting = computed(() => (editing.value ? editing.value.kind === 'connector' : way.value === 'connector'));
+const usableMachines = computed(() => (machineRows.value || []).filter(m => m.state !== 'removed'));
+async function loadMachines() {
+  machinesError.value = '';
+  try { machineRows.value = (await machinesApi.list())?.machines || []; }
+  catch (e) { machinesError.value = e.message; machineRows.value = []; }
+}
+watch(() => editorOpen.value && way.value === 'connector' && !editing.value, open => { if (open && machineRows.value === null) loadMachines(); });
+const machineLine = m => `${m.name} (${m.state === 'online' ? 'online' : 'offline'}${m.agent_version ? `, agent ${m.agent_version}` : ''})`;
+
 async function save() {
   formError.value = ''; addedSaid.value = '';
   const isEdit = !!editing.value;
-  const problems = sourceFormProblems(form.value, { editing: isEdit });
+  if (!isEdit && !connecting.value) form.value.machine = '';            // a camera address: no machine
+  const problems = sourceFormProblems(form.value, { editing: isEdit, connector: connecting.value });
   fieldErrors.value = problems;
   const first = FIELDS.find(f => problems[f]);
   if (first) { await nextTick(); document.getElementById(`vs-${first}`)?.focus(); return; }
@@ -401,22 +415,21 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 
       <div id="vs-way-panel" class="vs-way-panel" :role="editing ? undefined : 'tabpanel'" :aria-labelledby="editing ? undefined : `vs-way-${way}`">
         <!-- Connect a camera: the connector is not released yet; nothing here pretends it is. -->
-        <div v-if="!editing && way==='connector'">
+        <div v-if="!editing && way==='connector' && machineRows !== null && !usableMachines.length">
           <ol class="vs-steps">
             <li>
               <span class="vs-step-n" aria-hidden="true">1</span>
               <div class="vs-step-body">
-                <h4>Run the connector <UiBadge>Coming soon</UiBadge></h4>
-                <p>On a computer in the same network as your cameras. It only reaches out to AADML, so no port is opened on your router, and it will find the cameras near it for you to pick.</p>
+                <h4>Connect a machine on the cameras' network</h4>
+                <p>The connector is AADML's machine agent, on a computer in the same network as your cameras. It only reaches out to AADML, so no port is opened on your router. Add the computer on the Machines page (Models, Your machines), then come back here to add its cameras.</p>
+                <p v-if="machinesError" class="field-error" role="alert">{{ machinesError }}</p>
                 <div class="vs-os" role="tablist" aria-label="Computer">
                   <button v-for="(os, i) in SYSTEMS" :id="`vs-os-${os.toLowerCase()}`" :key="os" type="button" role="tab" :aria-selected="system===os" aria-controls="vs-os-panel"
                           :tabindex="system===os ? 0 : -1" :class="{ on: system===os }" @click="system=os" @keydown="tabKeys($event, i, SYSTEMS, n => { system = n; }, 'vs-os')">{{ os }}</button>
                 </div>
                 <div id="vs-os-panel" class="vs-code" role="tabpanel" :aria-labelledby="`vs-os-${system.toLowerCase()}`">
-                  AADML's connector for {{ system }} is not released yet. Its install command will be shown here when it is.
+                  The Machines page gives the one command for {{ system }} that starts the agent and joins it to this workspace.
                 </div>
-                <UiButton disabled><Copy :size="14" aria-hidden="true"/> Copy command</UiButton>
-                <p class="vs-help">Until then, a camera with an address reachable from the internet can be added under Camera URL.</p>
               </div>
             </li>
           </ol>
@@ -446,7 +459,15 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 
         <!-- Camera URL (and Edit) -->
         <form v-else class="vs-form" novalidate @submit.prevent="save">
-          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it through the machine (agent 1.4.0 or later); live view and recording come later.' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <div v-if="connecting && !editing" class="vs-field">
+            <label for="vs-machine">The machine the camera is on</label>
+            <select id="vs-machine" v-model="form.machine" class="text-input" :aria-invalid="!!fieldErrors.machine" aria-describedby="vs-machine-error">
+              <option value="">{{ machineRows === null ? 'Loading your machines…' : 'Choose a machine' }}</option>
+              <option v-for="m in usableMachines" :key="m.id" :value="String(m.id)">{{ machineLine(m) }}</option>
+            </select>
+            <p v-if="fieldErrors.machine" id="vs-machine-error" class="field-error" role="alert">{{ fieldErrors.machine }}</p>
+          </div>
           <div v-if="addedSaid" class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
 
           <div class="vs-field">
