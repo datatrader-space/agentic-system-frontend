@@ -350,8 +350,9 @@ const toggle = (k) => {
 const account = ref(null)
 const masterOff = computed(() => account.value && account.value.memory_enabled === false)
 
-// "Allow this agent to remember" is the single, user-facing switch for the agent's OWN memory. It drives the
-// detailed backend fields (read/write/project) together, so the user never sees them. The fine-grained
+// "Allow this agent to remember" is the single, user-facing switch for the agent's OWN memory, project memory
+// included (project memory has no switch of its own). It drives the detailed backend fields (read/write)
+// together, so the user never sees them. The fine-grained
 // controls live in Settings → Memory. "Use my global memory" is independent (account-wide memories).
 const allowRemember = computed(() => !!props.agent.structured_memory_enabled)
 
@@ -361,7 +362,6 @@ function toggleAllowRemember() {
   props.agent.structured_memory_enabled = on
   props.agent.memory_read_enabled = on
   props.agent.memory_write_enabled = on
-  props.agent.use_project_memory = on
   // Turning the master off also stops end-of-run learning; turning it on enables it by default.
   props.agent.end_of_run_learning_enabled = on
 }
