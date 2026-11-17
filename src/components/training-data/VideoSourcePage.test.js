@@ -85,6 +85,8 @@ describe('a video source page', () => {
   });
 
   it('lists a day of recordings, plays one and deletes one', async () => {
+    const fresh = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true, days: 1 } } });
+    expect(fresh.find('.sp-rec-line').text()).toMatch(/^Recording to the cloud\. Kept 1 day, nothing kept yet/);   // was "0.1 MB kept"
     const w = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true, stored_bytes: 52428800 } } });
     await w.findAll('[role="tab"]').find(t => t.text() === 'Recordings').trigger('click');
     await flushPromises();

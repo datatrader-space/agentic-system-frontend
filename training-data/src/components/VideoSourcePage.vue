@@ -95,7 +95,7 @@ const recLine = computed(() => {
   const r = rec.value;
   if (!r) return '';
   if (r.on && r.unpaid) return 'Recording stopped: a day of keeping it could not be paid. Top up and it goes on within the hour.';
-  if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${sizeText(r.stored_bytes)} kept now.`;
+  if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
 
