@@ -158,7 +158,7 @@
     <!-- ============================ WORKSPACE ============================ -->
     <div v-else class="lc-ide" :data-theme="ideTheme">
       <div class="ide-bar">
-        <button type="button" class="ide-back" @click="onBackToProjects"><Icon icon="lucide:chevron-left" /> Projects</button>
+        <button type="button" class="ide-back" title="Projects" @click="onBackToProjects"><Icon icon="lucide:chevron-left" aria-hidden="true" /> <span class="ide-back-t">Projects</span></button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
         <span v-if="active.is_new" class="ide-branch off" title="Branches come with GitHub: publish the project from Source control">
           <Icon icon="lucide:git-branch" aria-hidden="true" /> {{ active.branch || 'main' }}
@@ -898,6 +898,22 @@ onBeforeUnmount(() => {
   .proj-del { margin-left: auto; }
   .ide-gh-t { display: none; }
   .ide-proj { max-width: 100%; }
+  /* The header in two rows, not three (ADM-1267, 2026-11-17: 165 px of an 812 px screen at 375 px). Row one: back,
+     the project, its status, the editor theme. Row two: the branch, then GitHub, Commands, Variables, Deploy. The
+     zero-height item is the break between them; wider screens keep one bar. */
+  .ide-bar { gap: 6px; padding: 6px 8px; }
+  .ide-bar::after { content: ''; order: 5; flex: 0 0 100%; height: 0; }
+  .ide-back { order: 1; min-width: 44px; justify-content: center; padding: 0 6px; }
+  .ide-back-t { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .ide-proj { order: 2; flex: 1 1 0; }
+  .ide-bar > .lc-pill { order: 3; }
+  .ide-theme { order: 4; }
+  .ide-branch { order: 6; flex: 1 1 0; min-width: 0; }
+  .ide-branch select { min-width: 0; width: 100%; }
+  .ide-gh { order: 7; }
+  .ide-bar > .pc { order: 8; }
+  .ide-bar > .pe { order: 9; }
+  .ide-bar > .dp { order: 10; }
 }
 @media (prefers-reduced-motion: reduce) {
   .spin, .lc-skel::after { animation: none; }

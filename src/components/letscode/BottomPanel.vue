@@ -3,8 +3,9 @@
     <div class="bp-tabs" role="tablist" aria-label="Workspace output">
       <button
         v-for="t in tabs" :key="t.id" type="button" role="tab" class="bp-tab" :class="{ on: tab === t.id }"
-        :aria-selected="tab === t.id ? 'true' : 'false'" @click="selectTab(t.id)"
-      >{{ t.label }}</button>
+        :aria-selected="tab === t.id ? 'true' : 'false'" :title="t.label" @click="selectTab(t.id)"
+      ><Icon :icon="t.icon" class="bp-tab-ic" aria-hidden="true" /><span class="bp-tab-t">{{ t.label }}</span><span
+        v-if="t.count" class="bp-tab-n" aria-hidden="true">{{ t.count }}</span></button>
       <button type="button" class="bp-collapse" :title="collapsed ? 'Expand' : 'Collapse'" :aria-label="collapsed ? 'Expand the output panel' : 'Collapse the output panel'" :aria-expanded="collapsed ? 'false' : 'true'" @click="$emit('toggle')">
         <Icon :icon="collapsed ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
@@ -63,12 +64,14 @@ const languages = inject(LANGUAGE_SERVERS, null)
 const dbg = inject(DEBUGGER, null)
 const problemCount = computed(() => (languages ? languages.problems.value.length : 0))
 const tabs = computed(() => [
-  ...(languages ? [{ id: 'problems', label: problemCount.value ? `Problems (${problemCount.value})` : 'Problems' },
-    { id: 'references', label: 'References' }] : []),
-  ...(dbg ? [{ id: 'debug-console', label: 'Debug Console' }] : []),
-  { id: 'log', label: 'Log' },
-  { id: 'activity', label: 'Activity' },
-  ...(props.repoId ? [{ id: 'terminal', label: 'Terminal' }, { id: 'preview', label: 'Preview' }] : []),
+  ...(languages ? [{ id: 'problems', label: problemCount.value ? `Problems (${problemCount.value})` : 'Problems',
+    icon: 'lucide:circle-alert', count: problemCount.value },
+  { id: 'references', label: 'References', icon: 'lucide:text-search' }] : []),
+  ...(dbg ? [{ id: 'debug-console', label: 'Debug Console', icon: 'lucide:bug' }] : []),
+  { id: 'log', label: 'Log', icon: 'lucide:scroll-text' },
+  { id: 'activity', label: 'Activity', icon: 'lucide:activity' },
+  ...(props.repoId ? [{ id: 'terminal', label: 'Terminal', icon: 'lucide:square-terminal' },
+    { id: 'preview', label: 'Preview', icon: 'lucide:monitor-play' }] : []),
 ])
 const tab = ref('log')
 const body = ref(null)
@@ -121,5 +124,15 @@ watch(lines, () => nextTick(() => { const e = body.value; if (e) e.scrollTop = e
 .ln.err { color: var(--vm-danger); }
 .bp-empty { color: var(--vm-ink-faint); font-size: 13px; }
 .bp-term { flex: 1; min-height: 0; }
-@media (max-width: 640px) { .bp-tab { min-height: 44px; } .bp-collapse { width: 44px; height: 44px; } }
+/* Wide: the tabs' names. 640 px and less: their icons, one row with no sideways scroll; the name stays for screen
+   readers and in the title, and Problems shows its count (ADM-1267, 2026-11-17). */
+.bp-tab-ic, .bp-tab-n { display: none; }
+@media (max-width: 640px) {
+  .bp-tabs { padding: 0 4px; }
+  .bp-tab { min-height: 44px; flex: 1 1 0; min-width: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+  .bp-tab-ic { display: block; width: 18px; height: 18px; }
+  .bp-tab-n { display: inline-block; font: 700 10px/16px var(--vm-font-sans); min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--vm-violet); color: white; }
+  .bp-tab-t { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .bp-collapse { width: 44px; height: 44px; flex: 0 0 auto; }
+}
 </style>

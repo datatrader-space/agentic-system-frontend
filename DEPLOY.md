@@ -216,7 +216,7 @@ upstream aadml_frontend {
 }
 # in both `location /ws/` and `location /`:
     proxy_pass http://aadml_frontend;
-    proxy_next_upstream error timeout http_502;
+    proxy_next_upstream error http_502;
     proxy_connect_timeout 3s;
 ```
 
@@ -225,6 +225,14 @@ upstream aadml_frontend {
 listed, nginx counted that answer as a failure of the serving colour, retried on the stopped one (refused), and
 then had no live upstream: the browser got a 502 instead of the 503, and every aadml.com request answered 502
 for `fail_timeout` (5 s). It happened after each Let's Code turn, when the parked sandbox answered 503.
+
+**Never `timeout` in `proxy_next_upstream` either (ADM-1267, 17 Nov 2026).** A request the backend answers slowly
+(past the 60 s read timeout) is that request's problem, not a dead container. With `timeout` listed, nginx retried
+it on the stopped colour (refused), `max_fails=1` marked the serving colour down, and EVERY aadml.com request from
+everyone answered 502 "no live upstreams" for 5 s: seen 2026-11-17 at 06:50:01 and 06:52:17 (a Let's Code file list
+waiting on the sandbox platform), and at 04:26 and 06:42. Without it, the slow request alone gets its 504; a refused
+or reset connection (a stopped colour during a deploy) still fails over. Changed on the host 2026-11-17 07:23 UTC,
+backup `/etc/nginx/sztax.bak-adm1267-20261117T072327Z`.
 
 Never `docker compose up -d` without a service name on the host: it would start both colours.
 
