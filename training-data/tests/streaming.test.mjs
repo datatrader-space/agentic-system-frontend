@@ -6,7 +6,7 @@ import {
   recentBars, megabytes, videoSources, classesOf, totalOf, classNames, countOf, classesText, SOURCE_FILTERS, CONSENT_TEXT,
   SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
-  canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE,
+  canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
 } from '../src/api/streaming.js';
 
 test('a stream address is rtsp, rtsps or https, and the message says which', () => {
@@ -389,4 +389,12 @@ test('the live token is asked for on the source\'s live path, with the workspace
   assert.equal(asked.url, '/api/training-data/app/workspace/video-sources/4/live/');
   assert.equal(asked.init.method, 'GET');
   assert.equal(asked.init.headers['X-Workspace-ID'], '7');
+});
+
+test('a camera that answered but whose video could not be played is not said to have not answered', () => {
+  // aadml.com, 2026-11-17: the relay served the playlist of an RTSP feed with B-frames, and the page said "The camera
+  // did not answer".
+  assert.notEqual(LIVE_NOT_PLAYABLE, LIVE_NO_ANSWER);
+  assert.match(LIVE_NOT_PLAYABLE, /answered/);
+  assert.doesNotMatch(LIVE_NOT_PLAYABLE, /did not answer/);
 });

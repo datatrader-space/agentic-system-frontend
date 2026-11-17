@@ -9,7 +9,7 @@ import { onUnmounted, ref, watch } from 'vue';
 import { LoaderCircle, RefreshCw, VideoOff } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiDialog from './UiDialog.vue';
-import { videoSources, liveAnswer, liveErrorText, sourceShown, LIVE_NO_ANSWER } from '../api/streaming.js';
+import { videoSources, liveAnswer, liveErrorText, sourceShown, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE } from '../api/streaming.js';
 
 const props = defineProps({ source: { type: Object, default: null }, inline: { type: Boolean, default: false } });
 const emit = defineEmits(['close', 'state']);
@@ -81,8 +81,9 @@ async function start() {
     xhrSetup: xhr => { xhr.setRequestHeader('Authorization', `Bearer ${token}`); },
   });
   hls = player;
-  player.on(Hls.Events.MANIFEST_PARSED, () => { if (hls === player) video.value?.play().catch(() => { /* the controls can start it */ }); });
-  player.on(Hls.Events.ERROR, (_event, data) => { if (data?.fatal && hls === player) fail('failed', LIVE_NO_ANSWER); });
+  let parsed = false;                                     // the relay reached the camera and served its playlist
+  player.on(Hls.Events.MANIFEST_PARSED, () => { parsed = true; if (hls === player) video.value?.play().catch(() => { /* the controls can start it */ }); });
+  player.on(Hls.Events.ERROR, (_event, data) => { if (data?.fatal && hls === player) fail('failed', parsed ? LIVE_NOT_PLAYABLE : LIVE_NO_ANSWER); });
   player.loadSource(live.playlist);
   player.attachMedia(video.value);
   scheduleRenew(live.renewInMs, mine);
@@ -137,6 +138,8 @@ onUnmounted(stop);
 .lv-stage{position:relative;margin-top:14px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0d1320}
 .lv-video{display:block;width:100%;height:100%;background:#0d1320}
 .lv-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;background:#0d1320e6;color:#e6ebf3;font-size:14px;line-height:1.5}
+.lv-over :deep(.button){background:#fff;color:#17243b;border-color:#fff}
+.lv-over :deep(.button:hover){background:#e6ebf3}
 .lv-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .dialog-actions .button{min-height:44px}
 .spin{animation:lv-spin 1.1s linear infinite}

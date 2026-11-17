@@ -434,6 +434,9 @@ export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras o
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
 export const LIVE_GONE = 'This camera is not in this workspace any more.';
 export const LIVE_NO_ANSWER = 'The camera did not answer.';
+// The relay reached the camera and served its playlist, and the video still could not be played (live, 2026-11-17: an
+// RTSP feed with H.264 B-frames, which the relay's live muxer cannot carry yet). Not "did not answer": it did.
+export const LIVE_NOT_PLAYABLE = 'The camera answered, but its video could not be played live here: live view does not support its video encoding yet. Checks and streams still read it.';
 // The page's own words when a refusal carried none of the server's (client.js apiFetch).
 const GENERIC = ['AADML did not answer just now. Try again in a moment.', 'The request was refused.'];
 
