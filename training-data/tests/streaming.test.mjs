@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   streamingApi, downloadResults, addressProblem, addressKind, addressShown, privateHost, fileProblem, SCHEMES_HELP,
   NOT_PUBLIC, ADDRESS_LIMIT, streamState, isActive, anyActive, clockText, progressOf, capText, countsSaid, endedText,
-  recentBars, megabytes,
+  recentBars, megabytes, videoSources, classesOf, totalOf, classNames, countOf, classesText, SOURCE_FILTERS, CONSENT_TEXT,
+  SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
+  lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
+  canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE,
 } from '../src/api/streaming.js';
 
 test('a stream address is rtsp, rtsps or https, and the message says which', () => {
@@ -86,7 +89,9 @@ test('the cap is said for the frame rate chosen', () => {
 });
 
 test('a frame\'s answer is read out in words, and why a stream ended', () => {
-  assert.equal(countsSaid({ frame: 11, t: 11, counts: { walls: 2, windows: 1, doors: 0 } }), 'Frame 12 at 0:11: 2 walls, 1 window, no doors.');
+  assert.equal(countsSaid({ frame: 11, t: 11, counts: { walls: 2, windows: 1, doors: 0 } }), 'Frame 12 at 0:11: walls 2, windows 1, doors 0.');
+  assert.equal(countsSaid({ frame: 4, t: 2, classes: { person: 3, car: 1 } }), 'Frame 5 at 0:02: person 3, car 1.');
+  assert.equal(countsSaid({ frame: 0, t: 0, classes: {} }), 'Frame 1 at 0:00: nothing found.');
   assert.equal(countsSaid({ frame: 0, t: 0, error: 'The model is starting.' }), 'Frame 1 at 0:00: no answer. The model is starting.');
   assert.equal(countsSaid(null), '');
   assert.equal(endedText({ state: 'running' }), '');
@@ -126,4 +131,262 @@ test('the results are fetched with the selected workspace and a refusal says the
   assert.equal(asked.url, '/api/training-data/app/workspace/streams/12/results/');
   assert.equal(asked.init.headers['X-Workspace-ID'], '7');
   await assert.rejects(downloadResults(12, { fetchImpl: async () => { throw new TypeError('offline'); }, store }), { code: 'network' });
+});
+
+// ── any model's answers ──────────────────────────────────────────────────────────────────────────
+test('an answer is read as the model\'s own classes, and FitMyWall\'s older counts the same way', () => {
+  assert.deepEqual(classesOf({ classes: { person: 3, car: 1, bike: 0 } }), [['person', 3], ['car', 1], ['bike', 0]]);
+  assert.deepEqual(classesOf({ counts: { walls: 2, windows: 1, doors: 0 } }), [['walls', 2], ['windows', 1], ['doors', 0]]);
+  // `classes` wins over `counts` when an answer carries both.
+  assert.deepEqual(classesOf({ classes: { person: 1 }, counts: { walls: 9 } }), [['person', 1]]);
+  // Nothing that is not a count is shown: negative, text, empty or missing values, or a blank name.
+  assert.deepEqual(classesOf({ classes: { a: -1, b: 'x', c: null, d: '', ' ': 4, e: 2.7 } }), [['e', 2]]);
+  assert.deepEqual(classesOf(null), []);
+  assert.deepEqual(classesOf({ error: 'x' }), []);
+  assert.equal(totalOf({ classes: { person: 3, car: 1 } }), 4);
+  assert.equal(totalOf({}), 0);
+  assert.equal(countOf({ classes: { person: 3 } }, 'person'), 3);
+  assert.equal(countOf({ classes: { person: 3 } }, 'car'), 0);
+  assert.equal(classesText({ classes: { person: 3, car: 1 } }), 'person 3, car 1');
+  assert.equal(classesText({ classes: {} }), 'nothing found');
+});
+
+test('a stream\'s classes keep the order they were first seen in, at most eight', () => {
+  const stream = {
+    recent: [{ frame: 0, classes: { car: 1 } }, { frame: 1, error: 'x' }, { frame: 2, classes: { person: 2, car: 0 } }],
+    last: { frame: 3, classes: { dog: 1, person: 1 } },
+  };
+  assert.deepEqual(classNames(stream), ['car', 'person', 'dog']);
+  const many = { last: { classes: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`c${i}`, i])) } };
+  assert.equal(classNames(many).length, 8);
+  assert.deepEqual(classNames(many, 2), ['c0', 'c1']);
+  assert.deepEqual(classNames(null), []);
+});
+
+test('the newest frames\' bars count everything each found, of any model', () => {
+  const bars = recentBars([{ frame: 0, classes: { person: 2, car: 2 } }, { frame: 1, classes: { person: 1, car: 1 } }, { frame: 2, classes: {} }], 40);
+  assert.deepEqual(bars, [{ frame: 0, failed: false, h: 40 }, { frame: 1, failed: false, h: 20 }, { frame: 2, failed: false, h: 2 }]);
+});
+
+test('a continuous stream that ends says so, not that a video ended', () => {
+  assert.equal(endedText({ state: 'done', continuous: true }), 'The stream ended. Its answers are kept.');
+  assert.equal(endedText({ state: 'done' }), 'The video ended.');
+});
+
+// ── video sources ────────────────────────────────────────────────────────────────────────────────
+test('a source\'s state is said in words, and each chip counts its sources', () => {
+  assert.deepEqual(sourceState({ state: 'online' }), ['green', 'Live']);
+  assert.deepEqual(sourceState({ state: 'offline' }), ['neutral', 'Offline']);
+  assert.deepEqual(sourceState({ state: 'needs_attention' }), ['amber', 'Needs attention']);
+  assert.deepEqual(sourceState({ state: 'needs attention' }), ['amber', 'Needs attention']);
+  // The backend's states (video_sources.py): new, online, offline, attention. A new source was never checked: it is
+  // "Not checked yet", never Offline; a state the page does not know is shown as offline, never as online.
+  assert.deepEqual(sourceState({ state: 'new' }), ['neutral', 'Not checked yet']);
+  assert.deepEqual(sourceState({ state: 'attention' }), ['amber', 'Needs attention']);
+  assert.deepEqual(sourceState({ state: 'no_connector' }), ['neutral', 'No connector']);
+  assert.deepEqual(sourceState({ state: 'something new' }), ['neutral', 'Offline']);
+  assert.deepEqual(sourceState({}), ['neutral', 'Offline']);
+  assert.equal(sourceStateKey({ state: 'ONLINE' }), 'online');
+  assert.deepEqual(SOURCE_FILTERS.map(f => f.label), ['All', 'Online', 'Offline', 'No connector', 'Public']);
+  const list = [{ id: 1, name: 'Door', state: 'online', shown_address: 'rtsp://door.example.com' }, { id: 2, name: 'Yard', state: 'offline' },
+    { id: 3, name: 'Gate', state: 'attention', project: { ref: 'p', name: 'Parcels' } }, { id: 4, name: 'Dock', state: 'online', public: true, shared: true },
+    { id: 5, name: 'Lobby', state: 'new' }, { id: 6, name: 'Shed', state: 'no_connector', public: 'yes' }];
+  // Public is counted beside the state; only an explicit `true` makes a source public.
+  assert.deepEqual(sourceCounts(list), { '': 6, online: 2, offline: 1, no_connector: 1, public: 1, needs_attention: 1, new: 1 });
+  assert.deepEqual(sourceCounts(null), { '': 0, online: 0, offline: 0, no_connector: 0, public: 0, needs_attention: 0, new: 0 });
+  assert.deepEqual(filterSources(list, { state: 'online' }).map(s => s.id), [1, 4]);
+  assert.deepEqual(filterSources(list, { state: 'public' }).map(s => s.id), [4]);
+  assert.deepEqual(filterSources(list, { state: 'no_connector' }).map(s => s.id), [6]);
+  assert.deepEqual(filterSources(list, { q: 'parcels' }).map(s => s.id), [3]);
+  assert.deepEqual(filterSources(list, { q: 'door.example' }).map(s => s.id), [1]);
+  assert.equal(filterSources(list).length, 6);
+});
+
+test('a source shows its scheme and host only, a signed thumbnail and its newest frame time', () => {
+  assert.equal(sourceShown({ shown_address: 'rtsps://cam.example.com:322' }), 'rtsps://cam.example.com:322');
+  // Even an answer that carried more is cut to scheme and host.
+  assert.equal(sourceShown({ address: 'rtsp://admin:s3cret@cam.example.com/live?x=1' }), 'rtsp://cam.example.com');
+  assert.equal(sourceShown({}), '');
+  assert.equal(sourceKindLabel({ kind: 'url' }), 'Camera URL');
+  assert.equal(sourceKindLabel({ kind: 'url', shown_address: 'rtsps://cam.example.com' }), 'RTSP camera');
+  assert.equal(sourceKindLabel({ kind: 'url', shown_address: 'https://video.example.com' }), 'HLS stream');
+  assert.equal(sourceKindLabel({ kind: 'verkada' }), 'Verkada camera');
+  // A public camera's line names it public and shared, and not its address; any other shows its scheme and host.
+  assert.equal(sourceLine({ kind: 'url', shown_address: 'rtsp://street.example.com', public: true, shared: true }), 'RTSP camera · Public · Shared with you');
+  assert.equal(sourceLine({ kind: 'url', shown_address: 'rtsp://street.example.com', public: true, shared: false }), 'RTSP camera · Public');
+  assert.equal(sourceLine({ kind: 'url', shown_address: 'rtsp://door.example.com:554' }), 'RTSP camera · rtsp://door.example.com:554');
+  assert.equal(sourceLine({ kind: 'url' }), 'Camera URL');
+  assert.equal(runningText({ streams_running: 2 }), '2 streams running');
+  assert.equal(runningText({ active_streams: 1 }), '1 stream running');
+  assert.equal(runningText({}), '—');
+  assert.equal(thumbnailOf({ thumbnail_url: 'https://media.example.com/t.jpg?sig=1' }), 'https://media.example.com/t.jpg?sig=1');
+  assert.equal(thumbnailOf({ thumbnail: '/media/t.jpg' }), '/media/t.jpg');
+  for (const bad of ['javascript:alert(1)', 'http://media.example.com/t.jpg', '//evil.example.com/t.jpg', 'data:image/png;base64,AAAA', '']) {
+    assert.equal(thumbnailOf({ thumbnail_url: bad }), '', bad);
+  }
+  const now = Date.parse('2026-11-17T12:00:00Z');
+  assert.equal(lastFrameText({ last_frame_at: '2026-11-17T11:55:00Z' }, now), 'Last frame 5 minutes ago');
+  assert.equal(lastFrameText({}, now), 'No frame yet');
+});
+
+test('the limits and the Summary are said in words', () => {
+  assert.equal(limitText(3, 10), '3 of 10 sources');
+  assert.equal(limitText(1, 1), '1 of 1 source');
+  assert.equal(limitText(1), '1 source');
+  assert.equal(limitText(0), '0 sources');
+  assert.equal(limitText(2, 2, 'stream', 'streams'), '2 of 2 streams');
+  const items = summaryItems({ sources: 3, online: 2, streams_running: 1, need_attention: 1, frames_answered_month: 12345, spend_month_usd: 4.5 }, { sources: 10, streams: 2 });
+  assert.deepEqual(items.map(i => [i.label, i.value, i.hint]), [
+    ['Video sources', 3, 'of 10 you may save'], ['Online now', 2, 'answered their last check'], ['Active workflows', 1, 'streams running, of 2 at once'],
+    ['Need attention', 1, 'check their address or password'], ['Frames processed', '12,345', 'answered this month'], ['Credits used', '$4.50', 'spent this month'],
+  ]);
+  const empty = summaryItems(null, null);
+  assert.deepEqual(empty.map(i => i.value), [0, 0, 0, 0, '0', '$0.00']);
+  assert.equal(empty[3].hint, 'none');
+});
+
+test('a camera address is rtsp, rtsps or an HLS playlist of a public server', () => {
+  for (const good of ['rtsp://cam.example.com:554/stream1', 'rtsps://cam.example.com/live', 'https://video.example.com/live/index.m3u8']) {
+    assert.equal(sourceAddressProblem(good), '', good);
+  }
+  assert.equal(sourceAddressProblem(''), 'Enter the camera address.');
+  // A video file is a stream's, not a camera's.
+  assert.equal(sourceAddressProblem('https://video.example.com/clip.mp4'), SOURCE_SCHEMES_HELP);
+  assert.equal(sourceAddressProblem('http://cam.example.com/live.m3u8'), SOURCE_SCHEMES_HELP);
+  assert.equal(sourceAddressProblem('rtmp://cam.example.com/live'), SOURCE_SCHEMES_HELP);
+  assert.equal(sourceAddressProblem('rtsp://192.168.1.20/live'), NOT_PUBLIC);
+  assert.equal(sourceAddressProblem('rtsp://localhost/live'), NOT_PUBLIC);
+});
+
+test('the add form needs a name, a camera address and the consent tick', () => {
+  const good = { name: 'Front door', address: 'rtsp://cam.example.com/live', username: '', password: '', project: '', consent: true };
+  assert.deepEqual(sourceFormProblems(good), {});
+  assert.deepEqual(Object.keys(sourceFormProblems({ ...good, consent: false })), ['consent']);
+  assert.equal(sourceFormProblems({ ...good, consent: 'yes' }).consent, 'Confirm you own this camera or have permission to connect to it.');
+  assert.equal(sourceFormProblems({ ...good, name: '   ' }).name, 'Give the source a name.');
+  assert.equal(sourceFormProblems({ ...good, name: 'x'.repeat(121) }).name, 'A name is at most 120 characters.');
+  assert.equal(sourceFormProblems({ ...good, address: '' }).address, 'Enter the camera address.');
+  assert.equal(sourceFormProblems({ ...good, address: 'rtsp://10.0.0.5/live' }).address, NOT_PUBLIC);
+  assert.equal(sourceFormProblems({ ...good, password: 'p'.repeat(257) }).password, 'A password is at most 256 characters.');
+  assert.deepEqual(Object.keys(sourceFormProblems(null)).sort(), ['address', 'consent', 'name']);
+  assert.match(CONSENT_TEXT, /^I own this camera or have permission to connect to it, and the people it films are informed/);
+});
+
+test('editing keeps a blank address and password, and needs no new consent', () => {
+  const editing = { name: 'Front door', address: '', username: '', password: '', project: '', consent: false };
+  assert.deepEqual(sourceFormProblems(editing, { editing: true }), {});
+  assert.equal(sourceFormProblems({ ...editing, address: 'ftp://cam.example.com/x' }, { editing: true }).address, SOURCE_SCHEMES_HELP);
+  assert.equal(sourceFormProblems({ ...editing, name: '' }, { editing: true }).name, 'Give the source a name.');
+});
+
+test('the add body carries what was filled and the consent; the edit body only what changes', () => {
+  assert.deepEqual(sourceBody({ name: ' Door ', address: ' rtsp://cam.example.com/live ', username: '', password: '', project: '', consent: true }),
+    { name: 'Door', kind: 'url', address: 'rtsp://cam.example.com/live', consent: true });
+  assert.deepEqual(sourceBody({ name: 'Door', address: 'rtsp://cam.example.com/live', username: 'admin', password: ' p w ', project: 'leads', consent: true }),
+    { name: 'Door', kind: 'url', address: 'rtsp://cam.example.com/live', username: 'admin', password: ' p w ', project: 'leads', consent: true });
+
+  const original = { id: 4, name: 'Door', project: { ref: 'leads', name: 'Leads' }, username: 'admin' };
+  const form = sourceForm(original);
+  assert.deepEqual(form, { name: 'Door', address: '', username: 'admin', password: '', project: 'leads', consent: false });
+  assert.deepEqual(sourceBody(form, { editing: true, original }), {});
+  assert.deepEqual(sourceBody({ ...form, name: 'Back door', password: 'new' }, { editing: true, original }), { name: 'Back door', password: 'new' });
+  assert.deepEqual(sourceBody({ ...form, project: '' }, { editing: true, original }), { project: null });
+  assert.deepEqual(sourceBody({ ...form, address: 'rtsps://cam2.example.com/live', username: '' }, { editing: true, original }),
+    { address: 'rtsps://cam2.example.com/live', username: '' });
+  // An answer that does not carry the user name: a blank one keeps the saved one.
+  assert.deepEqual(sourceBody(sourceForm({ name: 'Door' }), { editing: true, original: { name: 'Door' } }), {});
+  assert.deepEqual(sourceForm(), { name: '', address: '', username: '', password: '', project: '', consent: false });
+});
+
+test('the video sources calls use the contract\'s paths and bodies, with the workspace', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => ({ activeWorkspaceId: '7' })[key] ?? null } });
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await videoSources.list();
+    await videoSources.list({ state: 'online', q: ' door ' });
+    await videoSources.add({ name: 'Door', kind: 'url', address: 'rtsp://cam.example.com/live', consent: true });
+    await videoSources.get(4);
+    await videoSources.update(4, { password: 'new' });
+    await videoSources.check(4);
+    await videoSources.remove(4);
+    await streamingApi.start({ project: 'leads', model: 2, fps: 1, source: 4, continuous: true });
+    await streamingApi.start({ project: 'leads', model: 2, fps: 2, source: 4 });
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage); else delete globalThis.localStorage;
+  }
+  const base = '/api/training-data/app/workspace/video-sources/';
+  assert.deepEqual(calls.map(c => [c.init.method, c.url]), [
+    ['GET', base], ['GET', `${base}?state=online&q=door`], ['POST', base], ['GET', `${base}4/`], ['PATCH', `${base}4/`],
+    ['POST', `${base}4/check/`], ['DELETE', `${base}4/`],
+    ['POST', '/api/training-data/app/workspace/streams/'], ['POST', '/api/training-data/app/workspace/streams/'],
+  ]);
+  for (const call of calls) assert.equal(call.init.headers['X-Workspace-ID'], '7');
+  assert.deepEqual(JSON.parse(calls[2].init.body), { name: 'Door', kind: 'url', address: 'rtsp://cam.example.com/live', consent: true });
+  assert.deepEqual(JSON.parse(calls[4].init.body), { password: 'new' });
+  assert.deepEqual(JSON.parse(calls[7].init.body), { project: 'leads', model: 2, fps: 1, source: 4, continuous: true });
+  assert.deepEqual(JSON.parse(calls[8].init.body), { project: 'leads', model: 2, fps: 2, source: 4, continuous: false });
+});
+
+// ── live view ────────────────────────────────────────────────────────────────────────────────────
+test('only an rtsp:// or rtsps:// camera can be watched live', () => {
+  assert.equal(canWatch({ shown_address: 'rtsp://door.example.com' }), true);
+  assert.equal(canWatch({ shown_address: 'RTSPS://door.example.com:322' }), true);
+  assert.equal(canWatch({ shown_address: 'https://video.example.com' }), false);
+  assert.equal(canWatch({ shown_address: 'not an address' }), false);
+  assert.equal(canWatch({}), false);
+  assert.equal(canWatch(null), false);
+});
+
+test('the live answer gives the playlist, the token and when to renew it', () => {
+  assert.deepEqual(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 300, renew_after: 240 }),
+    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000 });
+  // No renew_after: four fifths of the token's life; never at or past its end, never sooner than 5 seconds.
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 100 }).renewInMs, 80000);
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 60, renew_after: 600 }).renewInMs, 55000);
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 300, renew_after: 1 }).renewInMs, 5000);
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc' }).renewInMs, 240000);
+  // The token is only ever sent to this site: a playlist on another server, or no token, is not used.
+  for (const playlist of ['https://evil.example.com/x.m3u8', '//evil.example.com/x.m3u8', '/\\evil.example.com/x.m3u8',
+    'live/src4/index.m3u8', 'javascript:alert(1)', '/live/a b.m3u8', '', null]) {
+    assert.equal(liveAnswer({ playlist, token: 'abc', renew_after: 240 }), null, String(playlist));
+  }
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: '' }), null);
+  assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8' }), null);
+  assert.equal(liveAnswer(null), null);
+});
+
+test('why live view did not start is said in words, the server\'s own where it gave them', () => {
+  assert.equal(liveErrorText({ status: 409, serverCode: 'not_live', message: 'Live view needs an rtsp:// or rtsps:// camera.' }), 'Live view needs an rtsp:// or rtsps:// camera.');
+  assert.equal(liveErrorText({ status: 409, serverCode: 'not_live', message: 'The request was refused.' }), LIVE_NOT_LIVE);
+  assert.equal(liveErrorText({ status: 503, serverCode: 'relay_unavailable', message: 'AADML did not answer just now. Try again in a moment.' }), LIVE_UNAVAILABLE);
+  assert.equal(liveErrorText({ status: 503, serverCode: 'relay_unavailable', message: 'The media relay is restarting.' }), 'The media relay is restarting.');
+  assert.equal(liveErrorText({ status: 404, message: 'Not found.' }), LIVE_GONE);
+  assert.equal(liveErrorText({ status: 0, code: 'network', message: 'Could not reach AADML. Check your connection and try again.' }), 'Could not reach AADML. Check your connection and try again.');
+  assert.equal(liveErrorText(null), LIVE_UNAVAILABLE);
+});
+
+test('the live token is asked for on the source\'s live path, with the workspace', async () => {
+  let asked;
+  const realFetch = globalThis.fetch;
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => ({ activeWorkspaceId: '7' })[key] ?? null } });
+  globalThis.fetch = async (url, init) => { asked = { url, init }; return new Response('{"code":"not_live","error":"Live view needs an rtsp:// camera."}', { status: 409, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await assert.rejects(videoSources.live(4), error => {
+      assert.equal(error.status, 409);
+      assert.equal(error.serverCode, 'not_live');
+      assert.equal(liveErrorText(error), 'Live view needs an rtsp:// camera.');
+      return true;
+    });
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage); else delete globalThis.localStorage;
+  }
+  assert.equal(asked.url, '/api/training-data/app/workspace/video-sources/4/live/');
+  assert.equal(asked.init.method, 'GET');
+  assert.equal(asked.init.headers['X-Workspace-ID'], '7');
 });

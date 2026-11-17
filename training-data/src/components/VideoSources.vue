@@ -1,0 +1,693 @@
+<script setup>
+// The Cloud Streaming tab's saved cameras (CLOUD_STREAMING_PLAN.md 3.1, 3.2 item 2 and section 7): the "Video sources"
+// card (chips by state, list or grid, a row opens the source's details), the Summary and Connectors cards beside it,
+// and the "Add video source" dialog (Camera URL works; a connector, Verkada and RTMP are said to be coming). From a
+// source's details: watch it live (LiveView.vue), check it, start a stream on it (the tab's own dialog, through the
+// `start` event), edit or remove it, and open its streams. Public cameras AADML publishes are read-only.
+// Backend: streaming_api.py workspace/video-sources/ (list, add), <id>/ (one, change, remove), <id>/check/,
+// <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
+import { computed, nextTick, onUnmounted, ref } from 'vue';
+import {
+  Activity, ArrowRight, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
+  LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
+} from 'lucide-vue-next';
+import LiveView from './LiveView.vue';
+import UiButton from './UiButton.vue';
+import UiBadge from './UiBadge.vue';
+import UiDialog from './UiDialog.vue';
+import { modelName, timeAgo } from '../api/workspace.js';
+import {
+  videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
+  sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
+  thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
+} from '../api/streaming.js';
+
+const props = defineProps({
+  // The projects a stream may be started in (the streams list's options), offered as a source's default project.
+  projects: { type: Array, default: () => [] },
+  mayStart: { type: Boolean, default: true },
+  startWhy: { type: String, default: '' },
+});
+const emit = defineEmits(['start', 'loaded', 'changed', 'open-stream']);
+
+// ── the list ─────────────────────────────────────────────────────────────────────────────────────
+const page = ref(null); const error = ref(''); const loading = ref(false);
+const said = ref(''); const announce = ref('');
+const sources = computed(() => page.value?.sources || []);
+const limits = computed(() => page.value?.limits || {});
+const may = computed(() => page.value?.may || {});
+// The list says whether a source may be added (may.add); each source says what may be done to it (may.check,
+// may.change, may.remove, may.stream), so a person who sees sources but may not change them gets no buttons that would
+// be refused. A public camera says false to all but stream.
+const mayManage = computed(() => may.value.add !== false && may.value.manage !== false);
+const mayDo = (s, what) => !s?.may || s.may[what] !== false;
+const filter = ref(''); const view = ref('list'); const helpOpen = ref(''); // '' | 'sources' | 'connectors'
+const counts = computed(() => sourceCounts(sources.value));
+const visible = computed(() => filterSources(sources.value, { state: filter.value }));
+// The limit counts the workspace's own sources; public cameras are not its own.
+const ownCount = computed(() => sources.value.filter(s => !isPublic(s)).length);
+const atLimit = computed(() => !!limits.value.sources && ownCount.value >= Number(limits.value.sources));
+const addWhy = computed(() => {
+  if (!mayManage.value) return may.value.reason || 'You need the Manage right in this workspace to add a video source.';
+  if (atLimit.value) return `This workspace has ${limitText(ownCount.value, limits.value.sources)}. Remove one to add another.`;
+  return '';
+});
+const ready = computed(() => !!page.value);
+const ICONS = { sources: Cctv, online: Wifi, streams: Activity, attention: TriangleAlert, frames: Film, spend: Wallet };
+const summary = computed(() => summaryItems(page.value?.summary, page.value?.limits).map(item => ({ ...item, icon: ICONS[item.key] })));
+const broken = ref(new Set());
+let gone = false; let timer = null;
+
+async function load() {
+  if (loading.value) return;
+  loading.value = true;
+  try {
+    const body = await videoSources.list();
+    page.value = body; error.value = ''; broken.value = new Set();
+    emit('loaded', body);
+  } catch (e) { error.value = e.message; }
+  finally { loading.value = false; schedule(); }
+}
+// States and thumbnails change on their own (a camera goes offline; a thumbnail link lasts 15 minutes): read the list
+// again every minute while the tab is open.
+function schedule() {
+  clearTimeout(timer); timer = null;
+  if (!gone) timer = setTimeout(load, 60000);
+}
+load();
+
+function tell(text) { said.value = text; announce.value = text; }
+const thumb = source => (broken.value.has(source.id) ? '' : thumbnailOf(source));
+function thumbFailed(source) { broken.value = new Set([...broken.value, source.id]); }
+const chipLabel = f => `${f.label} · ${counts.value[f.value] ?? 0}`;
+const toggleHelp = which => { helpOpen.value = helpOpen.value === which ? '' : which; };
+
+// ── one source's details ─────────────────────────────────────────────────────────────────────────
+const detailId = ref(null); const detailFull = ref(null); const detailError = ref('');
+// The row of the list (kept fresh by its reads), with what the source's own read adds (its streams, the consent).
+const detail = computed(() => {
+  if (detailId.value === null) return null;
+  const row = sources.value.find(s => s.id === detailId.value) || (detailFull.value?.id === detailId.value ? detailFull.value : null);
+  return row ? { ...(detailFull.value?.id === detailId.value ? detailFull.value : {}), ...row } : null;
+});
+const detailStreams = computed(() => (Array.isArray(detailFull.value?.streams) ? detailFull.value.streams : []));
+async function openDetail(source) {
+  detailId.value = source.id; detailFull.value = null; detailError.value = '';
+  try {
+    const body = await videoSources.get(source.id);
+    const full = body?.source || body;
+    if (detailId.value === source.id && full) detailFull.value = { ...full, id: full.id ?? source.id, streams: full.streams ?? body?.streams };
+  } catch (e) { if (detailId.value === source.id) detailError.value = e.message; }
+}
+function closeDetail() { detailId.value = null; detailFull.value = null; }
+// Another dialog takes over from the details.
+function from(fn) { return (source) => { closeDetail(); fn(source); }; }
+const watchFrom = from(s => { watching.value = s; });
+const startFrom = from(s => emit('start', s));
+const editFrom = from(s => openEdit(s));
+const removeFrom = from(s => askRemove(s));
+function openStream(stream) { closeDetail(); emit('open-stream', stream.id); }
+const streamWhen = stream => timeAgo(stream.started_at || stream.created_at);
+
+// ── "Watch live": anyone who sees the source may watch it (LiveView.vue) ─────────────────────────
+const watching = ref(null);
+
+// ── "Check now" ──────────────────────────────────────────────────────────────────────────────────
+const checking = ref(null); const checkError = ref('');
+async function check(source) {
+  if (checking.value) return;
+  checking.value = source.id; checkError.value = '';
+  try {
+    const body = await videoSources.check(source.id);
+    const row = body?.source || null;
+    if (row && page.value) page.value = { ...page.value, sources: page.value.sources.map(s => (s.id === row.id ? { ...s, ...row } : s)) };
+    const now = row || source;
+    tell(body?.said || `${now.name} is ${sourceState(now)[1].toLowerCase()}${now.state_reason ? `: ${now.state_reason}` : '.'}`);
+    load();
+  } catch (e) { checkError.value = e.message; }
+  finally { checking.value = null; }
+}
+
+// ── "Add video source" and "Edit" ────────────────────────────────────────────────────────────────
+const WAYS = [
+  { id: 'connector', name: 'Connect a camera', icon: Webcam },
+  { id: 'url', name: 'Camera URL', icon: Link },
+  { id: 'verkada', name: 'Verkada', icon: Cloud },
+  { id: 'rtmp', name: 'RTMP stream', icon: RadioTower, chip: 'Pilot' },
+];
+const SYSTEMS = ['Windows', 'macOS', 'Linux'];
+const editorOpen = ref(false); const editing = ref(null); const way = ref('url'); const system = ref('Windows');
+const form = ref(sourceForm()); const fieldErrors = ref({}); const formError = ref(''); const saving = ref(false);
+const consentNote = ref(''); const addedSaid = ref('');
+// The projects offered: those a stream may start in, and the source's own default project when it is not one of them.
+const projectChoices = computed(() => {
+  const list = props.projects.map(p => ({ ref: p.ref, name: p.name }));
+  const own = editing.value?.project;
+  if (own?.ref && !list.some(p => p.ref === own.ref)) list.push({ ref: own.ref, name: own.name || own.ref });
+  return list;
+});
+const shownNow = computed(() => addressShown(form.value.address));
+
+function openAdd() {
+  if (addWhy.value || !page.value) return;
+  editing.value = null; way.value = 'url'; form.value = sourceForm();
+  fieldErrors.value = {}; formError.value = ''; consentNote.value = ''; addedSaid.value = ''; said.value = '';
+  editorOpen.value = true;
+}
+function consentLine(source) {
+  if (!source?.consent_at) return '';
+  const who = typeof source.consent_by === 'string' ? source.consent_by : source.consent_by?.name || source.consent_by?.email || '';
+  const when = new Date(source.consent_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${who ? `${who} confirmed` : 'Confirmed'} on ${when} that this camera may be connected.`;
+}
+async function openEdit(source) {
+  editing.value = source; way.value = 'url'; form.value = sourceForm(source);
+  fieldErrors.value = {}; formError.value = ''; consentNote.value = consentLine(source); addedSaid.value = ''; said.value = '';
+  editorOpen.value = true;
+  try {
+    const body = await videoSources.get(source.id);
+    const full = body?.source || body;
+    if (!editorOpen.value || editing.value?.id !== source.id || !full) return;
+    editing.value = { ...source, ...full };
+    consentNote.value = consentLine(editing.value);
+    // The values the person has not touched yet follow the server's.
+    const was = sourceForm(source); const now = sourceForm(editing.value);
+    for (const key of ['name', 'username', 'project']) if (form.value[key] === was[key]) form.value[key] = now[key];
+  } catch { /* the row's own values are enough to edit */ }
+}
+function closeEditor() { if (!saving.value) editorOpen.value = false; }
+function checkField(name) {
+  const problems = sourceFormProblems(form.value, { editing: !!editing.value });
+  fieldErrors.value = { ...fieldErrors.value, [name]: problems[name] || '' };
+}
+const FIELDS = ['name', 'address', 'username', 'password', 'project', 'consent'];
+async function save() {
+  formError.value = ''; addedSaid.value = '';
+  const isEdit = !!editing.value;
+  const problems = sourceFormProblems(form.value, { editing: isEdit });
+  fieldErrors.value = problems;
+  const first = FIELDS.find(f => problems[f]);
+  if (first) { await nextTick(); document.getElementById(`vs-${first}`)?.focus(); return; }
+  if (saving.value) return;
+  const body = sourceBody(form.value, { editing: isEdit, original: editing.value });
+  if (isEdit && !Object.keys(body).length) { editorOpen.value = false; tell('Nothing changed.'); return; }
+  saving.value = true;
+  try {
+    const answer = isEdit ? await videoSources.update(editing.value.id, body) : await videoSources.add(body);
+    const name = answer?.source?.name || body.name || editing.value?.name || 'The source';
+    if (isEdit) {
+      tell(answer?.said || `${name} is saved.`);
+      editorOpen.value = false;
+    } else {
+      // The dialog stays open for another camera; Done closes it.
+      addedSaid.value = answer?.said || `${name} is added. Open it in the list and press Check now to see a frame from it.`;
+      tell(addedSaid.value);
+      form.value = sourceForm(); fieldErrors.value = {};
+    }
+    load(); emit('changed');
+  } catch (e) {
+    if (e.field && FIELDS.includes(e.field)) fieldErrors.value = { ...fieldErrors.value, [e.field]: e.message };
+    else formError.value = e.message;
+    if (e.code === 'timeout' || e.code === 'network') load();
+  } finally { saving.value = false; }
+}
+function tabKeys(event, index, list, pick, prefix) {
+  const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: list.length - 1 };
+  if (!(event.key in keys)) return;
+  event.preventDefault();
+  const next = list[(keys[event.key] + list.length) % list.length];
+  pick(next);
+  document.getElementById(`${prefix}-${String(next.id ?? next).toLowerCase()}`)?.focus();
+}
+
+// ── "Remove", always confirmed first ──────────────────────────────────────────────────────────────
+const removing = ref(null); const removeBusy = ref(false); const removeError = ref('');
+function askRemove(source) { removing.value = source; removeError.value = ''; }
+async function confirmRemove() {
+  if (!removing.value || removeBusy.value) return;
+  removeBusy.value = true;
+  try {
+    const answer = await videoSources.remove(removing.value.id);
+    tell(answer?.said || `${removing.value.name} is removed. Its past streams and their results are kept.`);
+    if (watching.value?.id === removing.value.id) watching.value = null;
+    removing.value = null;
+    load(); emit('changed');
+  } catch (e) {
+    removeError.value = e.message;
+    if (e.code === 'timeout' || e.code === 'network') load();
+  } finally { removeBusy.value = false; }
+}
+
+defineExpose({ load, openAdd, addWhy, ready });
+onUnmounted(() => { gone = true; clearTimeout(timer); });
+</script>
+
+<template>
+  <div class="vs-layout">
+    <!-- Video sources -->
+    <section class="vs-card" aria-labelledby="vs-heading" :aria-busy="loading">
+      <header class="vs-bar">
+        <div class="vs-title">
+          <h3 id="vs-heading">Video sources</h3>
+          <button type="button" class="vs-help-btn" aria-label="About video sources" :aria-expanded="helpOpen==='sources'" aria-controls="vs-help-sources" @click="toggleHelp('sources')"><CircleQuestionMark :size="15" aria-hidden="true"/></button>
+        </div>
+        <div class="vs-tools">
+          <div v-if="page" class="vs-chips" role="group" aria-label="Show sources">
+            <button v-for="f in SOURCE_FILTERS" :key="f.value" type="button" class="vs-chip" :aria-pressed="filter===f.value" :aria-label="`${f.label}, ${counts[f.value] ?? 0}`" @click="filter=f.value">{{ chipLabel(f) }}</button>
+          </div>
+          <div class="vs-views" role="group" aria-label="Show video sources as">
+            <button type="button" :aria-pressed="view==='list'" aria-label="List" title="List" @click="view='list'"><List :size="16" aria-hidden="true"/></button>
+            <button type="button" :aria-pressed="view==='grid'" aria-label="Grid" title="Grid" @click="view='grid'"><LayoutGrid :size="16" aria-hidden="true"/></button>
+            <button type="button" aria-label="Refresh video sources" title="Refresh" :disabled="loading" @click="load"><RefreshCw :size="15" :class="{ spin: loading }" aria-hidden="true"/></button>
+          </div>
+        </div>
+      </header>
+      <p v-if="helpOpen==='sources'" id="vs-help-sources" class="vs-helptext">A video source is a camera saved in this workspace: AADML connects to it only while you check it, watch it or run a stream on it. Public cameras are ones AADML shares with every workspace to try; they cannot be changed.<template v-if="page && limits.sources"> This workspace has {{ limitText(ownCount, limits.sources) }}.</template></p>
+
+      <div v-if="said" class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ said }}</span></div>
+      <p v-if="page && addWhy" class="vs-why">{{ addWhy }}</p>
+      <div v-if="error" class="vs-error" role="alert">
+        <span>{{ error }}</span>
+        <UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
+      </div>
+
+      <p v-if="!page && !error" class="vs-muted">Loading video sources…</p>
+      <div v-else-if="page && !sources.length" class="vs-empty">
+        <span class="vs-empty-icon"><Cctv :size="22" aria-hidden="true"/></span>
+        <h4>No video source yet</h4>
+        <p>Save a camera by its address once, then watch it or start a stream on it whenever you need its frames answered.</p>
+        <UiButton v-if="!addWhy" variant="primary" @click="openAdd">Add video source</UiButton>
+      </div>
+      <div v-else-if="page && !visible.length" class="vs-empty" role="status">
+        <h4>No source here</h4>
+        <p><button type="button" class="vs-link" @click="filter=''">Show all sources</button></p>
+      </div>
+
+      <!-- The list -->
+      <div v-else-if="page && view==='list'" class="vs-table-wrap">
+        <table class="vs-table">
+          <thead><tr><th scope="col">Source</th><th scope="col">Workflows</th><th scope="col">Status</th><th scope="col"><span class="vs-sr">Details</span></th></tr></thead>
+          <tbody>
+            <tr v-for="s in visible" :key="s.id">
+              <td>
+                <span class="vs-name">
+                  <span class="vs-thumb small">
+                    <img v-if="thumb(s)" :src="thumb(s)" alt="" loading="lazy" referrerpolicy="no-referrer" @error="thumbFailed(s)">
+                    <Cctv v-else :size="16" aria-hidden="true"/>
+                  </span>
+                  <span><strong>{{ s.name }}</strong><small>{{ sourceLine(s) }}</small></span>
+                </span>
+              </td>
+              <td class="vs-flows">{{ runningText(s) }}</td>
+              <td>
+                <span class="vs-badges">
+                  <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
+                  <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+                </span>
+                <small class="vs-when">{{ lastFrameText(s) }}</small>
+              </td>
+              <td class="vs-go"><button type="button" class="vs-open" :aria-label="`Open ${s.name}`" @click="openDetail(s)"><ArrowRight :size="16" aria-hidden="true"/></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- The grid -->
+      <ul v-else-if="page" class="vs-grid">
+        <li v-for="s in visible" :key="s.id" class="vs-tile">
+          <div class="vs-thumb">
+            <img v-if="thumb(s)" :src="thumb(s)" :alt="`Newest frame from ${s.name}`" loading="lazy" referrerpolicy="no-referrer" @error="thumbFailed(s)">
+            <span v-else class="vs-thumb-none"><ImageOff :size="22" aria-hidden="true"/><small>No frame yet</small></span>
+            <span class="vs-tile-badges">
+              <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
+              <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+            </span>
+          </div>
+          <div class="vs-tile-body">
+            <div>
+              <h4>{{ s.name }}</h4>
+              <p>{{ sourceLine(s) }}</p>
+              <p class="vs-when">{{ lastFrameText(s) }} · {{ runningText(s) === '—' ? 'no stream running' : runningText(s) }}</p>
+            </div>
+            <button type="button" class="vs-open" :aria-label="`Open ${s.name}`" @click="openDetail(s)"><ArrowRight :size="16" aria-hidden="true"/></button>
+          </div>
+        </li>
+      </ul>
+      <p class="vs-sr" aria-live="polite">{{ announce }}</p>
+    </section>
+
+    <aside class="vs-side">
+      <section class="vs-card vs-panel" aria-labelledby="vs-summary-h">
+        <header class="vs-bar"><h3 id="vs-summary-h">Summary</h3></header>
+        <dl class="vs-summary">
+          <div v-for="item in summary" :key="item.key" :title="page ? item.hint : undefined">
+            <dt><component :is="item.icon" :size="15" aria-hidden="true"/>{{ item.label }}</dt>
+            <dd>{{ page ? item.value : '–' }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="vs-card vs-panel" aria-labelledby="vs-connectors-h">
+        <header class="vs-bar">
+          <div class="vs-title">
+            <h3 id="vs-connectors-h">Connectors</h3>
+            <button type="button" class="vs-help-btn" aria-label="About connectors" :aria-expanded="helpOpen==='connectors'" aria-controls="vs-help-connectors" @click="toggleHelp('connectors')"><CircleQuestionMark :size="15" aria-hidden="true"/></button>
+          </div>
+        </header>
+        <p v-if="helpOpen==='connectors'" id="vs-help-connectors" class="vs-helptext">A connector is a small program on a computer in your own network. It reaches out to AADML, so cameras that are not on the internet can be used without opening a port on your router.</p>
+        <div class="vs-empty vs-empty-plain">
+          <span class="vs-empty-icon"><Plug :size="20" aria-hidden="true"/></span>
+          <h4>No connectors yet</h4>
+          <p>Connect cameras on your own network through AADML's connector. Coming soon.</p>
+        </div>
+      </section>
+    </aside>
+
+    <!-- One source's details -->
+    <UiDialog class="vs-dialog" :open="!!detail" :title="detail ? detail.name : 'Video source'" @close="closeDetail">
+      <template v-if="detail">
+        <div class="vs-detail-top">
+          <div class="vs-thumb vs-detail-thumb">
+            <img v-if="thumb(detail)" :src="thumb(detail)" :alt="`Newest frame from ${detail.name}`" referrerpolicy="no-referrer" @error="thumbFailed(detail)">
+            <span v-else class="vs-thumb-none"><ImageOff :size="22" aria-hidden="true"/><small>No frame yet</small></span>
+          </div>
+          <dl class="vs-facts">
+            <div><dt>Status</dt><dd><span class="vs-badges"><UiBadge :tone="sourceState(detail)[0]">{{ sourceState(detail)[1] }}</UiBadge><UiBadge v-if="isPublic(detail)" tone="purple">Public</UiBadge></span></dd></div>
+            <div v-if="detail.state_reason"><dt>Why</dt><dd class="vs-reason">{{ detail.state_reason }}</dd></div>
+            <div><dt>Kind</dt><dd>{{ sourceKindLabel(detail) }}</dd></div>
+            <div v-if="!isPublic(detail) && sourceShown(detail)"><dt>Address</dt><dd><code class="vs-address">{{ sourceShown(detail) }}</code></dd></div>
+            <div><dt>Last frame</dt><dd>{{ lastFrameText(detail) }}</dd></div>
+            <div v-if="detail.project?.name"><dt>Default project</dt><dd>{{ detail.project.name }}</dd></div>
+            <div><dt>Workflows</dt><dd>{{ runningText(detail) }}</dd></div>
+          </dl>
+        </div>
+        <p v-if="isPublic(detail)" class="vs-help">AADML shares this camera with every workspace to try. You can watch it and run streams on it; it cannot be changed.</p>
+        <p v-else-if="consentLine(detail)" class="vs-help">{{ consentLine(detail) }}</p>
+
+        <div class="vs-acts">
+          <UiButton v-if="canWatch(detail)" @click="watchFrom(detail)"><Tv :size="14" aria-hidden="true"/> Watch live</UiButton>
+          <UiButton v-if="mayDo(detail,'check')" :disabled="checking===detail.id" @click="check(detail)"><LoaderCircle v-if="checking===detail.id" class="spin" :size="14" aria-hidden="true"/><RefreshCw v-else :size="14" aria-hidden="true"/> Check now</UiButton>
+          <UiButton v-if="mayDo(detail,'stream')" :disabled="!mayStart" :title="mayStart ? undefined : startWhy" @click="startFrom(detail)"><Play :size="14" aria-hidden="true"/> Start stream</UiButton>
+          <UiButton v-if="mayDo(detail,'change')" @click="editFrom(detail)"><Pencil :size="14" aria-hidden="true"/> Edit</UiButton>
+          <UiButton v-if="mayDo(detail,'remove')" class="vs-danger" @click="removeFrom(detail)"><Trash2 :size="14" aria-hidden="true"/> Remove</UiButton>
+        </div>
+        <p v-if="checkError" class="field-error" role="alert">{{ checkError }}</p>
+        <p v-if="!mayStart && startWhy && mayDo(detail,'stream')" class="vs-why">{{ startWhy }}</p>
+
+        <h4 class="vs-sub">Streams on this camera</h4>
+        <p v-if="detailError" class="field-error" role="alert">{{ detailError }}</p>
+        <p v-else-if="!detailFull" class="vs-muted">Loading its streams…</p>
+        <p v-else-if="!detailStreams.length" class="vs-muted">No stream has run on this camera yet.</p>
+        <ul v-else class="vs-streams">
+          <li v-for="st in detailStreams" :key="st.id">
+            <span><strong>{{ st.model ? modelName(st.model) : 'Stream' }}</strong><small>{{ [st.project?.name, streamWhen(st)].filter(Boolean).join(', ') }}</small></span>
+            <UiBadge :tone="streamState(st)[0]">{{ streamState(st)[1] }}</UiBadge>
+            <UiButton class="small" :aria-label="`Open the stream${st.model ? ` of ${modelName(st.model)}` : ''}`" @click="openStream(st)">Open</UiButton>
+          </li>
+        </ul>
+        <div class="dialog-actions"><UiButton variant="primary" @click="closeDetail">Close</UiButton></div>
+      </template>
+    </UiDialog>
+
+    <!-- "Add video source" and "Edit" -->
+    <UiDialog class="vs-dialog" :open="editorOpen" :title="editing ? `Edit ${editing.name}` : 'Add video source'" @close="closeEditor">
+      <div v-if="!editing" class="vs-ways" role="tablist" aria-label="How the video reaches AADML">
+        <button v-for="(w, i) in WAYS" :id="`vs-way-${w.id}`" :key="w.id" type="button" role="tab" :aria-selected="way===w.id" aria-controls="vs-way-panel"
+                :tabindex="way===w.id ? 0 : -1" :class="{ on: way===w.id }" @click="way=w.id" @keydown="tabKeys($event, i, WAYS, n => { way = n.id; }, 'vs-way')">
+          <component :is="w.icon" :size="15" aria-hidden="true"/>{{ w.name }}<span v-if="w.chip" class="vs-pilot">{{ w.chip }}</span>
+        </button>
+      </div>
+
+      <div id="vs-way-panel" class="vs-way-panel" :role="editing ? undefined : 'tabpanel'" :aria-labelledby="editing ? undefined : `vs-way-${way}`">
+        <!-- Connect a camera: the connector is not released yet; nothing here pretends it is. -->
+        <div v-if="!editing && way==='connector'">
+          <ol class="vs-steps">
+            <li>
+              <span class="vs-step-n" aria-hidden="true">1</span>
+              <div class="vs-step-body">
+                <h4>Run the connector <UiBadge>Coming soon</UiBadge></h4>
+                <p>On a computer in the same network as your cameras. It only reaches out to AADML, so no port is opened on your router, and it will find the cameras near it for you to pick.</p>
+                <div class="vs-os" role="tablist" aria-label="Computer">
+                  <button v-for="(os, i) in SYSTEMS" :id="`vs-os-${os.toLowerCase()}`" :key="os" type="button" role="tab" :aria-selected="system===os" aria-controls="vs-os-panel"
+                          :tabindex="system===os ? 0 : -1" :class="{ on: system===os }" @click="system=os" @keydown="tabKeys($event, i, SYSTEMS, n => { system = n; }, 'vs-os')">{{ os }}</button>
+                </div>
+                <div id="vs-os-panel" class="vs-code" role="tabpanel" :aria-labelledby="`vs-os-${system.toLowerCase()}`">
+                  AADML's connector for {{ system }} is not released yet. Its install command will be shown here when it is.
+                </div>
+                <UiButton disabled><Copy :size="14" aria-hidden="true"/> Copy command</UiButton>
+                <p class="vs-help">Until then, a camera with an address reachable from the internet can be added under Camera URL.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <!-- Verkada: the form it will have, switched off -->
+        <div v-else-if="!editing && way==='verkada'">
+          <p class="dialog-description">Add the cameras of a Verkada organisation, with no connector to install. <UiBadge>Coming soon</UiBadge></p>
+          <p class="vs-help">In Verkada Command, an organisation admin creates an API key that may use the Streaming API. The organisation ID is the ID of that organisation.</p>
+          <fieldset class="vs-off" disabled>
+            <legend class="vs-sr">Verkada connection, not available yet</legend>
+            <div class="vs-row">
+              <div class="vs-field"><label for="vs-vk-name">Connection name</label><input id="vs-vk-name" class="text-input" type="text" placeholder="Head office"></div>
+              <div class="vs-field"><label for="vs-vk-region">Region</label><select id="vs-vk-region" class="text-input"><option>Choose a region</option></select></div>
+            </div>
+            <div class="vs-field"><label for="vs-vk-org">Organisation ID</label><input id="vs-vk-org" class="text-input" type="text"></div>
+            <div class="vs-field"><label for="vs-vk-key">API key</label><input id="vs-vk-key" class="text-input" type="password" aria-describedby="vs-vk-key-help"><p id="vs-vk-key-help" class="vs-help">It will be stored encrypted and never shown again.</p></div>
+            <UiButton variant="primary" class="vs-inline-submit" disabled>Connect Verkada</UiButton>
+          </fieldset>
+        </div>
+
+        <!-- RTMP stream -->
+        <div v-else-if="!editing && way==='rtmp'" class="vs-coming">
+          <h4>RTMP stream <UiBadge>Coming soon</UiBadge></h4>
+          <p>Your camera or encoder (OBS, a drone, a video recorder) will send its video to a private address AADML gives you, over an encrypted RTMPS connection, with a secret key shown once. Plain RTMP without encryption will not be accepted.</p>
+        </div>
+
+        <!-- Camera URL (and Edit) -->
+        <form v-else class="vs-form" novalidate @submit.prevent="save">
+          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <div v-if="addedSaid" class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
+
+          <div class="vs-field">
+            <label for="vs-name">Name</label>
+            <input id="vs-name" v-model="form.name" class="text-input" type="text" autocomplete="off" :maxlength="SOURCE_NAME_LIMIT + 20" placeholder="Front gate"
+                   :aria-invalid="!!fieldErrors.name" aria-describedby="vs-name-error" @blur="checkField('name')">
+            <p id="vs-name-error" class="field-error" aria-live="polite">{{ fieldErrors.name }}</p>
+          </div>
+
+          <div class="vs-field">
+            <label for="vs-address">Camera or stream URL</label>
+            <p id="vs-address-help" class="vs-help vs-help-top">rtsp://, rtsps:// or an HLS playlist (https://…/live.m3u8). Only its scheme and server are shown afterwards<template v-if="shownNow">: {{ shownNow }}</template>.</p>
+            <input id="vs-address" v-model="form.address" class="text-input" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                   :placeholder="editing ? `Leave blank to keep ${addressShown(editing.shown_address || editing.address_shown || editing.address || '') || 'the saved address'}` : 'rtsps://camera.example.com:322/stream1'"
+                   :aria-invalid="!!fieldErrors.address" aria-describedby="vs-address-help vs-address-error"
+                   @blur="checkField('address')" @input="fieldErrors.address && checkField('address')">
+            <p id="vs-address-error" class="field-error" aria-live="polite">{{ fieldErrors.address }}</p>
+          </div>
+
+          <div class="vs-row">
+            <div class="vs-field">
+              <label for="vs-username">Username <span class="vs-optional">(optional)</span></label>
+              <input id="vs-username" v-model="form.username" class="text-input" type="text" autocomplete="off" spellcheck="false" :maxlength="CREDENTIAL_LIMIT"
+                     :aria-invalid="!!fieldErrors.username" aria-describedby="vs-username-error">
+              <p id="vs-username-error" class="field-error" aria-live="polite">{{ fieldErrors.username }}</p>
+            </div>
+            <div class="vs-field">
+              <label for="vs-password">Password <span class="vs-optional">(optional)</span></label>
+              <input id="vs-password" v-model="form.password" class="text-input" type="password" autocomplete="new-password" :maxlength="CREDENTIAL_LIMIT"
+                     :placeholder="editing ? 'Leave blank to keep the saved one' : ''" :aria-invalid="!!fieldErrors.password" aria-describedby="vs-password-help vs-password-error">
+              <p id="vs-password-error" class="field-error" aria-live="polite">{{ fieldErrors.password }}</p>
+            </div>
+          </div>
+
+          <div class="vs-field">
+            <label for="vs-project">Default project <span class="vs-optional">(optional)</span></label>
+            <select id="vs-project" v-model="form.project" class="text-input" :aria-invalid="!!fieldErrors.project" aria-describedby="vs-project-help vs-project-error">
+              <option value="">No default project</option>
+              <option v-for="p in projectChoices" :key="p.ref" :value="p.ref">{{ p.name }}</option>
+            </select>
+            <p id="vs-project-help" class="vs-help">Picked first when you start a stream on this camera.</p>
+            <p id="vs-project-error" class="field-error" aria-live="polite">{{ fieldErrors.project }}</p>
+          </div>
+
+          <div v-if="!editing" class="vs-field">
+            <label class="vs-consent" :class="{ invalid: !!fieldErrors.consent }">
+              <input id="vs-consent" v-model="form.consent" type="checkbox" required :aria-invalid="!!fieldErrors.consent" aria-describedby="vs-consent-error" @change="checkField('consent')">
+              <span>{{ page?.consent_text || CONSENT_TEXT }}</span>
+            </label>
+            <p id="vs-consent-error" class="field-error" aria-live="polite">{{ fieldErrors.consent }}</p>
+          </div>
+          <p v-else-if="consentNote" class="vs-help">{{ consentNote }}</p>
+
+          <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
+          <UiButton type="submit" variant="primary" class="vs-inline-submit" :disabled="saving">
+            <LoaderCircle v-if="saving" class="spin" :size="15" aria-hidden="true"/> {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Add camera' }}
+          </UiButton>
+          <p id="vs-password-help" class="vs-help vs-lock"><Lock :size="13" aria-hidden="true"/> AADML stores the password encrypted and never shows it again.<template v-if="editing"> A blank password keeps the saved one.</template></p>
+        </form>
+      </div>
+
+      <div class="dialog-actions vs-foot">
+        <UiButton :disabled="saving" @click="closeEditor">Cancel</UiButton>
+        <UiButton v-if="!editing" variant="primary" :disabled="saving" @click="closeEditor">Done</UiButton>
+      </div>
+    </UiDialog>
+
+    <UiDialog :open="!!removing" :title="removing ? `Remove ${removing.name}?` : 'Remove source?'" @close="removing=null">
+      <template v-if="removing">
+        <p class="dialog-description">Any stream running on this camera stops, and its address and password are deleted. Past streams and their results are kept.</p>
+        <p v-if="removeError" class="field-error" role="alert">{{ removeError }}</p>
+        <div class="dialog-actions">
+          <UiButton @click="removing=null">Keep it</UiButton>
+          <UiButton variant="primary" class="danger" :disabled="removeBusy" @click="confirmRemove"><Trash2 :size="14" aria-hidden="true"/> {{ removeBusy ? 'Removing…' : 'Remove source' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
+    <LiveView :source="watching" @close="watching = null"/>
+  </div>
+</template>
+
+<style scoped>
+.vs-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start;margin:0 0 8px}
+.vs-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.vs-card{position:relative;min-width:0;border:1px solid #e3e8ef;border-radius:12px;background:#fff}
+.vs-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #eef1f5}
+.vs-bar h3{margin:0;font-size:15px;font-weight:600;color:#17243b}
+.vs-title{display:flex;align-items:center;gap:4px}
+.vs-help-btn{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:none;color:#64748b}
+.vs-help-btn:hover,.vs-help-btn[aria-expanded="true"]{background:#f1f4f8;color:var(--aadml-primary)}
+.vs-helptext{margin:0!important;padding:10px 16px;border-bottom:1px solid #eef1f5;background:#f8fafc;font-size:12px!important;line-height:1.6!important;color:#33415a!important}
+.vs-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vs-chips{display:flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:8px;background:#f4f6f9}
+.vs-chip{min-height:36px;padding:4px 10px;border:1px solid transparent;border-radius:6px;background:none;color:#52627a;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.vs-chip[aria-pressed="true"]{border-color:#dbe2ec;background:#fff;color:#17243b;font-weight:600;box-shadow:0 1px 2px #1d2a4214}
+.vs-views{display:flex;gap:2px;padding:3px;border-radius:8px;background:#f4f6f9}
+.vs-views button{display:grid;place-items:center;width:36px;height:36px;border:1px solid transparent;border-radius:6px;background:none;color:#64748b}
+.vs-views button[aria-pressed="true"]{border-color:#dbe2ec;background:#fff;color:var(--aadml-primary)}
+.vs-notice{margin:12px 16px 0!important}
+.vs-why{margin:10px 16px 0!important;font-size:12px!important;line-height:1.5!important;color:#6f4500!important}
+.vs-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 16px 0;padding:10px 14px;border:1px solid #efc5ce;border-radius:10px;background:#fff5f6;color:#ad3449;font-size:13px}
+.vs-muted{padding:16px;font-size:12px!important;color:#5f6d82!important}
+.vs-empty{text-align:center;padding:26px 20px}
+.vs-empty-icon{display:grid;place-items:center;width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:#f1f4f8;color:#4c5d74}
+.vs-empty h4{margin:0 0 6px;font-size:14px;color:#17243b}
+.vs-empty p{margin:0 auto 14px;max-width:440px;font-size:12px;line-height:1.6}
+.vs-empty-plain p{margin-bottom:0}
+.vs-link{border:0;background:none;padding:0;color:var(--aadml-primary);text-decoration:underline;font:inherit;cursor:pointer;min-height:44px}
+/* relative: the hidden "Details" heading is absolutely placed, and must not widen the page past this scroll box */
+.vs-table-wrap{position:relative;overflow-x:auto}
+.vs-table{width:100%;min-width:560px;border-collapse:collapse;font-size:13px}
+.vs-table td:first-child{min-width:240px}
+.vs-table th{padding:10px 16px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#64748b;border-bottom:1px solid #eef1f5}
+.vs-table td{padding:12px 16px;vertical-align:middle;border-bottom:1px solid #f0f2f6;color:#22304a}
+.vs-table tr:last-child td{border-bottom:0}
+.vs-name{display:flex;align-items:center;gap:12px;min-width:0}
+.vs-name strong{display:block;color:#162139;overflow-wrap:anywhere}
+.vs-name small{display:block;margin-top:2px;font-size:12px;color:#64748b;overflow-wrap:anywhere}
+.vs-flows{color:#64748b;white-space:nowrap}
+.vs-badges{display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px}
+.vs-when{display:block;margin-top:4px;font-size:11px;color:#64748b}
+.vs-go{width:56px;text-align:right}
+.vs-open{display:inline-grid;place-items:center;width:44px;height:44px;border:0;border-radius:8px;background:none;color:#64748b}
+.vs-open:hover{background:var(--aadml-tint);color:var(--aadml-primary)}
+.vs-address{font-size:12px;color:#33415a;background:#f4f6fa;padding:2px 6px;border-radius:5px;overflow-wrap:anywhere}
+.vs-reason{color:#6f4500!important}
+.vs-thumb{position:relative;display:grid;place-items:center;aspect-ratio:16/9;background:#eef1f6;color:#8491a4;overflow:hidden}
+.vs-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.vs-thumb.small{width:44px;height:44px;aspect-ratio:auto;flex-shrink:0;border-radius:8px}
+.vs-thumb-none{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px}
+.vs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:0;padding:16px;list-style:none}
+.vs-tile{border:1px solid #e3e8ef;border-radius:10px;overflow:hidden;min-width:0}
+.vs-tile-badges{position:absolute;top:8px;left:8px;display:flex;gap:4px}
+.vs-tile-body{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 6px 10px 12px}
+.vs-tile-body > div{min-width:0}
+.vs-tile-body h4{margin:0;font-size:14px;color:#162139;overflow-wrap:anywhere}
+.vs-tile-body p{margin:2px 0 0;font-size:12px;color:#64748b;overflow-wrap:anywhere}
+.vs-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.vs-summary{margin:0;padding:8px 16px 12px}
+.vs-summary > div{display:flex;align-items:baseline;gap:8px;padding:7px 0}
+.vs-summary dt{display:flex;align-items:center;gap:9px;font-size:13px;color:#52627a;white-space:nowrap}
+.vs-summary dt svg{color:#8491a4}
+.vs-summary > div::after{content:"";order:1;flex:1;border-bottom:1px dotted #d6dce6;transform:translateY(-3px)}
+.vs-summary dd{order:2;margin:0;font-size:13px;font-weight:600;color:#17243b;font-variant-numeric:tabular-nums}
+.badge--amber{color:#93610b;background:#fff4dc}
+.spin{animation:vs-spin 1.1s linear infinite}
+@keyframes vs-spin{to{transform:rotate(360deg)}}
+
+/* dialogs */
+.vs-dialog{width:min(720px,calc(100% - 32px))}
+.vs-detail-top{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;margin-top:16px}
+.vs-detail-thumb{border-radius:10px}
+.vs-facts{margin:0;display:grid;gap:8px}
+.vs-facts > div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;font-size:13px}
+.vs-facts dt{color:#64748b}
+.vs-facts dd{margin:0;color:#22304a;overflow-wrap:anywhere}
+.vs-facts .vs-badges{flex-direction:row}
+.vs-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.vs-acts .button{min-height:44px}
+.vs-danger{color:#b42318}
+.vs-sub{margin:20px 0 8px;font-size:14px;color:#17243b}
+.vs-streams{margin:0;padding:0;list-style:none;border:1px solid #eef1f5;border-radius:10px}
+.vs-streams li{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #f0f2f6}
+.vs-streams li:last-child{border-bottom:0}
+.vs-streams li > span:first-child{flex:1;min-width:0}
+.vs-streams strong{display:block;font-size:13px;color:#162139;overflow-wrap:anywhere}
+.vs-streams small{display:block;font-size:11px;color:#64748b}
+.button.small{min-height:44px;padding:6px 12px;font-size:13px}
+.vs-ways{display:flex;gap:2px;margin:18px 0 0;border-bottom:1px solid #e3e8ef;overflow-x:auto}
+.vs-ways button{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:8px 12px;border:0;border-bottom:2px solid transparent;background:none;color:#52627a;font-size:13px;font-weight:550;white-space:nowrap}
+.vs-ways button.on{border-bottom-color:var(--aadml-primary);color:var(--aadml-primary)}
+.vs-ways button:focus-visible,.vs-os button:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:-2px}
+.vs-pilot{padding:1px 6px;border-radius:5px;background:var(--aadml-soft);color:var(--aadml-primary);font-size:11px;font-weight:600}
+.vs-way-panel{min-height:280px;max-height:min(60vh,560px);overflow-y:auto;padding:2px 2px 4px}
+.vs-steps{margin:16px 0 0;padding:0;list-style:none}
+.vs-steps li{display:flex;gap:12px}
+.vs-step-n{display:grid;place-items:center;flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--aadml-soft);color:var(--aadml-primary);font-size:12px;font-weight:600}
+.vs-step-body{flex:1;min-width:0}
+.vs-step-body h4{display:flex;align-items:center;gap:8px;margin:3px 0 6px;font-size:14px;color:#17243b}
+.vs-step-body > p{margin:0 0 12px;font-size:13px;line-height:1.6;color:#33415a}
+.vs-os{display:flex;gap:2px;border-bottom:1px solid #e3e8ef}
+.vs-os button{min-height:40px;padding:6px 12px;border:0;border-bottom:2px solid transparent;background:none;color:#52627a;font-size:13px}
+.vs-os button.on{border-bottom-color:var(--aadml-primary);color:var(--aadml-primary);font-weight:600}
+.vs-code{margin:0 0 12px;padding:14px;border:1px solid #e3e8ef;border-top:0;border-radius:0 0 8px 8px;background:#f8fafc;font-size:13px;line-height:1.6;color:#33415a}
+.vs-coming{margin-top:18px;padding:16px;border-radius:10px;background:#f6f8fb}
+.vs-coming h4{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:14px}
+.vs-coming p{margin:0;font-size:13px;line-height:1.6;color:#33415a}
+.vs-off{margin:0;padding:0;border:0;min-width:0}
+.vs-off .text-input{background:#f4f6f9;color:#8491a4}
+.vs-form{margin:0}
+.vs-field{display:block;margin:16px 0 0;min-width:0}
+.vs-field > label{display:block;font-size:13px;font-weight:600;color:#1d2a42;margin:0 0 6px}
+.vs-optional{font-weight:400;color:#5f6d82}
+.vs-field .text-input{display:block;width:100%;min-height:44px;margin:0;padding:10px 12px;font-size:14px}
+.vs-field .text-input:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.vs-field .text-input[aria-invalid="true"]{border-color:#c0394c}
+.vs-field .field-error{margin:6px 0 0}
+.vs-field .field-error:empty{margin:0}
+.vs-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.vs-help{margin:6px 0 0!important;font-size:12px!important;line-height:1.5!important;color:#5f6d82!important;overflow-wrap:anywhere}
+.vs-help-top{margin:0 0 8px!important}
+.vs-lock{display:flex;align-items:flex-start;gap:6px}
+.vs-lock svg{margin-top:2px}
+.vs-field > label.vs-consent,.vs-consent{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #dce0e8;border-radius:9px;background:#fbfcfe;font-size:13px!important;font-weight:400!important;line-height:1.5;color:#22304a!important;cursor:pointer}
+.vs-consent.invalid{border-color:#c0394c}
+.vs-consent input{width:18px;height:18px;margin-top:1px;flex-shrink:0}
+.vs-consent:focus-within{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.vs-inline-submit{min-height:44px;margin-top:16px}
+.vs-foot{justify-content:space-between;padding-top:16px;border-top:1px solid #eef1f5}
+.dialog-actions .button{min-height:44px}
+.button--primary.danger{background:#b42318;border-color:#b42318}
+.button--primary.danger:hover:not(:disabled){background:#912018;border-color:#912018}
+
+@media(max-width:1000px){.vs-layout{grid-template-columns:minmax(0,1fr)}.vs-side{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}
+@media(max-width:650px){
+  .vs-bar{padding:10px 12px}
+  .vs-tools,.vs-chips{width:100%}
+  .vs-chip{flex:1 1 auto}
+  .vs-row,.vs-detail-top{grid-template-columns:1fr}
+  .vs-facts > div{grid-template-columns:96px minmax(0,1fr)}
+  .vs-acts .button{flex:1 1 auto}
+  .vs-grid{padding:12px}
+}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}}
+</style>

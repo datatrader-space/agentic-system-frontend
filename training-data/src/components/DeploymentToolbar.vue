@@ -13,6 +13,7 @@ defineEmits(['update:query', 'update:status', 'refresh']);
       <label><span class="toolbar-sr">Filter {{ title }} by status</span><select :value="status" @change="$emit('update:status', $event.target.value)"><option value="">All statuses</option><option v-for="state in states" :key="state.value" :value="state.value">{{ state.label }}</option></select></label>
       <UiButton v-if="query || status" @click="$emit('update:query', ''); $emit('update:status', '')"><X :size="14" aria-hidden="true"/> Clear</UiButton>
       <UiButton :disabled="loading" @click="$emit('refresh')"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton>
+      <slot/>
     </div>
   </div>
 </template>

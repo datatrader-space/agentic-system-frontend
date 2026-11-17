@@ -1,7 +1,9 @@
 // The workspace Deployments page's Cloud Streaming tab (backend: training_models_data/streaming_api.py —
-// workspace/streams/, workspace/streams/<id>/, …/stop/, …/results/). A photo model answers the frames of a video: an
-// uploaded file or a stream address. Every rule is the backend's; the checks here only say early what it would say.
+// workspace/streams/, workspace/streams/<id>/, …/stop/, …/results/, and workspace/video-sources/ for the saved cameras,
+// CLOUD_STREAMING_PLAN.md section 7). A photo model answers the frames of a video: an uploaded file, a stream address
+// or a saved video source. Every rule is the backend's; the checks here only say early what it would say.
 import { activeWorkspace, ApiError, apiFetch } from './client.js';
+import { timeAgo, usdText } from './workspace.js';
 
 const APP = '/training-data/app';
 const enc = encodeURIComponent;
@@ -14,8 +16,12 @@ export const POLL_MS = 2000;
 export const streamingApi = {
   list: () => apiFetch(`${APP}/workspace/streams/`, { timeoutMs: SLOW }),
   get: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/`),
-  // An address goes as JSON; a video as multipart, with the same fields.
-  start: ({ project, model, fps, address, file }) => {
+  // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
+  // continuously (until it is stopped, the balance runs out or the camera stops answering).
+  start: ({ project, model, fps, address, file, source, continuous }) => {
+    if (source !== undefined && source !== null && source !== '') {
+      return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { project, model, fps, source, continuous: !!continuous }, timeoutMs: SLOW });
+    }
     if (file) {
       const body = new FormData();
       body.append('project', project); body.append('model', String(model)); body.append('fps', String(fps));
@@ -25,6 +31,28 @@ export const streamingApi = {
     return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { project, model, fps, address }, timeoutMs: SLOW });
   },
   stop: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/stop/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+};
+
+// The workspace's saved cameras. Seeing them needs Overview in the workspace; adding, changing, checking and removing
+// need Manage. The server seals the address and the credentials; an answer carries only the address's scheme and host.
+const SOURCES = `${APP}/workspace/video-sources/`;
+export const videoSources = {
+  list: ({ state = '', q = '' } = {}) => {
+    const query = new URLSearchParams();
+    if (state) query.set('state', state);
+    if (String(q).trim()) query.set('q', String(q).trim());
+    const text = query.toString();
+    return apiFetch(`${SOURCES}${text ? `?${text}` : ''}`, { timeoutMs: SLOW });
+  },
+  add: body => apiFetch(SOURCES, { method: 'POST', body, timeoutMs: SLOW }),
+  get: id => apiFetch(`${SOURCES}${enc(id)}/`),
+  update: (id, body) => apiFetch(`${SOURCES}${enc(id)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
+  // Connects once and takes a frame: it may take as long as the camera does to answer.
+  check: id => apiFetch(`${SOURCES}${enc(id)}/check/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  remove: id => apiFetch(`${SOURCES}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
+  // renew_after}. Anyone who may see the source may watch it.
+  live: id => apiFetch(`${SOURCES}${enc(id)}/live/`, { timeoutMs: SLOW }),
 };
 
 // The results file is read with the workspace header (a plain link would not carry it) and handed to the browser.
@@ -159,15 +187,44 @@ export function capText(cap, fps = 1) {
   return `At ${fps} frame${Number(fps) === 1 ? '' : 's'} a second, a stream reads at most ${time} of video (${cap.frames} frames).`;
 }
 
-const plural = (n, one, many) => (n === 0 ? `no ${many}` : `${n} ${n === 1 ? one : many}`);
+// A frame's answer as the model's own classes: [[name, count], …] in the model's order. `classes` is the answer of any
+// photo model; `counts` is the older FitMyWall-only answer (walls, windows, doors), read the same way.
+export function classesOf(answer) {
+  const found = answer?.classes && typeof answer.classes === 'object' ? answer.classes
+    : answer?.counts && typeof answer.counts === 'object' ? answer.counts : {};
+  return Object.entries(found)
+    .filter(([name, count]) => String(name).trim() && count !== null && count !== '' && Number.isFinite(Number(count)) && Number(count) >= 0)
+    .map(([name, count]) => [String(name).slice(0, 60), Math.floor(Number(count))]);
+}
 
-// One frame's answer read out: "Frame 12 at 0:12: 2 walls, 1 window, no doors."
+// Everything a frame found, all classes together.
+export const totalOf = answer => classesOf(answer).reduce((sum, [, count]) => sum + count, 0);
+
+// The classes a stream has shown so far (its newest frames, then the newest answer), each once, in the order first
+// seen, so a class keeps its place while the counts change; at most `most` of them.
+export function classNames(stream, most = 8) {
+  const names = [];
+  for (const answer of [...(stream?.recent || []), stream?.last]) {
+    for (const [name] of classesOf(answer)) if (!names.includes(name)) names.push(name);
+  }
+  return names.slice(0, most);
+}
+
+// A class's count in one answer; 0 when the answer does not name it.
+export const countOf = (answer, name) => classesOf(answer).find(([n]) => n === name)?.[1] ?? 0;
+
+// "walls 2, windows 1, doors 0"; "nothing found" when the model found nothing.
+export function classesText(answer) {
+  const rows = classesOf(answer);
+  return rows.length ? rows.map(([name, count]) => `${name} ${count}`).join(', ') : 'nothing found';
+}
+
+// One frame's answer read out: "Frame 12 at 0:12: walls 2, windows 1, doors 0."
 export function countsSaid(last) {
   if (!last) return '';
   const where = `Frame ${Number(last.frame) + 1} at ${clockText(last.t)}`;
   if (last.error) return `${where}: no answer. ${last.error}`;
-  const c = last.counts || {};
-  return `${where}: ${plural(c.walls || 0, 'wall', 'walls')}, ${plural(c.windows || 0, 'window', 'windows')}, ${plural(c.doors || 0, 'door', 'doors')}.`;
+  return `${where}: ${classesText(last)}.`;
 }
 
 // Why a stream that ended, ended.
@@ -176,12 +233,228 @@ export function endedText(stream) {
   if (stream.state === 'failed') return stream.error || 'The stream stopped on an error.';
   if (stream.state === 'cancelled') return 'Stopped before the video ended. Its answers so far are kept.';
   if (stream.ended_because === 'cap') return `Reached the cap of ${stream.max_frames} frames.`;
-  return 'The video ended.';
+  return stream.continuous ? 'The stream ended. Its answers are kept.' : 'The video ended.';
 }
 
-// The bars of the newest frames: the walls each found, scaled to the most of them; a frame without an answer is marked.
+// The bars of the newest frames: everything each found, scaled to the most of them; a frame without an answer is marked.
 export function recentBars(recent, height = 32) {
   const rows = recent || [];
-  const most = Math.max(1, ...rows.map(r => r?.counts?.walls || 0));
-  return rows.map(r => ({ frame: r.frame, failed: !!r.error, h: r.error ? height : Math.max(2, Math.round(((r.counts?.walls || 0) / most) * height)) }));
+  const most = Math.max(1, ...rows.map(r => totalOf(r)));
+  return rows.map(r => ({ frame: r.frame, failed: !!r.error, h: r.error ? height : Math.max(2, Math.round((totalOf(r) / most) * height)) }));
+}
+
+// ── video sources ────────────────────────────────────────────────────────────────────────────────
+export const SOURCE_KINDS = { url: 'Camera URL', connector: 'Connected camera', rtmp: 'RTMP stream', verkada: 'Verkada camera' };
+// The chips above the list. "Public" is a camera AADML publishes for every workspace to try (read-only), whatever its
+// state; the others are states. A source that needs attention or was never checked is counted in All only.
+export const SOURCE_FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'online', label: 'Online' },
+  { value: 'offline', label: 'Offline' },
+  { value: 'no_connector', label: 'No connector' },
+  { value: 'public', label: 'Public' },
+];
+// The server's own wording (video_sources.CONSENT) is shown when the page has it: this is only its fallback.
+export const CONSENT_TEXT = 'I own this camera or have permission to connect to it, and the people it films are informed as the law where it is requires.';
+export const SOURCE_NAME_LIMIT = 120;
+export const CREDENTIAL_LIMIT = 256;
+export const SOURCE_SCHEMES_HELP = 'A camera address starts with rtsp:// or rtsps://, or is an HLS playlist: https://…/live.m3u8';
+
+// The state a source is in: online, offline, no_connector (a connector camera whose connector is not running),
+// needs_attention, or new (saved, never checked: never shown as Offline, since nothing is known yet).
+export function sourceStateKey(source) {
+  const state = String(source?.state || '').toLowerCase().replace(/[\s-]+/g, '_');
+  if (state === 'online') return 'online';
+  if (state === 'new') return 'new';
+  if (state === 'no_connector') return 'no_connector';
+  if (state === 'needs_attention' || state === 'attention' || state === 'error') return 'needs_attention';
+  return 'offline';
+}
+
+export function sourceState(source) {
+  switch (sourceStateKey(source)) {
+    case 'online': return ['green', 'Live'];
+    case 'new': return ['neutral', 'Not checked yet'];
+    case 'no_connector': return ['neutral', 'No connector'];
+    case 'needs_attention': return ['amber', 'Needs attention'];
+    default: return ['neutral', 'Offline'];
+  }
+}
+
+// A camera AADML publishes for everyone to try: read-only, shared with every workspace. Only an explicit `true` counts.
+export const isPublic = source => source?.public === true;
+
+// How many sources each chip holds: { '': all, online, offline, no_connector, public } and, for the Summary,
+// needs_attention and new.
+export function sourceCounts(sources) {
+  const counts = { '': 0, online: 0, offline: 0, no_connector: 0, public: 0, needs_attention: 0, new: 0 };
+  for (const source of sources || []) {
+    counts[''] += 1; counts[sourceStateKey(source)] += 1;
+    if (isPublic(source)) counts.public += 1;
+  }
+  return counts;
+}
+
+// What is shown of a source's address: its scheme and host only, whatever the answer carries.
+export function sourceShown(source) {
+  return addressShown(source?.shown_address || source?.address_shown || source?.address || '');
+}
+
+export function filterSources(sources, { state = '', q = '' } = {}) {
+  const words = String(q || '').trim().toLowerCase();
+  return (sources || []).filter(s => (!state || (state === 'public' ? isPublic(s) : sourceStateKey(s) === state))
+    && (!words || [s.name, sourceShown(s), s.project?.name].join(' ').toLowerCase().includes(words)));
+}
+
+// "RTSP camera" or "HLS stream" for a camera address, else the kind's own name.
+export function sourceKindLabel(source) {
+  if (!source?.kind || source.kind === 'url') {
+    const shown = sourceShown(source);
+    if (/^rtsps?:/i.test(shown)) return 'RTSP camera';
+    if (/^https:/i.test(shown)) return 'HLS stream';
+  }
+  return SOURCE_KINDS[source?.kind] || source?.kind_label || 'Camera URL';
+}
+
+// The line under a source's name: "RTSP camera · Public · Shared with you" for a public camera (whose address is not
+// shown), else "RTSP camera · rtsp://door.example.com".
+export function sourceLine(source) {
+  const parts = [sourceKindLabel(source)];
+  if (isPublic(source)) {
+    parts.push('Public');
+    if (source.shared !== false) parts.push('Shared with you');
+  } else if (sourceShown(source)) parts.push(sourceShown(source));
+  return parts.join(' · ');
+}
+
+// The Workflows column until workflows run on sources: the streams running on it, or a dash.
+export function runningText(source) {
+  const n = Number(source?.streams_running ?? source?.active_streams) || 0;
+  return n ? `${n} stream${n === 1 ? '' : 's'} running` : '—';
+}
+
+// A thumbnail link is used only when it is an https address (the API's signed link) or a path of this site.
+export function thumbnailOf(source) {
+  const link = String(source?.thumbnail_url || source?.thumbnail || '');
+  return /^(https:\/\/|\/(?!\/))/i.test(link) ? link : '';
+}
+
+export function lastFrameText(source, now = Date.now()) {
+  return source?.last_frame_at ? `Last frame ${timeAgo(source.last_frame_at, now)}` : 'No frame yet';
+}
+
+// "3 of 10 sources"; "3 sources" when there is no limit.
+export function limitText(used, most, one = 'source', many = 'sources') {
+  const n = Number(used) || 0;
+  if (!most) return `${n} ${n === 1 ? one : many}`;
+  return `${n} of ${most} ${Number(most) === 1 ? one : many}`;
+}
+
+// The Summary card, from the list answer's `summary` and `limits`.
+export function summaryItems(summary, limits) {
+  const s = summary || {}; const l = limits || {};
+  const n = value => Number(value) || 0;
+  return [
+    { key: 'sources', label: 'Video sources', value: n(s.sources), hint: l.sources ? `of ${l.sources} you may save` : 'saved' },
+    { key: 'online', label: 'Online now', value: n(s.online), hint: 'answered their last check' },
+    { key: 'streams', label: 'Active workflows', value: n(s.streams_running), hint: l.streams ? `streams running, of ${l.streams} at once` : 'streams running' },
+    { key: 'attention', label: 'Need attention', value: n(s.need_attention), hint: n(s.need_attention) ? 'check their address or password' : 'none' },
+    { key: 'frames', label: 'Frames processed', value: n(s.frames_answered_month).toLocaleString('en-US'), hint: 'answered this month' },
+    { key: 'spend', label: 'Credits used', value: usdText(n(s.spend_month_usd)) || '$0.00', hint: 'spent this month' },
+  ];
+}
+
+// '' when the address may be saved as a camera, else what is wrong with it: rtsp://, rtsps:// or an HLS playlist.
+export function sourceAddressProblem(raw) {
+  const problem = addressProblem(raw);
+  if (problem === SCHEMES_HELP) return SOURCE_SCHEMES_HELP;
+  if (problem === 'Enter the stream address.') return 'Enter the camera address.';
+  if (problem) return problem;
+  return addressKind(raw) === 'file' ? SOURCE_SCHEMES_HELP : '';
+}
+
+// The empty form, or a source's own values to edit (its address and password are never sent back, so they start blank).
+export function sourceForm(source = null) {
+  const project = source?.project;
+  return {
+    name: source?.name || '', address: '', username: source?.username || '', password: '',
+    project: (project && typeof project === 'object' ? project.ref : project) || '', consent: false,
+  };
+}
+
+// The form's problems by field; an empty object when it may be sent. Editing, a blank address or password keeps the
+// saved one, and the consent was given when the source was added.
+export function sourceFormProblems(form, { editing = false } = {}) {
+  const f = form || {};
+  const problems = {};
+  const name = String(f.name || '').trim();
+  if (!name) problems.name = 'Give the source a name.';
+  else if (name.length > SOURCE_NAME_LIMIT) problems.name = `A name is at most ${SOURCE_NAME_LIMIT} characters.`;
+  const address = String(f.address || '').trim();
+  if (!editing || address) {
+    const problem = sourceAddressProblem(address);
+    if (problem) problems.address = problem;
+  }
+  if (String(f.username || '').length > CREDENTIAL_LIMIT) problems.username = `A user name is at most ${CREDENTIAL_LIMIT} characters.`;
+  if (String(f.password || '').length > CREDENTIAL_LIMIT) problems.password = `A password is at most ${CREDENTIAL_LIMIT} characters.`;
+  if (!editing && f.consent !== true) problems.consent = 'Confirm you own this camera or have permission to connect to it.';
+  return problems;
+}
+
+// What is sent: on add, every field the person filled and the consent; on edit, only what changes (a blank address or
+// password keeps the saved one; `project: null` clears the default project).
+export function sourceBody(form, { editing = false, original = null } = {}) {
+  const f = form || {};
+  const name = String(f.name || '').trim();
+  const address = String(f.address || '').trim();
+  const username = String(f.username || '').trim();
+  const password = String(f.password || '');
+  if (!editing) {
+    return {
+      name, kind: 'url', address,
+      ...(username ? { username } : {}), ...(password ? { password } : {}), ...(f.project ? { project: f.project } : {}),
+      consent: f.consent === true,
+    };
+  }
+  const was = sourceForm(original);
+  const body = {};
+  if (name !== was.name) body.name = name;
+  if ((f.project || '') !== was.project) body.project = f.project || null;
+  if (address) body.address = address;
+  if (username !== was.username) body.username = username;
+  if (password) body.password = password;
+  return body;
+}
+
+// ── live view ────────────────────────────────────────────────────────────────────────────────────
+// Live view goes through AADML's media relay, which reads rtsp:// and rtsps:// cameras only for now.
+export const canWatch = source => /^rtsps?:\/\//i.test(sourceShown(source));
+
+export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras only for now.';
+export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
+export const LIVE_GONE = 'This camera is not in this workspace any more.';
+export const LIVE_NO_ANSWER = 'The camera did not answer.';
+// The page's own words when a refusal carried none of the server's (client.js apiFetch).
+const GENERIC = ['AADML did not answer just now. Try again in a moment.', 'The request was refused.'];
+
+// The live answer, checked: the playlist must be a path of this site, so the token is never sent to another server.
+// A new token is asked for at `renew_after` seconds (else at four fifths of `expires_in`), never later than the
+// token lasts and never sooner than 5 seconds. null when the answer cannot be used.
+export function liveAnswer(body) {
+  const playlist = typeof body?.playlist === 'string' ? body.playlist.trim() : '';
+  const token = typeof body?.token === 'string' ? body.token.trim() : '';
+  if (!/^\/(?![/\\])/.test(playlist) || /[\s\\]/.test(playlist) || !token) return null;
+  const lasts = Number(body.expires_in) > 0 ? Number(body.expires_in) : 300;
+  const renew = Number(body.renew_after) > 0 ? Number(body.renew_after) : lasts * 0.8;
+  const seconds = Math.max(5, Math.min(renew, Math.max(5, lasts - 5)));
+  return { playlist, token, renewInMs: Math.round(seconds * 1000) };
+}
+
+// Why live view did not start, in words: the server's own sentence where it gave one.
+export function liveErrorText(error) {
+  const own = typeof error?.message === 'string' && error.message && !GENERIC.includes(error.message) ? error.message : '';
+  if (error?.serverCode === 'not_live') return own || LIVE_NOT_LIVE;
+  if (error?.serverCode === 'relay_unavailable') return own || LIVE_UNAVAILABLE;
+  if (error?.status === 404) return LIVE_GONE;
+  return own || LIVE_UNAVAILABLE;
 }
