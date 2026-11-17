@@ -39,7 +39,7 @@ describe('ContextUsageRing', () => {
     expect(ring.attributes('aria-valuenow')).toBe('62')
     expect(ring.attributes('aria-label')).toContain('62% used, 124k of 200k tokens')
     expect(w.text()).toContain('62% of context used')
-    expect(w.text()).toContain('Earlier work is summarized at 85%')
+    expect(w.text()).toContain('The earlier conversation is summarized at 85%')
     expect(ring.classes()).toContain('is-ok')
   })
 

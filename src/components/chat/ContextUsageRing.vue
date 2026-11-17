@@ -44,9 +44,9 @@ const level = computed(() => {
 
 const compactLine = computed(() => {
   const u = usage.value
-  if (level.value === 'full') return 'Earlier work is summarized on the next step'
-  if (level.value === 'near') return `Earlier work is summarized soon, at ${u.compactAt}%`
-  return `Earlier work is summarized at ${u.compactAt}%`
+  if (level.value === 'full') return 'The earlier conversation is summarized on the next step'
+  if (level.value === 'near') return `The earlier conversation is summarized soon, at ${u.compactAt}%`
+  return `The earlier conversation is summarized at ${u.compactAt}%`
 })
 
 const summary = computed(() => {

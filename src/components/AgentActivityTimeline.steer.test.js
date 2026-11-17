@@ -34,6 +34,19 @@ describe('AgentActivityTimeline — steering lines', () => {
     expect(w.find('[data-test="timeline-steers"]').exists()).toBe(false)   // not twice when expanded
   })
 
+  it('keeps a summary of the earlier conversation readable on the collapsed card, in order, not as a step', () => {
+    const compact = { stepId: 'compact_1', phase: 'compaction', status: 'ok', isCompaction: true,
+      label: 'Earlier conversation summarized to fit the context window (172k → 30k tokens)' }
+    const w = mount(AgentActivityTimeline, {
+      props: { steps: [step('a', 'Searching the web'), compact, steer, step('b', 'Reading pages')], running: false,
+        isComplete: true },
+    })
+    expect(w.find('.at-head').text()).toContain('2 steps')
+    const lines = w.findAll('[data-test="timeline-steers"] li')
+    expect(lines.map((l) => l.attributes('data-test'))).toEqual(['timeline-compaction', 'timeline-steer'])
+    expect(lines[0].text()).toContain('Earlier conversation summarized to fit the context window (172k → 30k tokens)')
+  })
+
   it('shows it live, in place, while the run is still working', () => {
     const w = mount(AgentActivityTimeline, {
       props: { steps: [step('a', 'Searching the web'), steer], running: true, isComplete: false },

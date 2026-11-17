@@ -17,11 +17,24 @@
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
 
-      <!-- What the person ADDED while the run was working stays readable when the card is collapsed: their own
-           words are never hidden behind a click. In the expanded list they sit at the point they were taken in. -->
-      <ul v-if="isComplete && !expanded && steerSteps.length" class="at-steers" data-test="timeline-steers">
-        <li v-for="s in steerSteps" :key="`c-${s.stepId}`" class="at-steer-line">
-          <span class="at-steer-icon" aria-hidden="true">↳</span><span class="at-steer-by">You added:</span> {{ s.label }}
+      <!-- What the person ADDED while the run was working, and each time the earlier conversation was summarized to
+           fit the context window, stay readable when the card is collapsed: never hidden behind a click (Claude Code
+           keeps its "conversation compacted" line in the transcript). In the expanded list they sit where they
+           happened. -->
+      <ul v-if="isComplete && !expanded && pinnedSteps.length" class="at-steers" data-test="timeline-steers">
+        <li v-for="s in pinnedSteps" :key="`c-${s.stepId}`" class="at-steer-line"
+            :class="{ 'at-compact-line': s.isCompaction }"
+            :data-test="s.isCompaction ? 'timeline-compaction' : 'timeline-steer'">
+          <template v-if="s.isCompaction">
+            <svg class="at-compact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+            </svg>
+            <span>{{ s.label }}</span>
+          </template>
+          <template v-else>
+            <span class="at-steer-icon" aria-hidden="true">↳</span><span class="at-steer-by">You added:</span> {{ s.label }}
+          </template>
         </li>
       </ul>
 
@@ -261,7 +274,9 @@ const milestoneSteps = computed(() => foldMilestones(visibleSteps.value))
 const canShowAll = computed(() => wasFolded(milestoneSteps.value, visibleSteps.value))
 // The person's own messages, taken in by the run while it worked (`useAgentTimeline.addSteer`). Not work
 // the agent did, so they are not counted as steps.
-const steerSteps = computed(() => visibleSteps.value.filter((s) => s.isSteer))
+// With the summaries of the earlier conversation (`isCompaction`), they are the lines a finished, folded card still
+// shows, in the order they happened.
+const pinnedSteps = computed(() => visibleSteps.value.filter((s) => s.isSteer || s.isCompaction))
 // Nor is the run getting ready (`isSetup`: the `build_*` stages, preparing, planning). A turn that only
 // answered read "Done · 10 steps" over setup labels for work that did nothing (tester's "ACK", 2026-10-26);
 // the count is the work the agent did. The setup rows stay in the list, folded into "Getting ready".
@@ -535,7 +550,7 @@ function fmtDuration(ms) {
 .agent-step.is-steer .agent-step-label {
   color: var(--vm-ink);
 }
-/* The run condensing its earlier rounds: the platform's housekeeping, said plainly and kept quiet. */
+/* The earlier conversation condensed to fit the window: the platform's housekeeping, said plainly and kept quiet. */
 .agent-step.is-compaction .agent-step-icon {
   color: var(--vm-ink-soft);
 }
@@ -556,6 +571,10 @@ function fmtDuration(ms) {
 }
 .at-steer-line {
   @apply flex items-baseline gap-1.5 break-words;
+}
+.at-compact-line {
+  @apply italic items-center;
+  color: var(--vm-ink-soft);
 }
 /* The count on a folded row: quiet, tabular so a column of them lines up, and never louder than the
    label it qualifies. */
