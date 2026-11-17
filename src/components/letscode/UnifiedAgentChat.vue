@@ -128,6 +128,8 @@
                  lives in this project (`.aadml/plans/<run>.md`), so a project chat is where it matters most. -->
             <TurnModeSwitch compact class="uac-turnmode" />
           </div>
+          <div class="uac-send">
+          <ContextUsageRing />
           <button v-if="chat.isBusy" type="button" class="uac-circle stop" title="Stop" aria-label="Stop" @click="chat.stop()">
             <Icon icon="lucide:square" />
           </button>
@@ -137,6 +139,7 @@
           >
             <Icon icon="lucide:arrow-up" />
           </button>
+          </div>
         </div>
       </div>
       <div class="uac-hint">
@@ -156,6 +159,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { usePermission } from '@/composables/usePermission'
 import { useChatStore } from '@/stores/useChatStore'
+import ContextUsageRing from '@/components/chat/ContextUsageRing.vue'
 import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
 import ChatMessageList from '@/components/chat/ChatMessageList.vue'
 import ChatTaskList from '@/components/chat/ChatTaskList.vue'
@@ -737,6 +741,7 @@ defineExpose({ send, addSelection })
 .uac-box-top textarea::placeholder { color: var(--vm-ink-faint); }
 .uac-box-top textarea:disabled { color: var(--vm-ink-faint); cursor: not-allowed; }
 .uac-box-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.uac-send { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .uac-bar-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .uac-circle { flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer; color: var(--uac-on-solid); transition: background-color .15s, opacity .15s; }
 .uac-circle :deep(svg) { width: 16px; height: 16px; }

@@ -1,7 +1,7 @@
 <!-- The memories an answer drew on, under the answer — and where a wrong one is corrected.
 
      The backend records them with the answer (agentic-docs/MEMORY_HANDLES_PLAN.md in the backend repo): the
-     saved facts, past runs and learned practices put in front of the agent this turn, and the ones it opened
+     saved facts, past runs, learned practices and procedures put in front of the agent this turn, and the ones it opened
      itself. Each is {ref, kind, text, via}; a fact also carries its id and status.
 
      A saved fact can be corrected right here, at the moment it matters:
@@ -101,7 +101,7 @@ function stateOf (c) {
 }
 
 function kindLabel (c) {
-  return { fact: 'Saved', run: 'Past run', hint: 'Learned', topic: 'Topic' }[c.kind] || 'Memory'
+  return { fact: 'Saved', run: 'Past run', hint: 'Learned', procedure: 'Procedure', topic: 'Topic' }[c.kind] || 'Memory'
 }
 
 function titleOf (c) {
@@ -178,6 +178,8 @@ const unretire = (c) => act(c, () => api.undoLearnedNotHelpful(c.id), (data) => 
 .mc-kind { font-weight: 600; color: var(--vm-link); flex: none; }
 .mc-chip.k-run .mc-kind { color: var(--vm-amber-ink); }
 .mc-chip.k-hint .mc-kind { color: var(--vm-green-ink); }
+/* A way of doing a task, learned from past runs and offered as a hint (MEMORY_ONE_PLACE_PLAN phase 5). */
+.mc-chip.k-procedure .mc-kind { color: var(--vm-green-ink); }
 .mc-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .mc-chip.outdated .mc-text, .mc-chip.forgotten .mc-text, .mc-chip.retired .mc-text {
   text-decoration: line-through; color: var(--vm-ink-faint);

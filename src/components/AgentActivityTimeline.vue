@@ -39,10 +39,15 @@
           v-for="step in renderedSteps"
           :key="step.stepId"
           class="agent-step"
-          :class="[`is-${step.status}`, { 'is-steer': step.isSteer }]"
+          :class="[`is-${step.status}`, { 'is-steer': step.isSteer, 'is-compaction': step.isCompaction }]"
         >
           <span class="agent-step-icon" :class="`icon-${step.status}`">
             <template v-if="step.isSteer">↳</template>
+            <!-- The run summarized its earlier rounds to fit the context window (`run_compacted`). -->
+            <svg v-else-if="step.isCompaction" class="at-compact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+            </svg>
             <template v-else-if="step.status === 'running'"><span class="agent-spinner sm" aria-hidden="true"></span></template>
             <template v-else-if="step.status === 'failed'">✕</template>
             <template v-else-if="step.status === 'interrupted'">⊘</template>
@@ -260,7 +265,7 @@ const steerSteps = computed(() => visibleSteps.value.filter((s) => s.isSteer))
 // Nor is the run getting ready (`isSetup`: the `build_*` stages, preparing, planning). A turn that only
 // answered read "Done · 10 steps" over setup labels for work that did nothing (tester's "ACK", 2026-10-26);
 // the count is the work the agent did. The setup rows stay in the list, folded into "Getting ready".
-const workStepCount = computed(() => visibleSteps.value.filter((s) => !s.isSteer && !isSetup(s)).length)
+const workStepCount = computed(() => visibleSteps.value.filter((s) => !s.isSteer && !s.isCompaction && !isSetup(s)).length)
 const renderedSteps = computed(() => (showAllSteps.value ? visibleSteps.value.map(
   (s) => ({ ...s, repeatCount: 1, foldedIds: [s.stepId] })) : milestoneSteps.value))
 
@@ -529,6 +534,17 @@ function fmtDuration(ms) {
 }
 .agent-step.is-steer .agent-step-label {
   color: var(--vm-ink);
+}
+/* The run condensing its earlier rounds: the platform's housekeeping, said plainly and kept quiet. */
+.agent-step.is-compaction .agent-step-icon {
+  color: var(--vm-ink-soft);
+}
+.at-compact-icon {
+  @apply w-3.5 h-3.5;
+}
+.agent-step.is-compaction .agent-step-label {
+  @apply italic;
+  color: var(--vm-ink-soft);
 }
 .at-steer-by {
   @apply font-medium;

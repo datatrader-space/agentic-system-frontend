@@ -43,6 +43,8 @@ const WORK_FORWARDED_TYPES = new Set([
   // The activity timeline (useAgentTimeline's RICH_EVENT_TYPES) plus the live token counter.
   'agent_status', 'agent_step_started', 'agent_step_completed', 'agent_step_failed',
   'source_citation', 'agent_turn_summary', 'token_usage',
+  // The composer's context ring and the "earlier work summarized" row (agent/runtime/run_compaction.py).
+  'context_usage', 'run_compacted',
 ])
 
 // Frames only a turn that is STILL RUNNING sends. One of these arriving is proof the turn is alive,
@@ -111,6 +113,24 @@ function _bubbleAttachment(a) {
     isAudio: !!a.isAudio, isVoiceNote: !!a.isVoiceNote }
 }
 
+/**
+ * A `context_usage` frame (or a conversation's saved measurement) as the ring reads it, or null when it says nothing
+ * usable. `percent` is the share of the model's window in use; `compactAt` the share at which the run summarizes.
+ */
+export function normalizeContextUsage(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const used = Number(raw.used_tokens)
+  const window = Number(raw.window_tokens)
+  if (!isFinite(used) || !isFinite(window) || used < 0 || window <= 0) return null
+  const compactAt = Number(raw.compact_at_percent)
+  return {
+    used: Math.round(used),
+    window: Math.round(window),
+    percent: Math.max(0, Math.min(100, Math.round((used / window) * 100))),
+    compactAt: isFinite(compactAt) && compactAt > 0 ? Math.round(compactAt) : null,
+  }
+}
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [],
@@ -148,6 +168,10 @@ export const useChatStore = defineStore('chat', {
     // Coding Agent project chat, Chat elsewhere) and sent with every message, so the server keeps the choice.
     // A new chat starts on Chat; a new Let's Code project chat on Work (`reset`, `newChatRepoId`).
     turnMode: 'chat',
+    // HOW FULL THE MODEL'S CONTEXT WINDOW IS for the open conversation, like Claude Code's ring: `{ used, window,
+    // percent, compactAt }` from the run's `context_usage` frames, and from the conversation when it opens (its last
+    // measurement). null = not measured yet (a new chat, or a model whose window is unknown): the ring is not shown.
+    contextUsage: null,
     // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
@@ -611,6 +635,7 @@ export const useChatStore = defineStore('chat', {
       this.todos = []
       // A new chat starts on its default mode: Work for a Coding Agent project chat (Let's Code), Chat elsewhere.
       this.turnMode = this.newChatRepoId ? 'work' : 'chat'
+      this.contextUsage = null
       this.error = ''
       this.messagesHasMore = false
       this.messagesTotal = 0
@@ -813,6 +838,7 @@ export const useChatStore = defineStore('chat', {
         // The conversation's mode: the person's choice kept by the server, else its default (Work in a Coding Agent
         // project chat, Chat elsewhere) — the server answers both in `turn_mode`.
         this.turnMode = TURN_MODES.includes(data.turn_mode) ? data.turn_mode : 'chat'
+        this.contextUsage = normalizeContextUsage(data.context_usage)
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
@@ -2623,6 +2649,28 @@ export const useChatStore = defineStore('chat', {
           // running turn. Its row id comes back, so later frames find this exact bubble.
           const qm = this._queuedBubble(msg)
           if (qm && msg.message_id != null) qm.serverId = msg.message_id
+          break
+        }
+        case 'context_usage': {
+          // The run measured its context after a model call (`agent.runtime.run_compaction`): the composer's ring.
+          if (msg.conversation_id != null && this.conversationId != null &&
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          const usage = normalizeContextUsage(msg)
+          if (usage) this.contextUsage = usage
+          break
+        }
+        case 'run_compacted': {
+          // The run summarized its earlier rounds to stay within the window: a row in its timeline where it
+          // happened, and the ring drops to what is left.
+          if (msg.conversation_id != null && this.conversationId != null &&
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          _tl.addCompaction(msg)
+          // A run's summary shrinks what the next call is given; the chat history's summary is measured by the next
+          // run (its own context_usage), so it leaves the ring alone.
+          if (msg.scope !== 'history') {
+            const usage = normalizeContextUsage({ ...msg, used_tokens: msg.tokens_after })
+            if (usage) this.contextUsage = usage
+          }
           break
         }
         case 'steering_applied': {

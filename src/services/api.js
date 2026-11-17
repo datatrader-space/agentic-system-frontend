@@ -1350,8 +1350,7 @@ export default {
   // Mint a short-lived, browser-safe WebSocket chat token (auth: owner session or signal_api_key).
   mintChatToken: (agentId) => api.post(`/agents/${agentId}/chat-token/`),
 
-  // Agent Knowledge / Dreaming Cycle
-  getAgentKnowledge: (agentId) => api.get(`/agents/${agentId}/knowledge/`),
+  // Agent memory
   // Unified memory (new system: AgentMemory via memory_router + Memory Autopilot)
   getAgentMemory: (agentId, params) => api.get(`/agents/${agentId}/memory/`, { params }),
   getAgentMemoryActivity: (agentId) => api.get(`/agents/${agentId}/memory/activity/`),
@@ -1379,22 +1378,6 @@ export default {
   // "Not helpful" on a Learned chip: retires the learned practice; the DELETE is its Undo.
   markLearnedNotHelpful: (id) => api.post(`/me/learned-practices/${id}/not-helpful/`),
   undoLearnedNotHelpful: (id) => api.delete(`/me/learned-practices/${id}/not-helpful/`),
-  updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
-  updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
-  createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),
-  deleteKnowledgeCard: (agentId, cardId) => api.delete(`/agents/${agentId}/knowledge/cards/${cardId}/delete/`),
-  bulkDeleteKnowledgeCards: (agentId, cardIds) => api.post(`/agents/${agentId}/knowledge/cards/bulk-delete/`, { card_ids: cardIds }),
-  // RETIRED: dreaming is no longer active (knowledge lives in AgentMemory). Kept for reference; the
-  // backend endpoint now returns a {retired:true} notice and does not run a dream cycle. No active callers.
-  triggerDream: (agentId) => api.post(`/agents/${agentId}/knowledge/dream/`),
-
-  // Agent Flows
-  getAgentFlows: (agentId, sort = 'time') => api.get(`/agents/${agentId}/flows/`, { params: { sort } }),
-  updateFlow: (agentId, flowId, data) => api.patch(`/agents/${agentId}/flows/${flowId}/`, data),
-  deleteFlow: (agentId, flowId) => api.delete(`/agents/${agentId}/flows/${flowId}/delete/`),
-  bulkDeleteFlows: (agentId, flowIds) => api.post(`/agents/${agentId}/flows/bulk-delete/`, { flow_ids: flowIds }),
-  processFlows: (agentId, data = {}) => api.post(`/agents/${agentId}/flows/process/`, data),
-  updateFlowConfig: (agentId, data) => api.patch(`/agents/${agentId}/flows/config/`, data),
 
   // ── Budgets (Budgets page — /dashboard/budgets) ──────────────────────────
   // All calls accept an optional orgId so a multi-org user can target a specific organization. The backend

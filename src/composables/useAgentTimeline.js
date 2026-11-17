@@ -15,7 +15,7 @@
 // duration). No raw args, prompts, secrets, model internals, or private debug fields are read here.
 
 import { ref, computed } from 'vue'
-import { shownCost } from './tokens'
+import { fmtTokens, shownCost } from './tokens'
 
 const RICH_EVENT_TYPES = new Set([
   'agent_status',
@@ -492,6 +492,25 @@ export function useAgentTimeline() {
     })
   }
 
+  // The run summarized its earlier rounds to stay within the model's context window (`run_compacted`, Claude Code's
+  // "conversation compacted"). A row at the point it happened, saved with the run's timeline like a steer, so the
+  // person can see that the work above was condensed and how much room it made.
+  function addCompaction(frame) {
+    const f = frame || {}
+    const before = Number(f.tokens_before) || 0
+    const after = Number(f.tokens_after) || 0
+    const room = before && after ? ` (${fmtTokens(before)} → ${fmtTokens(after)} tokens)` : ''
+    // 'history' = the chat's older messages were summarized (between turns); 'run' = this run's earlier rounds.
+    const what = f.scope === 'history' ? 'Earlier messages in this chat' : 'Earlier work'
+    steps.value.push({
+      stepId: `compact_${steps.value.length}_${_now()}`,
+      toolCallId: '', phase: 'compaction', tool: '', argsPreview: '',
+      label: `${what} summarized to fit the context window${room}`,
+      status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
+      coalescedCount: 0, isCompaction: true, startedAt: _now(),
+    })
+  }
+
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message
   // (so it persists after the live refs are reset for the next turn).
   function snapshot() {
@@ -530,6 +549,7 @@ export function useAgentTimeline() {
     reasoning,
     ingest,
     addSteer,
+    addCompaction,
     reset,
     finalize,
     interrupt,

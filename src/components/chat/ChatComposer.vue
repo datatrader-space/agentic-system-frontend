@@ -205,6 +205,8 @@
           </span>
         </div>
 
+        <div class="composer-send">
+        <ContextUsageRing />
         <!-- While the agent runs: empty input → Stop; typed input → Send (queues as mid-run steering). -->
         <button v-if="streaming && !draft.trim()" type="button" class="action-btn stop" title="Stop generating"
                 aria-label="Stop generating" @click="$emit('stop')">
@@ -215,6 +217,7 @@
                 :title="streaming ? 'Send to the running agent' : 'Send'" aria-label="Send message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
+        </div>
       </div>
     </form>
     <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
@@ -227,6 +230,7 @@ import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AgentSwitcher from './AgentSwitcher.vue'
 import TurnModeSwitch from './TurnModeSwitch.vue'
+import ContextUsageRing from './ContextUsageRing.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import VoiceNoteMic from './VoiceNoteMic.vue'
 import { notify } from '../../composables/useNotify'
@@ -513,6 +517,7 @@ const onKeydown = (e) => {
 
 /* bottom toolbar */
 .composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.composer-send { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .cv-sel-banner { display: flex; align-items: center; gap: 7px; margin: 0 auto 6px; max-width: 760px; padding: 6px 12px; border: 1px solid var(--vm-violet, #c4b5fd); background: var(--vm-violet-soft, var(--vm-surface-soft)); color: var(--vm-violet, var(--vm-violet-ink)); border-radius: 10px; font-size: 0.78rem; font-weight: 600; }
 .cv-sel-banner svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .cv-sel-banner em { font-style: normal; font-weight: 500; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
