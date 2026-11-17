@@ -124,10 +124,15 @@ describe('Creative flow boundaries',()=>{
     const images = w.findComponent(InputSlot)
     expect(images.props()).toMatchObject({ kinds: ['image'], limit: 8, allowUpload: false })
     images.vm.$emit('pick', [{ attachment_id: 'logo' }]); await flushPromises()
-    expect(save.attributes('disabled')).toBeUndefined()
     expect(w.find('[data-test="brand-save-needs"]').exists()).toBe(false)
+    // The person states their rights to the brand (ELEMENTS_V2_PLAN.md): Save waits for it and says so.
+    expect(save.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="brand-save-rights"]').text()).toBe('Confirm your rights to the brand to save it.')
+    await w.get('[data-test="ea-basis-owned"]').setValue(true)
+    await w.get('[data-test="ea-rights-confirm"]').setValue(true)
+    expect(save.attributes('disabled')).toBeUndefined()
     await click(w, 'Save reviewed brand')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/', { name: 'New brand', description: '', traits: { colors: [], website: '', tagline: '', voice: '', audience: '' }, attachment_ids: ['logo'] })
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/', { name: 'New brand', description: '', traits: { colors: [], website: '', tagline: '', voice: '', audience: '' }, attachment_ids: ['logo'], rights: { basis: 'owned', confirmed: true } })
     w.unmount()
   })
   it('numbers explainer scenes from one', async () => {

@@ -32,8 +32,9 @@
       <label class="st-field" data-field="name">Name<input v-model="name" class="st-input" maxlength="80" placeholder="Mara, the lighthouse keeper" data-test="character-name" /></label>
       <label class="st-field" data-field="description">Description (optional)<textarea v-model="description" class="st-input" rows="2" /></label>
       <MediaSlot v-model="keep" label="Images to keep" field="attachment_ids" :kinds="['image']" :limit="8" required hint="Your chosen portrait and its sheet. These become the character in Elements." />
-      <button type="button" class="st-button primary" :disabled="busy || !name.trim() || !keep.length || !hasTraits" data-test="character-save" @click="save">{{ busy ? 'Saving…' : saved ? 'Save a new revision' : 'Save character' }}</button>
-      <p v-if="saved" class="st-status cc-saved" role="status">Saved {{ saved.name }} (revision {{ saved.revision }}) to <RouterLink class="st-link" to="/video-studio/elements">Elements</RouterLink>.</p>
+      <ElementRightsFields v-model="rights" kind="character" :name="name.trim()" :schema="elementSchema" />
+      <button type="button" class="st-button primary" :disabled="busy || !name.trim() || !keep.length || !hasTraits || !rightsReady" data-test="character-save" @click="save">{{ busy ? 'Saving…' : saved ? 'Save a new revision' : 'Save character' }}</button>
+      <p v-if="saved" class="st-status cc-saved" role="status">Saved {{ saved.name }} (revision {{ saved.revision }}<template v-if="saved.token">, token {{ saved.token }}</template>) to <RouterLink class="st-link" to="/video-studio/elements">Elements</RouterLink>.<template v-if="saved.status !== 'approved'"> It is a draft: approve it there to use it.</template></p>
     </section>
 
     <ConsentStep v-if="consent" :request="consent" @agreed="consent.retry()" @cancel="cancelConsent" />
@@ -43,13 +44,16 @@
 </template>
 <script setup>
 import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
-import { computed, inject, onMounted, reactive, ref } from 'vue'
+import { computed, inject, onMounted, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import ConsentStep from './ConsentStep.vue'
 import CreativeError from './CreativeError.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import MediaSlot from './MediaSlot.vue'
+import ElementRightsFields from '../video/ElementRightsFields.vue'
+import { emptyRights, rightsComplete, rightsPayload } from '../video/elementKinds'
+import { useVideoStore } from '../../stores/useVideoStore'
 import { useMediaJob } from '../../composables/useMediaJob'
 const emit = defineEmits(['job'])
 const monitor = inject('studioMonitor', '')
@@ -57,11 +61,18 @@ const steps = [{ id: 'describe', label: 'Describe' }, { id: 'portraits', label: 
 const step = ref(0), traitOptions = ref({}), detailsMax = ref(300), loadingTraits = ref(true), traits = reactive({}), details = ref(''), photo = ref([])
 const portraitRoute = ref(''), count = ref(4), portrait = ref([]), sheetRoute = ref(''), name = ref(''), description = ref(''), keep = ref([]), saved = ref(null)
 const { busy, error, consent, submit, cancelConsent } = useMediaJob(job => emit('job', job))
+// The person's own Save approves the character with their rights statement (and a real person's consent when the
+// portraits started from a photo); without it the server keeps a draft (ELEMENTS_V2_PLAN.md).
+const video = useVideoStore(), elementSchema = ref(null), rights = ref(emptyRights())
+const rightsReady = computed(() => rightsComplete('character', rights.value))
+// Portraits from a photo show a real person: their consent is asked for in the same step.
+watch(() => photo.value.length, n => { if (n) rights.value.realPerson = true })
 const labels = { skin_tone: 'Skin tone', hair_color: 'Hair colour' }
 const traitLabel = key => labels[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')
 const chosenTraits = computed(() => ({ ...Object.fromEntries(Object.entries(traits).filter(([, v]) => v)), ...(details.value.trim() ? { details: details.value.trim() } : {}) }))
 const hasTraits = computed(() => Object.keys(chosenTraits.value).length > 0)
 onMounted(async () => {
+  video.loadIngredientSchema().then(s => { elementSchema.value = s })
   try { const { data } = await api.getCharacterTraits(); traitOptions.value = data.traits || {}; detailsMax.value = data.details_max || 300; for (const key of Object.keys(traitOptions.value)) if (!(key in traits)) traits[key] = '' }
   catch { error.value = { message: 'Could not load the traits. Reload the page to try again.' } }
   finally { loadingTraits.value = false }
@@ -74,7 +85,7 @@ function sheet() { submit(s => api.prepareCharacterSheet({ route_id: sheetRoute.
 async function save() {
   error.value = null; busy.value = true
   try {
-    const { data } = await api.saveCharacter({ name: name.value.trim(), traits: chosenTraits.value, attachment_ids: keep.value.map(f => f.attachment_id), description: description.value.trim(), ...(saved.value ? { character_id: saved.value.character_id } : {}) })
+    const { data } = await api.saveCharacter({ name: name.value.trim(), traits: chosenTraits.value, attachment_ids: keep.value.map(f => f.attachment_id), description: description.value.trim(), ...rightsPayload('character', rights.value), ...(saved.value ? { character_id: saved.value.character_id } : {}) })
     saved.value = data
   } catch (e) { error.value = e.response?.data?.error || { message: 'Could not save the character.' } }
   finally { busy.value = false }

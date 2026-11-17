@@ -10,7 +10,7 @@
         <header class="lib-head">
           <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Elements' : 'Your creative library.') : 'Library' }}</component>
           <p v-if="isPage" class="lib-lead">{{ initialTab === 'ingredients'
-            ? 'Characters, products, places and styles you named, ready for any video.'
+            ? 'Characters, products, places, styles, brands and voices you named. Approve one, then write its token in any prompt.'
             : 'Every image, video, sound and document you uploaded or made in Video Studio.' }}</p>
           <button v-if="!isPage" type="button" class="lib-x" aria-label="Close Library" @click="close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -118,50 +118,14 @@
           </form>
         </div>
 
-        <!-- INGREDIENTS -->
+        <!-- ELEMENTS (ElementsPanel: status, token, folders, pin, versions, rights) -->
         <div v-show="tab === 'ingredients'" class="lib-body" role="tabpanel" aria-label="Elements">
-          <p v-if="video.ingredientsLoading" class="lib-empty" role="status">Loading Elements...</p>
-          <p v-else-if="video.ingredientsError" class="lib-error" role="alert">{{ video.ingredientsError }} <button type="button" class="lib-btn" @click="video.loadIngredients()">Try again</button></p>
-          <div v-else-if="!video.ingredients.length" class="lib-empty-block">
-            <p class="lib-empty">An Element is a named character, product, place or style you can reuse in any video. Select
-              files in the Library and save them as one, or ask the agent to.</p>
-            <router-link v-if="isPage" to="/video-studio/library" class="lib-btn primary">Open the Library</router-link>
-            <button v-else type="button" class="lib-btn" @click="tab = 'files'">Show my files</button>
-          </div>
-          <ul class="lib-ings">
-            <li v-for="ing in video.ingredients" :key="ing.ingredient_id" class="lib-ing-card" data-test="lib-ingredient">
-              <div class="lib-ing-thumbs" aria-hidden="true">
-                <template v-for="f in ing.files.slice(0, 3)" :key="f.attachment_id">
-                  <img v-if="f.thumbnail_url" :src="f.thumbnail_url" alt="" class="lib-mini" loading="lazy" />
-                  <span v-else-if="isPicker" class="lib-mini">{{ fileKind(f.media_type) }}</span>
-                  <video v-else-if="f.media_type === 'video'" :src="f.url" muted preload="metadata" class="lib-mini"></video>
-                  <img v-else :src="f.url" alt="" class="lib-mini" loading="lazy" />
-                </template>
-              </div>
-              <template v-if="editingId === ing.ingredient_id">
-                <label class="lib-field"><span>Name</span><input v-model="edit.name" maxlength="80" /></label>
-                <label class="lib-field"><span>Description</span><textarea v-model="edit.description" rows="2" maxlength="1000"></textarea></label>
-                <div class="lib-actions">
-                  <button type="button" class="lib-btn primary" @click="saveEdit(ing)">Save</button>
-                  <button type="button" class="lib-btn" @click="editingId = ''">Cancel</button>
-                </div>
-              </template>
-              <template v-else>
-                <p class="lib-ing-name"><strong>{{ ing.name }}</strong> <span class="lib-kind">{{ kindLabel(ing.kind) }}</span></p>
-                <p v-if="ing.description" class="lib-meta">{{ ing.description }}</p>
-                <div v-if="deletingId === ing.ingredient_id" class="lib-confirm" role="alert">
-                  <span>Delete "{{ ing.name }}"? Its files stay in your Library.</span>
-                  <button type="button" class="lib-btn danger" data-test="lib-ing-delete-confirm" @click="remove(ing)">Delete</button>
-                  <button type="button" class="lib-btn" @click="deletingId = ''">Cancel</button>
-                </div>
-                <div v-else class="lib-actions">
-                  <button type="button" class="lib-btn primary" data-test="lib-ing-use" @click="useIngredient(ing)">Use</button>
-                  <button type="button" class="lib-btn" @click="startEdit(ing)">Edit</button>
-                  <button type="button" class="lib-btn" @click="deletingId = ing.ingredient_id">Delete</button>
-                </div>
-              </template>
-            </li>
-          </ul>
+          <ElementsPanel :mode="mode" @use="useIngredient">
+            <template #empty>
+              <router-link v-if="isPage" to="/video-studio/library" class="lib-btn primary">Open the Library</router-link>
+              <button v-else type="button" class="lib-btn" @click="tab = 'files'">Show my files</button>
+            </template>
+          </ElementsPanel>
         </div>
       </section>
     </div>
@@ -177,6 +141,8 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
 import MediaViewer from './MediaViewer.vue'
+import ElementsPanel from './ElementsPanel.vue'
+import { KINDS } from './elementKinds'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -202,8 +168,7 @@ const types = [{ value: 'all', label: 'All' }, { value: 'image', label: 'Images'
                { value: 'audio', label: 'Audio' }, { value: 'document', label: 'Documents' }]
 const visibleItems = computed(() => lib.value.items.filter(item => !isPicker.value || !props.allowedKinds.length || props.allowedKinds.includes(item.media_type)))
 const visibleTypes = computed(() => types.filter(type => type.value === 'all' || !isPicker.value || !props.allowedKinds.length || props.allowedKinds.includes(type.value)))
-const kinds = [{ value: 'character', label: 'Character' }, { value: 'product', label: 'Product' },
-               { value: 'location', label: 'Location' }, { value: 'style', label: 'Style' }]
+const kinds = KINDS
 // What a file can be used as. The composer then shows whether the chosen model takes it.
 const ROLES = {
   image: [{ value: 'subject', label: 'Product, character or place' }, { value: 'style', label: 'Style' },
@@ -217,9 +182,6 @@ const useRole = ref('subject')
 const picked = ref(new Set())
 const draft = reactive({ name: '', kind: 'product', description: '' })
 const saving = ref(false)
-const editingId = ref('')
-const edit = reactive({ name: '', description: '' })
-const deletingId = ref('')
 let searchTimer = null
 
 function close() { if (isPicker.value) emit('close'); else video.libraryOpen = false }
@@ -246,7 +208,6 @@ function chatLink(it) {
   return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
     : `/dashboard/chat/${it.conversation_id}`
 }
-function kindLabel(k) { return (kinds.find((x) => x.value === k) || { label: k }).label }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
 const lookTitle = computed(() => studioLooks.find(look => look.id === lib.value.preset)?.title || 'this look')
 // Only the page is filtered by a look; the drawer and the picker always list every file.
@@ -319,11 +280,6 @@ async function useIngredient(ing) {
   }
   await video.useIngredient(ing, { chat })
 }
-function startEdit(ing) { editingId.value = ing.ingredient_id; Object.assign(edit, { name: ing.name, description: ing.description }) }
-async function saveEdit(ing) {
-  if (await video.updateIngredient(ing.ingredient_id, { name: edit.name.trim(), description: edit.description.trim() })) editingId.value = ''
-}
-async function remove(ing) { if (await video.deleteIngredient(ing.ingredient_id)) deletingId.value = '' }
 
 onMounted(async () => {
   video.loadLibrary({ preset: lookFilter() })
@@ -395,9 +351,8 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-doc-ext { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--vm-ink, #0f172a); }
 a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-ing { font-size: 12px; color: var(--vs-accent-ink, var(--vm-violet-d, #4f46e5)); }
-.lib-actions, .lib-use, .lib-confirm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lib-actions, .lib-use { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .lib-use { display: grid; }
-.lib-confirm { font-size: 13px; }
 .lib-btn { min-height: 36px; padding: 0 12px; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 6px; background: transparent; color: var(--vm-ink, #0f172a);
   font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
 .lib-btn:hover:not(:disabled) { background: var(--vm-surface-2, #f1f5f9); }
@@ -413,13 +368,6 @@ a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-save { position: sticky; bottom: 0; display: grid; gap: 10px; padding: 14px; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 8px;
   background: var(--vm-surface, #fff); box-shadow: var(--vm-shadow-m, 0 8px 22px rgba(15, 23, 42, .08)); }
 .lib-save-title { margin: 0; font-weight: 600; font-size: 13.5px; }
-.lib-ings { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.lib-ing-card { display: grid; gap: 8px; align-content: start; padding: 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
-.lib-ing-thumbs { display: flex; gap: 4px; }
-.lib-mini { width: 72px; height: 48px; object-fit: cover; border-radius: 4px; background: #000; }
-.lib-ing-name { margin: 0; font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
-.lib-kind { font-size: 12px; color: var(--vm-ink-soft, #64748b); }
-.lib-empty-block { display: grid; gap: 14px; justify-items: start; }
 .lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-empty, .lib-error { margin: 0; max-width: 40em; font-size: 13.5px; line-height: 1.6; color: var(--vm-ink-soft, #64748b); }
 .lib-error { color: var(--vs-bad-ink, #b91c1c); }

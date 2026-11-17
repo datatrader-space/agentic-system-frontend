@@ -177,6 +177,8 @@ export const useVideoStore = defineStore('video', {
     // The person's video projects, for the Library's project filter: [{ project_id, title }].
     libraryProjects: [],
     ingredients: [],
+    ingredientFolders: [],
+    ingredientSchema: null,
     ingredientsLoading: false,
     ingredientsError: '',
     // Files chosen on the Library / Ingredients pages, applied by the Create page once it has an agent and a
@@ -904,11 +906,15 @@ export const useVideoStore = defineStore('video', {
         lib.loading = false
       }
     },
-    async loadIngredients(q = '') {
+    // Elements (the backend's Ingredients, ELEMENTS_V2_PLAN.md): a filter narrows the list; folders come with it.
+    async loadIngredients(q = '', { status = '', folder } = {}) {
       this.ingredientsLoading = true
       this.ingredientsError = ''
       try {
-        this.ingredients = (await api.get('/video/ingredients/', { params: q ? { q } : {} })).data.ingredients || []
+        const params = { ...(q ? { q } : {}), ...(status ? { status } : {}), ...(folder !== undefined && folder !== null ? { folder } : {}) }
+        const data = (await api.get('/video/ingredients/', { params })).data
+        this.ingredients = data.ingredients || []
+        this.ingredientFolders = data.folders || []
         return true
       } catch {
         this.ingredients = []
@@ -916,24 +922,34 @@ export const useVideoStore = defineStore('video', {
         return false
       } finally { this.ingredientsLoading = false }
     },
+    async loadIngredientSchema() {
+      if (this.ingredientSchema) return this.ingredientSchema
+      try { this.ingredientSchema = (await api.get('/video/ingredients/schema/')).data } catch { this.ingredientSchema = null }
+      return this.ingredientSchema
+    },
+    _putIngredient(row) {
+      if (!row) return row
+      const known = this.ingredients.some((i) => i.ingredient_id === row.ingredient_id)
+      this.ingredients = known ? this.ingredients.map((i) => (i.ingredient_id === row.ingredient_id ? row : i)) : [row, ...this.ingredients]
+      if (row.folder && !this.ingredientFolders.includes(row.folder)) this.ingredientFolders = [...this.ingredientFolders, row.folder].sort()
+      return row
+    },
     async createIngredient({ kind, name, description, attachmentIds }) {
       try {
         const res = await api.post('/video/ingredients/', { kind, name, description, attachment_ids: attachmentIds })
-        this.ingredients = [res.data, ...this.ingredients]
-        notify.success(`Saved "${res.data.name}" as an ingredient.`)
+        this._putIngredient(res.data)
+        notify.success(`Saved "${res.data.name}" as a draft Element. Approve it on Elements to use it.`)
         return res.data
       } catch (e) {
-        notify.error(errText(e, 'Could not save the ingredient.'))
+        notify.error(errText(e, 'Could not save the Element.'))
         return null
       }
     },
     async updateIngredient(id, changes) {
       try {
-        const res = await api.patch(`/video/ingredients/${id}/`, changes)
-        this.ingredients = this.ingredients.map((i) => (i.ingredient_id === id ? res.data : i))
-        return res.data
+        return this._putIngredient((await api.patch(`/video/ingredients/${id}/`, changes)).data)
       } catch (e) {
-        notify.error(errText(e, 'Could not save the ingredient.'))
+        notify.error(errText(e, 'Could not save the Element.'))
         return null
       }
     },
@@ -943,8 +959,57 @@ export const useVideoStore = defineStore('video', {
         this.ingredients = this.ingredients.filter((i) => i.ingredient_id !== id)
         return true
       } catch (e) {
-        notify.error(errText(e, 'Could not delete the ingredient.'))
+        notify.error(errText(e, 'Could not delete the Element.'))
         return false
+      }
+    },
+    // Approve answers { row } or { error } so the approval form can show the refusal next to its fields.
+    async approveIngredient(id, { rights, likeness } = {}) {
+      try {
+        const row = this._putIngredient((await api.post(`/video/ingredients/${id}/approve/`, {
+          ...(rights ? { rights } : {}), ...(likeness ? { likeness } : {}) })).data)
+        notify.success(`Approved "${row.name}".`)
+        return { row }
+      } catch (e) {
+        return { error: e.response?.data?.error || { message: 'Could not approve the Element.' } }
+      }
+    },
+    async setIngredientStatus(id, status) {
+      try {
+        return this._putIngredient((await api.post(`/video/ingredients/${id}/status/`, { status })).data)
+      } catch (e) {
+        notify.error(errText(e, 'Could not change the Element.'))
+        return null
+      }
+    },
+    async revokeIngredientRights(id) {
+      try {
+        return this._putIngredient((await api.delete(`/video/ingredients/${id}/rights/`)).data)
+      } catch (e) {
+        notify.error(errText(e, 'Could not withdraw the rights record.'))
+        return null
+      }
+    },
+    async loadIngredientVersions(id) {
+      try { return (await api.get(`/video/ingredients/${id}/versions/`)).data.versions || [] } catch (e) {
+        notify.error(errText(e, 'Could not load the versions.'))
+        return null
+      }
+    },
+    async loadIngredientVersion(id, number) {
+      try { return (await api.get(`/video/ingredients/${id}/versions/${number}/`)).data } catch (e) {
+        notify.error(errText(e, 'Could not load that version.'))
+        return null
+      }
+    },
+    async restoreIngredientVersion(id, number) {
+      try {
+        const row = this._putIngredient((await api.post(`/video/ingredients/${id}/versions/${number}/restore/`)).data)
+        notify.success(`Restored version ${number} of "${row.name}" as a draft.`)
+        return row
+      } catch (e) {
+        notify.error(errText(e, 'Could not restore that version.'))
+        return null
       }
     },
     // A Library file is used in the open project (one is created when none is open); it is linked to the
@@ -981,7 +1046,7 @@ export const useVideoStore = defineStore('video', {
         notify.success(`${ing.name} added to this video.`)
         return true
       } catch (e) {
-        notify.error(errText(e, 'Could not use that ingredient.'))
+        notify.error(errText(e, 'Could not use that Element.'))
         return false
       }
     },
