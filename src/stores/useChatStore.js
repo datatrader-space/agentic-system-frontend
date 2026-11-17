@@ -12,7 +12,7 @@ import { useCanvasStore } from './useCanvasStore'
 import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
 import { useVideoStore } from './useVideoStore'
-import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
+import { useAgentTimeline, isRichEvent, compactionStep } from '../composables/useAgentTimeline'
 import { shownCost } from '../composables/tokens'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
@@ -111,6 +111,25 @@ export const TURN_MODES = ['chat', 'work', 'plan']
 function _bubbleAttachment(a) {
   return { name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id,
     isAudio: !!a.isAudio, isVoiceNote: !!a.isVoiceNote }
+}
+
+/**
+ * An answer's saved timeline with a row for each compaction the server saved on it (`model_info.compactions`,
+ * `agent.runtime.run_compaction`). The page's own snapshot normally holds them already; one that lacks them (it
+ * was not saved, or was written before the row existed) gets the missing ones at the top of its steps, and an answer
+ * with no snapshot gets a finished timeline holding only them. So the row stays after a reload, whatever the snapshot.
+ */
+export function timelineWithCompactions(timeline, saved) {
+  const rows = Array.isArray(saved) ? saved.filter((c) => c && typeof c === 'object') : []
+  if (!rows.length) return timeline || null
+  const base = timeline && typeof timeline === 'object' ? timeline : {
+    statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, hasFailures: false, interrupted: false,
+  }
+  const steps = Array.isArray(base.steps) ? base.steps.slice() : []
+  const have = steps.filter((st) => st && st.isCompaction).length
+  const missing = rows.slice(have).map((c, i) => compactionStep(c, `compact_saved_${have + i}`))
+  if (!missing.length) return base
+  return { ...base, steps: [...missing, ...steps] }
 }
 
 /**
@@ -730,8 +749,9 @@ export const useChatStore = defineStore('chat', {
         confidence: info.confidence || '',
         trace: info.trace || [],
         // Timeline replay: restore the masked snapshot so a reopened chat shows the friendly
-        // Searching → Generating activity timeline (with reasoning) as it was.
-        timeline: info.timeline || null,
+        // Searching → Generating activity timeline (with reasoning) as it was, with every compaction the server
+        // saved on the answer (a reload never loses the row).
+        timeline: timelineWithCompactions(info.timeline || null, info.compactions),
         // Provenance replay (decision #4): the answer_basis envelope carries the label + the
         // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
         answerBasis: info.answer_basis || null,
@@ -1737,7 +1757,8 @@ export const useChatStore = defineStore('chat', {
           // The pinned live timeline until the server copy lands: it is saved AFTER the answer, so a
           // refresh in between dropped a finished iteration's activity off the rail (prod conv 1586,
           // "Got ready" vanished for 14s between segments).
-          timeline: (m.model_info && m.model_info.timeline) || (_prev && _prev.timeline) || null,
+          timeline: timelineWithCompactions((m.model_info && m.model_info.timeline) || (_prev && _prev.timeline) || null,
+            m.model_info && m.model_info.compactions),
           // Same durable run link as the main loader — a reconnect must not lose it.
           runId: (m.model_info && m.model_info.run_id) || (_prev && _prev.runId) || '',
           // Same continuation marker as the main loader — a reconnect must not resurrect the
@@ -2660,17 +2681,13 @@ export const useChatStore = defineStore('chat', {
           break
         }
         case 'run_compacted': {
-          // The run summarized its earlier rounds to stay within the window: a row in its timeline where it
-          // happened, and the ring drops to what is left.
+          // The earlier conversation was summarized to stay within the window: a row in the run's timeline where
+          // it happened, and the ring drops to what is left.
           if (msg.conversation_id != null && this.conversationId != null &&
               String(msg.conversation_id) !== String(this.conversationId)) break
           _tl.addCompaction(msg)
-          // A run's summary shrinks what the next call is given; the chat history's summary is measured by the next
-          // run (its own context_usage), so it leaves the ring alone.
-          if (msg.scope !== 'history') {
-            const usage = normalizeContextUsage({ ...msg, used_tokens: msg.tokens_after })
-            if (usage) this.contextUsage = usage
-          }
+          const usage = normalizeContextUsage({ ...msg, used_tokens: msg.tokens_after })
+          if (usage) this.contextUsage = usage
           break
         }
         case 'steering_applied': {

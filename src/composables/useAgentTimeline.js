@@ -60,6 +60,24 @@ function finalStatusLabel(status, hasFailures) {
   }
 }
 
+/**
+ * The timeline row for one compaction: a live `run_compacted` frame, or one the server saved on the answer
+ * (`model_info.compactions`, the same fields). ONE wording for both, so a reload reads as the live run did.
+ */
+export function compactionStep(frame, stepId, startedAt = null) {
+  const f = frame || {}
+  const before = Number(f.tokens_before) || 0
+  const after = Number(f.tokens_after) || 0
+  const room = before && after ? ` (${fmtTokens(before)} → ${fmtTokens(after)} tokens)` : ''
+  return {
+    stepId, toolCallId: '', phase: 'compaction', tool: '', argsPreview: '',
+    label: `Earlier conversation summarized to fit the context window${room}`,
+    status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
+    coalescedCount: 0, isCompaction: true, startedAt,
+    tokensBefore: before, tokensAfter: after,
+  }
+}
+
 export function useAgentTimeline() {
   const currentStatus = ref(null) // { phase, label } | null — the live "what it's doing now" line
   const steps = ref([]) // [{ stepId, toolCallId, phase, tool, label, status, summary, durationMs, reason, nextAction, coalescedCount }]
@@ -492,23 +510,11 @@ export function useAgentTimeline() {
     })
   }
 
-  // The run summarized its earlier rounds to stay within the model's context window (`run_compacted`, Claude Code's
-  // "conversation compacted"). A row at the point it happened, saved with the run's timeline like a steer, so the
-  // person can see that the work above was condensed and how much room it made.
+  // The earlier conversation was summarized to stay within the model's context window (`run_compacted`, Claude
+  // Code's "conversation compacted"). A row at the point it happened, saved with the run's timeline like a steer, so
+  // the person can see that what came before was condensed and how much room it made.
   function addCompaction(frame) {
-    const f = frame || {}
-    const before = Number(f.tokens_before) || 0
-    const after = Number(f.tokens_after) || 0
-    const room = before && after ? ` (${fmtTokens(before)} → ${fmtTokens(after)} tokens)` : ''
-    // 'history' = the chat's older messages were summarized (between turns); 'run' = this run's earlier rounds.
-    const what = f.scope === 'history' ? 'Earlier messages in this chat' : 'Earlier work'
-    steps.value.push({
-      stepId: `compact_${steps.value.length}_${_now()}`,
-      toolCallId: '', phase: 'compaction', tool: '', argsPreview: '',
-      label: `${what} summarized to fit the context window${room}`,
-      status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
-      coalescedCount: 0, isCompaction: true, startedAt: _now(),
-    })
+    steps.value.push(compactionStep(frame, `compact_${steps.value.length}_${_now()}`, _now()))
   }
 
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message

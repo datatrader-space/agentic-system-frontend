@@ -1,6 +1,6 @@
 // The composer's context ring reads `contextUsage` from the shared chat store (owner, 2026-11-17). It comes from the
 // conversation on load and from the run's `context_usage` / `run_compacted` frames of the open conversation; another
-// conversation's frame never lands here, and a summary of the chat's history leaves it to the next run's measurement.
+// conversation's frame never lands here. Each compaction the server saved on an answer shows after a reload.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
@@ -29,7 +29,7 @@ vi.mock('../services/chatService', () => ({
   browserTimeZone: () => 'UTC',
 }))
 
-import { useChatStore } from './useChatStore'
+import { useChatStore, timelineWithCompactions } from './useChatStore'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 
 beforeEach(() => {
@@ -53,15 +53,12 @@ describe('the context measurement in the shared chat store', () => {
     expect(s.contextUsage).toBeNull()
   })
 
-  it('a run summary drops the ring to what is left; a history summary leaves it', () => {
+  it('a summary drops the ring to what is left', () => {
     const s = useChatStore()
     s.conversationId = '41'
-    s._onEvent({ type: 'run_compacted', conversation_id: 41, scope: 'run', tokens_before: 172000,
-      tokens_after: 30000, window_tokens: 200000, compact_at_percent: 85 })
-    expect(s.contextUsage.percent).toBe(15)
-    s._onEvent({ type: 'run_compacted', conversation_id: 41, scope: 'history', tokens_before: 40000,
-      tokens_after: 2000, messages_summarized: 30 })
-    expect(s.contextUsage.percent).toBe(15)
+    s._onEvent({ type: 'run_compacted', conversation_id: 41, tokens_before: 172000,
+      tokens_after: 30000, window_tokens: 200000, compact_at_percent: 79 })
+    expect(s.contextUsage).toEqual({ used: 30000, window: 200000, percent: 15, compactAt: 79 })
   })
 
   it('a reopened chat shows its last measurement, and a new chat clears it', async () => {
@@ -78,13 +75,40 @@ describe('the context measurement in the shared chat store', () => {
 describe('the timeline row for a summary', () => {
   it('names what was summarized and the tokens before and after', () => {
     const tl = useAgentTimeline()
-    tl.addCompaction({ scope: 'run', tokens_before: 172000, tokens_after: 30000 })
-    tl.addCompaction({ scope: 'history', tokens_before: 40000, tokens_after: 2000 })
-    const labels = tl.steps.value.map((s) => s.label)
-    expect(labels).toEqual([
-      'Earlier work summarized to fit the context window (172k → 30k tokens)',
-      'Earlier messages in this chat summarized to fit the context window (40k → 2k tokens)',
+    tl.addCompaction({ tokens_before: 172000, tokens_after: 30000 })
+    expect(tl.steps.value.map((s) => s.label)).toEqual([
+      'Earlier conversation summarized to fit the context window (172k → 30k tokens)',
     ])
     expect(tl.steps.value.every((s) => s.isCompaction)).toBe(true)
+  })
+})
+
+describe('a reload keeps every compaction the server saved on the answer', () => {
+  const saved = [{ tokens_before: 172000, tokens_after: 30000, window_tokens: 200000, compact_at_percent: 79,
+    messages_summarized: 40 }]
+
+  it('an answer with no saved timeline gets a finished one holding the row', () => {
+    const tl = timelineWithCompactions(null, saved)
+    expect(tl.isComplete).toBe(true)
+    expect(tl.steps.map((s) => [s.isCompaction, s.label])).toEqual([
+      [true, 'Earlier conversation summarized to fit the context window (172k → 30k tokens)']])
+  })
+
+  it('a snapshot that already holds it is left as it is; one that lacks it gets it at the top', () => {
+    const step = { stepId: 'a', phase: 'using_tools', label: 'Reading files', status: 'ok' }
+    const withRow = { steps: [step, { stepId: 'c', isCompaction: true, label: 'x' }], isComplete: true }
+    expect(timelineWithCompactions(withRow, saved)).toBe(withRow)
+    const without = { steps: [step], isComplete: true }
+    expect(timelineWithCompactions(without, saved).steps.map((s) => s.stepId)).toEqual(['compact_saved_0', 'a'])
+    expect(timelineWithCompactions(without, undefined)).toBe(without)
+  })
+
+  it('the loaded answer carries it', async () => {
+    getConversation.mockResolvedValue({ data: { id: 41, messages: [
+      { id: 7, role: 'assistant', content: 'done', model_info: { compactions: saved } }] } })
+    const s = useChatStore()
+    await s.openConversation('41')
+    const answer = s.messages.find((m) => m.serverId === 7)
+    expect(answer.timeline.steps.filter((st) => st.isCompaction)).toHaveLength(1)
   })
 })
