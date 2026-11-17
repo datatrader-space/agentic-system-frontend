@@ -119,21 +119,24 @@
         <div v-else class="muted">No summary yet — add a global memory below.</div>
       </div>
 
-      <!-- Global Memories CRUD -->
+      <!-- Your memories, per scope (MEMORY_ONE_PLACE_PLAN.md section 3.5): the same places the model reads -->
       <div class="card">
         <div class="gm-head">
           <div>
-            <h3 class="card-title">Global memories</h3>
-            <p class="card-sub" style="margin:0">Facts and preferences agents can use across all your chats.</p>
+            <h3 class="card-title">Your memories</h3>
+            <p class="card-sub" style="margin:0">Everything your agents remember for you, by where it is kept. Edit or delete any of it.</p>
           </div>
-          <button class="btn-primary" @click="startAdd"><Plus :size="15" :stroke-width="2" /> Add memory</button>
+          <button class="btn-primary" @click="startAdd"><Plus :size="15" :stroke-width="2" aria-hidden="true" /> Add memory</button>
         </div>
 
         <!-- Add / edit form -->
         <div v-if="editing" class="gm-form">
-          <textarea v-model="draft.content" rows="2" placeholder="e.g. I prefer concise, implementation-ready answers." class="gm-textarea" />
+          <p class="gm-form-where">{{ draft.id ? `Editing a memory in ${draft.place}` : 'New account-wide memory' }}</p>
+          <label class="sr-only" for="gm-draft">Memory</label>
+          <textarea id="gm-draft" v-model="draft.content" name="memory" rows="2" autocomplete="off"
+                    placeholder="e.g. I prefer concise, implementation-ready answers…" class="gm-textarea" />
           <div class="gm-form-actions">
-            <label class="gm-field">Type
+            <label v-if="!draft.id || draft.scope === 'user'" class="gm-field">Type
               <select v-model="draft.kind" class="gm-select">
                 <option v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
               </select>
@@ -141,56 +144,76 @@
             <label class="gm-pin"><input type="checkbox" v-model="draft.pinned" /> Pin</label>
             <span class="spacer" />
             <button class="btn-ghost" @click="cancelEdit">Cancel</button>
-            <button class="btn-primary" :disabled="!draft.content.trim() || busy" @click="saveDraft">{{ draft.id ? 'Save' : 'Add' }}</button>
+            <button class="btn-primary" :disabled="!draft.content.trim() || busy" @click="saveDraft">{{ busy ? 'Saving…' : (draft.id ? 'Save' : 'Add') }}</button>
           </div>
         </div>
 
-        <!-- Search -->
-        <div v-if="memories.length || query" class="gm-search">
-          <Search :size="15" :stroke-width="2" class="gm-search-icon" />
-          <input v-model="query" placeholder="Search memories…" @input="debouncedLoad" />
+        <!-- Which scope -->
+        <div class="gm-tabs" role="tablist" aria-label="Where memories are kept">
+          <button v-for="g in groups" :key="g.scope" role="tab" class="gm-tab" :class="{ active: g.scope === active }"
+                  :aria-selected="g.scope === active" :tabindex="g.scope === active ? 0 : -1"
+                  @click="choose(g.scope)" @keydown="onTabKey($event, g.scope)">
+            {{ g.label }} <span class="gm-count">{{ countOf(g) }}</span>
+          </button>
+        </div>
+        <p class="gm-scope-hint">{{ SCOPE_HINTS[active] }}</p>
+
+        <div class="gm-search">
+          <Search :size="15" :stroke-width="2" class="gm-search-icon" aria-hidden="true" />
+          <input v-model="query" type="search" name="memory-search" autocomplete="off" aria-label="Search memories"
+                 placeholder="Search memories…" @input="debouncedLoad" />
         </div>
 
-        <!-- List states -->
-        <div v-if="listLoading" class="muted gm-empty">Loading…</div>
-        <div v-else-if="!memories.length" class="gm-empty">
-          <Brain :size="22" :stroke-width="1.6" class="text-[#cbd5e1]" />
-          <p>{{ query ? 'No memories match your search.' : 'No global memories yet. Add one to get started.' }}</p>
+        <div v-if="listLoading" class="muted gm-empty" aria-live="polite">Loading…</div>
+        <div v-else-if="listError" class="error-card gm-empty" role="alert">
+          <span>Could not load your memories.</span>
+          <button class="btn-ghost" @click="loadMemories">Retry</button>
+        </div>
+        <div v-else-if="!activePlaces.length" class="gm-empty">
+          <Brain :size="22" :stroke-width="1.6" class="text-[#cbd5e1]" aria-hidden="true" />
+          <p>{{ query ? 'No memories match your search here.' : EMPTY[active] }}</p>
         </div>
 
-        <ul v-else class="gm-list">
-          <li v-for="m in pagedMemories" :key="m.id" class="gm-item" :class="{ archived: m.status === 'archived' }">
-            <button class="gm-pin-btn" :class="{ active: m.pinned }" :title="m.pinned ? 'Unpin' : 'Pin'" @click="togglePin(m)">
-              <Pin :size="14" :stroke-width="2" />
-            </button>
-            <div class="gm-body">
-              <p class="gm-content">{{ m.content }}</p>
-              <div class="gm-meta">
-                <span class="gm-tag">{{ kindLabel(m.kind) }}</span>
-                <span v-if="m.status === 'archived'" class="gm-tag warn">archived</span>
-                <span class="gm-dot">·</span>
-                <span>{{ m.created_by === 'user' ? 'You' : m.created_by }}</span>
-                <span class="gm-dot">·</span>
-                <span>{{ fmtDate(m.updated_at || m.created_at) }}</span>
-              </div>
-            </div>
-            <div class="gm-actions">
-              <button class="gm-act" title="Edit" @click="startEdit(m)"><Pencil :size="14" :stroke-width="2" /></button>
-              <button class="gm-act" :title="m.status === 'archived' ? 'Restore' : 'Archive'" @click="toggleArchive(m)">
-                <ArchiveRestore v-if="m.status === 'archived'" :size="14" :stroke-width="2" />
-                <Archive v-else :size="14" :stroke-width="2" />
+        <section v-else v-for="place in activePlaces" :key="place.key" class="gm-place" :aria-label="place.label">
+          <div class="gm-place-head">
+            <h4 class="gm-place-title">{{ place.label }}</h4>
+            <span class="gm-place-detail">{{ place.detail }} · {{ place.memories.length }} {{ place.memories.length === 1 ? 'memory' : 'memories' }}</span>
+          </div>
+          <ul class="gm-list">
+            <li v-for="m in pageOf(place)" :key="m.id" class="gm-item" :class="{ archived: m.status === 'archived' }">
+              <button class="gm-pin-btn" :class="{ active: m.pinned }" :title="m.pinned ? 'Unpin' : 'Pin'"
+                      :aria-label="m.pinned ? 'Unpin memory' : 'Pin memory'" :aria-pressed="!!m.pinned" @click="togglePin(m)">
+                <Pin :size="14" :stroke-width="2" aria-hidden="true" />
               </button>
-              <button class="gm-act danger" title="Delete" @click="remove(m)"><Trash2 :size="14" :stroke-width="2" /></button>
-            </div>
-          </li>
-        </ul>
-
-        <!-- Pagination — 10 per page -->
-        <div v-if="memories.length > PAGE_SIZE" class="gm-pager">
-          <button class="gm-page-btn" :disabled="page <= 1" @click="page--">Previous</button>
-          <span class="gm-page-info">Page {{ page }} of {{ totalPages }} · {{ memories.length }} total</span>
-          <button class="gm-page-btn" :disabled="page >= totalPages" @click="page++">Next</button>
-        </div>
+              <div class="gm-body">
+                <p class="gm-content">{{ m.content }}</p>
+                <div class="gm-meta">
+                  <span class="gm-tag">{{ kindLabel(m.kind) }}</span>
+                  <span v-if="m.status === 'archived'" class="gm-tag warn">archived</span>
+                  <span class="gm-dot" aria-hidden="true">·</span>
+                  <span>{{ sourceLabel(m.created_by) }}</span>
+                  <span class="gm-dot" aria-hidden="true">·</span>
+                  <span>{{ fmtDate(m.updated_at || m.created_at) }}</span>
+                </div>
+              </div>
+              <div class="gm-actions">
+                <button class="gm-act" title="Edit" aria-label="Edit memory" @click="startEdit(m, place)"><Pencil :size="14" :stroke-width="2" aria-hidden="true" /></button>
+                <button class="gm-act" :title="m.status === 'archived' ? 'Restore' : 'Archive'"
+                        :aria-label="m.status === 'archived' ? 'Restore memory' : 'Archive memory'" @click="toggleArchive(m)">
+                  <ArchiveRestore v-if="m.status === 'archived'" :size="14" :stroke-width="2" aria-hidden="true" />
+                  <Archive v-else :size="14" :stroke-width="2" aria-hidden="true" />
+                </button>
+                <button class="gm-act danger" title="Delete" aria-label="Delete memory" @click="remove(m)"><Trash2 :size="14" :stroke-width="2" aria-hidden="true" /></button>
+              </div>
+            </li>
+          </ul>
+          <!-- Pagination: 10 per page, per place -->
+          <div v-if="place.memories.length > PAGE_SIZE" class="gm-pager">
+            <button class="gm-page-btn" :disabled="pageNo(place) <= 1" @click="turn(place, -1)">Previous</button>
+            <span class="gm-page-info">Page {{ pageNo(place) }} of {{ pagesOf(place) }} · {{ place.memories.length }} total</span>
+            <button class="gm-page-btn" :disabled="pageNo(place) >= pagesOf(place)" @click="turn(place, 1)">Next</button>
+          </div>
+        </section>
       </div>
     </template>
   </div>
@@ -208,7 +231,6 @@ import { confirm } from '../../composables/useConfirm'
 const accountToggles = [
   { key: 'global_memory_enabled', label: 'Global user memory', hint: 'Let agents use your account-wide memories.' },
   { key: 'agent_memory_enabled', label: 'Agent memory', hint: 'Let agents keep their own durable memories.' },
-  { key: 'project_memory_enabled', label: 'Project memory', hint: 'Let agents use memory scoped to a project / repo.' },
   { key: 'end_of_run_learning_enabled', label: 'End-of-run learning', hint: 'Let agents save what they learned after a run completes.' },
 ]
 
@@ -266,40 +288,73 @@ async function set(key, value) {
   }
 }
 
-// ── Global memories ─────────────────────────────────────────────────────────────
-const memories = ref([])
+// ── Your memories, per scope ────────────────────────────────────────────────────
+// The places come from GET /me/memories/scopes/ (only the person's own memory); each row is edited and deleted
+// through /me/memories/<id>/, which accepts the same places.
+const groups = ref([])
+const active = ref('user')
 const listLoading = ref(false)
+const listError = ref(false)
 const query = ref('')
 const editing = ref(false)
 const busy = ref(false)
+const SCOPE_HINTS = {
+  user: 'Used by all your agents, outside projects.',
+  project: 'Each project keeps its own memory, used only in that project\'s chats.',
+  agent: 'What each of your agents keeps for itself.',
+  shared_agent: 'What a shared agent, such as the Super Agent, remembers about you.',
+  conversation: 'Kept for one chat only.',
+}
+const EMPTY = {
+  user: 'No account-wide memories yet. Add one to get started.',
+  project: 'None of your projects has a memory yet.',
+  agent: 'None of your agents has a memory of its own yet.',
+  shared_agent: 'No shared agent remembers anything about you yet.',
+  conversation: 'No chat keeps a memory of its own.',
+}
 // "General" maps to the backend 'context' kind; Fact/Preference map 1:1.
 const KINDS = [
   { value: 'general', label: 'General' },
   { value: 'preference', label: 'Preference' },
   { value: 'fact', label: 'Fact' },
 ]
-const draft = reactive({ id: null, content: '', pinned: false, kind: 'general' })
+const draft = reactive({ id: null, content: '', pinned: false, kind: 'general', scope: 'user', place: '' })
 const toBackendKind = (k) => (k === 'general' ? 'context' : k)
 const toFormKind = (k) => (k === 'context' || !KINDS.some(o => o.value === k) ? 'general' : k)
 const kindLabel = (k) => (k === 'context' ? 'general' : (k || 'general'))
+const SOURCES = { user: 'You', assistant_tool: 'Saved by an agent', autopilot: 'Learned after a run', system: 'System' }
+const sourceLabel = (s) => SOURCES[s] || s
 
-// Pagination — show 10 rows per page.
+const countOf = (g) => (g.places || []).reduce((n, p) => n + p.memories.length, 0)
+const activePlaces = computed(() => (groups.value.find(g => g.scope === active.value) || {}).places || [])
+
+function choose(scope) { active.value = scope }
+function onTabKey(e, scope) {
+  const order = groups.value.map(g => g.scope)
+  const i = order.indexOf(scope)
+  const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: order.length - 1 }[e.key]
+  if (next === undefined) return
+  e.preventDefault()
+  active.value = order[(next + order.length) % order.length]
+  e.currentTarget.parentElement?.querySelectorAll('[role="tab"]')[(next + order.length) % order.length]?.focus()
+}
+
+// Pagination: 10 rows per page, per place (every row is loaded; this only pages what is shown).
 const PAGE_SIZE = 10
-const page = ref(1)
-const totalPages = computed(() => Math.max(1, Math.ceil(memories.value.length / PAGE_SIZE)))
-const pagedMemories = computed(() => {
-  const start = (page.value - 1) * PAGE_SIZE
-  return memories.value.slice(start, start + PAGE_SIZE)
-})
+const pages = reactive({})
+const pagesOf = (place) => Math.max(1, Math.ceil(place.memories.length / PAGE_SIZE))
+const pageNo = (place) => Math.min(pages[place.key] || 1, pagesOf(place))
+const pageOf = (place) => place.memories.slice((pageNo(place) - 1) * PAGE_SIZE, pageNo(place) * PAGE_SIZE)
+function turn(place, by) { pages[place.key] = Math.min(pagesOf(place), Math.max(1, pageNo(place) + by)) }
 
 async function loadMemories() {
   listLoading.value = true
+  listError.value = false
   try {
-    const { data } = await api.listGlobalMemories(query.value ? { q: query.value } : {})
-    memories.value = data.memories || []
-    if (page.value > totalPages.value) page.value = totalPages.value   // keep page in range
+    const { data } = await api.listMemoriesByScope(query.value ? { q: query.value } : {})
+    groups.value = data.groups || []
   } catch (e) {
-    notify.error('Could not load memories')
+    listError.value = true
   } finally {
     listLoading.value = false
   }
@@ -308,15 +363,16 @@ async function loadMemories() {
 let _t
 function debouncedLoad() {
   clearTimeout(_t)
-  _t = setTimeout(() => { page.value = 1; loadMemories() }, 250)
+  _t = setTimeout(() => { Object.keys(pages).forEach(k => delete pages[k]); loadMemories() }, 250)
 }
 
 function startAdd() {
-  draft.id = null; draft.content = ''; draft.pinned = false; draft.kind = 'general'
+  Object.assign(draft, { id: null, content: '', pinned: false, kind: 'general', scope: 'user', place: '' })
   editing.value = true
 }
-function startEdit(m) {
-  draft.id = m.id; draft.content = m.content; draft.pinned = !!m.pinned; draft.kind = toFormKind(m.kind)
+function startEdit(m, place) {
+  Object.assign(draft, { id: m.id, content: m.content, pinned: !!m.pinned, kind: toFormKind(m.kind),
+                         scope: active.value, place: place.label })
   editing.value = true
 }
 function cancelEdit() { editing.value = false }
@@ -331,6 +387,7 @@ async function saveDraft() {
       await api.updateGlobalMemory(draft.id, { content, pinned: draft.pinned, kind })
     } else {
       await api.createGlobalMemory({ content, pinned: draft.pinned, kind })
+      active.value = 'user'
     }
     editing.value = false
     notify.success(draft.id ? 'Memory updated' : 'Memory added')
@@ -444,6 +501,22 @@ onMounted(async () => {
 .gm-search input { width: 100%; padding: 9px 11px 9px 34px; font-size: 0.875rem; border: 1px solid var(--vm-line-2); border-radius: 9px; outline: none; }
 .gm-search input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px #eaf0ff; }
 
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.gm-form-where { margin: 0 0 8px; font-size: 0.78rem; font-weight: 600; color: var(--vm-ink-soft); }
+.gm-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; margin-bottom: 8px; background: var(--vm-surface-soft); border-radius: 9px; }
+.gm-tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-faint); background: transparent; border: none; border-radius: 7px; cursor: pointer; transition: color .15s, background-color .15s; }
+.gm-tab:hover { color: var(--vm-ink); }
+.gm-tab.active { background: var(--vm-surface); color: var(--vm-primary, var(--vm-link)); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.gm-count { min-width: 18px; padding: 0 6px; border-radius: 999px; background: var(--vm-surface); color: var(--vm-ink-faint); font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+.gm-tab.active .gm-count { background: var(--vm-surface-soft); color: var(--vm-link); }
+.gm-scope-hint { margin: 0 0 12px; font-size: 0.75rem; color: var(--vm-ink-faint); }
+.gm-place + .gm-place { margin-top: 18px; }
+.gm-place-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
+.gm-place-title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--vm-ink); overflow-wrap: anywhere; }
+.gm-place-detail { font-size: 0.72rem; color: var(--vm-ink-faint); }
+.gm-tab:focus-visible, .gm-act:focus-visible, .gm-pin-btn:focus-visible, .gm-page-btn:focus-visible,
+.btn-primary:focus-visible, .btn-ghost:focus-visible { outline: 2px solid var(--vm-primary, #2563eb); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .dg-spin { animation: none; } .gm-tab { transition: none; } }
 .gm-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 0; color: var(--vm-ink-faint); font-size: 0.875rem; text-align: center; }
 .gm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .gm-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--vm-line-2); border-radius: 11px; background: var(--vm-surface); }
@@ -451,7 +524,7 @@ onMounted(async () => {
 .gm-pin-btn { flex-shrink: 0; display: grid; place-items: center; height: 26px; width: 26px; border-radius: 7px; border: 1px solid var(--vm-line-2); background: var(--vm-surface); color: #cbd5e1; cursor: pointer; }
 .gm-pin-btn.active { color: var(--vm-link); border-color: #bfd3ff; background: var(--vm-surface-soft); }
 .gm-body { flex: 1; min-width: 0; }
-.gm-content { font-size: 0.875rem; color: var(--vm-ink); line-height: 1.45; margin: 0 0 5px; white-space: pre-wrap; }
+.gm-content { font-size: 0.875rem; color: var(--vm-ink); line-height: 1.45; margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gm-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 0.72rem; color: var(--vm-ink-faint); }
 .gm-tag { padding: 1px 7px; border-radius: 999px; background: var(--vm-surface-soft); color: var(--vm-ink-faint); font-weight: 600; }
 .gm-tag.warn { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }

@@ -1370,8 +1370,9 @@ export default {
   // Generated memory summaries (digests) shown next to the rows.
   getGlobalMemoryDigest: () => api.get('/me/memory/digest/'),
   getAgentMemoryDigest: (agentId) => api.get(`/agents/${agentId}/memory/summary/`),
-  // Global (scope='user') memory CRUD — Settings → Memory → Global Memories.
-  listGlobalMemories: (params) => api.get('/me/memories/', { params }),
+  // Settings → Memory: the person's memory per scope (account-wide, projects, agents, shared agents, chats).
+  listMemoriesByScope: (params) => api.get('/me/memories/scopes/', { params }),
+  // Add an account-wide memory; edit / delete accept a memory of any of the person's own scopes.
   createGlobalMemory: (data) => api.post('/me/memories/', data),
   updateGlobalMemory: (id, data) => api.patch(`/me/memories/${id}/`, data),
   deleteGlobalMemory: (id) => api.delete(`/me/memories/${id}/`),
