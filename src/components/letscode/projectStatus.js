@@ -106,13 +106,29 @@ export function githubWebUrl(url) {
 }
 
 /**
- * The project a `?project=<repo_id>` link names (the notification before a sandbox is deleted links there, ADM-1205
- * phase F item 18): `{ project, query }`, `project` null when it is not one of the person's projects, `query` the
- * route's query without the link. `null` when there is no link.
+ * The project and chat the page's address names: `?project=<repo_id>&chat=<conversation id>`. The open project and its
+ * chat are kept there (`openQuery`), so a reload opens both again (phase 8 run 2: a reload dropped to the project list
+ * and lost the chat); the notification before a sandbox is deleted links to a project the same way (ADM-1205 phase F
+ * item 18). `{ project, chat, query }`: `project` null when it is not one of the person's projects, `chat` the named
+ * chat or null, `query` the route's query without the two. `null` when no project is named.
  */
 export function linkedProject(projects, query) {
   const id = String(query?.project || '')
   if (!id) return null
-  const { project: _drop, ...rest } = query
-  return { project: (projects || []).find((p) => String(p.repo_id) === id) || null, query: rest }
+  const { project: _drop, chat, ...rest } = query
+  return {
+    project: (projects || []).find((p) => String(p.repo_id) === id) || null,
+    chat: chat ? String(chat) : null,
+    query: rest,
+  }
+}
+
+/** The route's query naming the open project and chat (each dropped when null), the rest of it kept. */
+export function openQuery(query, { project = null, chat = null } = {}) {
+  const { project: _p, chat: _c, ...rest } = query || {}
+  return {
+    ...rest,
+    ...(project != null && project !== '' ? { project: String(project) } : {}),
+    ...(project != null && project !== '' && chat != null && chat !== '' ? { chat: String(chat) } : {}),
+  }
 }

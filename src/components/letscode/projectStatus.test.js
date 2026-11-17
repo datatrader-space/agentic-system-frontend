@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { phaseLabel, phaseTone, isReady, failedStep, pipelineSteps, githubWebUrl, linkedProject } from './projectStatus'
+import { phaseLabel, phaseTone, isReady, failedStep, pipelineSteps, githubWebUrl, linkedProject, openQuery } from './projectStatus'
 
 describe('linkedProject', () => {
   const projects = [{ repo_id: 4, name: 'shop' }, { repo_id: 16, name: 'site' }]
-  it('names the linked project and drops the link from the query', () => {
-    expect(linkedProject(projects, { project: '16', tab: 'x' })).toEqual({ project: projects[1], query: { tab: 'x' } })
+  it('names the linked project and its chat, and the rest of the query', () => {
+    expect(linkedProject(projects, { project: '16', tab: 'x' })).toEqual({ project: projects[1], chat: null, query: { tab: 'x' } })
+    expect(linkedProject(projects, { project: '16', chat: '1268' })).toEqual({ project: projects[1], chat: '1268', query: {} })
   })
   it('a project that is not the person’s is null; no link is nothing', () => {
-    expect(linkedProject(projects, { project: '99' })).toEqual({ project: null, query: {} })
+    expect(linkedProject(projects, { project: '99' })).toEqual({ project: null, chat: null, query: {} })
     expect(linkedProject(projects, {})).toBeNull()
     expect(linkedProject(projects, undefined)).toBeNull()
   })
@@ -59,5 +60,17 @@ describe('Let\'s Code project status', () => {
 
   it('turns a clone URL into the repository page', () => {
     expect(githubWebUrl('https://github.com/o/r.git')).toBe('https://github.com/o/r')
+  })
+})
+
+describe('openQuery', () => {
+  it('keeps the open project and chat in the address, so a reload opens both again', () => {
+    expect(openQuery({ tab: 'x' }, { project: 73, chat: 1268 })).toEqual({ tab: 'x', project: '73', chat: '1268' })
+    expect(openQuery({ project: '73', chat: '1' }, { project: 73, chat: 2 })).toEqual({ project: '73', chat: '2' })
+  })
+  it('a project with no chat yet names only the project; no project names neither', () => {
+    expect(openQuery({ project: '73', chat: '1' }, { project: 73 })).toEqual({ project: '73' })
+    expect(openQuery({ project: '73', chat: '1', tab: 'x' }, {})).toEqual({ tab: 'x' })
+    expect(openQuery({}, { chat: 5 })).toEqual({})
   })
 })

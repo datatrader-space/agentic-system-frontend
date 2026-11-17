@@ -199,6 +199,7 @@
                   ref="agentChat"
                   :key="active.repo_id"
                   :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
+                  :chat-id="linkedChatId" @chat-opened="onChatOpened"
                   @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
                 />
               </template>
@@ -243,7 +244,7 @@ import ProjectCommands from '../components/letscode/ProjectCommands.vue'
 import ProjectEnv from '../components/letscode/ProjectEnv.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
-import { isReady, phaseTone, relativeTime, githubWebUrl, linkedProject } from '../components/letscode/projectStatus'
+import { isReady, phaseTone, relativeTime, githubWebUrl, linkedProject, openQuery } from '../components/letscode/projectStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -474,6 +475,10 @@ async function cloneRepo(r) {
 }
 
 function openProject(p) {
+  // The address names the open project (and, once one is open, its chat), so a reload opens both again. A chat named
+  // there is kept only for the project it belongs to.
+  const sameProject = String(route.query.project || '') === String(p.repo_id)
+  router.replace({ query: openQuery(route.query, { project: p.repo_id, chat: sameProject ? route.query.chat : null }) })
   active.value = { ...p }
   pipelineLog.value = p.log || []
   activity.value = []
@@ -609,6 +614,7 @@ async function onBackToProjects() {
 }
 
 function closeProject() {
+  router.replace({ query: openQuery(route.query, {}) })
   statusPoller.stop()
   closeWs()
   active.value = null
@@ -681,14 +687,26 @@ function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
 
 onMounted(async () => { await loadProjects(); openLinkedProject(); loadGithubRepos() })
 
-// `/dashboard/lets-code?project=<id>` opens that project (the notification before a sandbox is deleted links here,
-// ADM-1205 phase F item 18). Only one of the person's own projects opens; the link's query is then removed.
+// `/dashboard/lets-code?project=<id>&chat=<id>` opens that project and its chat: the page keeps them there, so a reload
+// comes back to them, and the notification before a sandbox is deleted links to a project the same way (ADM-1205 phase
+// F item 18). Only one of the person's own projects opens; another one's link is removed from the address.
 function openLinkedProject() {
   const link = linkedProject(projects.value, route.query)
   if (!link) return
-  if (link.project) openProject(link.project)
-  else notify.error("That project is not in your Let's Code projects any more.")
+  if (link.project) {
+    openProject(link.project)
+    return
+  }
+  notify.error("That project is not in your Let's Code projects any more.")
   router.replace({ query: link.query })
+}
+// The chat the address names, for the open project's chat panel to open first.
+const linkedChatId = computed(() => (route.query.chat ? String(route.query.chat) : null))
+// The chat panel opened a chat (or gave a new one its id): the address names it.
+function onChatOpened(id) {
+  if (!active.value) return
+  if (String(route.query.chat || '') === String(id || '')) return
+  router.replace({ query: openQuery(route.query, { project: active.value.repo_id, chat: id || null }) })
 }
 onBeforeUnmount(() => {
   statusPoller.stop(); closeWs(); languages.dispose(); debuggerStore.dispose()

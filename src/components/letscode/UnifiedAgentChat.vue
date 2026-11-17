@@ -177,8 +177,11 @@ const props = defineProps({
   systemId: { type: [String, Number], required: true },
   repoId: { type: [String, Number], required: true },
   crsReady: { type: Boolean, default: false },
+  // The chat the page's address names (`?chat=<id>`): opened first, so a reload comes back to it.
+  chatId: { type: [String, Number], default: null },
 })
-const emit = defineEmits(['changes', 'activity', 'view-changes', 'open-preview'])
+// `chat-opened`: the chat on screen changed (opened, or a new one given its id), for the page's address.
+const emit = defineEmits(['changes', 'activity', 'view-changes', 'open-preview', 'chat-opened'])
 
 const chat = useChatStore()
 const input = ref('')
@@ -443,6 +446,10 @@ watch(() => chat.conversationId, (id) => {
   labelActiveTab()                         // after the id is on its tab, so the first message names THIS tab
   saveTabs()
 })
+// The page's address names the chat on screen. Only a chat with an id is named: the store is cleared while the panel
+// opens (`onMounted`), and that must not take the chat out of the address before it is opened again. A new chat not
+// sent yet takes it out (`newChat`).
+watch(() => chat.conversationId, (id) => { if (id) emit('chat-opened', String(id)) })
 
 async function selectTab(t) {
   if (isActiveTab(t)) return
@@ -459,6 +466,7 @@ function newChat() {
   chat.reset()                            // never stops the chat on screen: a running one keeps going in its tab
   historyOpen.value = false
   saveTabs()
+  emit('chat-opened', null)
   nextTick(() => inputEl.value && inputEl.value.focus())
 }
 // Closing a chat tab never stops its chat (it stays in Chat history). With none left, the editor shows its files.
@@ -469,6 +477,7 @@ async function closeTab(t) {
   tabsStore.tabs.splice(i, 1)
   if (!tabsStore.tabs.length) {
     chat.reset()
+    emit('chat-opened', null)
     tabsStore.showFiles()
   } else if (wasActive) {
     await selectTab(tabsStore.tabs[Math.min(i, tabsStore.tabs.length - 1)])
@@ -564,6 +573,8 @@ function openPreview(c) {
 // chats (the server lists only the person's own, newest first) is opened, never over a chat already begun here:
 // nothing typed, nothing sent, no conversation open. New chat and the history menu work as before.
 let resumeCancelled = false
+// Read once, as the panel opens: the address can change while the project's chats load.
+const addressedChat = props.chatId != null && props.chatId !== '' ? String(props.chatId) : null
 // With tabs: the tabs this project had open are opened again (those still in its history), on the one that was
 // active; with none remembered, the newest chat, as before.
 async function resumeLastChat() {
@@ -576,9 +587,13 @@ async function resumeLastChat() {
     const known = new Set(list.map((c) => String(c.id)))
     const saved = readSavedTabs()
     const ids = ((saved && saved.ids) || []).map(String).filter((id) => known.has(id))
+    // The chat the address named when the panel opened comes first (a reload), when it is one of this project's chats.
+    const named = addressedChat != null && known.has(addressedChat) ? addressedChat : null
+    if (named && !ids.includes(named)) ids.push(named)
     if (ids.length) {
       tabsStore.tabs = ids.map((id) => newTab(id))
-      const active = saved.active && ids.includes(String(saved.active)) ? String(saved.active) : ids[ids.length - 1]
+      const active = named || (saved && saved.active && ids.includes(String(saved.active)) ? String(saved.active)
+        : ids[ids.length - 1])
       await openConversation({ id: active })
       return
     }

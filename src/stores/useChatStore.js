@@ -2229,7 +2229,14 @@ export const useChatStore = defineStore('chat', {
             // this idempotent. _taskRunActive is cleared before re-sending so the new turn starts clean.
             const ct = msg.change_type
             const eid = msg.event_id
-            if ((ct === 'approved' || ct === 'changes_requested' || ct === 'cancelled')
+            // ANSWERED IN THE RUN (plan mode): the run that gave the plan waits on its card and goes on with the answer
+            // by itself, so nothing is re-sent. Re-sending it made the running turn take the platform's own
+            // instruction in as the person's message ("You added: Approved. Carry out the approved plan…", and the
+            // notes of "keep planning" twice; phase 8 run 2, conversation 1268).
+            if (msg.answered_in_run === true && (ct === 'approved' || ct === 'changes_requested')) {
+              if (eid) this._resolvedDecisionEventIds.add(eid)
+              this.pendingPlan = null
+            } else if ((ct === 'approved' || ct === 'changes_requested' || ct === 'cancelled')
                 && (!eid || !this._resolvedDecisionEventIds.has(eid))) {
               if (eid) this._resolvedDecisionEventIds.add(eid)
               this.pendingPlan = null
@@ -2702,6 +2709,26 @@ export const useChatStore = defineStore('chat', {
           if (back.length && typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('composer-restore', { detail: { text: back.join('\n\n') } }))
           }
+          break
+        }
+        case 'turn_started': {
+          // A NEW TURN BEGAN in this conversation (backend `turn_session`, sent to every tab of the person). The tab
+          // that sent the message is already following it. Another tab showing this chat had no bubble, so it dropped
+          // every frame of the turn and learned of the run only when a card arrived, about 40 s later (phase 8 run 2,
+          // two tabs on conversation 1268): it now shows the person's message and follows the turn from here.
+          if (msg.conversation_id == null || this.conversationId == null ||
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          if (this.isStreaming) break
+          const _sid = msg.message_id != null ? String(msg.message_id) : null
+          if (!_sid || !this.messages.some((x) => x.role === 'user' && String(x.serverId ?? '') === _sid)) {
+            const _approval = msg.kind === 'plan_approval'
+            this.messages.push({ id: nid(), role: 'user', content: _approval ? PLAN_APPROVED_CONTINUE : (msg.message || ''),
+                                 ...(_approval ? { kind: 'plan_approval' } : {}), serverId: msg.message_id ?? null,
+                                 status: 'done', error: '', toolCalls: [] })
+          }
+          // A new run: its events are counted from its own start, not from the last run this tab followed.
+          this._forgetRunSeq(this.conversationId)
+          this._beginAssistant()
           break
         }
         case 'followup_turn_started': {
