@@ -44,6 +44,18 @@ const badge = computed(() => {
   if (watchable.value && watching.value && liveState.value === 'playing') return ['green', 'Live'];
   return sourceState(props.source);
 });
+// A connector camera's check its machine has not answered yet (streaming_api._connector_asked): said in place of the
+// previous answer, and the source is read again until the machine answers.
+const asked = computed(() => props.source.asked || null);
+const ASK_POLL_MS = 5000; let askTimer = null;
+watch(asked, now => {
+  clearTimeout(askTimer); askTimer = null;
+  if (now) askTimer = setTimeout(() => { if (!gone) emit('refresh'); }, ASK_POLL_MS);
+}, { immediate: true });
+onUnmounted(() => clearTimeout(askTimer));
+const askedLine = computed(() => (asked.value
+  ? `Asked ${asked.value.machine} for a frame ${timeAgo(asked.value.since)}. It appears here when the machine answers; a machine's first check downloads AADML's camera image, which can take a few minutes.`
+  : ''));
 function stopWatching() { player.value?.stop?.(); watching.value = false; }
 function watchAgain() { watching.value = true; }
 function fullscreen() { player.value?.fullscreen?.(); }
@@ -166,7 +178,8 @@ async function removeRecording(row) {
               <UiButton v-if="watchable" class="small" @click="watchAgain"><Tv :size="14" aria-hidden="true"/> Watch live</UiButton>
             </div>
           </div>
-          <p v-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
+          <p v-if="asked" class="sp-reason" role="status"><LoaderCircle class="spin" :size="13" aria-hidden="true"/> {{ askedLine }}</p>
+          <p v-else-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
           <!-- Cloud recording -->
           <div v-if="rec" class="sp-rec" :class="{ on: rec.on && !rec.unpaid }">
             <p class="sp-rec-line"><Circle v-if="rec.on && !rec.unpaid" class="sp-rec-dot" :size="10" aria-hidden="true"/>{{ recLine }}</p>
