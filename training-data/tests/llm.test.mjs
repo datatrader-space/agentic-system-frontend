@@ -211,3 +211,12 @@ test('the GPUs a chat run is offered are asked for with the settings its memory 
   assert.equal(asked.get('parent'), '2');
   assert.equal(new URLSearchParams(trainingMachinesQuery(3, { config: 'smoke-gpu', method: 'sft', parent: '' }).replace(/^\?/, '')).has('parent'), false);
 });
+
+test('a machine getting a training job ready says what comes down and how far', async () => {
+  const { readyText, progressLine } = await import('../src/api/train.js');
+  assert.equal(readyText({ phase: 'downloading', part: 'image', done_bytes: 1.2e9, total_bytes: 8.6e9 }), 'Downloading the training image: 1.2 of 8.6 GB');
+  assert.equal(readyText({ phase: 'downloading', part: 'files', done_bytes: 0, total_bytes: 0 }), 'Downloading the base model and data');
+  assert.equal(readyText({ phase: 'starting' }), 'Starting the training on your machine');
+  assert.equal(readyText({ phase: 'training', steps: 3, steps_done: 1 }), null);
+  assert.equal(progressLine({ phase: 'downloading', part: 'image', done_bytes: 5, total_bytes: 10 }).share, 0.5);
+});

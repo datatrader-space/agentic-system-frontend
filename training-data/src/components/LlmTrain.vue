@@ -13,6 +13,7 @@ import RunProvenance from './RunProvenance.vue';
 import AttemptsTable from './AttemptsTable.vue';
 import { llmApi, trainingOverrides, configSummary } from '../api/llm.js';
 import { ago } from '../api/training.js';
+import { readyText } from '../api/train.js';
 import './llm.css';
 
 const props = defineProps({ project: Object });
@@ -83,8 +84,8 @@ const cancelling = ref(false);
 async function confirmCancel() { await move('cancel'); cancelling.value = false; }
 const unfinished = run =>['queued', 'starting', 'running', 'finalizing'].includes(run?.state);
 // A job says its steps once it trains; before that it loads the model and the data (found 2026-10-21: "0 of 0 steps").
-const progressText = p => (!p ? '—' : p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
-  : p.phase === 'preparing' ? 'loading the model and the data' : p.phase);
+const progressText = p => (!p ? '—' : readyText(p) || (p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
+  : p.phase === 'preparing' ? 'loading the model and the data' : p.phase));
 // Green for a model, purple while it runs; an ended run without a model stays neutral (its word says which).
 const stateTone = state => (state === 'succeeded' ? 'green' : unfinished({ state }) ? 'purple' : 'neutral');
 onMounted(load);
@@ -168,7 +169,7 @@ onUnmounted(() => clearTimeout(timer));
           <dt>Dataset</dt><dd>{{ opened.dataset_version }}</dd>
           <dt>Base model</dt><dd>{{ opened.base_model }}{{ opened.parent ? `, starting from ${opened.parent}` : '' }}</dd>
           <dt>Configuration</dt><dd>{{ opened.config_name }}: {{ configSummary(opened.config_given) }}</dd>
-          <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
+          <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress?.training_rows != null ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
           <dt>Loss</dt><dd>{{ opened.metrics?.train_loss != null ? `training ${opened.metrics.train_loss.toFixed(3)}` : '—' }}{{ opened.metrics?.eval_loss != null ? `, validation ${opened.metrics.eval_loss.toFixed(3)}` : '' }}</dd>
           <dt>Model</dt><dd>{{ opened.model || 'none yet' }}</dd>
         </dl>
