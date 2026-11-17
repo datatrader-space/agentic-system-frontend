@@ -524,7 +524,7 @@ export default {
   // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top). Sent as multipart, said
   // explicitly: the instance's JSON default otherwise went out with the form and the server read no files (live,
   // 2026-11-11: "Choose files to upload.").
-  // One file larger than an upload part (8 MB, ADM-1269) goes in 8 MB pieces the sandbox joins after the last one;
+  // One file larger than an upload part (2 MB, ADM-1269) goes in 2 MB pieces the sandbox joins after the last one;
   // `onPiece(sent, total)` hears each. A file that is there is refused (409) on the first piece, before any is kept.
   uploadRepositoryFiles: async (systemId, repoId, folder, files, { overwrite = false, onPiece } = {}) => {
     const url = `/systems/${systemId}/repositories/${repoId}/files/upload/`

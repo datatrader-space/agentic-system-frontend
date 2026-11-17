@@ -63,7 +63,7 @@ describe('the other file calls', () => {
 })
 
 describe('a file larger than an upload part (ADM-1269)', () => {
-  it('goes in 8 MB pieces with one id, and the last answer is the upload', async () => {
+  it('goes in pieces of one part each, with one id, and the last answer is the upload', async () => {
     const big = new File([new Uint8Array(MAX_BYTES_PER_PART * 2 + 5)], 'video.mp4')
     h.rawPost.mockResolvedValueOnce({ status: 202, data: { received: 0 } })
       .mockResolvedValueOnce({ status: 202, data: { received: 1 } })
