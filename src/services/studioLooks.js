@@ -1632,6 +1632,129 @@ export const studioLooks = [
     "referenceLabel": "Source image or video"
   },
   {
+    "id": "effects-look-outpaint",
+    "feature": "effects",
+    "title": "Room to breathe",
+    "purpose": "Extend a photo past its edges to a new shape.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your photo",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Extend my photo beyond its edges into a {Shape} frame, filled with {Fill}. Keep everything already in the picture exactly as it is, with no visible seam.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "shape",
+        "label": "Shape",
+        "default": "9:16 vertical"
+      },
+      {
+        "id": "fill",
+        "label": "Fill",
+        "default": "the scene as it continues"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Your photo",
+    "recipe": "outpaint",
+    "recipeOptions": {
+      "shape": "9:16",
+      "fill": "the scene as it continues"
+    }
+  },
+  {
+    "id": "effects-look-skin",
+    "feature": "effects",
+    "title": "Natural skin",
+    "purpose": "A gentle retouch that keeps the person exactly who they are.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Portrait",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Retouch the skin in my portrait with {Finish}. Keep real skin texture, the same face, features and skin tone.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "finish",
+        "label": "Finish",
+        "default": "a light touch"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Portrait",
+    "recipe": "skin",
+    "recipeOptions": {
+      "finish": "light touch"
+    }
+  },
+  {
+    "id": "effects-look-shots",
+    "feature": "effects",
+    "title": "Close, medium, wide",
+    "purpose": "The same subject as a set of three framings.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your photo",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Reframe my photo as {Framing}, keeping the same subject, setting and light; only the camera distance changes.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "framing",
+        "label": "Framing",
+        "default": "a close-up, a medium shot and a wide shot"
+      }
+    ],
+    "durationLabel": "3 images",
+    "referenceLabel": "Your photo",
+    "recipe": "shots",
+    "recipeOptions": {
+      "shot": "close-up"
+    }
+  },
+  {
     "id": "avatar-look-1",
     "feature": "avatar",
     "title": "A warm introduction",
@@ -2202,6 +2325,31 @@ export const studioLooks = [
     "referenceLabel": "Reference optional"
   },
   {
+    "id": "explainer-look-faceless",
+    "feature": "explainer",
+    "title": "Faceless short",
+    "purpose": "A vertical voice-over video with no one on screen.",
+    "category": "Explainers",
+    "slots": [],
+    "settings": {},
+    "promptTemplate": "Make a faceless vertical short about {Topic}: a calm voice over stock-like pictures, captions and soft music.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "topic",
+        "label": "Topic",
+        "default": "Why honey never spoils"
+      }
+    ],
+    "durationLabel": "60 s",
+    "referenceLabel": "No reference needed",
+    "faceless": true
+  },
+  {
     "id": "storyboard-look-1",
     "feature": "storyboard",
     "title": "The brand journey",
@@ -2470,6 +2618,61 @@ export const studioLooks = [
     ],
     "durationLabel": "8 s",
     "referenceLabel": "Reference optional"
+  },
+  {
+    "id": "cinema-look-noir",
+    "feature": "cinema",
+    "title": "Rain-soaked noir",
+    "purpose": "A 1970s noir shot that slows into its last moment.",
+    "category": "Cinema",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference image",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Direct a cinematic shot of {Subject}. Genre: {Genre}. Era: {Era}. Speed: {Ramp}.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "A detective under a flickering streetlight"
+      },
+      {
+        "id": "genre",
+        "label": "Genre",
+        "default": "Film noir"
+      },
+      {
+        "id": "era",
+        "label": "Era",
+        "default": "1970s film"
+      },
+      {
+        "id": "ramp",
+        "label": "Ramp",
+        "default": "normal speed easing into slow motion at the end"
+      }
+    ],
+    "durationLabel": "5 s",
+    "referenceLabel": "Reference optional",
+    "cinema": {
+      "genre": "noir",
+      "era": "1970s-film",
+      "speed_ramp": "slow-out"
+    }
   },
   {
     "id": "editor-look-1",

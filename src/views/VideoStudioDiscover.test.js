@@ -34,7 +34,7 @@ describe('Discover is the goal-first Studio landing', () => {
   it('filters ready-made looks and links directly to an editable tool preset without requesting media', async () => {
     await open()
     await wrapper.findAll('.discover-views button')[1].trigger('click')
-    expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(69)
+    expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(74)
     await wrapper.get('input[type="search"]').setValue('Softbox product portrait')
     expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(1)
     expect(wrapper.get('[data-test="discover-look-image-look-1"]').attributes('href')).toContain('/video-studio/image?preset=image-look-1&mode=agent')
