@@ -125,12 +125,17 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent .st-form>:deep(.sps){gap:8px}
  .st-page-agent :deep(.sm-switch button){min-height:44px}
  .st-page-agent :deep(.st-tool-setup){gap:8px}
- .st-page-agent :deep(.st-tool-options){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+ /* The tool's row: Agent | Manual at its own width, the preset select in the rest, New chat / Expand at the end
+    (they sit over the row's right padding). The select uses the row's type size; on a touch screen it keeps 16 px
+    so iOS does not zoom the page when it opens. */
+ .st-page-agent :deep(.st-tool-options){display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
  .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options){padding-right:96px}
  .st-page-agent :deep(.st-tool-options .sm-switch){width:100%;padding:2px}
- .st-page-agent :deep(.st-tool-options .sm-switch button){padding:7px 8px;font-size:12px;gap:5px}
- .st-page-agent :deep(.st-tool-options .sm-switch svg){width:13px;height:13px}
+ .st-page-agent :deep(.st-tool-options .sm-switch button){padding:7px 8px;font-size:12px;gap:5px;white-space:nowrap}
+ .st-page-agent :deep(.st-tool-options .sm-switch svg){width:13px;height:13px;flex-shrink:0}
  .st-page-agent :deep(.st-tool-options .sps>span){display:none}
+ .st-page-agent :deep(.st-tool-options .sps select){min-height:44px;font-size:12px;text-overflow:ellipsis}
+ @media(pointer:coarse){.st-page-agent :deep(.st-tool-options .sps select){font-size:16px}}
  .st-page-agent.st-chat-expanded :deep(.st-tool-setup:not(:has([role="alert"]))){display:none}
  .st-page-agent.st-chat-expanded :deep(.st-tool-options),.st-page-agent.st-chat-expanded :deep(.sc-blocked){display:none}
  .st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1 1 0;gap:6px;height:auto;min-height:0;max-height:none}
@@ -170,6 +175,11 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 }
 @media(max-width:480px){
  .st-page:not(.st-page-agent){padding-top:14px;padding-inline:12px}
+ /* A phone: two rows, so nothing is cut (live 2026-11-17, 375 px: "Manu", "Your own i"). Agent | Manual beside
+    New chat / Expand, then the preset select across the full width. */
+ .st-page-agent :deep(.st-tool-options){grid-template-columns:minmax(0,1fr)}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options){padding-right:0}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options .sm-switch){width:calc(100% - 96px)}
  @media(max-height:480px){
   .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
  }
