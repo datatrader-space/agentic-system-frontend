@@ -4,10 +4,23 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
+const calls = [];
 vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
   const actual = await real();
-  return { ...actual, streamingApi: { ...actual.streamingApi, get: vi.fn(async id => ({ stream: { ...RUNNING, id } })) } };
+  return {
+    ...actual,
+    streamingApi: { ...actual.streamingApi, get: vi.fn(async id => ({ stream: { ...RUNNING, id } })) },
+    videoSources: { ...actual.videoSources, recording: vi.fn(async (id, body) => { calls.push(['recording', id, body]); return { said: 'ok' }; }) },
+    recordingsApi: {
+      list: vi.fn(async query => { calls.push(['list', query]); return { recordings: [REC], may: { delete: true } }; }),
+      remove: vi.fn(async id => { calls.push(['remove', id]); return {}; }),
+    },
+  };
 });
+const REC = { id: 5, source: { id: 1, name: 'Gate' }, started_at: '2026-11-17T10:05:00+00:00', ended_at: '2026-11-17T10:10:00+00:00',
+  bytes: 52428800, play_url: 'https://bucket.example/r.mp4?sig=1', download_url: 'https://bucket.example/r.mp4?sig=2' };
+const RECORDING_OFF = { on: false, days: 30, max_days: 30, unpaid: false, stored_bytes: 0, day_price_usd: '0',
+  per_gb_month_usd: '0.0312', consent_text: 'I may record this camera.', rtsp_only: true };
 import VideoSourcePage from '../../../training-data/src/components/VideoSourcePage.vue';
 
 const HLS = { id: 1, name: 'Test stream (Mux)', kind: 'url', state: 'online', shown_address: 'https://test-streams.mux.dev',
@@ -27,7 +40,8 @@ describe('a video source page', () => {
     expect(w.find('.sp-crumbs').text()).toContain('Cloud Streaming');
     expect(w.find('h2').text()).toBe('Test stream (Mux)');
     expect(w.find('.sp-kind').text()).toContain('HLS stream');
-    expect(w.findAll('.sp-card-title').map(h => h.text())).toEqual(['Source', 'Model', 'Results']);
+    expect(w.findAll('.sp-card-title').map(h => h.text())).toEqual(['Source', 'Model']);
+    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results']);   // Recordings only where it can record
     expect(w.text()).toContain('Choose a model to run on this camera.');
     expect(w.text()).toContain('Results appear here');
     expect(w.text()).not.toMatch(/Roboflow|Workflow to run/);
@@ -49,6 +63,40 @@ describe('a video source page', () => {
     expect(w.emitted('back')).toHaveLength(1);
     const workflow = w.findAll('button').find(b => b.text().includes('Build a workflow'));
     expect(workflow.attributes('disabled')).toBeDefined();                // workflows on cameras come later
+  });
+
+  it('turns cloud recording on only with its consent, for an RTSP camera', async () => {
+    const rtsp = { ...HLS, shown_address: 'rtsp://cam.example.com', recording: RECORDING_OFF, may: { record: true } };
+    const w = page({ source: rtsp });
+    expect(w.find('.sp-rec-line').text()).toBe('Not recording.');
+    await w.findAll('button').find(b => b.text().includes('Record to the cloud')).trigger('click');
+    expect(w.find('.sp-rec-form').text()).toContain('per GB a month');
+    const turnOn = () => w.findAll('button').find(b => b.text() === 'Turn on');
+    expect(turnOn().attributes('disabled')).toBeDefined();                // not without the consent
+    await w.find('.sp-rec-consent input').setValue(true);
+    await w.find('.sp-rec-form select').setValue(7);
+    await w.find('.sp-rec-form').trigger('submit');
+    await flushPromises();
+    expect(calls.at(-1)).toEqual(['recording', 1, { on: true, days: 7, consent: true }]);
+    expect(w.emitted('refresh')).toHaveLength(1);
+    // an HLS camera cannot be recorded (the relay plays rtsp:// only)
+    const hls = page({ source: { ...HLS, recording: RECORDING_OFF, may: { record: true } } });
+    expect(hls.findAll('button').find(b => b.text().includes('Record to the cloud')).attributes('disabled')).toBeDefined();
+  });
+
+  it('lists a day of recordings, plays one and deletes one', async () => {
+    const w = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true, stored_bytes: 52428800 } } });
+    await w.findAll('[role="tab"]').find(t => t.text() === 'Recordings').trigger('click');
+    await flushPromises();
+    expect(calls.find(c => c[0] === 'list')[1]).toMatchObject({ source: 1 });
+    expect(w.find('.sp-rec-list').text()).toContain('10:05 to 10:10 UTC');
+    expect(w.find('.sp-rec-list').text()).toContain('50.0 MB');
+    await w.findAll('button').find(b => b.text().includes('Play')).trigger('click');
+    expect(w.find('video.sp-player').attributes('src')).toBe(REC.play_url);
+    await w.find('[aria-label^="Delete the recording"]').trigger('click');
+    await flushPromises();
+    expect(calls.some(c => c[0] === 'remove' && c[1] === 5)).toBe(true);
+    w.unmount();
   });
 
   it('shows the running stream: its model, the newest counts by class, and Stop', async () => {

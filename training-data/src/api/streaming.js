@@ -53,7 +53,51 @@ export const videoSources = {
   // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
   // renew_after}. Anyone who may see the source may watch it.
   live: id => apiFetch(`${SOURCES}${enc(id)}/live/`, { timeoutMs: SLOW }),
+  // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
+  recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
+
+// The workspace's kept recordings, newest first, each with signed links to play and download it (15 minutes).
+const RECORDINGS = `${APP}/workspace/recordings/`;
+export const recordingsApi = {
+  list: ({ source = '', from = '', to = '', limit = 100 } = {}) => {
+    const query = new URLSearchParams();
+    if (source !== '' && source !== null && source !== undefined) query.set('source', String(source));
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+    if (limit) query.set('limit', String(limit));
+    return apiFetch(`${RECORDINGS}?${query.toString()}`, { timeoutMs: SLOW });
+  },
+  remove: id => apiFetch(`${RECORDINGS}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+};
+
+// The UTC day [from, to) a date picker's YYYY-MM-DD names, as the recordings list takes it; '' for no day.
+export function dayRange(day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return { from: '', to: '' };
+  const start = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) return { from: '', to: '' };
+  const end = new Date(start.getTime() + 24 * 3600 * 1000);
+  const iso = d => d.toISOString().replace('.000Z', 'Z');
+  return { from: iso(start), to: iso(end) };
+}
+
+// "10:05 to 10:10 UTC" for a recording's window, and a size in MB or GB.
+export function windowText(recording) {
+  const t = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '');
+  return `${t(recording?.started_at)} to ${t(recording?.ended_at)} UTC`;
+}
+export function sizeText(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
+  return `${Math.max(0.1, n / 1024 ** 2).toFixed(1)} MB`;
+}
+// What keeping a camera's recordings costs, as the page says it.
+export function dayPriceText(state) {
+  const usd = Number(state?.day_price_usd) || 0;
+  const per = Number(state?.per_gb_month_usd) || 0;
+  const now = usd > 0 ? `about $${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)} a day for what is kept now` : 'nothing kept yet';
+  return per ? `$${per.toFixed(3)} per GB a month, charged a day ahead (${now})` : `Charged per GB kept, a day ahead (${now})`;
+}
 
 // The results file is read with the workspace header (a plain link would not carry it) and handed to the browser.
 export async function downloadResults(id, { fetchImpl = fetch, store, doc = globalThis.document } = {}) {

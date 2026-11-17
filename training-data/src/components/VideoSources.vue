@@ -267,7 +267,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
                    :checking="checking === detail.id" :check-error="checkError" :consent="isPublic(detail) ? '' : consentLine(detail)"
                    @back="closeDetail" @check="check(detail)" @edit="openEdit(detail)" @remove="askRemove(detail)"
                    @start="emit('start', detail)" @stop-stream="emit('stop-stream', $event)" @download="emit('download', $event)"
-                   @open-stream="openStream($event)"/>
+                   @open-stream="openStream($event)" @refresh="refreshDetail(); load()"/>
   <div v-else class="vs-layout">
     <!-- Video sources -->
     <section class="vs-card" aria-labelledby="vs-heading" :aria-busy="loading">

@@ -7,7 +7,21 @@ import {
   SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
+  recordingsApi, dayRange, windowText, sizeText, dayPriceText,
 } from '../src/api/streaming.js';
+
+test('a recordings day is the UTC day the picker names, and a recording reads as its window and size', () => {
+  assert.deepEqual(dayRange('2026-11-17'), { from: '2026-11-17T00:00:00Z', to: '2026-11-18T00:00:00Z' });
+  assert.deepEqual(dayRange(''), { from: '', to: '' });
+  assert.deepEqual(dayRange('17/11/2026'), { from: '', to: '' });
+  assert.equal(windowText({ started_at: '2026-11-17T10:05:00+00:00', ended_at: '2026-11-17T10:10:00+00:00' }), '10:05 to 10:10 UTC');
+  assert.equal(sizeText(4000), '0.1 MB');
+  assert.equal(sizeText(52428800), '50.0 MB');
+  assert.equal(sizeText(3 * 1024 ** 3), '3.0 GB');
+  assert.match(dayPriceText({ day_price_usd: '0.002000', per_gb_month_usd: '0.0312' }), /^\$0\.031 per GB a month, charged a day ahead \(about \$0\.0020 a day/);
+  assert.match(dayPriceText({ day_price_usd: '0', per_gb_month_usd: '0.0312' }), /nothing kept yet/);
+  assert.equal(typeof recordingsApi.list, 'function');
+});
 
 test('a stream address is rtsp, rtsps or https, and the message says which', () => {
   for (const good of ['rtsp://cam.example.com/live', 'rtsps://user:pass@cam.example.com:8555/stream1',

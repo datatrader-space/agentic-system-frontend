@@ -7,8 +7,8 @@
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowDown, ArrowLeft, ChartLine, CircleQuestionMark, Download, ImageOff, LoaderCircle, Maximize, Pencil, Play,
-  RefreshCw, Square, Trash2, Tv, Workflow,
+  ArrowDown, ArrowLeft, ChartLine, Circle, CircleQuestionMark, Disc, Download, ImageOff, LoaderCircle, Maximize, Pencil,
+  Play, RefreshCw, Square, Trash2, Tv, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import UiBadge from './UiBadge.vue';
@@ -17,6 +17,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
+  videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -31,7 +32,7 @@ const props = defineProps({
   checkError: { type: String, default: '' },
   consent: { type: String, default: '' },
 });
-const emit = defineEmits(['back', 'check', 'edit', 'remove', 'start', 'stop-stream', 'download', 'open-stream']);
+const emit = defineEmits(['back', 'check', 'edit', 'remove', 'start', 'stop-stream', 'download', 'open-stream', 'refresh']);
 
 // ── the source: watched live while the page is open, when the relay can play it ──────────────────
 const player = ref(null);
@@ -73,6 +74,50 @@ const bars = computed(() => recentBars(stream.value?.recent, 56));
 const endless = s => !!s?.continuous || !Number(s?.max_frames);
 const started = s => timeAgo(s.started_at || s.created_at);
 const others = computed(() => props.streams.filter(s => s.id !== stream.value?.id).slice(0, 5));
+
+// ── cloud recording (CLOUD_STREAMING_PLAN.md §9): the switch in the Source card, the Recordings tab ─────────────────
+const rec = computed(() => props.source.recording || null);           // null: a public camera seen from elsewhere
+const mayRecord = computed(() => !!rec.value && props.may.record !== false && props.may.change !== false);
+const recordable = computed(() => watchable.value);                    // rtsp:// cameras only, as live view
+const asking = ref(false); const recDays = ref(30); const recConsent = ref(false);
+const recBusy = ref(false); const recError = ref(''); const recSaid = ref('');
+function askRecording() { recDays.value = rec.value?.days || 30; recConsent.value = false; recError.value = ''; asking.value = true; }
+async function setRecording(body) {
+  recBusy.value = true; recError.value = '';
+  try {
+    const answer = await videoSources.recording(props.source.id, body);
+    recSaid.value = answer?.said || ''; asking.value = false;
+    emit('refresh');
+  } catch (e) { recError.value = e.message; }
+  finally { recBusy.value = false; }
+}
+const recLine = computed(() => {
+  const r = rec.value;
+  if (!r) return '';
+  if (r.on && r.unpaid) return 'Recording stopped: a day of keeping it could not be paid. Top up and it goes on within the hour.';
+  if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${sizeText(r.stored_bytes)} kept now.`;
+  return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
+});
+
+const tab = ref('results');                                            // results | recordings
+const today = new Date().toISOString().slice(0, 10);
+const recDay = ref(today);
+const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
+const playing = ref(null);
+async function loadRecordings() {
+  recLoading.value = true; recListError.value = '';
+  try {
+    const answer = await recordingsApi.list({ source: props.source.id, ...dayRange(recDay.value) });
+    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete;
+    if (playing.value && !recRows.value.some(r => r.id === playing.value.id)) playing.value = null;
+  } catch (e) { recListError.value = e.message; }
+  finally { recLoading.value = false; }
+}
+watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); });
+async function removeRecording(row) {
+  try { await recordingsApi.remove(row.id); if (playing.value?.id === row.id) playing.value = null; await loadRecordings(); emit('refresh'); }
+  catch (e) { recListError.value = e.message; }
+}
 </script>
 
 <template>
@@ -122,6 +167,30 @@ const others = computed(() => props.streams.filter(s => s.id !== stream.value?.i
             </div>
           </div>
           <p v-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
+          <!-- Cloud recording -->
+          <div v-if="rec" class="sp-rec" :class="{ on: rec.on && !rec.unpaid }">
+            <p class="sp-rec-line"><Circle v-if="rec.on && !rec.unpaid" class="sp-rec-dot" :size="10" aria-hidden="true"/>{{ recLine }}</p>
+            <template v-if="mayRecord && !asking">
+              <UiButton v-if="!rec.on" class="small" :disabled="!recordable || recBusy" :title="recordable ? undefined : 'Only rtsp:// and rtsps:// cameras can be recorded.'" @click="askRecording"><Disc :size="14" aria-hidden="true"/> Record to the cloud</UiButton>
+              <span v-else class="sp-rec-acts">
+                <UiButton class="small" :disabled="recBusy" @click="askRecording">Days kept</UiButton>
+                <UiButton class="small" :disabled="recBusy" @click="setRecording({ on: false })"><Square :size="12" aria-hidden="true"/> Stop recording</UiButton>
+              </span>
+            </template>
+            <form v-if="asking" class="sp-rec-form" @submit.prevent="setRecording(rec.on ? { days: recDays } : { on: true, days: recDays, consent: recConsent })">
+              <label class="sp-rec-days">Keep recordings
+                <select v-model.number="recDays" class="text-input"><option v-for="d in [1, 3, 7, 14, 30]" :key="d" :value="d">{{ d }} day{{ d === 1 ? '' : 's' }}</option></select>
+              </label>
+              <p class="sp-muted">{{ dayPriceText(rec) }}. Recordings are deleted after the days you choose.</p>
+              <label v-if="!rec.on" class="sp-rec-consent"><input v-model="recConsent" type="checkbox"> {{ rec.consent_text }}</label>
+              <span class="sp-rec-acts">
+                <UiButton type="submit" variant="primary" class="small" :disabled="recBusy || (!rec.on && !recConsent)">{{ rec.on ? 'Save' : 'Turn on' }}</UiButton>
+                <UiButton class="small" type="button" :disabled="recBusy" @click="asking = false">Cancel</UiButton>
+              </span>
+            </form>
+            <p v-if="recError" class="field-error" role="alert">{{ recError }}</p>
+            <p v-else-if="recSaid" class="sp-muted" role="status">{{ recSaid }}</p>
+          </div>
         </section>
 
         <ArrowDown class="sp-arrow" :size="16" aria-hidden="true"/>
@@ -156,10 +225,36 @@ const others = computed(() => props.streams.filter(s => s.id !== stream.value?.i
 
       <!-- Results -->
       <section class="sp-card sp-results" aria-labelledby="sp-results-h">
-        <div class="sp-card-bar"><h3 id="sp-results-h" class="sp-card-title">Results</h3>
-          <UiButton v-if="stream && stream.has_results" class="small" @click="emit('download', stream)"><Download :size="14" aria-hidden="true"/> Download results</UiButton>
+        <div class="sp-card-bar">
+          <div class="sp-tabs" role="tablist" aria-label="What this camera gave">
+            <button id="sp-results-h" type="button" role="tab" :aria-selected="tab === 'results'" :class="{ on: tab === 'results' }" @click="tab = 'results'">Results</button>
+            <button v-if="rec" type="button" role="tab" :aria-selected="tab === 'recordings'" :class="{ on: tab === 'recordings' }" @click="tab = 'recordings'">Recordings</button>
+          </div>
+          <UiButton v-if="tab === 'results' && stream && stream.has_results" class="small" @click="emit('download', stream)"><Download :size="14" aria-hidden="true"/> Download results</UiButton>
+          <label v-if="tab === 'recordings'" class="sp-day">Day (UTC) <input v-model="recDay" type="date" class="text-input" :max="today"></label>
         </div>
-        <div v-if="!stream" class="sp-results-empty" role="status">
+        <!-- Recordings -->
+        <div v-if="tab === 'recordings'" class="sp-recs">
+          <video v-if="playing" :key="playing.id" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`"></video>
+          <p v-if="recListError" class="field-error" role="alert">{{ recListError }}</p>
+          <p v-else-if="recLoading" class="sp-muted" role="status">Loading the recordings…</p>
+          <div v-else-if="!recRows.length" class="sp-results-empty" role="status">
+            <span class="sp-empty-icon"><Disc :size="20" aria-hidden="true"/></span>
+            <h4>No recordings on this day</h4>
+            <p>{{ rec && rec.on ? 'Recordings appear here in 5-minute pieces, a few minutes after they are made.' : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
+          </div>
+          <ul v-else class="sp-rec-list">
+            <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
+              <span><strong>{{ windowText(r) }}</strong><small>{{ sizeText(r.bytes) }}</small></span>
+              <span class="sp-rec-acts">
+                <UiButton class="small" :disabled="!r.play_url" @click="playing = r"><Play :size="13" aria-hidden="true"/> Play</UiButton>
+                <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
+                <UiButton v-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)}`" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+              </span>
+            </li>
+          </ul>
+        </div>
+        <div v-else-if="!stream" class="sp-results-empty" role="status">
           <span class="sp-empty-icon"><ChartLine :size="20" aria-hidden="true"/></span>
           <h4>Results appear here</h4>
           <p>Run a model on this camera to see what it finds in each frame.</p>
@@ -246,6 +341,29 @@ const others = computed(() => props.streams.filter(s => s.id !== stream.value?.i
 .sp-ended{margin:0;font-size:13px;color:#475569}
 .sp-ended.failed{color:#b42318}
 .sp-link{align-self:flex-start;border:0;background:none;padding:0;min-height:32px;color:var(--aadml-primary);text-decoration:underline;font:inherit;font-size:13px;cursor:pointer}
+.sp-rec{display:grid;gap:8px;padding:12px 14px;border-top:1px solid #eef1f5}
+.sp-rec.on{background:#fef3f2}
+.sp-rec-line{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:#33415a;line-height:1.5}
+.sp-rec-dot{flex-shrink:0;fill:#d92d20;color:#d92d20}
+.sp-rec-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sp-rec-form{display:grid;gap:8px}
+.sp-rec-days{display:flex;align-items:center;gap:8px;font-size:13px;color:#33415a}
+.sp-rec-days select{width:auto;min-height:36px}
+.sp-rec-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:#33415a}
+.sp-rec-consent input{margin-top:3px}
+.sp-tabs{display:flex;gap:4px}
+.sp-tabs button{min-height:36px;padding:0 12px;border:0;border-radius:8px;background:none;color:#475569;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.sp-tabs button.on{background:var(--aadml-soft);color:var(--aadml-primary)}
+.sp-tabs button:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.sp-day{display:flex;align-items:center;gap:8px;font-size:13px;color:#475569}
+.sp-day input{width:auto;min-height:36px}
+.sp-recs{display:flex;flex-direction:column;gap:12px;padding:16px;flex:1}
+.sp-player{width:100%;max-height:420px;border-radius:10px;background:#0d1320}
+.sp-rec-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.sp-rec-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eef1f5;border-radius:8px}
+.sp-rec-list li.playing{border-color:var(--aadml-primary);background:var(--aadml-tint)}
+.sp-rec-list li span:first-child{display:flex;flex-direction:column;gap:2px}
+.sp-rec-list small{color:#64748b;font-size:12px}
 .spin{animation:sp-spin 1.1s linear infinite}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}
