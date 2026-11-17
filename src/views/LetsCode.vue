@@ -114,8 +114,8 @@
                   <input v-model="cloneBranch" class="lc-byurl-in br" type="text" spellcheck="false" autocomplete="off"
                          placeholder="Branch (optional)" aria-label="Branch (optional)" :disabled="!!cloningUrl" />
                   <button type="submit" class="lc-btn" :disabled="!!cloningUrl || !cloneUrl.trim()">
-                    <Icon :icon="cloningUrl === cloneUrl.trim() ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningUrl === cloneUrl.trim() }" />
-                    {{ cloningUrl === cloneUrl.trim() ? 'Cloning' : 'Clone' }}
+                    <Icon :icon="cloningByAddress ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningByAddress }" />
+                    {{ cloningByAddress ? 'Cloning' : 'Clone' }}
                   </button>
                 </div>
                 <p v-if="cloneUrlError" class="lc-byurl-err" role="alert">{{ cloneUrlError }}</p>
@@ -440,12 +440,16 @@ async function disconnectGithub() {
 const cloneUrl = ref('')
 const cloneBranch = ref('')
 const cloneUrlError = ref('')
+// The address form's own clone is running. Its button compared `cloningUrl` with the typed address, and idle with
+// the box empty both are '', so it said "Cloning" with a spinner while nothing ran (ADM-1128, 2026-11-17).
+const cloningByAddress = ref(false)
 async function cloneByUrl() {
   cloneUrlError.value = ''
   const req = cloneRequest(cloneUrl.value, cloneBranch.value)
   if (req.error) { cloneUrlError.value = req.error; return }
   if (cloningUrl.value) return
   cloningUrl.value = req.body.github_url
+  cloningByAddress.value = true
   try {
     const { data } = await api.createProject(req.body)
     cloneUrl.value = ''
@@ -456,7 +460,7 @@ async function cloneByUrl() {
     const d = e?.response?.data || {}
     if (d.github_not_connected) { ghNotConnected.value = true; cloneUrlError.value = 'Connect GitHub first.' }
     else cloneUrlError.value = d.error || 'The repository could not be cloned.'
-  } finally { cloningUrl.value = '' }
+  } finally { cloningUrl.value = ''; cloningByAddress.value = false }
 }
 
 async function cloneRepo(r) {
