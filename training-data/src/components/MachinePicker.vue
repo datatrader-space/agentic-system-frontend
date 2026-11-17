@@ -21,6 +21,10 @@ const props = defineProps({
   // Choosing it sends ``value`` (a page that must tell "AADML's" from "nothing chosen" names one, e.g. 'aadml'; else '')
   // and starts at once (there is nothing to find), and GPU / CPU are shown only when the list has some.
   aadml: { type: Object, default: null },
+  // A page that offers the workspace's own machines in a choice of its own (the Train page's "Where it trains"): the
+  // words "Your machine" reads here instead, so the two never disagree (live, 2026-11-17: "none connected for this
+  // model" under a "Where it trains" that offered one).
+  ownElsewhere: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue']);
 const machines = ref(null); const note = ref(''); const gpuOnly = ref(''); const error = ref(''); const loading = ref(false);
@@ -117,6 +121,7 @@ const kinds = computed(() => {
     counts.value.cpu ? { value: 'cpu', text: `CPU, ${counts.value.cpu} free` }
       : { value: 'cpu', text: `CPU: ${gpuOnly.value ? 'this model needs a GPU' : none}`, off: true },
     usable('own_machine') ? { value: 'own_machine', text: `Your machine, ${ownPrice.value}` }
+      : props.ownElsewhere ? { value: 'own_machine', off: true, text: props.ownElsewhere }
       : { value: 'own_machine', off: true,
           text: `Your machine: ${counts.value.own_machine ? firstWhy || 'none of yours can take this now' : 'none connected for this model'}` },
   ];

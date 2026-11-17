@@ -16,7 +16,7 @@ import PipelineResult from './PipelineResult.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
-import { PHOTO_TYPES, percent } from '../api/trial.js';
+import { PHOTO_TYPES, percent, confidenceFloor } from '../api/trial.js';
 import { workspaceApi, publishedApi, modelKeysApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
 
 const emit = defineEmits(['create', 'navigate']);
@@ -79,6 +79,9 @@ const picker = ref(null);
 const startOn = () => (picker.value ? picker.value.confirm(() => act('start')) : act('start'));
 const loadMachines = computed(() => { const key = trying.value?.key; return () => publishedApi.machines(key); });
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const least = ref(0);
+// The slider starts at the least confidence the model sends back (trial.js confidenceFloor).
+const floor = computed(() => confidenceFloor(state.value));
+watch(floor, f => { if (Number(least.value) < f) least.value = f; });
 // A model on a platform server of its own (``served: 'platform'``, SAM 3) has nothing to make ready: its GPU server is
 // started, then it answers. Each photo is charged by the second (state.price).
 const onPlatform = computed(() => (state.value?.served || trying.value?.served) === 'platform');
@@ -380,7 +383,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
                 <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="choose">
               </label>
               <label class="field-label">Show what reaches {{ percent(Number(least)) }} confidence
-                <input v-model="least" type="range" min="0" max="1" step="0.05" aria-label="Confidence threshold"></label>
+                <input v-model="least" type="range" :min="floor" max="1" step="0.05" aria-label="Confidence threshold"></label>
+              <p v-if="floor" class="muted">The model sends back only what reaches {{ percent(floor) }}, so the slider starts there.</p>
             </template>
           </div>
           <div><PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)" waiting-text="Once its test server is ready, choose a photo: what the model finds is drawn on it."/></div>

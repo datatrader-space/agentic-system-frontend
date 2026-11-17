@@ -51,9 +51,9 @@ const ATTEMPT_STATE = {
   queued: 'Waiting for a machine', starting: 'Starting the machine', running: 'Running', finalizing: 'Reading the results',
   succeeded: 'Finished', failed: 'Failed', cancelled: 'Cancelled',
 };
+// ``label``: the server's words for what an attempt's job is doing while it is active ("Waiting for your machine …").
 export function attemptText(attempt) {
-  if (attempt?.reason) return attempt.reason;
-  return ATTEMPT_STATE[attempt?.state] || attempt?.state || '';
+  return attempt?.reason || attempt?.label || ATTEMPT_STATE[attempt?.state] || attempt?.state || '';
 }
 
 // A write whose answer never came may still have been done on the server: the page reads the models again before

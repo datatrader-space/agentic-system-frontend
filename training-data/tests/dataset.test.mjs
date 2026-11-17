@@ -128,3 +128,25 @@ test('a Dataset row keeps its label\'s state, so an approved label offers "Take 
     assert.equal(store.images[0].label, 'l1');
   } finally { globalThis.fetch = real; }
 });
+
+// Live, 2026-11-17: a test version still offered "Use for training", and the Source step said "9 photos" while a
+// 3-photo test version was being made.
+test('only a version a model may train on offers "Use for training"; never a test or golden one', async () => {
+  const { forTraining } = await import('../src/api/dataset.js');
+  const kinds = [{ value: 'train_val', training: true }, { value: 'smoke', training: true }, { value: 'test', training: true }, { value: 'golden', training: false }];
+  assert.equal(forTraining({ kind: 'train_val' }, kinds), true);
+  assert.equal(forTraining({ kind: 'smoke' }, kinds), true);
+  assert.equal(forTraining({ kind: 'test' }, kinds), false);          // evaluation only, whatever the list says
+  assert.equal(forTraining({ kind: 'golden' }, kinds), false);
+  assert.equal(forTraining({ kind: 'train_val' }, undefined), false);  // the kinds are not in yet
+  assert.equal(forTraining(null, kinds), false);
+});
+
+test('the Source step counts the photos for the purpose chosen, never another purpose\'s answer', async () => {
+  const { sourceLine } = await import('../src/api/dataset.js');
+  const test3 = { kind: 'test', photos: 3, new: 3, latest: null };
+  assert.equal(sourceLine(test3, 'test'), '3 photos with an approved label can go into a Test evaluation only version (3 new since the start).');
+  assert.equal(sourceLine({ kind: 'train_val', photos: 9, new: 2, latest: 'v3' }, 'test'), null);   // a late answer for another purpose
+  assert.equal(sourceLine({ kind: 'train_val', photos: 1, new: 0, latest: 'v3' }, 'train_val'), '1 photo with an approved label can go into a Training / validation version (0 new since v3).');
+  assert.equal(sourceLine(null, 'test'), null);
+});

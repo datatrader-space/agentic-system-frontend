@@ -129,24 +129,59 @@ export function usedGroups(used, what = 'run') {
 export const usd = value => `$${Number(value || 0).toFixed(4).replace(/(\.\d{2}\d*?)0+$/, '$1')}`;
 const someHeld = cost => Number(cost?.held || 0) > 0;
 
-// The Cost line: on AADML's own computer or the person's own machine it costs nothing; else the total, and while it
-// runs, the part still held (the most the rest can cost).
-export function costText(cost, ownMachines = []) {
-  if (!cost) return '';
-  if (cost.paid === false) {
-    const own = (ownMachines || []).filter(Boolean);
-    return own.length ? `No AADML machine cost: it ran on your machine ${own.join(', ')}.` : 'No AADML machine cost.';
-  }
-  if (!someHeld(cost)) return `${usd(cost.total)} charged.`;
-  return `${usd(cost.total)} at most: ${usd(cost.settled)} charged and ${usd(cost.held)} held while it runs, the most the rest can cost.`;
+// What the PERSON is charged and held, markup included: the block's ``price`` (provenance.py, 2026-11-17), else, from a
+// backend before it, the block's own settled / held / total. null when there is no cost block.
+export function personCost(cost) {
+  if (!cost || typeof cost !== 'object') return null;
+  const price = cost.price && typeof cost.price === 'object' ? cost.price : null;
+  const from = price || cost;
+  if (empty(from.total) && empty(from.settled) && empty(from.held)) return null;
+  return { settled: from.settled ?? '0', held: from.held ?? '0', total: from.total ?? '0' };
 }
 
-// An attempt's Cost cell: its total, with a note when part of it is still held; its own machine costs AADML nothing.
+function amountText(price) {
+  if (!someHeld(price)) return `${usd(price.total)} charged.`;
+  return `${usd(price.total)} at most: ${usd(price.settled)} charged and ${usd(price.held)} held while it runs, the most the rest can cost.`;
+}
+
+// The Cost line. On the person's own machine: AADML's platform fee for it (``price_text``, "$0.10 an hour, on your
+// machine"), then what was charged and held for it; a machine of the person's is not free (live, 2026-11-17: "No AADML
+// machine cost" while $0.0625 was held). On AADML's own computer nothing is charged. Else what was charged, and while
+// it runs, the part still held (the most the rest can cost). ``machine``: the run's or evaluation's ``machine`` row.
+export function costText(cost, ownMachines = [], machine = null) {
+  if (!cost) return '';
+  const price = personCost(cost);
+  const fee = String(cost.price_text || machine?.price_text || '').trim();
+  const own = [...(ownMachines || []), machine?.name].filter(Boolean).filter((name, i, all) => all.indexOf(name) === i);
+  if (own.length || fee || machine) {
+    const where = own.length ? `On your machine ${own.join(', ')}` : 'On your machine';
+    const head = `${where}: ${fee ? `the platform fee, ${fee}` : 'the platform fee for your machine'}, charged by the second.`;
+    return price && (cost.price || Number(price.total) > 0 || someHeld(price)) ? `${head} ${amountText(price)}` : head;
+  }
+  if (cost.paid === false) return price && Number(price.total) > 0 ? amountText(price) : "Nothing is charged for the machine: it ran on AADML's own computer.";
+  return price ? amountText(price) : '';
+}
+
+// An attempt's Cost cell: what the person was charged for it (``cost.price``, else its old total), with a note when part
+// of it is still held, and, on the person's own machine, where it ran.
 export function attemptCost(attempt) {
-  if (attempt?.own_machine) return { text: 'No AADML cost', note: `Ran on ${attempt.own_machine}` };
-  const cost = attempt?.cost;
-  if (!cost || empty(cost.total)) return { text: '—', note: '' };
-  return { text: usd(cost.total), note: someHeld(cost) ? `${usd(cost.held)} of it held while it runs` : '' };
+  const price = personCost(attempt?.cost);
+  const where = attempt?.own_machine ? `Ran on ${attempt.own_machine}` : '';
+  if (!price) return { text: '—', note: where };
+  const held = someHeld(price) ? `${usd(price.held)} of it held while it runs` : '';
+  return { text: usd(price.total), note: [held, where].filter(Boolean).join('. ') };
+}
+
+// An attempt's machine time. ``billable_seconds`` stays 0 until its job ends, so while it is active the time since it
+// started is shown ("so far"), or '—' before it started; never "0 s" for a job that is running.
+const ACTIVE = ['queued', 'starting', 'running', 'finalizing'];
+export function attemptTime(attempt, now = Date.now()) {
+  const seconds = Number(attempt?.billable_seconds);
+  if (ACTIVE.includes(attempt?.state) && !(seconds > 0)) {
+    const started = attempt?.started_at ? Date.parse(attempt.started_at) : NaN;
+    return Number.isFinite(started) && now >= started ? `${billableText((now - started) / 1000)} so far` : '—';
+  }
+  return billableText(attempt?.billable_seconds);
 }
 
 // When an attempt ran, in the reader's own format; '' when it never started.
@@ -156,7 +191,7 @@ export function attemptWhen(attempt, format = iso => new Date(iso).toLocaleStrin
 }
 
 // One attempt as the attempts table shows it, for a vision row (``reason``) and a language-model row (``failure``).
-export function attemptRow(attempt) {
+export function attemptRow(attempt, now = Date.now()) {
   const state = attempt?.state || '';
   return {
     number: attempt?.number,
@@ -164,7 +199,7 @@ export function attemptRow(attempt) {
     stateLabel: state ? state.charAt(0).toUpperCase() + state.slice(1) : '',
     what: attemptText({ ...attempt, reason: attempt?.reason || attempt?.failure || '' }),
     exit: attempt?.exit_code ?? null,
-    machineTime: billableText(attempt?.billable_seconds),
+    machineTime: attemptTime(attempt, now),
     cost: attemptCost(attempt),
     job: attempt?.job_name || '',
     log: attempt?.log || '',

@@ -49,7 +49,8 @@ export const llmApi = {
   datasets: ref => apiFetch(`${llm(ref)}/datasets/`),
   publish: (ref, body) => post(`${llm(ref)}/datasets/`, body),
   training: ref => apiFetch(`${llm(ref)}/training/`),
-  startTraining: (ref, body) => post(`${llm(ref)}/training/`, body),
+  // A start rents the GPU machine before it answers (live, 2026-11-17: more than 15 s), so it is given longer.
+  startTraining: (ref, body) => post(`${llm(ref)}/training/`, body, { timeoutMs: 120000 }),
   // The GPUs and locations a run of this dataset version can train on now, with ``settings`` ({ config, method, parent }):
   // its base model's size, its configuration's batch and length and its method decide the memory (measured, server side).
   trainingMachines: (ref, version, settings = {}) => apiFetch(`${llm(ref)}/training/machines/${trainingMachinesQuery(version, settings)}`),

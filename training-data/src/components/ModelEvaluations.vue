@@ -135,11 +135,11 @@ const metTone = met => (met === null || met === undefined || !props.criteriaAppr
             </div>
           </div>
           <div v-if="told" class="notice" role="status"><span>{{ told }}</span><button class="icon-button" aria-label="Dismiss notification" @click="told=''"><X :size="14"/></button></div>
-          <p v-if="detail.unfinished" class="evaluation-live" aria-live="polite"><Gauge :size="14"/> Still going: this page checks again every 5 seconds.</p>
+          <p v-if="detail.unfinished" class="evaluation-live" aria-live="polite"><Gauge :size="14"/> {{ detail.machine?.label ? `${detail.machine.label} ` : '' }}Still going: this page checks again every 5 seconds.</p>
           <p v-if="detail.failure" class="field-error">{{ detail.failure }}</p>
           <dl class="summary-list evaluation-facts"><template v-for="f in facts" :key="f[0]"><dt>{{ f[0] }}</dt><dd>{{ f[1] }}</dd></template></dl>
           <ul v-if="detail.reasons.length" class="evaluation-reasons"><li v-for="r in detail.reasons" :key="r">{{ r }}</li></ul>
-          <RunProvenance :used="detail.used" :cost="detail.cost" what="evaluation"/>
+          <RunProvenance :used="detail.used" :cost="detail.cost" :machine="detail.machine" what="evaluation"/>
           <p v-if="actionError" class="field-error" role="alert">{{ actionError }}</p>
           <div class="studio-actions">
             <UiButton v-if="detail.may.cancel" class="danger" :disabled="busy" @click="actionError='';confirming=true"><X :size="15"/> Cancel</UiButton>

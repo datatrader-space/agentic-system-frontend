@@ -53,3 +53,56 @@ test('two shapes overlap by the share of the place they both cover', async () =>
   assert.equal(bestMatch({ kind: 'door', points: square }, found), null);      // nothing of its kind
   assert.equal(bestMatch(drawn, [{ kind: 'wall', points: [[90, 90], [200, 90], [200, 200], [90, 200]] }]), null);  // too little
 });
+
+// Live, 2026-11-17: a Basic Detector answer tidied into a wall that crossed itself, and the backend then refused to
+// send the label to review ("wall 3 crosses itself"). A tidy-up step that would cross a shape is not made.
+test('a crossing outline is told from a sound one, as the backend tells them', async () => {
+  const { crossesItself } = await import('../src/geometry.js');
+  assert.equal(crossesItself(square), false);
+  assert.equal(crossesItself([[0, 0], [100, 100], [100, 0], [0, 100]]), true);       // a bow-tie
+  assert.equal(crossesItself([[0, 0], [50, 0], [100, 0], [100, 100]]), false);       // edges that only touch at an end
+});
+
+test('a cut that would leave a half crossing itself is not made: the wall stays as the model drew it', async () => {
+  const { tidyUp, roomCut, crossesItself } = await import('../src/geometry.js');
+  // A real case found by search: roomCut cuts this sound wall into a half that crosses itself.
+  const wall = [[287, 240], [226, 264], [220, 234], [195, 176], [168, 97], [266, 172], [220, 128], [238, 133], [398, 63], [407, 169]];
+  assert.equal(crossesItself(wall), false);
+  assert.ok(roomCut(wall).some(crossesItself));                                    // the cut alone makes a bow-tie
+  const report = tidyUp([{ kind: 'wall', points: wall, corner_types: wall.map(() => 'room') }]);
+  assert.equal(report.cut, 0);
+  assert.equal(report.shapes.length, 1);
+  assert.deepEqual(report.shapes[0].points, wall);
+  assert.deepEqual(report.shapes[0].corner_types, wall.map(() => 'room'));        // untouched: its corner names stay
+  assert.equal(report.shapes.some(s => crossesItself(s.points)), false);
+});
+
+test('a window brought into its wall is left where it was when the move would make it cross itself', async () => {
+  const { tidyUp, crossesItself } = await import('../src/geometry.js');
+  const wall = [[279, 230], [269, 242], [209, 300], [172, 299], [187, 208], [261, 184], [140, 114], [166, 112], [419, 105], [364, 184], [498, 191]];
+  const window = [[336, 224], [342, 231], [276, 218], [285, 209], [291, 209]];
+  assert.equal(crossesItself(window), false);
+  const report = tidyUp([{ kind: 'wall', points: wall }, { kind: 'window', points: window }]);
+  assert.equal(report.shapes.some(s => crossesItself(s.points)), false);
+  assert.deepEqual(report.shapes.find(s => s.kind === 'window').points, window);
+});
+
+test('a shape the model drew crossing itself is redrawn round its outline; a tidy-up never returns a bow-tie', async () => {
+  const { tidyUp, crossesItself, area } = await import('../src/geometry.js');
+  const bowTie = [[100, 50], [400, 250], [400, 50], [100, 250]];
+  const report = tidyUp([{ kind: 'wall', points: bowTie, corner_types: ['room', 'room', 'room', 'room'] }, { kind: 'door', points: [[150, 100], [200, 200], [200, 100], [150, 200]] }]);
+  assert.equal(report.repaired, 2);
+  for (const shape of report.shapes) {
+    assert.equal(crossesItself(shape.points), false);
+    assert.ok(area(shape.points) > 0);
+  }
+  assert.equal(report.shapes[0].corner_types, undefined);                          // new corners: the backend names them
+  // Many random outlines, sound and scrambled: none comes back crossing itself.
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let n = 0; n < 3000; n += 1) {
+    const points = Array.from({ length: 6 + Math.floor(rnd() * 8) }, () => [rnd() * Math.PI * 2, 40 + rnd() * 160])
+      .sort((a, b) => a[0] - b[0]).map(([t, r]) => [Math.round(300 + r * Math.cos(t)), Math.round(200 + r * Math.sin(t) * 0.8)]);
+    if (rnd() < 0.3) points.sort(() => rnd() - 0.5);
+    for (const shape of tidyUp([{ kind: 'wall', points }]).shapes) assert.equal(crossesItself(shape.points), false, JSON.stringify(points));
+  }
+});

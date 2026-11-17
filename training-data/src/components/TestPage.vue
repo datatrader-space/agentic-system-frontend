@@ -9,7 +9,8 @@ import UiButton from './UiButton.vue';
 import MachinePicker from './MachinePicker.vue';
 import DownloadBar from './DownloadBar.vue';
 import PredictionResult from './PredictionResult.vue';
-import { trialApi, PHOTO_TYPES, percent } from '../api/trial.js';
+import { trialApi, PHOTO_TYPES, percent, confidenceFloor } from '../api/trial.js';
+import { unanswered } from '../api/models.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
@@ -23,6 +24,9 @@ const loadMachines = computed(() => { const ref_ = props.projectRef, number = ch
 const error = ref(''); const notice = ref(''); const busy = ref(false);
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const photoError = ref('');
 const least = ref(0);
+// The slider starts at the least confidence the model sends back (trial.js confidenceFloor).
+const floor = computed(() => confidenceFloor(state.value));
+watch(floor, f => { if (Number(least.value) < f) least.value = f; }, { immediate: true });
 
 async function loadModels() {
   try {
@@ -44,10 +48,15 @@ onUnmounted(() => { alive = false; clearTimeout(timer); if (photoUrl.value) URL.
 watch(() => props.projectRef, async () => { chosen.value = null; state.value = null; await loadModels(); }, { immediate: true });
 watch(chosen, () => { state.value = null; answer.value = null; notice.value = ''; error.value = ''; loadState(); });
 
+const acting = ref('');
 async function act(action) {
-  busy.value = true; error.value = ''; notice.value = '';
+  busy.value = true; acting.value = action; error.value = ''; notice.value = '';
   try { const now = await trialApi.act(props.projectRef, chosen.value, action, action === 'start' ? machine.value : ''); notice.value = now.said; state.value = now; }
-  catch (e) { error.value = e.message; await loadState(); } finally { busy.value = false; }
+  catch (e) {
+    // No answer is not a refusal: the test server may be starting. The page reads it again and says so.
+    error.value = unanswered(e) ? 'No answer came back in time, so the page read the test server again: check below whether it is starting before you press Start again.' : e.message;
+    await loadState();
+  } finally { busy.value = false; acting.value = ''; }
 }
 
 const model = computed(() => (models.value || []).find(m => m.number === chosen.value) || null);
@@ -93,13 +102,13 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
           <template v-else-if="state.phase==='ready'">
             <p v-if="state.machine"><strong>{{ state.machine.label }}.</strong> {{ state.machine.price_text || 'The platform fee for your machine' }}, charged by the second it runs. Each photo you try goes to {{ state.machine.name }} and is not kept.</p>
             <p><strong>The test server is ready.</strong> {{ state.trial.photos_tried }} photo{{ state.trial.photos_tried===1?'':'s' }} tried<template v-if="state.trial.started_by"> · started by {{ state.trial.started_by }}</template> at {{ when(state.trial.started_at) }}. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
-            <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop test server</UiButton>
+            <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> {{ acting==='stop' ? 'Stopping…' : 'Stop test server' }}</UiButton>
           </template>
           <template v-else-if="state.phase==='starting'">
             <p v-if="state.machine" class="starting"><span class="spinner" aria-hidden="true"></span><strong>{{ state.machine.label }}…</strong> The first time, {{ state.machine.name }} downloads AADML's model server (a few minutes, once), then the model.</p>
             <DownloadBar v-if="state.machine" :download="state.machine.download"/>
-            <p v-else class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The model is placed on AADML's shared test server; this takes a few seconds.</p>
-            <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop</UiButton>
+            <p v-else class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The machine you chose is started and the model is loaded on it. This can take a few minutes; the page follows it.</p>
+            <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> {{ acting==='stop' ? 'Stopping…' : 'Stop' }}</UiButton>
           </template>
           <template v-else>
             <p v-if="state.trial?.state==='failed'" class="test-error">The last test server failed: {{ state.trial.failure_reason }}</p>
@@ -107,7 +116,8 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <p>To try a photo, the model needs its test server, on a GPU you choose below. Nothing starts until you press Start; starting it stops any other test server of this project, and it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
             <p v-if="state.refused" class="test-error">{{ state.refused }}</p>
             <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
-            <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="startOn"><Play :size="14"/> Start test server</UiButton>
+            <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="startOn"><Play :size="14"/> {{ acting==='start' ? 'Starting…' : 'Start test server' }}</UiButton>
+            <p v-if="acting==='start'" class="test-meta" role="status">Starting the test server: getting the machine you chose can take 20 to 30 seconds before AADML answers.</p>
           </template>
           <p v-if="state?.staging_down" class="test-meta">Its staging endpoint is not answering and is being started again.</p>
         </div>
@@ -122,8 +132,8 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
         <p v-if="photoError" class="field-error" role="alert">{{ photoError }}</p>
 
         <label class="field-label">Show what reaches {{ percent(Number(least)) }} confidence
-          <input v-model="least" type="range" min="0" max="1" step="0.05" aria-label="Confidence threshold"></label>
-        <p class="test-meta">This filters the answer on this page; the model is not asked again.</p>
+          <input v-model="least" type="range" :min="floor" max="1" step="0.05" aria-label="Confidence threshold"></label>
+        <p class="test-meta">This filters the answer on this page; the model is not asked again.<template v-if="floor"> The model sends back only what reaches {{ percent(floor) }}, so the slider starts there.</template></p>
       </section>
 
       <section class="panel">

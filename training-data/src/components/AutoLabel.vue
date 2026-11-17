@@ -5,9 +5,10 @@
 // (auto_label.py: SAM 3, GPT-6.1 Terra and Gemini 4 Argon alone and each with SAM 3), grouped by maker in one picker
 // (ModelSourcePicker), with whether the answer is shown as polygons or as masks (the same polygons, masks filled).
 // "Generate Preview" really asks the chosen model about the preview photos and draws what it finds (nothing is
-// saved). "Label Batch" gives the batch to this person and makes the model their choice for a photo
-// nobody has drawn on: each photo then opens in the editor with the model's walls as a head start, which the person
-// checks and sends to review — the same rule as the old editor; a model never makes a label by itself.
+// saved). "Label Batch" gives the batch to this person and makes the model the one "Find Objects with AI" offers them
+// first. A photo opens in the editor as it is: the model is asked (and charged) only when the person presses Find
+// objects there (e6e32a1c took away the run on opening), and what it finds is a head start the person checks and sends
+// to review; a model never makes a label by itself.
 // A model with SAM 3 may run SAM 3 on one of the workspace's own machines (agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md):
 // the picker's "Where SAM 3 runs", the machine's fee, the SAM License accepted once, and the machine's own stage while
 // SAM 3 gets ready there ("Downloading SAM 3").
@@ -16,7 +17,7 @@ import { ArrowLeft, ArrowRight, ChevronRight, Image as ImageIcon, Plus, Zap, Che
 import AutoLabelAgent from './AutoLabelAgent.vue';
 import LabelingWorkflow from './LabelingWorkflow.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { blockedAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
+import { blockedAt, costAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -43,6 +44,7 @@ const current = computed(() => sources.value.find(s => s.id === chosen.value) ||
 const place = computed(() => placeOf(current.value, where.value));
 const blocked = computed(() => blockedAt(current.value, place.value));
 const detail = computed(() => detailAt(current.value, place.value));
+const cost = computed(() => costAt(current.value, place.value));
 const shown = computed(() => previews.value[Math.min(focus.value, previews.value.length - 1)] || null);
 
 // What the bottom bar says the page is doing.
@@ -305,9 +307,10 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
       </div>
     </div>
     <UiDialog :open="confirmOpen" title="Label this batch" @close="confirmOpen=false">
-      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each one opens in the editor with what <strong>{{ current ? label(current) : '' }}</strong> finds, as a head start: you check every corner and send the photo to review.</p>
-      <p class="dialog-description">{{ current ? label(current) : '' }} also becomes your choice for any photo nobody has drawn on in this project. Change it in the editor with “Find Objects with AI” (M).</p>
-      <p v-if="current" class="dialog-description">Each photo is charged to you: {{ detail }}.</p>
+      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every corner and send the photo to review.</p>
+      <p class="dialog-description">{{ current ? label(current) : '' }} becomes the model “Find Objects with AI” offers you first in this project. You can change it there.</p>
+      <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ cost }}.</p>
+      <p v-else-if="current&&detail" class="dialog-description">A model runs only when you ask it. {{ label(current) }}: {{ detail }}.</p>
       <p v-if="current?.research_only" class="dialog-description">This model is for research or evaluation use only. A label started from its answer says so, so that it can be left out later.</p>
       <div class="dialog-actions"><UiButton @click="confirmOpen=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="start"><Check :size="15"/> Start labelling</UiButton></div>
     </UiDialog>
