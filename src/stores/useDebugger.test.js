@@ -33,6 +33,15 @@ describe('what can be started', () => {
     expect(out[2].config).toMatchObject({ type: 'pwa-node', program: `${ROOT}/server.js`, args: [`${ROOT}/src/app.ts`], cwd: ROOT, console: 'internalConsole' })
     expect(out[3].config.program).toBe(`${ROOT}/src/tool.py`)
   })
+  it("js-debug reads source maps only from the project, outside node_modules, as VS Code does", () => {
+    // Live check, 2026-11-17: without it, npm and tsx filled the Debug Console with "Could not read source map".
+    const maps = [`${ROOT}/**`, '!**/node_modules/**']
+    const out = configurations({ root: ROOT, activePath: 'a.js', scripts: { dev: 'vite' }, launch: { configurations: [
+      { type: 'node', request: 'launch', name: 'Mine' },
+      { type: 'node', request: 'launch', name: 'Own maps', resolveSourceMapLocations: ['${workspaceFolder}/dist/**'] },
+      { type: 'debugpy', request: 'launch', name: 'Py' }] } })
+    expect(out.map((c) => c.config.resolveSourceMapLocations)).toEqual([maps, maps, maps, [`${ROOT}/dist/**`], undefined])
+  })
   it('a Python file', () => {
     const [c] = configurations({ root: ROOT, activePath: 'calc.py', scripts: {}, launch: null })
     expect(c.config).toEqual({ type: 'python', request: 'launch', name: 'calc.py', program: `${ROOT}/calc.py`, cwd: ROOT, console: 'internalConsole', justMyCode: true })

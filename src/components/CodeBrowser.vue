@@ -334,6 +334,7 @@ import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
 import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
+import { bindConflictActions } from '@/utils/mergeConflicts'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
@@ -586,7 +587,14 @@ function onEditorMount(editor) {
   if (debuggerStore && props.editable) {
     releaseDebugger = debuggerStore.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openAt })
   }
+  // A merge's conflict blocks (ADM-1205): VS Code's "Accept current / incoming / both changes" above each one.
+  if (props.editable) {
+    if (releaseConflicts) releaseConflicts()
+    releaseConflicts = bindConflictActions({ monaco: () => monacoNs, editor: () => editorInst })
+  }
 }
+let releaseConflicts = null
+onBeforeUnmount(() => { if (releaseConflicts) releaseConflicts() })
 const languages = inject(LANGUAGE_SERVERS, null)
 // Only this editor's own binding is released: a newer editor may already have bound (the editor is re-created when
 // the project turns ready).
@@ -2069,4 +2077,12 @@ const FileTreeNode = {
   content: ''; position: absolute; left: 50%; top: 50%; margin: -6px 0 0 -4px;
   border-style: solid; border-width: 6px 0 6px 9px; border-color: transparent transparent transparent #ffcc00;
 }
+/* A merge's conflict blocks (ADM-1205), in VS Code's colours: this project's side green, the incoming side blue, the
+   common ancestor grey; each marker line a stronger tint of its side. */
+.code-browser .lc-conflict-current-head { background: color-mix(in srgb, #40c8ae 45%, transparent); }
+.code-browser .lc-conflict-current { background: color-mix(in srgb, #40c8ae 18%, transparent); }
+.code-browser .lc-conflict-base { background: color-mix(in srgb, #8a8a8a 18%, transparent); }
+.code-browser .lc-conflict-sep { background: color-mix(in srgb, #8a8a8a 30%, transparent); }
+.code-browser .lc-conflict-incoming { background: color-mix(in srgb, #40a6ff 18%, transparent); }
+.code-browser .lc-conflict-incoming-head { background: color-mix(in srgb, #40a6ff 45%, transparent); }
 </style>
