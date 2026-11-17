@@ -111,6 +111,8 @@ async function openStreamById(id) {
   try { const body = await streamingApi.get(id); if (body?.stream) openStream(body.stream); }
   catch (e) { error.value = e.message; }
 }
+// A source's own page (VideoSources.vue, VideoSourcePage.vue) takes the tab's place while it is open.
+const sourceOpen = ref(false);
 // "Offline notifications": not built yet, and said so (no switch that would save nothing).
 const notifying = ref(false);
 
@@ -182,7 +184,9 @@ async function startStream() {
     sourcesRef.value?.load();
     said.value = body?.said || 'The stream is queued.'; announce.value = said.value;
     creating.value = false;
-    if (body?.stream) openStream(body.stream);
+    // From a source's own page the page shows it (it reads its streams again); else the stream opens here.
+    if (sourceOpen.value) sourcesRef.value?.refreshDetail?.();
+    else if (body?.stream) openStream(body.stream);
   } catch (e) {
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
     if (field && ['project', 'model', 'fps', 'address', 'file', 'saved'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
@@ -204,6 +208,7 @@ async function confirmStop() {
     if (viewing.value?.id === body?.stream?.id) { viewing.value = body.stream; speak(body.stream, true); }
     stopping.value = null;
     sourcesRef.value?.load();
+    if (sourceOpen.value) sourcesRef.value?.refreshDetail?.();
   } catch (e) {
     stopError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
@@ -225,6 +230,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 
 <template>
   <section class="streaming" role="tabpanel" aria-labelledby="st-heading" :aria-busy="loading">
+    <template v-if="!sourceOpen">
     <DeploymentHeader title="Cloud Streaming" heading-id="st-heading" eyebrow="VIDEO IN. INSIGHTS OUT." :icon="Video" description="Run your models on live video from your cameras, stream addresses or test videos, and watch them from the cloud.">
       <div class="st-head-acts">
         <UiButton @click="notifying = true"><Bell :size="15" aria-hidden="true"/> Offline notifications</UiButton>
@@ -237,10 +243,13 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <span>{{ error }}</span>
       <UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
     </div>
+    </template>
     <p v-if="downloadError" class="field-error" role="alert">{{ downloadError }}</p>
 
     <VideoSources ref="sourcesRef" :projects="options.projects" :may-start="!!page && may.start !== false" :start-why="may.reason || ''"
-                  @start="openCreate" @loaded="sourcesPage = $event" @changed="changed" @open-stream="openStreamById"/>
+                  @start="openCreate" @loaded="sourcesPage = $event" @changed="changed" @open-stream="openStreamById"
+                  @page="sourceOpen = $event" @stop-stream="askStop" @download="download"/>
+    <template v-if="!sourceOpen">
 
     <!-- The open stream: the newest frame's counts, how far it is, and its newest frames. -->
     <section v-if="viewing" id="st-view" class="st-view" tabindex="-1" aria-labelledby="st-view-title">
@@ -326,6 +335,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
         </tbody>
       </table>
     </div>
+    </template>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
 
     <UiDialog class="st-dialog" :open="creating" title="New stream" @close="creating=false">

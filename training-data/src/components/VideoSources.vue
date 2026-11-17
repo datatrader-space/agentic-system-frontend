@@ -2,16 +2,18 @@
 // The Cloud Streaming tab's saved cameras (CLOUD_STREAMING_PLAN.md 3.1, 3.2 item 2 and section 7): the "Video sources"
 // card (chips by state, list or grid, a row opens the source's details), the Summary and Connectors cards beside it,
 // and the "Add video source" dialog (Camera URL works; a connector, Verkada and RTMP are said to be coming). From a
-// source's details: watch it live (LiveView.vue), check it, start a stream on it (the tab's own dialog, through the
-// `start` event), edit or remove it, and open its streams. Public cameras AADML publishes are read-only.
+// source's own page (VideoSourcePage.vue, in the list's place; `page` tells the tab): watch it live, check it, run a
+// model on it (the tab's own dialog, through the `start` event), see its results, edit or remove it. Public cameras
+// AADML publishes are read-only.
 // Backend: streaming_api.py workspace/video-sources/ (list, add), <id>/ (one, change, remove), <id>/check/,
 // <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
-import { computed, nextTick, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
   Activity, ArrowRight, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
   LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
+import VideoSourcePage from './VideoSourcePage.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -28,7 +30,7 @@ const props = defineProps({
   mayStart: { type: Boolean, default: true },
   startWhy: { type: String, default: '' },
 });
-const emit = defineEmits(['start', 'loaded', 'changed', 'open-stream']);
+const emit = defineEmits(['start', 'loaded', 'changed', 'open-stream', 'page', 'stop-stream', 'download']);
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
 const page = ref(null); const error = ref(''); const loading = ref(false);
@@ -99,7 +101,22 @@ async function openDetail(source) {
     if (detailId.value === source.id && full) detailFull.value = { ...full, id: full.id ?? source.id, streams: full.streams ?? body?.streams };
   } catch (e) { if (detailId.value === source.id) detailError.value = e.message; }
 }
-function closeDetail() { detailId.value = null; detailFull.value = null; }
+function closeDetail() { detailId.value = null; detailFull.value = null; checkError.value = ''; }
+// The source's own read again (a stream started or stopped on it).
+async function refreshDetail() {
+  const id = detailId.value;
+  if (id === null) return;
+  try {
+    const body = await videoSources.get(id);
+    const full = body?.source || body;
+    if (detailId.value === id && full) detailFull.value = { ...full, id: full.id ?? id, streams: full.streams ?? body?.streams };
+  } catch (e) { if (detailId.value === id) detailError.value = e.message; }
+}
+watch(() => detailId.value !== null, open => emit('page', open));
+const detailMay = computed(() => (detail.value ? {
+  check: mayDo(detail.value, 'check'), change: mayDo(detail.value, 'change'), remove: mayDo(detail.value, 'remove'),
+  stream: mayDo(detail.value, 'stream'),
+} : {}));
 // Another dialog takes over from the details.
 function from(fn) { return (source) => { closeDetail(); fn(source); }; }
 const watchFrom = from(s => { watching.value = s; });
@@ -230,6 +247,7 @@ async function confirmRemove() {
     const answer = await videoSources.remove(removing.value.id);
     tell(answer?.said || `${removing.value.name} is removed. Its past streams and their results are kept.`);
     if (watching.value?.id === removing.value.id) watching.value = null;
+    if (detailId.value === removing.value.id) closeDetail();      // its page is gone with it
     removing.value = null;
     load(); emit('changed');
   } catch (e) {
@@ -238,12 +256,19 @@ async function confirmRemove() {
   } finally { removeBusy.value = false; }
 }
 
-defineExpose({ load, openAdd, addWhy, ready });
+defineExpose({ load, openAdd, addWhy, ready, refreshDetail, closeDetail });
 onUnmounted(() => { gone = true; clearTimeout(timer); });
 </script>
 
 <template>
-  <div class="vs-layout">
+  <div class="vs-root">
+  <VideoSourcePage v-if="detail" :source="detail" :streams="detailStreams" :streams-loaded="!!detailFull"
+                   :streams-error="detailError" :may="detailMay" :may-start="mayStart" :start-why="startWhy"
+                   :checking="checking === detail.id" :check-error="checkError" :consent="isPublic(detail) ? '' : consentLine(detail)"
+                   @back="closeDetail" @check="check(detail)" @edit="openEdit(detail)" @remove="askRemove(detail)"
+                   @start="emit('start', detail)" @stop-stream="emit('stop-stream', $event)" @download="emit('download', $event)"
+                   @open-stream="openStream($event)"/>
+  <div v-else class="vs-layout">
     <!-- Video sources -->
     <section class="vs-card" aria-labelledby="vs-heading" :aria-busy="loading">
       <header class="vs-bar">
@@ -362,52 +387,8 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
         </div>
       </section>
     </aside>
+  </div>
 
-    <!-- One source's details -->
-    <UiDialog class="vs-dialog" :open="!!detail" :title="detail ? detail.name : 'Video source'" @close="closeDetail">
-      <template v-if="detail">
-        <div class="vs-detail-top">
-          <div class="vs-thumb vs-detail-thumb">
-            <img v-if="thumb(detail)" :src="thumb(detail)" :alt="`Newest frame from ${detail.name}`" referrerpolicy="no-referrer" @error="thumbFailed(detail)">
-            <span v-else class="vs-thumb-none"><ImageOff :size="22" aria-hidden="true"/><small>No frame yet</small></span>
-          </div>
-          <dl class="vs-facts">
-            <div><dt>Status</dt><dd><span class="vs-badges"><UiBadge :tone="sourceState(detail)[0]">{{ sourceState(detail)[1] }}</UiBadge><UiBadge v-if="isPublic(detail)" tone="purple">Public</UiBadge></span></dd></div>
-            <div v-if="detail.state_reason"><dt>Why</dt><dd class="vs-reason">{{ detail.state_reason }}</dd></div>
-            <div><dt>Kind</dt><dd>{{ sourceKindLabel(detail) }}</dd></div>
-            <div v-if="!isPublic(detail) && sourceShown(detail)"><dt>Address</dt><dd><code class="vs-address">{{ sourceShown(detail) }}</code></dd></div>
-            <div><dt>Last frame</dt><dd>{{ lastFrameText(detail) }}</dd></div>
-            <div v-if="detail.project?.name"><dt>Default project</dt><dd>{{ detail.project.name }}</dd></div>
-            <div><dt>Workflows</dt><dd>{{ runningText(detail) }}</dd></div>
-          </dl>
-        </div>
-        <p v-if="isPublic(detail)" class="vs-help">AADML shares this camera with every workspace to try. You can watch it and run streams on it; it cannot be changed.</p>
-        <p v-else-if="consentLine(detail)" class="vs-help">{{ consentLine(detail) }}</p>
-
-        <div class="vs-acts">
-          <UiButton v-if="canWatch(detail)" @click="watchFrom(detail)"><Tv :size="14" aria-hidden="true"/> Watch live</UiButton>
-          <UiButton v-if="mayDo(detail,'check')" :disabled="checking===detail.id" @click="check(detail)"><LoaderCircle v-if="checking===detail.id" class="spin" :size="14" aria-hidden="true"/><RefreshCw v-else :size="14" aria-hidden="true"/> Check now</UiButton>
-          <UiButton v-if="mayDo(detail,'stream')" :disabled="!mayStart" :title="mayStart ? undefined : startWhy" @click="startFrom(detail)"><Play :size="14" aria-hidden="true"/> Start stream</UiButton>
-          <UiButton v-if="mayDo(detail,'change')" @click="editFrom(detail)"><Pencil :size="14" aria-hidden="true"/> Edit</UiButton>
-          <UiButton v-if="mayDo(detail,'remove')" class="vs-danger" @click="removeFrom(detail)"><Trash2 :size="14" aria-hidden="true"/> Remove</UiButton>
-        </div>
-        <p v-if="checkError" class="field-error" role="alert">{{ checkError }}</p>
-        <p v-if="!mayStart && startWhy && mayDo(detail,'stream')" class="vs-why">{{ startWhy }}</p>
-
-        <h4 class="vs-sub">Streams on this camera</h4>
-        <p v-if="detailError" class="field-error" role="alert">{{ detailError }}</p>
-        <p v-else-if="!detailFull" class="vs-muted">Loading its streams…</p>
-        <p v-else-if="!detailStreams.length" class="vs-muted">No stream has run on this camera yet.</p>
-        <ul v-else class="vs-streams">
-          <li v-for="st in detailStreams" :key="st.id">
-            <span><strong>{{ st.model ? modelName(st.model) : 'Stream' }}</strong><small>{{ [st.project?.name, streamWhen(st)].filter(Boolean).join(', ') }}</small></span>
-            <UiBadge :tone="streamState(st)[0]">{{ streamState(st)[1] }}</UiBadge>
-            <UiButton class="small" :aria-label="`Open the stream${st.model ? ` of ${modelName(st.model)}` : ''}`" @click="openStream(st)">Open</UiButton>
-          </li>
-        </ul>
-        <div class="dialog-actions"><UiButton variant="primary" @click="closeDetail">Close</UiButton></div>
-      </template>
-    </UiDialog>
 
     <!-- "Add video source" and "Edit" -->
     <UiDialog class="vs-dialog" :open="editorOpen" :title="editing ? `Edit ${editing.name}` : 'Add video source'" @close="closeEditor">

@@ -3,18 +3,21 @@
 // low-latency HLS under /live/, behind a short-lived token from workspace/video-sources/<id>/live/. The token goes in
 // an Authorization header on every playlist and segment request (never in a link), and a new one replaces it before
 // it runs out, without reloading the player. hls.js is loaded only when someone watches. The video starts muted.
+// ``inline``: the player in a page (a source's own page, VideoSourcePage.vue) instead of a dialog; ``state`` tells the
+// page how it stands, and the page may ask for it full screen.
 import { onUnmounted, ref, watch } from 'vue';
 import { LoaderCircle, RefreshCw, VideoOff } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiDialog from './UiDialog.vue';
 import { videoSources, liveAnswer, liveErrorText, sourceShown, LIVE_NO_ANSWER } from '../api/streaming.js';
 
-const props = defineProps({ source: { type: Object, default: null } });
-const emit = defineEmits(['close']);
+const props = defineProps({ source: { type: Object, default: null }, inline: { type: Boolean, default: false } });
+const emit = defineEmits(['close', 'state']);
 
 const video = ref(null);
 // connecting | playing | failed (the camera or the relay stopped answering) | refused (the API said no)
 const state = ref('connecting'); const message = ref('');
+watch(state, value => emit('state', value), { immediate: true });
 let hls = null; let renewTimer = null; let token = ''; let run = 0;
 const RETRY_MS = 15000;
 
@@ -87,13 +90,28 @@ async function start() {
 
 function playing() { if (hls) { state.value = 'playing'; message.value = ''; } }
 function close() { stop(); emit('close'); }
+function fullscreen() { video.value?.requestFullscreen?.().catch?.(() => { /* the browser said no: nothing to do */ }); }
+defineExpose({ start, stop, fullscreen });
 
 watch(() => props.source?.id, (id) => { if (id !== undefined && id !== null) start(); else stop(); }, { immediate: true });
 onUnmounted(stop);
 </script>
 
 <template>
-  <UiDialog class="lv-dialog" :open="!!source" :title="source ? `${source.name}, live` : 'Live view'" @close="close">
+  <div v-if="inline && source" class="lv-inline">
+    <div class="lv-stage lv-stage-inline">
+      <video ref="video" class="lv-video" muted playsinline controls :aria-label="`Live video from ${source.name}`" @playing="playing"></video>
+      <div v-if="state !== 'playing'" class="lv-over" :role="state === 'connecting' ? 'status' : 'alert'">
+        <template v-if="state === 'connecting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>Connecting to the camera…</span></template>
+        <template v-else>
+          <VideoOff :size="22" aria-hidden="true"/><span>{{ message }}</span>
+          <UiButton class="small" @click="start"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
+        </template>
+      </div>
+    </div>
+    <p class="lv-sr" aria-live="polite">{{ state === 'playing' ? 'Playing live.' : '' }}</p>
+  </div>
+  <UiDialog v-else-if="!inline" class="lv-dialog" :open="!!source" :title="source ? `${source.name}, live` : 'Live view'" @close="close">
     <template v-if="source">
       <p class="dialog-description">{{ sourceShown(source) }}. The sound is off until you turn it on.</p>
       <div class="lv-stage">
@@ -114,6 +132,8 @@ onUnmounted(stop);
 
 <style scoped>
 .lv-dialog{width:min(860px,calc(100% - 32px))}
+.lv-inline{position:relative}
+.lv-stage-inline{margin-top:0;border-radius:0}
 .lv-stage{position:relative;margin-top:14px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0d1320}
 .lv-video{display:block;width:100%;height:100%;background:#0d1320}
 .lv-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;background:#0d1320e6;color:#e6ebf3;font-size:14px;line-height:1.5}
