@@ -59,6 +59,10 @@ function substitute(v, vars) {
  */
 export function configurations({ root, activePath, scripts, launch }) {
   const abs = (p) => `${String(root).replace(/\/+$/, '')}/${String(p).replace(/^\/+/, '')}`
+  // Where js-debug looks for source maps: VS Code's default, the project outside node_modules. Without it js-debug
+  // tried every file npm and tsx load and filled the Debug Console with "Could not read source map" lines (live
+  // check, 2026-11-17).
+  const maps = { resolveSourceMapLocations: [abs('**'), '!**/node_modules/**'] }
   const out = []
   const a = adapterFor(activePath)
   if (a === 'python') {
@@ -68,12 +72,12 @@ export function configurations({ root, activePath, scripts, launch }) {
     const ts = TS_EXT.includes(extOf(activePath))
     out.push({ id: 'file', label: `Node: ${activePath}`, adapter: 'node', config: { type: 'pwa-node', request: 'launch',
       name: activePath, program: abs(activePath), cwd: root, console: 'internalConsole', skipFiles: ['<node_internals>/**'],
-      ...(ts ? { runtimeExecutable: 'npx', runtimeArgs: ['--yes', 'tsx'] } : {}) } })
+      ...maps, ...(ts ? { runtimeExecutable: 'npx', runtimeArgs: ['--yes', 'tsx'] } : {}) } })
   }
   for (const name of Object.keys(scripts || {})) {
     out.push({ id: `npm:${name}`, label: `npm run ${name}`, adapter: 'node', config: { type: 'pwa-node', request: 'launch',
       name: `npm run ${name}`, runtimeExecutable: 'npm', runtimeArgs: ['run', name], cwd: root, console: 'internalConsole',
-      skipFiles: ['<node_internals>/**'] } })
+      skipFiles: ['<node_internals>/**'], ...maps } })
   }
   const vars = { workspaceFolder: root, workspaceRoot: root, file: activePath ? abs(activePath) : '',
     fileDirname: activePath ? abs(activePath).replace(/\/[^/]*$/, '') : root, relativeFile: activePath || '' }
@@ -82,6 +86,7 @@ export function configurations({ root, activePath, scripts, launch }) {
     if (!adapter) continue
     const config = substitute({ ...c, type: adapter === 'node' ? 'pwa-node' : c.type, console: 'internalConsole' }, vars)
     if (!config.cwd) config.cwd = root
+    if (adapter === 'node' && !config.resolveSourceMapLocations) Object.assign(config, maps)
     out.push({ id: `launch:${i}`, label: `${c.name || 'Configuration'} (launch.json)`, adapter, config })
   }
   return out
