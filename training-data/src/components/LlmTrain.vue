@@ -22,7 +22,11 @@ const form = ref({ version: '', method: 'sft', config: '', runtime: 3600, parent
 // The GPU and location the run trains on (MachinePicker; training is GPU only), offered for the version chosen.
 const compute = ref('');
 const picker = ref(null);
-const loadMachines = computed(() => { const ref_ = props.project.ref, version = form.value.version; return () => llmApi.trainingMachines(ref_, version); });
+// The settings the run's memory follows go with it: another configuration, method or start model asks again.
+const loadMachines = computed(() => {
+  const ref_ = props.project.ref, { version, config, method, parent } = form.value;
+  return () => llmApi.trainingMachines(ref_, version, { config, method, parent });
+});
 let timer = null;
 
 const version = computed(() => page.value?.versions.find(v => v.number === Number(form.value.version)));

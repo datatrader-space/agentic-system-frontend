@@ -12,8 +12,9 @@ export async function loadTraining(store) {
 
 export const trainApi = {
   start: (ref, body) => apiFetch(`${base(ref)}/runs/`, { method: 'POST', body }),
-  // The GPUs and locations a run can train on now (placement.py; training is GPU only).
-  machines: ref => apiFetch(`${base(ref)}/runs/machines/`),
+  // The GPUs and locations a run of ``{ version, model, size }`` can train on now (placement.py; training is GPU only;
+  // its memory is measured, server side), and ``own_machines``: the workspace's machines, each saying whether it fits.
+  machines: (ref, choice = {}) => apiFetch(`${base(ref)}/runs/machines/?${new URLSearchParams(Object.entries(choice).filter(([, v]) => v !== '' && v != null))}`),
   run: (ref, number) => apiFetch(`${base(ref)}/runs/${enc(number)}/`),
   act: (ref, number, action) => apiFetch(`${base(ref)}/runs/${enc(number)}/${action}/`, { method: 'POST', body: {} }),
 };
