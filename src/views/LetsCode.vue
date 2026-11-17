@@ -879,6 +879,9 @@ onBeforeUnmount(() => {
   .lc-ide { height: auto; min-height: 100%; }
   .ide-main { flex-direction: column; }
   .ide-left { min-height: 70vh; }
+  /* The editor fills its area. Here the area's height comes from flex, so the editor's own `height: 100%` resolved to
+     its content: at 375 px, one pane at a time, the editor was 63 px tall in a 354 px area (ADM-1128, 2026-11-17). */
+  .ide-editor > :deep(.code-browser) { position: absolute; inset: 0; height: auto; }
   .ide-gh { margin-left: 0; }
 }
 @media (max-width: 640px) {
