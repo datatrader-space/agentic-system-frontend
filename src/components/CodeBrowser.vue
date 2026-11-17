@@ -1369,8 +1369,12 @@ async function uploadInto(dir, files) {
   try {
     for (let i = 0; i < parts.length; i++) {
       uploading.value = `Uploading ${files.length} ${files.length === 1 ? 'file' : 'files'}… (${done} done)`
+      // A file larger than a part goes in pieces (ADM-1269): how far it is, in the same line.
+      const onPiece = (sent, total) => {
+        uploading.value = `Uploading ${parts[i][0].path}… ${Math.round((100 * sent) / total)}% (${done} done)`
+      }
       try {
-        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite, onPiece })
       } catch (e) {
         const there = e?.response?.status === 409 ? e.response.data?.exists : null
         if (!there || overwrite) throw e
@@ -1381,7 +1385,7 @@ async function uploadInto(dir, files) {
         })
         if (!ok) { notify.info(done ? `Uploaded ${done} ${done === 1 ? 'file' : 'files'}; the rest was not uploaded.` : 'Upload cancelled.'); return }
         overwrite = true
-        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite, onPiece })
       }
       done += parts[i].length
     }

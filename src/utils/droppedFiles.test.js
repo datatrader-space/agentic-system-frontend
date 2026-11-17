@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filesFromDrop, filesFromPicker, uploadParts, tooLarge, MAX_FILES_PER_PART, MAX_BYTES_PER_PART } from './droppedFiles'
+import { filesFromDrop, filesFromPicker, uploadParts, tooLarge, MAX_FILES_PER_PART, MAX_BYTES_PER_PART, MAX_FILE_BYTES } from './droppedFiles'
 
 const file = (name, size = 1) => ({ name, size })
 const fileEntry = (name) => ({ isFile: true, isDirectory: false, name, file: (ok) => ok(file(name)) })
@@ -40,8 +40,13 @@ describe('uploadParts', () => {
     expect(uploadParts([])).toEqual([])
   })
 
+  it('sends a file larger than a part alone', () => {
+    const files = [{ file: file('a', 5) }, { file: file('big', MAX_BYTES_PER_PART * 3) }, { file: file('c', 5) }]
+    expect(uploadParts(files).map((p) => p.map((f) => f.file.name))).toEqual([['a'], ['big'], ['c']])
+  })
+
   it('names a file larger than one request can carry', () => {
-    expect(tooLarge([{ file: file('huge', MAX_BYTES_PER_PART + 1) }, { file: file('ok', 3) }]).map((f) => f.file.name))
+    expect(tooLarge([{ file: file('huge', MAX_FILE_BYTES + 1) }, { file: file('ok', MAX_BYTES_PER_PART * 4) }]).map((f) => f.file.name))
       .toEqual(['huge'])
   })
 })

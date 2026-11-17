@@ -229,6 +229,8 @@ import { confirm } from '@/composables/useConfirm'
 import { connectGithubService, disconnectGithubService } from '@/composables/useGithubConnect'
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
+import { notifyProjectJob, isFollowed } from '@/services/projectJobs'
+import { saveBlob, filenameFrom } from '@/utils/saveBlob'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { useIdeTheme } from '@/composables/useIdeTheme'
 import { cloneRequest } from '@/utils/cloneByUrl'
@@ -507,6 +509,7 @@ const ws = reconnectingSocket({
       else if (msg.event === 'fs_changed' && msg.data) codeBrowser.value?.onFilesChanged?.(msg.data)
       else if (msg.event === 'watch' && msg.data) onWatchState(msg.data)
       else if (msg.event === 'agent_command' && msg.data) agentCommands.value = [...agentCommands.value, msg.data]
+      else if (msg.event === 'job' && msg.data) notifyProjectJob(msg.data)
     } catch { /* ignore malformed frames */ }
   },
 })
@@ -553,6 +556,37 @@ function connectWs() {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = import.meta.env.VITE_WS_HOST || window.location.host
   ws.connect(() => `${proto}//${host}/ws/lets-code/${repoId}/`)
+  resumeProjectJobs()
+}
+
+// THE LONG BUTTONS KEEP RUNNING (ADM-1269). Check project, commit, push, pull, publish, a pull request, a download
+// and a backup run as background jobs. A page opened again while one runs follows it: the person is told it is still
+// running and when it ends; Check project's problems reach the Problems tab and a download is saved.
+const JOB_LABELS = { check: 'Check project', commit: 'The commit', push: 'The push', pull: 'The pull',
+  publish: 'Publishing', pull_request: 'The pull request', download: 'The download', backup: 'The backup' }
+async function resumeProjectJobs() {
+  const a = active.value
+  if (!a?.repo_id || !a.system_id) return
+  let jobs = []
+  try { jobs = (await api.getRunningProjectJobs(a.system_id, a.repo_id)).data?.jobs || [] } catch { return }
+  for (const job of jobs) if (!isFollowed(job.id)) followResumedJob(a, job)
+}
+async function followResumedJob(a, job) {
+  const label = JOB_LABELS[job.kind] || 'A job'
+  if (job.kind === 'check') { languages.check(job); return }
+  notify.info(`${label} is still running. You will be told when it ends.`)
+  const stillHere = () => active.value?.repo_id === a.repo_id
+  try {
+    const { data } = await api.waitForProjectJob(a.system_id, a.repo_id, job, { isCancelled: () => !stillHere() })
+    if (job.kind === 'download' || job.kind === 'backup') {
+      const file = await api.getProjectJobFile(a.system_id, a.repo_id, job.id)
+      saveBlob(file.data, filenameFrom(file.headers, data?.name || 'download'))
+    }
+    notify.success(`${label} finished.`)
+    if (stillHere()) codeBrowser.value?.refresh?.()
+  } catch (e) {
+    if (e?.name !== 'AbortError') notify.error(e?.response?.data?.error || `${label} did not finish.`)
+  }
 }
 function closeWs() { ws.close() }
 

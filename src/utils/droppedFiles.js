@@ -35,12 +35,13 @@ async function walk(entry, prefix, out) {
   }
 }
 
-// What one request can carry: Django takes up to 100 files a request (DATA_UPLOAD_MAX_NUMBER_FILES) and nginx
-// 100 MB (client_max_body_size), the form's own bytes included. A larger drop goes in parts; a single file larger
-// than one request can carry is said, not sent.
+// What one request carries (ADM-1269): at most 50 files (Django takes 100, DATA_UPLOAD_MAX_NUMBER_FILES) and 8 MB, so
+// every request finishes well inside the time the aadml.com front server allows. A larger drop goes in parts; a
+// file larger than a part goes alone, in 8 MB pieces the sandbox joins (`api.uploadRepositoryFiles`). A file larger
+// than MAX_FILE_BYTES is said, not sent: the Terminal adds it (curl, git).
 export const MAX_FILES_PER_PART = 50
-export const MAX_BYTES_PER_PART = 90 * 1024 * 1024
-export const MAX_FILE_BYTES = MAX_BYTES_PER_PART
+export const MAX_BYTES_PER_PART = 8 * 1024 * 1024
+export const MAX_FILE_BYTES = 1024 * 1024 * 1024
 
 export function tooLarge(files) {
   return files.filter((f) => (f.file?.size || 0) > MAX_FILE_BYTES)
