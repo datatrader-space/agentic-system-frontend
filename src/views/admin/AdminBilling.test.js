@@ -13,11 +13,13 @@ const api = vi.hoisted(() => ({
   billingAdminWallets: vi.fn(),
   billingAdminWallet: vi.fn(),
   billingAdminAdjust: vi.fn(),
+  billingAdminCreditRender: vi.fn(),
   billingAdminPricingCoverage: vi.fn(),
   billingAdminRevenue: vi.fn(),
 }))
 vi.mock('../../services/api', () => ({ default: api }))
-vi.mock('../../composables/useNotify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }))
+const notifyMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
+vi.mock('../../composables/useNotify', () => ({ notify: notifyMock }))
 
 import AdminBilling from './AdminBilling.vue'
 
@@ -216,5 +218,95 @@ describe('Admin billing settings: Training API prices', () => {
     expect(input.attributes('aria-invalid')).toBe('true')
     expect(input.attributes('aria-describedby')).toBe('h-training_chat_input_per_1m_usd e-training_chat_input_per_1m_usd')
     expect(w.find('#e-training_photo_call_usd').exists()).toBe(false)
+  })
+})
+
+// ADM-1260: a staff refund of a poor render, from the charge's trace, in the admin popup (never a native dialog).
+describe('Admin billing: refund a poor render', () => {
+  const videoCharge = { ...charge, id: 41, usage_kind: 'video', description: 'Video job 6f1c', amount_usd: '-0.5',
+    source_type: 'llm_request_log', source_id: '120', video_job_id: '6f1c0000-0000-4000-8000-000000000001', render_credit: null }
+
+  async function openTrace() {
+    api.billingAdminCharges.mockResolvedValue({ data: { charges: [videoCharge, charge], next_before: null } })
+    w = mount(AdminBilling, { attachTo: document.body }); await flushPromises()
+    await w.findAll('tr.clickable').find(r => r.text().includes('Video job 6f1c')).trigger('click')
+  }
+
+  it('offers the refund only on a video job charge, and opens the popup with what it charged', async () => {
+    const nativePrompt = vi.spyOn(window, 'prompt').mockImplementation(() => null)
+    await openTrace()
+    expect(w.findAll('[data-test="render-refund-open"]')).toHaveLength(1)
+    await w.get('[data-test="render-refund-open"]').trigger('click')
+    const dialog = w.get('[data-test="render-refund-dialog"]')
+    expect(dialog.attributes('role')).toBe('dialog')
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(dialog.classes()).toContain('admin-dialog')
+    expect(dialog.text()).toContain('ben was charged $0.5')
+    expect(w.get('[data-test="render-refund-amount"]').element.value).toBe('0.5')
+    expect(nativePrompt).not.toHaveBeenCalled()
+    nativePrompt.mockRestore()
+    await w.findAll('.refund-actions button').find(b => b.text() === 'Cancel').trigger('click')
+    expect(w.find('[data-test="render-refund-dialog"]').exists()).toBe(false)
+  })
+
+  it('offers no refund on a charge that is not a video job', async () => {
+    w = mount(AdminBilling); await flushPromises()
+    await w.findAll('tr.clickable').find(r => r.text().includes('AI model: m-a')).trigger('click')
+    expect(w.find('[data-test="render-refund"]').exists()).toBe(false)
+  })
+
+  it('needs a written reason and refuses more than the charge before sending anything', async () => {
+    await openTrace()
+    await w.get('[data-test="render-refund-open"]').trigger('click')
+    await w.get('[data-test="render-refund-dialog"]').trigger('submit'); await flushPromises()
+    expect(w.text()).toContain('Write at least 10 characters.')
+    await w.get('[data-test="render-refund-amount"]').setValue('0.6')
+    await w.get('[data-test="render-refund-reason"]').setValue('The face melts at 0:03.')
+    await w.get('[data-test="render-refund-dialog"]').trigger('submit'); await flushPromises()
+    expect(w.text()).toContain('At most $0.5, what this render charged.')
+    expect(w.get('[data-test="render-refund-amount"]').attributes('aria-invalid')).toBe('true')
+    expect(api.billingAdminCreditRender).not.toHaveBeenCalled()
+  })
+
+  it('sends the job, amount and reason once, then shows the refund on the charge', async () => {
+    let resolve
+    api.billingAdminCreditRender.mockReturnValue(new Promise(r => { resolve = r }))
+    await openTrace()
+    await w.get('[data-test="render-refund-open"]').trigger('click')
+    await w.get('[data-test="render-refund-amount"]').setValue('0.25')
+    await w.get('[data-test="render-refund-reason"]').setValue('  The face melts at 0:03.  ')
+    await w.get('[data-test="render-refund-dialog"]').trigger('submit')
+    await w.get('[data-test="render-refund-dialog"]').trigger('submit')          // a double click sends once
+    expect(api.billingAdminCreditRender).toHaveBeenCalledTimes(1)
+    expect(api.billingAdminCreditRender).toHaveBeenCalledWith(videoCharge.video_job_id, '0.25', 'The face melts at 0:03.')
+    expect(w.get('[data-test="render-refund-submit"]').attributes('disabled')).toBeDefined()
+    resolve({ data: { credited_usd: '0.25', entry: { id: 77, reason: 'The face melts at 0:03.', actor_id: 2, created_at: '2026-11-17T10:00:00Z' } } })
+    await flushPromises()
+    expect(w.find('[data-test="render-refund-dialog"]').exists()).toBe(false)
+    expect(notifyMock.success).toHaveBeenCalledWith('Refunded $0.25 to the balance')
+    const trace = w.get('[data-test="render-refund"]').text()
+    expect(trace).toContain('$0.25 refunded to the balance by user 2')
+    expect(trace).toContain('The face melts at 0:03.')
+    expect(w.find('[data-test="render-refund-open"]').exists()).toBe(false)
+  })
+
+  it('keeps the popup open with the server\'s reason when the refund is refused', async () => {
+    api.billingAdminCreditRender.mockRejectedValue({ response: { status: 409, data: { error: 'already_credited',
+      detail: 'This job was already credited. A job is credited once.' } } })
+    await openTrace()
+    await w.get('[data-test="render-refund-open"]').trigger('click')
+    await w.get('[data-test="render-refund-reason"]').setValue('The face melts at 0:03.')
+    await w.get('[data-test="render-refund-dialog"]').trigger('submit'); await flushPromises()
+    expect(w.get('[data-test="render-refund-error"]').text()).toContain('already credited')
+    expect(w.get('[data-test="render-refund-submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('shows a refund already made instead of the button', async () => {
+    api.billingAdminCharges.mockResolvedValue({ data: { charges: [{ ...videoCharge, render_credit: { entry_id: 5,
+      amount_usd: '0.5', reason: 'Cut-off frame at the end.', actor_id: 2, created_at: '2026-11-17T10:00:00Z' } }], next_before: null } })
+    w = mount(AdminBilling); await flushPromises()
+    await w.findAll('tr.clickable').find(r => r.text().includes('Video job 6f1c')).trigger('click')
+    expect(w.get('[data-test="render-refund"]').text()).toContain('$0.5 refunded to the balance by user 2')
+    expect(w.find('[data-test="render-refund-open"]').exists()).toBe(false)
   })
 })

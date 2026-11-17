@@ -863,6 +863,9 @@ export default {
   billingAdminAdjust: (userId, amountUsd, reason) =>
     api.post(`/billing/admin/wallets/${userId}/adjust/`, { amount_usd: amountUsd, reason }),
   billingAdminReleaseHold: (reservationId) => api.post(`/billing/admin/reservations/${reservationId}/release/`),
+  // ADM-1260: give back what a poor render charged (staff only; at most that charge, once per job, a reason required).
+  billingAdminCreditRender: (jobId, amountUsd, reason) =>
+    api.post(`/billing/admin/video-jobs/${jobId}/credit/`, { amount_usd: amountUsd, reason }),
   billingAdminPricingCoverage: () => api.get('/billing/admin/pricing-coverage/', { noCache: true }),
   billingAdminRevenue: (days = 30) => api.get('/billing/admin/revenue/', { params: { days }, noCache: true }),
   // Every cent traced: filtered charges across all people, totals grouped by who/what/where, and a CSV export.
