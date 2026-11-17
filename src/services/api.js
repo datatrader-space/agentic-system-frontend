@@ -279,6 +279,24 @@ async function packedDownload(systemId, repoId, start, opts) {
   const { job } = await projectJob(systemId, repoId, start, opts)
   return getBlob(`${_projectBase(systemId, repoId)}/jobs/${job.id}/download/`)
 }
+// A piece the server or the network dropped (a deploy restarting the server, a blip: live on 2026-11-17 piece 88 of
+// 100 got a 502 while another release was deploying) is sent again, the same piece under the same id, so nothing is
+// duplicated. A refusal (4xx) is the answer and is never sent again.
+const PIECE_RETRY_WAIT_S = [2, 4, 8, 16, 30]
+function _retryable(e) {
+  const s = e?.response?.status
+  return !e?.response || s === 502 || s === 503 || s === 504
+}
+async function _sendPiece(send) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send()
+    } catch (e) {
+      if (attempt >= PIECE_RETRY_WAIT_S.length || !_retryable(e) || isAbortError(e)) throw e
+      await new Promise((resolve) => setTimeout(resolve, PIECE_RETRY_WAIT_S[attempt] * 1000))
+    }
+  }
+}
 function _uploadId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replace(/-/g, '')
   const b = new Uint8Array(16)
@@ -552,7 +570,7 @@ export default {
       const form = formFor({ chunk_upload: id, chunk: String(i), chunks: String(total) })
       form.append('files', big.file.slice(i * MAX_BYTES_PER_PART, (i + 1) * MAX_BYTES_PER_PART), big.file.name)
       form.append('paths', big.path)
-      res = await api.post(url, form, config)
+      res = await _sendPiece(() => api.post(url, form, config))
       onPiece?.(i + 1, total)
     }
     return res

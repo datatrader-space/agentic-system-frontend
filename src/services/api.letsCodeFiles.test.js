@@ -88,6 +88,40 @@ describe('a file larger than an upload part (ADM-1269)', () => {
       .toMatchObject({ response: { status: 409 } })
     expect(h.rawPost).toHaveBeenCalledTimes(1)
   })
+
+  it('sends a dropped piece again, the same piece under the same id, and goes on', async () => {
+    vi.useFakeTimers()
+    try {
+      const big = new File([new Uint8Array(MAX_BYTES_PER_PART + 1)], 'a.bin')
+      h.rawPost.mockRejectedValueOnce({ response: { status: 502, data: {} } })
+        .mockRejectedValueOnce(new Error('Network Error'))
+        .mockResolvedValueOnce({ status: 202, data: { received: 0 } })
+        .mockResolvedValueOnce({ status: 201, data: { uploaded: ['a.bin'] } })
+      const p = api.uploadRepositoryFiles(5, 4, '', [{ file: big, path: 'a.bin' }])
+      await vi.advanceTimersByTimeAsync(6000)
+      expect((await p).data).toEqual({ uploaded: ['a.bin'] })
+      const forms = h.rawPost.mock.calls.map(([, f]) => [f.get('chunk'), f.get('chunk_upload')])
+      expect(forms.map(([c]) => c)).toEqual(['0', '0', '0', '1'])
+      expect(new Set(forms.map(([, id]) => id)).size).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up after five more tries', async () => {
+    vi.useFakeTimers()
+    try {
+      const big = new File([new Uint8Array(MAX_BYTES_PER_PART + 1)], 'a.bin')
+      h.rawPost.mockRejectedValue({ response: { status: 503, data: { error: 'Down' } } })
+      const p = api.uploadRepositoryFiles(5, 4, '', [{ file: big, path: 'a.bin' }])
+      const seen = expect(p).rejects.toMatchObject({ response: { status: 503 } })
+      await vi.advanceTimersByTimeAsync(61000)
+      await seen
+      expect(h.rawPost).toHaveBeenCalledTimes(6)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 const doneJob = (kind, result, extra = {}) => ({ id: 'j1', kind, state: 'done', status_code: 200, result, ...extra })
