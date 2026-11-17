@@ -17,7 +17,6 @@ import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 
 let wrapper
 const stubs = {
-  HomeFeatures: true,
   VideoComposerPanel: { name: 'VideoComposerPanel', props: { draft: String, showMode: { type: Boolean, default: true } }, components: { StudioModeSwitch }, template: '<div data-test="creation"><StudioModeSwitch v-if="showMode" /><slot name="above" /><slot /><slot name="actions" /></div>',
                         methods: { submit: submitSpy } },
   VideoJobsTray: { props: ['conversationId'], template: '<div data-test="tray" />' },
@@ -169,6 +168,20 @@ describe('Video Studio', () => {
     expect(wrapper.get('[data-test="studio-mode-manual"]').exists()).toBe(true)
     expect(state.video.studioMode).toBe('agent')
     expect(state.chat.sendMessage).not.toHaveBeenCalled()
+    // No stray "Your creative workspace" line; the keyboard hint says how this mode sends (plan section 3 item 8).
+    expect(wrapper.text()).not.toContain('creative workspace')
+    expect(wrapper.get('[data-test="studio-dashboard-meta"]').text()).toBe('Enter to send, Shift + Enter for a new line')
+  })
+
+  it('a phone composer has room to write and shows the tasks as chips (plan section 3 item 8)', async () => {
+    const src = (await import('./VideoStudio.vue?raw')).default
+    const phone = src.slice(src.indexOf('.create .prompt textarea{min-height:144px') - 600)   // the phone block (max-width 680 px)
+    expect(phone).toContain('.create .prompt textarea{min-height:144px')
+    expect(src).not.toContain('.create .prompt textarea{min-height:100px')
+    expect(phone).toContain('@media(max-width:680px){')
+    expect(phone).toMatch(/\.create :deep\(\.vcp-cards\)\{display:flex;flex-wrap:wrap/)
+    expect(phone).toMatch(/\.create :deep\(\.vcp-card\)\{[^}]*border-radius:999px/)
+    expect(phone).toMatch(/\.create :deep\(\.vcp-card-art\),\.create :deep\(\.vcp-card-check\)\{display:none\}/)
   })
 
   it('keeps an existing Manual choice when Home opens', async () => {
@@ -188,6 +201,7 @@ describe('Video Studio', () => {
     expect(state.chat.studioMode).toBe('manual')
     expect(wrapper.get('[data-test="studio-prompt"]').element.value).toBe('A product reveal')
     expect(wrapper.get('[data-test="studio-send-message"]').classes()).toContain('quiet')
+    expect(wrapper.get('[data-test="studio-dashboard-meta"]').text()).toBe('Ctrl + Enter to send')
     expect(state.chat.sendMessage).not.toHaveBeenCalled()
     expect(state.post).not.toHaveBeenCalled()
     const prompt = wrapper.get('[data-test="studio-prompt"]')

@@ -10,7 +10,7 @@
           <label v-if="resolutions.length" class="st-field">Resolution<select v-model="resolution" class="st-input" data-test="recipe-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label>
         </template>
         <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="words(slot.name)" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
-        <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video.</p>
+        <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video. The recipe changes the whole video, start to end.</p>
         <label v-for="(values,name) in recipe.options" :key="name" class="st-field">{{ words(name) }}<select v-model="options[name]" class="st-input"><option v-for="value in values" :key="value">{{ value }}</option></select></label>
         <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe ? !recipeRoute : !videoRouteId)" @click="prepareRecipe">Review recipe estimate</button>
       </template>

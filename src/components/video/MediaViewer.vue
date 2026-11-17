@@ -29,12 +29,16 @@
               <path d="M9 18V6l11-2v12" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>
             <audio :key="item.url" :src="item.url" controls preload="metadata" data-test="media-viewer-audio"></audio>
           </div>
+          <!-- Compare: two pictures side by side (picture versions, StudioVersions); the arrows move both. -->
+          <div v-else-if="pair" class="mv-pair" data-test="media-viewer-compare">
+            <figure v-for="p in pair" :key="p.url"><img :src="p.url" :alt="p.title" class="mv-pair-media" /><figcaption>{{ p.title }}</figcaption></figure>
+          </div>
           <img v-else :src="item.url" :alt="item.title" class="mv-media" data-test="media-viewer-image" />
           <button v-if="items.length > 1" type="button" class="mv-nav mv-next" aria-label="Next file" @click="step(1)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         </div>
-        <p v-if="items.length > 1" class="mv-count">{{ index + 1 }} of {{ items.length }}</p>
+        <p v-if="items.length > 1" class="mv-count">{{ pair ? `${index + 1} and ${nextIndex + 1}` : index + 1 }} of {{ items.length }}</p>
       </div>
     </div>
   </Teleport>
@@ -47,10 +51,18 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 const props = defineProps({
   items: { type: Array, required: true },          // the files that can be previewed, in the order shown
   index: { type: Number, required: true },
+  // Show the file at `index` beside the next one, when both are pictures (comparing picture versions).
+  compare: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close', 'leave', 'update:index'])   // leave: its chat link was followed
 const closeEl = ref(null)
 const item = computed(() => props.items[props.index] || {})
+const nextIndex = computed(() => (props.index + 1) % (props.items.length || 1))
+const pair = computed(() => {
+  const other = props.items[nextIndex.value]
+  return props.compare && props.items.length > 1 && item.value.media_type === 'image' && other && other.media_type === 'image'
+    ? [item.value, other] : null
+})
 // A Studio chat opens in the Studio; any other chat in the main chat.
 const fromChat = computed(() => studioChatName(item.value.conversation_name, 'its chat'))
 const chatLink = computed(() => (item.value.conversation_in_studio
@@ -99,6 +111,10 @@ onBeforeUnmount(() => {
 .mv-icon svg { width: 18px; height: 18px; }
 .mv-stage { position: relative; display: grid; place-items: center; min-height: 0; border-radius: 8px; background: #000; overflow: hidden; }
 .mv-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.mv-pair { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+.mv-pair figure { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; margin: 0; }
+.mv-pair-media { width: 100%; height: 100%; min-height: 0; object-fit: contain; display: block; }
+.mv-pair figcaption { padding: 6px 10px; font-size: 12.5px; color: #a7a8ae; text-align: center; overflow-wrap: anywhere; }
 .mv-audio { display: grid; justify-items: center; gap: 18px; color: #a7a8ae; }
 .mv-audio svg { width: 64px; height: 64px; }
 .mv-audio audio { width: min(420px, 80vw); }
@@ -114,6 +130,7 @@ onBeforeUnmount(() => {
   .mv { padding: 10px; }
   .mv-frame { height: calc(100dvh - 20px); }
   .mv-bar a.mv-btn { display: none; }
+  .mv-pair { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .mv * { transition: none !important; } }
 </style>

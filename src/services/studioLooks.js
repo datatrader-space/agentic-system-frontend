@@ -2879,8 +2879,8 @@ export const studioLooks = [
   {
     "id": "ad-remix-look-1",
     "feature": "ad-remix",
-    "title": "A better opening",
-    "purpose": "Keep the structure. Give the hook a fresh angle.",
+    "title": "Swap the product",
+    "purpose": "Put your product in place of the one in a reference ad.",
     "category": "Product ads",
     "slots": [
       {
@@ -2905,117 +2905,7 @@ export const studioLooks = [
       }
     ],
     "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
-    "variants": [
-      "Keep the prepared direction.",
-      "Use a subtle variation while keeping the subject consistent."
-    ],
-    "clientOnly": true,
-    "variables": [
-      {
-        "id": "product",
-        "label": "Product",
-        "default": "Our artisan pizza"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "Your new favourite Friday ritual"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Discover the menu"
-      }
-    ],
-    "durationLabel": "8 s",
-    "referenceLabel": "Reference ad + Your product image"
-  },
-  {
-    "id": "ad-remix-look-2",
-    "feature": "ad-remix",
-    "title": "A new call to action",
-    "purpose": "Rework the ending for a different campaign goal.",
-    "category": "Product ads",
-    "slots": [
-      {
-        "id": "reference-0",
-        "label": "Reference ad",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "video"
-        ]
-      },
-      {
-        "id": "reference-1",
-        "label": "Your product image",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "image"
-        ]
-      }
-    ],
-    "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
-    "variants": [
-      "Keep the prepared direction.",
-      "Use a subtle variation while keeping the subject consistent."
-    ],
-    "clientOnly": true,
-    "variables": [
-      {
-        "id": "product",
-        "label": "Product",
-        "default": "Our signature fragrance"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "A moment that stays with you"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Explore the collection"
-      }
-    ],
-    "durationLabel": "8 s",
-    "referenceLabel": "Reference ad + Your product image"
-  },
-  {
-    "id": "ad-remix-look-3",
-    "feature": "ad-remix",
-    "title": "A new product, same rhythm",
-    "purpose": "Recast a reference ad around your product.",
-    "category": "Product ads",
-    "slots": [
-      {
-        "id": "reference-0",
-        "label": "Reference ad",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "video"
-        ]
-      },
-      {
-        "id": "reference-1",
-        "label": "Your product image",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "image"
-        ]
-      }
-    ],
-    "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
+    "promptTemplate": "Replace the main product in the whole reference ad with {Product}, shown in my product image. Keep the camera movement, the people, the timing and the setting the same.",
     "variants": [
       "Keep the prepared direction.",
       "Use a subtle variation while keeping the subject consistent."
@@ -3026,20 +2916,80 @@ export const studioLooks = [
         "id": "product",
         "label": "Product",
         "default": "Our cold-pressed oil"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "More flavour, less effort"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Taste the difference"
       }
     ],
     "durationLabel": "8 s",
     "referenceLabel": "Reference ad + Your product image"
+  },
+  {
+    "id": "ad-remix-look-2",
+    "feature": "ad-remix",
+    "title": "A new look",
+    "purpose": "Restyle a whole reference ad. Its motion and timing stay.",
+    "category": "Product ads",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference ad",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "video"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Restyle the whole reference ad as {Style}. Keep the motion, the timing and every product exactly as they are.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "style",
+        "label": "Style",
+        "default": "a retro film look"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Reference ad"
+  },
+  {
+    "id": "ad-remix-look-3",
+    "feature": "ad-remix",
+    "title": "A new setting",
+    "purpose": "Move a whole reference ad to a new place.",
+    "category": "Product ads",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference ad",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "video"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Move the whole reference ad to {Setting}. Keep the people, the product, the motion and the timing the same.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "setting",
+        "label": "Setting",
+        "default": "a beach at sunset"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Reference ad"
   },
   {
     "id": "canvas-look-1",

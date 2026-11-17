@@ -51,117 +51,127 @@ function moveTab(event, index) {
 defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobilePane.value !== 'create') { mobilePane.value = 'create'; await nextTick() } const target = props.chatExpanded || props.agentMode ? (form.value?.querySelector('textarea') || form.value) : references.value?.querySelector('[data-studio-required-empty="true"]') || form.value?.querySelector('[data-studio-required-empty="true"]') || form.value; target?.scrollIntoView?.({ block: 'center' }); target?.focus() } })
 </script>
 <style scoped>
-/* One style block (ADM-1170). The rules keep the order of the eight blocks they came from, so the cascade is
-   unchanged; the phone layout of an agent page and the Manual bar's room are the last section and win. */
-.st-page{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--vm-bg)}.st-page-body{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);flex:1;min-height:0}.st-controls{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vm-line-2);background:var(--vm-surface)}.st-form{display:flex;flex-direction:column;gap:20px;flex:1;min-height:0;overflow-y:auto;padding:24px;outline:0}.st-quote{flex-shrink:0;border-top:1px solid var(--vm-line);background:var(--vm-surface)}.st-output{display:flex;flex-direction:column;min-width:0;min-height:0}.st-tabs{display:flex;gap:24px;flex-shrink:0;padding:0 24px;border-bottom:1px solid var(--vm-line-2)}.st-tabs button{min-height:52px;border:0;border-bottom:2px solid transparent;background:none;color:var(--vm-ink-soft);font:500 13px var(--vm-font-sans);cursor:pointer}.st-tabs button.active{border-bottom-color:var(--vm-violet);color:var(--vm-ink)}.st-output-body{flex:1;min-height:0;overflow:auto;padding:24px}
+/* One rule per element and state, one breakpoint scale (480 / 767 / 1023 px), colours from the --vm-* tokens
+   (ADM-1170, VIDEO_STUDIO_PRODUCTION_READY_PLAN.md section 3 item 6). Wider than 1023 px the controls column and the
+   side padding narrow smoothly instead of at a fourth breakpoint. */
+.st-page{display:flex;flex-direction:column;gap:26px;height:100%;min-height:0;padding:27px clamp(26px,3vw,38px) 22px;background:var(--vm-bg)}
+.st-page-body{display:grid;grid-template-columns:clamp(320px,29vw,366px) minmax(0,1fr);gap:23px;flex:1;min-height:0}
+.st-controls,.st-output{display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid var(--vm-line);border-radius:11px;overflow:hidden}
+.st-controls{background:var(--vm-surface)}
+.st-output{background:var(--vm-bg)}
+.st-form{display:flex;flex-direction:column;gap:20px;flex:1;min-height:0;overflow-y:auto;padding:24px;outline:0}
+.st-quote{flex-shrink:0;border-top:1px solid var(--vm-line);background:var(--vm-surface)}
+.st-tabs{display:flex;flex-shrink:0;gap:21px;padding:0 22px;border-bottom:1px solid var(--vm-line);background:var(--vm-surface-2)}
+.st-tabs button{min-height:52px;border:0;border-bottom:2px solid transparent;background:none;color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);cursor:pointer}
+.st-tabs button.active{border-bottom-color:var(--vm-violet);color:var(--vm-ink)}
+.st-output-body{flex:1;min-height:0;overflow:auto;padding:22px}
 .st-reference-panel{flex-shrink:0;min-width:0;max-height:min(45vh,420px);overflow:auto;padding:20px 24px;border-bottom:1px solid var(--vm-line-2);background:var(--vm-surface)}
 .st-results-heading{padding:16px 24px;border-bottom:1px solid var(--vm-line-2)}
-@media(max-width:1023px){.st-page{flex:none;height:auto;min-height:100%;padding-bottom:150px}.st-page-body{display:flex;flex:none;flex-direction:column;min-height:auto}.st-output{order:1;flex:none;min-height:260px}.st-controls{order:0;flex:none;min-height:auto;border-right:0;border-top:1px solid var(--vm-line-2)}.st-form{flex:none;min-height:auto;padding:20px 16px;overflow:visible}.st-output-body{flex:none;min-height:auto;padding:20px 16px;overflow:visible}.st-reference-panel{max-height:none;overflow:visible;padding:20px 16px}.st-tabs{padding-inline:16px}.st-tabs button{min-height:48px;font-size:14px}.st-quote{position:fixed;bottom:0;left:0;right:0;z-index:40;padding-bottom:env(safe-area-inset-bottom)}}
+.st-mobile-tabs{display:none}
+.st-chat-expanded .st-page-body{grid-template-columns:1fr}
+.st-chat-expanded .st-output{display:none}
+.st-chat-expanded .st-controls{border-right:0}
+.st-chat-expanded .st-form{width:100%;max-width:1000px;margin-inline:auto}
+.st-page-agent .st-form{gap:14px;padding:18px 20px;overflow:hidden}
+.st-page-agent :deep(.sap){min-height:0;height:100%;gap:14px}
+.st-page-agent :deep(.sap-scroll){min-height:120px}
+.st-page-agent :deep(.sap-intro){font-size:13px;line-height:1.8}
+.st-page-agent :deep(.sap-composer){padding-bottom:2px;background:var(--vm-surface-2);border-color:var(--vm-line)}
+.st-page-agent :deep(.sm-switch){width:100%;padding:3px;background:var(--vm-bg);border-color:var(--vm-line)}
+.st-page-agent :deep(.sm-switch button){flex:1;min-height:36px;font-size:12px}
+.st-page-agent :deep(.sm-switch button[aria-checked=true]){background:var(--vm-primary-hover-soft);border-color:var(--vm-primary-line);color:var(--vm-ink)}
+/* The page's actions in the Studio bar (or at the top of the page outside the shell), sized like the bar's buttons. */
+.st-page-actions{display:flex;align-items:center;gap:8px}
+.st-page-actions--here{justify-content:flex-end}
+.st-page-actions :deep(.st-button){min-height:36px;padding:8px 11px;font-size:11px}
 
-.st-chat-expanded .st-page-body{grid-template-columns:minmax(0,1fr)}.st-chat-expanded .st-output{display:none}.st-chat-expanded .st-controls{border-right:0}.st-chat-expanded .st-form{width:100%;max-width:1000px;margin-inline:auto}
-.st-mobile-tabs{display:none}.st-page-agent .st-form{padding:18px;gap:14px;overflow:hidden}.st-page-agent .st-controls{background:var(--vm-surface)}.st-page-agent :deep(.sap){min-height:0;height:100%;gap:14px}.st-page-agent :deep(.sap-scroll){min-height:120px}.st-page-agent :deep(.sap-intro){font-size:13px;line-height:1.8}.st-page-agent :deep(.sap-composer){padding-bottom:2px}
-@media(max-width:1023px){.st-page-agent{flex:1;height:100%;min-height:0;padding-bottom:0}.st-page-agent .st-page-body{flex:1;min-height:0;overflow:hidden}.st-page-agent .st-controls{flex:1;min-height:0;overflow:hidden}.st-page-agent .st-form{flex:1;min-height:0;overflow:hidden;padding:14px}.st-page-agent .st-output{display:none;flex:1;min-height:0;overflow:auto}.st-page-agent .st-output-body{flex:1;min-height:0;overflow:auto}.st-page-agent.st-mobile-output .st-output{display:flex}.st-page-agent.st-mobile-output .st-controls{display:none}.st-page-agent .st-tabs{display:none}.st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1;min-height:0;height:100%;max-height:none}.st-page-agent :deep(.sap-scroll){min-height:90px}.st-mobile-tabs{display:flex;flex-shrink:0;gap:5px;overflow:auto;padding:8px 14px;border-bottom:1px solid var(--vm-line)}.st-mobile-tabs button{min-height:44px;padding:10px 13px;border:1px solid transparent;border-radius:7px;background:none;color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);white-space:nowrap}.st-mobile-tabs button[aria-selected=true]{border-color:var(--vm-line);background:var(--vm-surface-2);color:var(--vm-ink)}.st-page-agent.st-chat-expanded .st-output{display:none}.st-page-agent.st-chat-expanded.st-mobile-output .st-output{display:flex}}
-@media(max-width:480px){.st-page-agent .st-form{padding:12px;gap:12px}.st-page-agent :deep(.sap-input){max-height:130px}}
-@media(max-width:1023px){.st-page-agent :deep(.sap-scroll){min-height:0}.st-page-agent .st-form{overscroll-behavior:contain}}
-.st-page{padding:26px 30px 22px;gap:22px}.st-page-body{gap:22px;grid-template-columns:minmax(300px,360px) minmax(0,1fr)}.st-controls,.st-output{border:1px solid var(--vm-line);border-radius:11px;overflow:hidden}.st-output{background:#182232}.st-tabs{background:var(--vm-surface-2);gap:21px;padding-inline:22px}.st-tabs button{min-height:52px;font-size:12px}.st-page-agent .st-form{padding:18px}.st-output-body{padding:22px}.st-chat-expanded .st-page-body{grid-template-columns:minmax(0,1fr)}
-@media(max-width:1023px){.st-page{padding:18px 16px;gap:16px}.st-page-agent{height:100%;padding-bottom:12px}.st-page-body{gap:15px}.st-mobile-tabs{padding:0 0 8px;gap:3px;border:0}.st-mobile-tabs button{padding:9px 10px}.st-page-agent .st-page-body{gap:0}.st-page-agent .st-form{padding:14px}.st-page-agent .st-output-body{padding:16px}.st-output{min-height:0}.st-page-agent .st-controls{border-top:1px solid var(--vm-line)}}
-@media(max-width:480px){.st-page{padding:14px 12px 12px}.st-page-agent .st-form{padding:12px}.st-mobile-tabs button{font-size:11px;padding-inline:9px}}
-.st-page{padding:27px 38px 22px;gap:26px}.st-page-body{grid-template-columns:366px minmax(0,1fr);gap:23px}.st-controls{background:#202329;border-color:#3a414f}.st-output{background:#141e2a;border-color:#3a414f}.st-tabs{background:#26334b;border-color:#435169}.st-output-body{padding:22px}.st-page-agent .st-form{padding:18px 20px}.st-page-agent :deep(.sm-switch){width:100%;background:#151d29;border-color:#3a4353;padding:3px}.st-page-agent :deep(.sm-switch button){flex:1;font-size:12px;min-height:36px}.st-page-agent :deep(.sm-switch button[aria-checked=true]){background:#354c70;border-color:#5a7096;color:#d9e5ff}.st-page-agent :deep(.sap-composer){background:#292d35;border-color:#414a59}.st-chat-expanded .st-page-body{grid-template-columns:1fr}
-@media(max-width:1260px){.st-page-body{grid-template-columns:320px minmax(0,1fr)}.st-page{padding-inline:26px}}
-@media(max-width:1023px){.st-page{padding:18px 16px;gap:16px}.st-page-agent .st-page-body{display:flex}.st-page-body{grid-template-columns:minmax(0,1fr)}.st-page-agent .st-form{padding:16px}.st-page-agent :deep(.sm-switch button){min-height:44px}.st-output-body{padding:16px}}
-@media(max-width:480px){.st-page{padding:14px 12px 12px}.st-page-agent .st-form{padding:12px}}
 @media(max-width:1023px){
- .st-page-agent{flex:1 1 0;height:auto;min-height:0;gap:8px;padding:10px 12px max(8px,env(safe-area-inset-bottom))}
- 
- 
- 
- 
- 
- 
- .st-mobile-tabs{gap:2px;padding:0;min-height:44px;scrollbar-width:none}
- .st-mobile-tabs button{font-size:12px;min-height:44px;padding:8px 10px;flex:1}
- .st-page-agent .st-controls{border:0;background:transparent;border-radius:0}
- .st-page-agent .st-form{display:flex;flex:1;min-height:0;gap:8px;padding:0;overflow:hidden}
+ /* The page scrolls as one column: the controls, then the output; the Manual bar is fixed at the bottom. */
+ .st-page{flex:none;gap:16px;height:auto;min-height:100%;padding:18px 16px}
+ .st-page:not(.st-page-agent){padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+ .st-page-body{display:flex;flex:none;flex-direction:column;min-height:auto;grid-template-columns:minmax(0,1fr)}
+ .st-controls{order:0;flex:none;min-height:auto}
+ .st-output{order:1;flex:none;min-height:0}
+ .st-form{flex:none;min-height:auto;padding:20px 16px;overflow:visible}
+ .st-output-body{flex:none;min-height:auto;padding:16px;overflow:visible}
+ .st-reference-panel{max-height:none;overflow:visible;padding:20px 16px}
+ .st-quote{position:fixed;bottom:0;left:0;right:0;z-index:40;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+ .st-page-actions :deep(.st-button){min-height:44px;min-width:44px;padding:7px}
+ .st-page-actions :deep(.spp-label){display:none}
+
+ /* Phone layout of an agent page (ADM-1170, phone QA 2026-11-04: the chrome above the first message took about 45%
+    of the screen). The top bar already names the page, so there is no title row: the section tabs fill the first row
+    and the agent's New chat / Expand buttons sit at the end of the Agent | Manual row. */
+ .st-page-agent{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);flex:1 1 0;gap:8px;height:auto;min-height:0;padding:10px 12px max(8px,env(safe-area-inset-bottom))}
+ .st-page-agent>.st-mobile-tabs{grid-column:1;grid-row:1;min-width:0}
+ .st-page-agent>.st-page-body{grid-column:1/-1;grid-row:2}
+ .st-page-agent .st-page-body{display:flex;flex:1;gap:0;min-height:0;overflow:hidden}
+ .st-page-agent .st-controls{flex:1;min-height:0;overflow:hidden;border:0;border-radius:0;background:transparent}
+ .st-page-agent .st-form{display:flex;flex:1;gap:8px;min-height:0;padding:0;overflow:hidden;overscroll-behavior:contain}
+ .st-page-agent .st-form:has(.st-tool-options){position:relative}
+ .st-page-agent .st-output{display:none;flex:1;min-height:0;overflow:auto}
+ .st-page-agent .st-output-body{flex:1;min-height:0;padding:16px;overflow:auto}
+ .st-page-agent .st-tabs{display:none}
+ .st-page-agent.st-mobile-output .st-output{display:flex}
+ .st-page-agent.st-mobile-output .st-controls{display:none}
+ .st-page-agent.st-chat-expanded .st-output{display:none}
+ .st-page-agent.st-chat-expanded.st-mobile-output .st-output{display:flex}
+ .st-page-agent.st-chat-expanded .st-mobile-tabs{display:none}
+ .st-mobile-tabs{display:flex;flex-shrink:0;gap:2px;min-height:44px;padding:0;border:0;overflow:auto;scrollbar-width:none}
+ .st-mobile-tabs button{flex:1;min-height:44px;padding:8px 10px;border:1px solid transparent;border-radius:7px;background:none;color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);white-space:nowrap}
+ .st-mobile-tabs button[aria-selected=true]{border-color:var(--vm-line);background:var(--vm-surface-2);color:var(--vm-ink)}
  .st-page-agent .st-form>:deep(.sm-switch){width:auto;align-self:flex-start;padding:2px}
  .st-page-agent .st-form>:deep(.sm-switch button){min-height:44px;padding:7px 18px}
  .st-page-agent .st-form>:deep(.sps){gap:8px}
+ .st-page-agent :deep(.sm-switch button){min-height:44px}
+ .st-page-agent :deep(.st-tool-setup){gap:8px}
  .st-page-agent :deep(.st-tool-options){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options){padding-right:96px}
  .st-page-agent :deep(.st-tool-options .sm-switch){width:100%;padding:2px}
  .st-page-agent :deep(.st-tool-options .sm-switch button){padding:7px 8px;font-size:12px;gap:5px}
  .st-page-agent :deep(.st-tool-options .sm-switch svg){width:13px;height:13px}
  .st-page-agent :deep(.st-tool-options .sps>span){display:none}
- .st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1 1 0;height:auto;min-height:0;max-height:none;gap:6px}
- .st-page-agent :deep(.sap-head){min-height:44px}
- .st-page-agent :deep(.sap-scroll){flex:1 1 0;min-height:0}
- .st-page-agent :deep(.sap-composer){padding:0;background:transparent;border:0}
- .st-page-agent :deep(.sap-input){min-height:62px;max-height:110px;padding:10px 12px 4px;font-size:16px}
- .st-page-agent :deep(.sap-send),.st-page-agent :deep(.sap-stop){min-height:44px}
- .st-page-agent :deep(.sap .vcp-plus){min-width:44px;width:44px;min-height:44px;height:44px}
- .st-page-agent :deep(.sap .vcp-chips){max-height:90px;overflow:auto}
- .st-page-agent :deep(.sap .vcp-box){background:#202e45;border-color:#506b94}
- .st-page-agent .st-output{min-height:0}
-}
-@media(max-width:1023px) and (max-height:700px){
- .st-page-agent{gap:4px;padding-block:4px}
- 
- 
- .st-page-agent .st-form{gap:4px}
- .st-page-agent:has(.sap-input:focus) 
- .st-page-agent .st-form:has(.sap-input:focus) :deep(.st-tool-options){display:none}
- .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
-}
-/* A landscape phone has room beside the conversation, not above it. */
-@media(min-width:600px) and (max-width:1023px) and (max-height:500px){
- .st-page-agent .st-form{display:grid;grid-template-columns:190px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
- .st-page-agent .st-form>:deep(.st-tool-setup){grid-column:1;grid-row:1;min-height:0;height:100%;max-height:100%;overflow:auto}
- .st-page-agent :deep(.st-tool-options){display:flex;flex-direction:column;align-items:stretch}
- .st-page-agent .st-form>:deep(.sap){grid-column:2;grid-row:1;align-self:stretch;height:100%;overflow:hidden}
- .st-page-agent.st-chat-expanded .st-form{display:flex}
-}
-@media(max-width:1023px){
- .st-page-agent :deep(.st-tool-setup){gap:8px}
- .st-page-agent.st-chat-expanded :deep(.st-tool-setup){height:auto;max-height:20%;overflow:auto}
  .st-page-agent.st-chat-expanded :deep(.st-tool-setup:not(:has([role="alert"]))){display:none}
- .st-page-agent.st-chat-expanded .st-mobile-tabs{display:none}
  .st-page-agent.st-chat-expanded :deep(.st-tool-options),.st-page-agent.st-chat-expanded :deep(.sc-blocked){display:none}
-}
-@media(max-width:599px) and (max-height:480px){
- .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
-}
-/* Long prompts and attached references yield space to the Send row on a short phone screen. */
-@media(max-width:1023px){
- .st-page-agent :deep(.sap-composer){display:flex;flex-direction:column;flex:0 1 auto;min-height:0;max-height:75%}
- .st-page-agent :deep(.sap .vcp-chat){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
- .st-page-agent :deep(.sap .vcp-box){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
- .st-page-agent :deep(.sap-prompt){flex:1 1 auto;min-height:48px;overflow:auto}
- .st-page-agent :deep(.sap .vcp-chips){flex:0 1 auto;min-height:0;overflow:auto}
- .st-page-agent :deep(.sap .vcp-bar){flex:none}
-}
-/* Phone layout of an agent page (ADM-1170, phone QA 2026-11-04: the chrome above the first message took about 45% of
-   the screen). The top bar already names the page, so there is no title row: the section tabs and the project button
-   share one row, and the agent's New chat / Expand buttons sit at the end of the Agent | Manual row. The h1 stays for
-   screen readers (the page is labelled by it). */
-@media(max-width:1023px){
- .st-page-agent{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr)}
- .st-page-agent>.st-mobile-tabs{grid-column:1;grid-row:1;min-width:0}
- .st-page-agent>
- .st-page-agent>.st-page-body{grid-column:1/-1;grid-row:2;min-height:0}
- .st-page-agent>
- .st-page-agent>
- .st-page-agent>
- .st-page-agent>
- .st-page-agent .st-form:has(.st-tool-options){position:relative}
- .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options){padding-right:96px}
- .st-page-agent .st-form:has(.st-tool-options) :deep(.sap-head){position:absolute;top:0;right:0;z-index:2;min-height:44px;gap:4px}
+ .st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1 1 0;gap:6px;height:auto;min-height:0;max-height:none}
+ .st-page-agent :deep(.sap-head){min-height:44px}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.sap-head){position:absolute;top:0;right:0;z-index:2;gap:4px}
  .st-page-agent .st-form :deep(.sap-head h2){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
  .st-page-agent.st-chat-expanded .st-form :deep(.sap-head){position:static;justify-content:flex-end}
- /* Manual: the fixed bottom bar must not cover the end of the form and results (a later block reset the room). */
- .st-page:not(.st-page-agent){padding-bottom:calc(140px + env(safe-area-inset-bottom))}
- .st-quote{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-}
+ .st-page-agent :deep(.sap-scroll){flex:1 1 0;min-height:0}
+ /* Long prompts and attached references yield space to the Send row on a short phone screen. */
+ .st-page-agent :deep(.sap-composer){display:flex;flex-direction:column;flex:0 1 auto;min-height:0;max-height:75%;padding:0;border:0;background:transparent}
+ .st-page-agent :deep(.sap .vcp-chat){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+ .st-page-agent :deep(.sap .vcp-box){display:flex;flex-direction:column;flex:1 1 auto;min-height:0;background:var(--vm-surface-2);border-color:var(--vm-primary-line)}
+ .st-page-agent :deep(.sap-prompt){flex:1 1 auto;min-height:48px;overflow:auto}
+ .st-page-agent :deep(.sap-input){min-height:62px;max-height:110px;padding:10px 12px 4px;font-size:16px}
+ .st-page-agent :deep(.sap .vcp-chips){flex:0 1 auto;min-height:0;max-height:90px;overflow:auto}
+ .st-page-agent :deep(.sap .vcp-bar){flex:none}
+ .st-page-agent :deep(.sap-send),.st-page-agent :deep(.sap-stop){min-height:44px}
+ .st-page-agent :deep(.sap .vcp-plus){min-width:44px;width:44px;min-height:44px;height:44px}
 
-/* The page's actions in the Studio bar (or at the top of the page outside the shell), sized like the bar's buttons. */
-.st-page-actions{display:flex;align-items:center;gap:8px}.st-page-actions--here{justify-content:flex-end}
-.st-page-actions :deep(.st-button){min-height:36px;padding:8px 11px;font-size:11px}
-@media(max-width:1023px){.st-page-actions :deep(.st-button){min-height:44px;min-width:44px;padding:7px}.st-page-actions :deep(.spp-label){display:none}}
+ /* A short screen (a phone with its keyboard open): the options give way while the person types. */
+ @media(max-height:700px){
+  .st-page-agent{gap:4px;padding-block:4px}
+  .st-page-agent .st-form{gap:4px}
+  .st-page-agent .st-form:has(.sap-input:focus) :deep(.st-tool-options){display:none}
+  .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
+ }
+ /* A landscape phone has room beside the conversation, not above it. */
+ @media(min-width:481px) and (max-height:500px){
+  .st-page-agent .st-form{display:grid;grid-template-columns:190px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
+  .st-page-agent .st-form>:deep(.st-tool-setup){grid-column:1;grid-row:1;min-height:0;height:100%;max-height:100%;overflow:auto}
+  .st-page-agent :deep(.st-tool-options){display:flex;flex-direction:column;align-items:stretch}
+  .st-page-agent .st-form>:deep(.sap){grid-column:2;grid-row:1;align-self:stretch;height:100%;overflow:hidden}
+  .st-page-agent.st-chat-expanded .st-form{display:flex}
+ }
+ /* After the landscape layout: an expanded chat keeps only a sliver for the tool's setup. */
+ .st-page-agent.st-chat-expanded :deep(.st-tool-setup){height:auto;max-height:20%;overflow:auto}
+}
+@media(max-width:480px){
+ .st-page:not(.st-page-agent){padding-top:14px;padding-inline:12px}
+ @media(max-height:480px){
+  .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
+ }
+}
 </style>

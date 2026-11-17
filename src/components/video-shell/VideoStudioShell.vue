@@ -223,6 +223,10 @@ body.vs-theme {
   --vm-green-ink: #7FE0A8;
   background: var(--vm-bg);
 }
+/* A visible keyboard focus ring on everything a person can reach in the Studio, including what it opens over itself
+   (the bar, the Jobs tray, dialogs, sheets): buttons, links, selects, tabs, the mode switch, chips and take cards.
+   Text fields keep their own focus border; a component's own (scoped) focus rule is more specific and still wins. */
+body.vs-theme :where(button,a[href],select,summary,[role="button"],[role="tab"],[role="switch"],[role="radio"],[role="option"],[tabindex]:not([tabindex="-1"]):not(input):not(textarea)):focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}
 </style>
 
 

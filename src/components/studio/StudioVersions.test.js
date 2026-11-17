@@ -19,7 +19,7 @@ it('an image page lists image versions, restores one for free and pages older on
   state.video.versionsMeta={image:{page:1,hasMore:true,loading:false,error:''},video:{}}
   const w=mount(Versions,{props:{type:'image'}});await flushPromises()
   expect(state.video.loadVersions).toHaveBeenCalledWith({type:'image',more:false})
-  expect(w.text()).not.toContain('Preview and compare')
+  expect(w.text()).toContain('Preview and compare pictures')
   expect(w.text()).not.toContain('only')
   expect(w.findAll('li img').map(i=>i.attributes('src'))).toEqual(['/api/library/i2/thumbnail/','/api/library/i1/thumbnail/'])
   await w.findAll('button').find(b=>b.text().includes('Use this version')).trigger('click');await flushPromises()
@@ -34,4 +34,35 @@ it('an unreachable versions read shows an error with Try again, not an empty lis
   expect(w.text()).not.toContain('No video takes yet')
   state.video.loadVersions.mockClear();await w.get('[data-test="versions-error"] button').trigger('click')
   expect(state.video.loadVersions).toHaveBeenCalledWith({type:'video',more:false});w.unmount()
+})
+it('two or more picture versions compare side by side in the media viewer, like video takes do', async () => {
+  state.video.imageVersions=[{attachment_id:'i3',media_type:'image',url:'/i3.png',version:3,is_active:true},{attachment_id:'i2',media_type:'image',url:'/i2.png',version:2},{attachment_id:'i1',media_type:'image',url:'/i1.png',version:1}]
+  state.video.versionsMeta={image:{page:1,hasMore:false,loading:false,error:''},video:{}}
+  const w=mount(Versions,{props:{type:'image'},attachTo:document.body,global:{stubs:{RouterLink:true}}});await flushPromises()
+  await w.get('[data-test="versions-compare-pictures"]').trigger('click')
+  await vi.waitFor(()=>expect(document.body.querySelector('[data-test="media-viewer"]')).toBeTruthy())
+  const pair=document.body.querySelector('[data-test="media-viewer-compare"]')
+  expect(pair).toBeTruthy()
+  expect([...pair.querySelectorAll('img')].map(i=>[i.getAttribute('src'),i.getAttribute('alt')])).toEqual([['/i3.png','Picture, version 3 (active)'],['/i2.png','Picture, version 2']])
+  expect(document.body.querySelector('.mv-count').textContent.trim()).toBe('1 and 2 of 3')
+  // The arrows move the pair; nothing is made or restored by comparing.
+  document.body.querySelector('[aria-label="Next file"]').click();await flushPromises()
+  expect([...document.body.querySelectorAll('[data-test="media-viewer-compare"] img')].map(i=>i.getAttribute('src'))).toEqual(['/i2.png','/i1.png'])
+  expect(state.video.restore).not.toHaveBeenCalled()
+  document.body.querySelector('[data-test="media-viewer-close"]').click();await flushPromises()
+  expect(document.body.querySelector('[data-test="media-viewer"]')).toBe(null)
+  w.unmount()
+})
+it('a single picture version previews alone; video takes keep the video compare', async () => {
+  state.video.imageVersions=[{attachment_id:'i1',media_type:'image',url:'/i1.png',version:1,is_active:true}]
+  state.video.versionsMeta={image:{page:1,hasMore:false,loading:false,error:''},video:{}}
+  const w=mount(Versions,{props:{type:'image'},attachTo:document.body,global:{stubs:{RouterLink:true}}});await flushPromises()
+  expect(w.get('[data-test="versions-compare-pictures"]').text()).toBe('Preview this picture')
+  await w.get('[data-test="versions-compare-pictures"]').trigger('click')
+  await vi.waitFor(()=>expect(document.body.querySelector('[data-test="media-viewer"]')).toBeTruthy())
+  expect(document.body.querySelector('[data-test="media-viewer-compare"]')).toBe(null)
+  expect(document.body.querySelector('[data-test="media-viewer-image"]').getAttribute('src')).toBe('/i1.png')
+  w.unmount()
+  const v=mount(Versions,{props:{type:'video'}});await flushPromises()
+  expect(v.find('[data-test="versions-compare-pictures"]').exists()).toBe(false);v.unmount()
 })

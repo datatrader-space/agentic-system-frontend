@@ -3,6 +3,8 @@
        component land on the element shown, so a card keeps its own look and its own "open the original". -->
   <img v-if="thumb && !failed" :src="thumb" :alt="alt" :loading="loading" decoding="async" data-thumb="1" @error="failed = true" />
   <video v-else-if="kind === 'video' && original" :src="original" preload="metadata" muted playsinline aria-hidden="true" />
+  <!-- A caption, a sound or a document has no picture: a type icon, never a request for a thumbnail. -->
+  <span v-else-if="isFile" class="media-thumb-file" role="img" :aria-label="alt || fileLabel" data-test="media-thumb-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path v-if="declared === 'audio'" d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path v-else d="M14 3H6v18h12V7zM14 3v4h4M8 12h8M8 16h5"/></svg></span>
   <img v-else-if="original" :src="original" :alt="alt" :loading="loading" decoding="async" />
 </template>
 
@@ -11,7 +13,7 @@
 // picture of it, never the whole file. `item` is any media row the app has (it needs `attachment_id` and its kind,
 // or a `thumbnail_url`); `src` is the original, shown only when there is no thumbnail.
 import { computed, ref, watch } from 'vue'
-import { mediaKind, thumbnailFor } from '../../utils/mediaThumb'
+import { declaredKind, mediaKind, thumbnailFor } from '../../utils/mediaThumb'
 
 const props = defineProps({
   item: { type: Object, default: null },
@@ -27,5 +29,13 @@ const loading = computed(() => (props.eager ? 'eager' : 'lazy'))
 const thumb = computed(() => thumbnailFor(props.item))
 const kind = computed(() => mediaKind(props.item))
 const original = computed(() => props.src || props.item?.url || '')
+const declared = computed(() => declaredKind(props.item))
+const isFile = computed(() => !!declared.value && declared.value !== 'image' && declared.value !== 'video')
+const fileLabel = computed(() => (declared.value === 'audio' ? 'Sound file' : 'File'))
 watch(thumb, () => { failed.value = false })
 </script>
+
+<style scoped>
+.media-thumb-file { display: grid; place-items: center; color: var(--vm-ink-faint, currentColor); }
+.media-thumb-file svg { width: 40%; max-width: 40px; height: auto; }
+</style>

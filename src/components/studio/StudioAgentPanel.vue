@@ -1,7 +1,9 @@
 <template>
   <section :id="chatId" class="sap" :class="{ 'sap-expanded': expanded }" aria-label="Studio agent" @keydown.esc="collapse">
     <header class="sap-head"><h2>{{ label }} agent</h2><button type="button" class="sap-new" aria-label="New chat" title="New chat" :disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @click="emit('new')">↻</button><button type="button" class="sap-expand" data-test="studio-agent-expand" :aria-label="expanded ? 'Collapse chat' : 'Expand chat'" :title="expanded ? 'Collapse chat (Esc)' : 'Expand chat'" :aria-expanded="expanded ? 'true' : 'false'" :aria-controls="chatId" @click="emit('update:expanded', !expanded)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="expanded ? 'M4 10h6V4m10 10h-6v6M10 10 3 3m11 11 7 7' : 'M8 3H3v5m13 13h5v-5M3 3l7 7m11 11-7-7'" /></svg></button></header>
-    <div ref="scroll" class="sap-scroll" role="log" :aria-label="`${label} agent conversation`" aria-live="polite" aria-relevant="additions">
+    <!-- The log itself is silent: a streamed answer re-renders on every chunk, and a live log read it out again and
+         again. Each answer is announced once, when it is complete, by the status line below. -->
+    <div ref="scroll" class="sap-scroll" role="log" :aria-label="`${label} agent conversation`" aria-live="off">
       <p v-if="!chat.messages.length" class="sap-intro">{{ intro }}</p>
       <div v-if="look && !chat.messages.length" class="sap-look"><div><strong>{{ look.title }}</strong><p>Your prepared direction is editable below. Add references with +.</p></div></div>
       <div v-if="chat.messages.length" class="sap-messages"><ChatMessageList :present-message="message => presentStudioMessage(message, chat.messages)" :prepare-edit="prepareStudioEdit" /></div>
@@ -9,6 +11,7 @@
       <HITLModal v-if="chat.hitlRequests.length" inline :requests="chat.hitlRequests" show-stop @respond="respond" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
       <p v-if="chat.error" class="st-error" role="alert">{{ chat.error }}</p>
     </div>
+    <p class="st-sr" role="status" aria-live="polite" aria-atomic="true" data-test="studio-agent-announce">{{ announcement }}</p>
     <div v-if="chat.todos && chat.todos.length" class="sap-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
     <div class="sap-composer">
       <VideoComposerPanel variant="chat" :show-mode="false" :show-tasks="false" :draft="modelValue">
@@ -42,6 +45,19 @@ watch(() => props.modelValue, async () => {
 const scroll = ref(null)
 watch(() => [chat.messages.length, chat.messages.at(-1)?.content, chat.hitlRequests.length, chat.isBusy], async () => { await nextTick(); if (scroll.value) scroll.value.scrollTop = scroll.value.scrollHeight })
 const chatId = `studio-agent-${useId()}`
+// The answer a screen reader hears: an agent message once it has finished streaming, said once. A message that was
+// never seen streaming (a conversation opened from history) is not read out.
+const announcement = ref(''), streamingIds = new Set()
+const spoken = (text) => String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+  .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*_`#>~|]+/g, ' ').replace(/\s+/g, ' ').trim()
+watch(() => chat.messages.map(m => (m.role === 'assistant' ? `${m.id}:${m.status}` : '')).join('|'), () => {
+  for (const m of chat.messages) {
+    if (m.role !== 'assistant') continue
+    if (m.status === 'streaming') streamingIds.add(m.id)
+    else if (streamingIds.delete(m.id) && spoken(m.content)) announcement.value = spoken(m.content)
+  }
+})
+watch(() => chat.conversationId, () => { streamingIds.clear(); announcement.value = '' })
 function collapse(event) {
   if (props.expanded && !event.defaultPrevented && !event.target?.closest?.('[role="menu"],[role="dialog"]')) {
     event.preventDefault(); emit('update:expanded', false)

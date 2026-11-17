@@ -59,7 +59,8 @@
               </template>
             </VideoComposerPanel>
           </fieldset>
-          <div class="dashboard-meta"><span>▱ Your creative workspace</span><span>Ctrl + Enter to send</span></div>
+          <!-- How to send from the keyboard, as each mode does it (onPromptKey). -->
+          <p class="dashboard-meta" data-test="studio-dashboard-meta">{{ agentMode ? 'Enter to send, Shift + Enter for a new line' : 'Ctrl + Enter to send' }}</p>
         </template>
 
       </div>
@@ -445,9 +446,9 @@ onBeforeUnmount(() => {
 .dashboard-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;font-size:10px;color:#8ea7bd;min-height:32px}.dashboard-context button{min-height:36px;padding:8px 0;border:0;background:none;color:#bdd2ed;font:500 11px var(--vm-font-sans);cursor:pointer}
 .create-heading{text-align:center;margin-bottom:34px;padding:0}.create-title{text-align:center;font-size:38px;line-height:1.25;letter-spacing:-1.5px;font-weight:600}.create-eyebrow{font-size:9px;color:#7e92b7;letter-spacing:1.6px;margin-bottom:13px}.create-description{font-size:13px;line-height:1.8;color:#8d9fbc;margin-top:12px}
 .create .composer{padding:0}.create :deep(.vcp-mode-row){margin-bottom:23px}.create :deep(.vcp-hint){color:#8fa4c3;margin-bottom:18px}.create :deep(.vcp-box){border:1px solid #506b94;border-radius:12px;padding:17px 20px 18px;background:linear-gradient(135deg,#202e45,#1b2941);box-shadow:0 10px 40px #0002}.create :deep(.vcp-box:focus-within){border-color:#9abbf4;box-shadow:0 0 0 3px #7da7eb15,0 10px 40px #0002}
-.create .prompt textarea{min-height:165px;max-height:500px;resize:vertical;background:none;padding:5px 2px 22px;font-size:15px;line-height:1.8;color:#e0eaff}.create :deep(.vcp-bar){padding:0;gap:12px}.create :deep(.vcp-go){margin-left:auto}.create .send{min-height:40px;padding:10px 18px;background:#a6bce4;border-color:#a6bce4;color:#16263e;font-size:12px}.create .send:disabled{opacity:.45}.dashboard-meta{display:flex;justify-content:space-between;gap:20px;padding:12px 4px 0;font-size:10px;color:#6983a9}
+.create .prompt textarea{min-height:165px;max-height:500px;resize:vertical;background:none;padding:5px 2px 22px;font-size:15px;line-height:1.8;color:#e0eaff}.create :deep(.vcp-bar){padding:0;gap:12px}.create :deep(.vcp-go){margin-left:auto}.create .send{min-height:40px;padding:10px 18px;background:#a6bce4;border-color:#a6bce4;color:#16263e;font-size:12px}.create .send:disabled{opacity:.45}.dashboard-meta{display:flex;justify-content:flex-end;margin:0;padding:12px 4px 0;font-size:10px;color:#6983a9}
 @media(max-width:1100px){.create-inner{padding:28px 28px 24px}.create-title{font-size:35px}}
-@media(max-width:680px){.create-inner{padding:20px 16px 24px}.dashboard-context{margin-bottom:16px}.create-title{font-size:29px;letter-spacing:-1.1px}.create-description{font-size:12px}.create-heading{margin-bottom:27px}.create :deep(.vcp-box){padding:14px}.create .prompt textarea{min-height:145px;font-size:16px}.dashboard-meta{font-size:9px}.dashboard-meta>span:last-child{display:none}}
+@media(max-width:680px){.create-inner{padding:20px 16px 24px}.dashboard-context{margin-bottom:16px}.create-title{font-size:29px;letter-spacing:-1.1px}.create-description{font-size:12px}.create-heading{margin-bottom:27px}.create :deep(.vcp-box){padding:14px}.create .prompt textarea{min-height:145px;font-size:16px}}
 </style>
 
 <style scoped>.create :deep(.vcp-create){gap:0}.create :deep(.vcp-create>.vcp-hint){margin-top:0;padding-top:0;margin-bottom:16px;font-size:12px;line-height:1.9}.create :deep(.vcp-create>.vcp-cards){margin-bottom:23px}.create :deep(.vcp-create>.vcp-box){position:relative;bottom:auto}</style>
@@ -465,7 +466,16 @@ onBeforeUnmount(() => {
  .create :deep(.vcp-preserved){display:none}
  .create :deep(.vcp-create>.vcp-hint){font-size:12px;line-height:1.6;margin-bottom:12px}
  .create :deep(.vcp-box){padding:12px}
- .create .prompt textarea{min-height:100px;padding-bottom:12px;resize:none}
+ /* Room for a few lines of a brief (it was 100 px: two lines on a phone). */
+ .create .prompt textarea{min-height:144px;padding-bottom:12px;resize:none}
+ /* The task choices are one row of chips on a phone, not three tall cards: the title shows, the description stays
+    in the radio's name for a screen reader. */
+ .create :deep(.vcp-cards){display:flex;flex-wrap:wrap;gap:8px}
+ .create :deep(.vcp-card){display:inline-flex;align-items:center;grid-template-columns:none;min-height:44px;padding:0 14px;border-radius:999px}
+ .create :deep(.vcp-card-art),.create :deep(.vcp-card-check){display:none}
+ .create :deep(.vcp-card-text){display:block;padding:0}
+ .create :deep(.vcp-card-title){font-size:13px;font-weight:500}
+ .create :deep(.vcp-card-desc){position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  .create :deep(.vcp-reference-hint){display:none}
  .create :deep(.vcp-bar){flex-wrap:nowrap;gap:8px}
  .create .send{min-height:44px}

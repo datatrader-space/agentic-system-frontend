@@ -62,24 +62,26 @@
 
     <!-- Done -->
     <template v-else-if="job.state === 'ready' && job.output">
-      <video v-if="isVideo" class="vjc-video" :src="job.output.url" :poster="thumbnailFor({ ...job.output, media_type: 'video' }) || undefined"
+      <!-- Shown by what the file IS (output.media_type from the jobs API): a frame job's PNG is a picture although the
+           job works on a video, a caption job's WebVTT file is a link (live 2026-11-17). -->
+      <video v-if="outputKind === 'video'" class="vjc-video" :src="job.output.url" :poster="thumbnailFor({ ...job.output, media_type: 'video' }) || undefined"
              controls preload="none" playsinline></video>
-      <audio v-else-if="job.modality === 'audio'" :src="job.output.url" controls preload="metadata" />
-      <MediaThumb v-else-if="!job.modality || job.modality === 'image'" eager class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
-      <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open {{ job.modality }} result</a>
+      <audio v-else-if="outputKind === 'audio'" class="vjc-audio" :src="job.output.url" controls preload="metadata" />
+      <MediaThumb v-else-if="outputKind === 'image'" eager class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
+      <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open the {{ fileWord }}</a>
       <!-- The other pictures of the same request (extra_outputs), beside the first one. -->
       <ul v-if="extras.length" class="vjc-extras" :aria-label="`${extras.length} more result${extras.length > 1 ? 's' : ''}`" data-test="video-job-extras">
         <li v-for="(x, i) in extras" :key="x.attachment_id">
           <button v-if="inStudio" type="button" class="vjc-extra" :aria-label="`Open result ${i + 2}`" @click="emit('open', i + 1)">
-            <MediaThumb eager :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></button>
+            <MediaThumb eager :item="{ ...x, media_type: kindOf(x) }" :src="x.url" alt="" /></button>
           <a v-else class="vjc-extra" :href="x.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open result ${i + 2}`">
-            <MediaThumb eager :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></a>
+            <MediaThumb eager :item="{ ...x, media_type: kindOf(x) }" :src="x.url" alt="" /></a>
         </li>
       </ul>
       <div class="vjc-actions">
         <!-- Every finished result opens in the Studio's preview (an image or a sound too, ADM-1247); outside the Studio a
              video still offers to open it there. -->
-        <button v-if="inStudio || isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
+        <button v-if="inStudio || outputKind === 'video'" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
         <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
       </div>
     </template>
@@ -99,7 +101,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import MediaThumb from '../common/MediaThumb.vue'
-import { thumbnailFor } from '../../utils/mediaThumb'
+import { jobOutputKind, thumbnailFor } from '../../utils/mediaThumb'
 import { priceAmount, priceRule } from '../../utils/studioPrice'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
@@ -133,8 +135,10 @@ const otherActions = computed(() => allowed.value.filter((a) => !KNOWN.includes(
 const actionLabel = (a) => { const t = a.replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1) }
 const extras = computed(() => (props.job.state === 'ready' && Array.isArray(props.job.extra_outputs)
   ? props.job.extra_outputs.filter((x) => x && x.attachment_id && x.url) : []))
-const extraKind = computed(() => props.job.modality || (props.job.operation === 'frame' ? 'image' : 'video'))
-const isVideo = computed(() => props.job.modality ? props.job.modality === 'video' : props.job.operation !== 'frame')
+// What each result file is, read from the file's own media type (ADM-1161), never from the operation name.
+const outputKind = computed(() => jobOutputKind(props.job))
+const kindOf = (x) => jobOutputKind(props.job, x)
+const fileWord = computed(() => (props.job.output && /vtt|srt/i.test(String(props.job.output.mime_type || '')) ? 'captions' : 'file'))
 const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',
                                      wait: props.job.state === 'awaiting_authorization' }))
 const adjustments = computed(() => (props.job.quote && props.job.quote.adjustments) || [])
@@ -200,7 +204,9 @@ const elapsed = computed(() => {
 
 <style scoped>
 .vjc { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 12px 14px; background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a);
-  display: grid; gap: 8px; max-width: 560px; min-width: 0;
+  /* One column that can shrink below its content: a player's own default width (an <audio> is 300 px) never widens the
+     card past the tray at phone width (live 2026-11-17: the Jobs tray scrolled sideways at 375 px). */
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-width: 560px; min-width: 0;
   /* A provider's message can carry a long URL with no spaces; it wraps inside the card instead of widening the agent
      column (owner, 2026-10-20). */
   overflow-wrap: anywhere; }
@@ -230,6 +236,7 @@ const elapsed = computed(() => {
 .vjc-btn:disabled { opacity: .55; cursor: not-allowed; }
 .vjc-btn:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 .vjc-video { width: 100%; max-height: 320px; border-radius: 4px; background: #000; }
+.vjc-audio { width: 100%; min-width: 0; }
 .vjc-extras { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .vjc-extra { display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 4px; overflow: hidden;
   background: var(--vm-surface-2, #f1f5f9); cursor: pointer; }
