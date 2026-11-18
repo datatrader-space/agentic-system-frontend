@@ -488,10 +488,20 @@ const CAPS = [
 // select that used to narrow the main model's list is gone. People never see or choose a provider.
 // VIDEO INPUT likewise (2026-10-29): whether a model takes video is OpenRouter's own answer, set on every sync, and
 // a model that does not would only fail when handed a video.
+// What a model makes is its KIND wherever it is known (backend agent/services/model_kind.py `can`); its media flag,
+// stated by its provider, answers only for an unknown or "other" kind. Never its name.
+const MEDIA_KIND = { can_generate_images: 'image', can_generate_video: 'video', can_generate_audio: 'speech',
+  can_transcribe_audio: 'transcription' }
+function can(m, flag) {
+  const kind = MEDIA_KIND[flag]
+  if (!kind) return !!m[flag]
+  const mk = m.kind || 'unknown'
+  return (mk === 'unknown' || mk === 'other') ? !!m[flag] : mk === kind
+}
 function modelsFor(c) {
   if (c && c.field === 'video_model') {
     const current = props.agent.video_model
-    return models.value.filter(m => m.can_generate_video || m.id === current)
+    return models.value.filter(m => can(m, 'can_generate_video') || m.id === current)
   }
   if (c && c.field === 'video_input_model') {
     const current = props.agent.video_input_model
@@ -583,7 +593,7 @@ function capabilityWarning(c) {
   const id = props.agent[c.field]
   if (!id || !c.capability) return ''
   const m = models.value.find(x => x.id === id)
-  if (!m || m[c.capability]) return ''
+  if (!m || can(m, c.capability)) return ''
   return `${m.name || m.model_id} does not advertise ${c.label.toLowerCase()} support. It may still work if the catalog is out of date — but if it fails, this is why.`
 }
 // youtube_transcript_provider is a select (not a model), so it isn't in CAPS but counts as configured when non-default.
