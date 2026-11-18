@@ -63,7 +63,11 @@ export const videoSources = {
   // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
   // renew_after}. Anyone who may see the source may watch it.
   // ``job``: a connector camera's live job the page follows (CLOUD_STREAMING_PLAN.md §12): its failure is said, not retried.
-  live: (id, job) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : ''}`, { timeoutMs: SLOW }),
+  // ``again``: the page asking once more for the same view (an RTMP stream waiting for its camera, a renewal): the
+  // server audits the first ask only.
+  live: (id, job, { again = false } = {}) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : again ? '?again=1' : ''}`, { timeoutMs: SLOW }),
+  // An RTMP stream's new stream key (an Admin; CLOUD_STREAMING_PLAN.md §14): in this answer only, the old one stops.
+  rotateKey: id => apiFetch(`${SOURCES}${enc(id)}/rotate-key/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
   // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
   recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
@@ -538,12 +542,17 @@ export function connectorAddressProblem(raw) {
   return ['rtsp:', 'rtsps:'].includes(url.protocol) && url.hostname ? '' : CONNECTOR_ADDRESS_HELP;
 }
 
-export function sourceFormProblems(form, { editing = false, connector = false } = {}) {
+export function sourceFormProblems(form, { editing = false, connector = false, pushing = false } = {}) {
   const f = form || {};
   const problems = {};
   const name = String(f.name || '').trim();
   if (!name) problems.name = 'Give the source a name.';
   else if (name.length > SOURCE_NAME_LIMIT) problems.name = `A name is at most ${SOURCE_NAME_LIMIT} characters.`;
+  // An RTMP stream (§14) has no address, user name or password: the camera pushes to AADML with its stream key.
+  if (pushing) {
+    if (!editing && f.consent !== true) problems.consent = 'Confirm you own this camera or have permission to connect to it.';
+    return problems;
+  }
   const address = String(f.address || '').trim();
   if (!editing || address) {
     const problem = connector ? connectorAddressProblem(address) : sourceAddressProblem(address);
@@ -558,12 +567,13 @@ export function sourceFormProblems(form, { editing = false, connector = false } 
 
 // What is sent: on add, every field the person filled and the consent; on edit, only what changes (a blank address or
 // password keeps the saved one; `project: null` clears the default project).
-export function sourceBody(form, { editing = false, original = null } = {}) {
+export function sourceBody(form, { editing = false, original = null, pushing = false } = {}) {
   const f = form || {};
   const name = String(f.name || '').trim();
-  const address = String(f.address || '').trim();
-  const username = String(f.username || '').trim();
-  const password = String(f.password || '');
+  const address = pushing ? '' : String(f.address || '').trim();
+  const username = pushing ? '' : String(f.username || '').trim();
+  const password = pushing ? '' : String(f.password || '');
+  if (!editing && pushing) return { name, kind: 'rtmp', ...(f.project ? { project: f.project } : {}), consent: f.consent === true };
   if (!editing) {
     return {
       name, kind: f.machine ? 'connector' : 'url', address, ...(f.machine ? { machine: String(f.machine) } : {}),
@@ -576,7 +586,7 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
   if (name !== was.name) body.name = name;
   if ((f.project || '') !== was.project) body.project = f.project || null;
   if (address) body.address = address;
-  if (username !== was.username) body.username = username;
+  if (!pushing && username !== was.username) body.username = username;
   if (password) body.password = password;
   return body;
 }
@@ -585,7 +595,23 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
 // Live view goes through AADML's media relay, which reads rtsp:// and rtsps:// cameras only for now.
 // A connector camera is read by its machine, not by AADML's relay: no live view of it yet (CLOUD_STREAMING_PLAN.md §11).
 // A camera address the relay pulls, or a connector camera its machine sends to the relay (§12).
-export const canWatch = source => /^rtsps?:\/\//i.test(sourceShown(source));
+// An RTMP stream (§14): its camera pushes to the relay, which plays it as any camera.
+export const canWatch = source => source?.kind === 'rtmp' || /^rtsps?:\/\//i.test(sourceShown(source));
+
+// ── RTMP streams (CLOUD_STREAMING_PLAN.md §14; backend rtmp_push.py) ─────────────────────────────────
+export const PUSH_KEY_WARNING = 'Keep the stream key secret: anyone who has it can send video as this camera. It is shown only now. If it is lost or shared, rotate it.';
+export const PUSH_OBS_HELP = 'In OBS: Settings, Stream, Service "Custom...", then paste the Server and the Stream key. A device with one address field takes the full address.';
+// What the page shows of an RTMP stream's push details, checked: only an rtmps:// server (never plain RTMP), and the
+// stream key and full address only when the answer that made the key carried them. null when there is nothing usable.
+export function pushDetails(push) {
+  if (!push || typeof push !== 'object') return null;
+  const server = typeof push.server === 'string' ? push.server.trim() : '';
+  if (!/^rtmps:\/\/[^\s/?#]+\/$/i.test(server)) return null;
+  const path = typeof push.path === 'string' && /^src[1-9][0-9]*$/.test(push.path) ? push.path : '';
+  const key = typeof push.stream_key === 'string' && /^src[1-9][0-9]*\?user=src[1-9][0-9]*&pass=[A-Za-z0-9_-]{20,}$/.test(push.stream_key) ? push.stream_key : '';
+  const url = key && typeof push.url === 'string' && push.url === `${server}${key}` ? push.url : '';
+  return { server, path, streamKey: key, url, keySetAt: typeof push.key_set_at === 'string' ? push.key_set_at : '', available: push.available !== false };
+}
 
 export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras only for now.';
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
@@ -624,7 +650,7 @@ export function liveErrorText(error) {
 }
 
 // ── camera management (CLOUD_STREAMING_PLAN.md §3.6; streaming_api._source_detail ``history`` and ``spend_month``) ──
-const CAUSES = { check: 'Found by a check', machine: 'Found by its machine', stream: 'Found by a stream on it', change: 'Its address or sign-in was changed' };
+const CAUSES = { check: 'Found by a check', machine: 'Found by its machine', stream: 'Found by a stream on it', change: 'Its address or sign-in was changed', push: 'Its camera started or stopped sending to AADML' };
 
 // A camera's state changes, newest first, as the page lists them: when, the state as a badge, the reason and what
 // found it; ``told`` when the workspace's Admins were sent a notice about it.

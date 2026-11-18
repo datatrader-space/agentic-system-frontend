@@ -6,16 +6,19 @@
 // its trigger). Right, the results: the newest answers of the stream on this camera, as the model's own classes, and
 // its newest frames; with "Read barcodes", the barcodes and QR codes it read, newest first, each with its type, its
 // value (shown as text only) and its frame time; its Events (what its rules matched, with a snapshot) and Rules
-// (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. AADML's own words
+// (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. An RTMP stream (§14)
+// shows where its camera sends ("Send to AADML": the server; the stream key only right after "Rotate key", an Admin's,
+// confirmed first: the old key stops at once and the camera sending with it is disconnected). AADML's own words
 // throughout.
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/;
 // stream_events_api.py workspace/video-sources/<id>/rules/ and events/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
-  ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
+  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
+import PushDetails from './PushDetails.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
 import { timeAgo } from '../api/workspace.js';
@@ -23,7 +26,7 @@ import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
-  streamWhat, codesRead, frameCodesText,
+  streamWhat, codesRead, frameCodesText, pushDetails,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
   workflowFromCamera, COOLDOWN_MIN,
 } from '../api/streaming.js';
@@ -120,6 +123,29 @@ const recLine = computed(() => {
   if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
+
+// ── an RTMP stream: where its camera sends, and "Rotate key" (CLOUD_STREAMING_PLAN.md §14) ────────────────────────
+const pushed = computed(() => props.source.kind === 'rtmp' && props.source.shared !== true);
+// The new key is kept only while this page shows it: leaving the page drops it.
+const newPush = ref(null);
+const push = computed(() => newPush.value || pushDetails(props.source.push));
+const mayRotate = computed(() => pushed.value && props.may.rotate !== false && props.may.change !== false
+  && props.source.may?.rotate !== false);
+const rotating = ref(false); const rotateBusy = ref(false); const rotateError = ref(''); const rotateSaid = ref('');
+watch(() => props.source.id, () => { newPush.value = null; rotating.value = false; rotateSaid.value = ''; });
+async function rotateKey() {
+  if (rotateBusy.value) return;
+  rotateBusy.value = true; rotateError.value = '';
+  try {
+    const answer = await videoSources.rotateKey(props.source.id);
+    newPush.value = pushDetails(answer?.source?.push);
+    rotateSaid.value = answer?.said || 'The stream key is rotated. The old one no longer works.';
+    rotating.value = false;
+    if (!newPush.value?.streamKey) rotateError.value = 'The key was rotated, but the new one could not be shown here. Rotate it again.';
+    emit('refresh');
+  } catch (e) { rotateError.value = e.message; }
+  finally { rotateBusy.value = false; }
+}
 
 const tab = ref('results');                                            // results | events | rules | recordings
 const today = new Date().toISOString().slice(0, 10);
@@ -249,6 +275,24 @@ watch(tab, now => {
           </div>
           <p v-if="asked" class="sp-reason" role="status"><LoaderCircle class="spin" :size="13" aria-hidden="true"/> {{ askedLine }}</p>
           <p v-else-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
+          <!-- RTMP stream: where its camera or encoder sends -->
+          <div v-if="pushed" class="sp-push" aria-labelledby="sp-push-h">
+            <h4 id="sp-push-h" class="sp-push-title"><RadioTower :size="14" aria-hidden="true"/> Send to AADML</h4>
+            <p v-if="push && !push.available" class="sp-reason">Pushing video to AADML is switched off on this server for now.</p>
+            <p v-if="rotateSaid" class="sp-muted" role="status">{{ rotateSaid }}</p>
+            <PushDetails v-if="push" :push="push" id-prefix="sp-push"/>
+            <p v-if="rotateError" class="field-error" role="alert">{{ rotateError }}</p>
+            <template v-if="mayRotate">
+              <div v-if="rotating" class="sp-rotate-ask" role="group" aria-labelledby="sp-rotate-q">
+                <p id="sp-rotate-q">Make a new stream key? The current one stops working now, and the camera or encoder sending with it is disconnected until you give it the new key.</p>
+                <span class="sp-rec-acts">
+                  <UiButton variant="primary" class="small" :disabled="rotateBusy" @click="rotateKey"><LoaderCircle v-if="rotateBusy" class="spin" :size="13" aria-hidden="true"/><KeyRound v-else :size="13" aria-hidden="true"/> Rotate key</UiButton>
+                  <UiButton class="small" :disabled="rotateBusy" @click="rotating = false">Cancel</UiButton>
+                </span>
+              </div>
+              <UiButton v-else class="small" @click="rotating = true; rotateError = ''"><KeyRound :size="13" aria-hidden="true"/> Rotate key</UiButton>
+            </template>
+          </div>
           <!-- Cloud recording -->
           <div v-if="rec" class="sp-rec" :class="{ on: rec.on && !rec.unpaid }">
             <p class="sp-rec-line"><Circle v-if="rec.on && !rec.unpaid" class="sp-rec-dot" :size="10" aria-hidden="true"/>{{ recLine }}</p>
@@ -542,6 +586,12 @@ watch(tab, now => {
 .sp-ended.failed{color:#b42318}
 .sp-link{align-self:flex-start;border:0;background:none;padding:0;min-height:32px;color:var(--aadml-primary);text-decoration:underline;font:inherit;font-size:13px;cursor:pointer}
 .sp-rec{display:grid;gap:8px;padding:12px 14px;border-top:1px solid #eef1f5}
+.sp-push{display:grid;gap:10px;padding:12px 14px;border-top:1px solid #eef1f5}
+.sp-push-title{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:#1d2a42}
+.sp-push > .sp-reason{margin:0;border-radius:6px}
+.sp-rotate-ask{display:grid;gap:8px;padding:10px 12px;border-radius:8px;background:#f8fafc}
+.sp-rotate-ask p{margin:0;font-size:13px;line-height:1.5;color:#33415a}
+.sp-push > .button,.sp-push > button{justify-self:start}
 .sp-rec.on{background:#fef3f2}
 .sp-rec-line{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:#33415a;line-height:1.5}
 .sp-rec-dot{flex-shrink:0;fill:#d92d20;color:#d92d20}

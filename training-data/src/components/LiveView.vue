@@ -21,7 +21,8 @@ watch(state, value => emit('state', value), { immediate: true });
 let hls = null; let renewTimer = null; let token = ''; let run = 0;
 const RETRY_MS = 15000;
 // A connector camera (CLOUD_STREAMING_PLAN.md §12): its machine is asked to send it, and the page asks again every
-// START_POLL_MS (following that live job) until the video has reached the relay, for at most START_MOST_MS.
+// START_POLL_MS (following that live job) until the video has reached the relay, for at most START_MOST_MS. An RTMP
+// stream (§14) is waited for the same way: nobody can be asked to send it, its camera or encoder pushes when it starts.
 const START_POLL_MS = 3000; const START_MOST_MS = 6 * 60 * 1000;
 let followJob = null;
 const pause = ms => new Promise(resolve => { setTimeout(resolve, ms); });
@@ -46,7 +47,7 @@ function scheduleRenew(ms, mine) {
   clearTimeout(renewTimer);
   renewTimer = setTimeout(async () => {
     try {
-      const next = liveAnswer(await videoSources.live(props.source.id, followJob));
+      const next = liveAnswer(await videoSources.live(props.source.id, followJob, { again: true }));
       if (mine !== run) return;
       if (!next) { fail('failed', LIVE_NO_ANSWER); return; }
       token = next.token;
@@ -76,16 +77,20 @@ async function start() {
   if (!live) { fail('failed', LIVE_NO_ANSWER); return; }
   followJob = live.job;
   const began = Date.now();
+  const pushed = props.source?.kind === 'rtmp';
   while (!live.ready) {
-    state.value = 'starting'; message.value = live.said || 'Starting the camera on its machine…';
+    state.value = 'starting';
+    message.value = live.said || (pushed ? 'Waiting for your camera or encoder to send its video…' : 'Starting the camera on its machine…');
     await pause(START_POLL_MS);
     if (mine !== run) return;
     if (Date.now() - began > START_MOST_MS) {
-      fail('failed', 'The machine did not start sending the camera within 6 minutes. Check that it is running, then try again.');
+      fail('failed', pushed
+        ? 'Nothing was sent to the AADML address of this camera within 6 minutes. Start the stream on your camera or encoder with its server and stream key, then try again.'
+        : 'The machine did not start sending the camera within 6 minutes. Check that it is running, then try again.');
       return;
     }
     try {
-      live = liveAnswer(await videoSources.live(id, followJob));
+      live = liveAnswer(await videoSources.live(id, followJob, { again: true }));
     } catch (e) {
       if (mine === run) fail('refused', liveErrorText(e));
       return;

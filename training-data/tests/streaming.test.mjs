@@ -694,3 +694,54 @@ test('a recording used in a project is started by its id, never as a continuous 
   assert.equal(seen.url, '/api/training-data/app/workspace/streams/');
   assert.deepEqual(JSON.parse(seen.init.body), { project: 'leads', model: 1, fps: 1, recording: 5 });
 });
+
+// ── RTMP streams (CLOUD_STREAMING_PLAN.md §14) ──
+import { pushDetails, PUSH_KEY_WARNING } from '../src/api/streaming.js';
+
+const PUSHED = { server: 'rtmps://ingest.aadml.com:1936/', path: 'src12', available: true, key_set_at: '2026-11-18T09:00:00+00:00',
+  stream_key: 'src12?user=src12&pass=Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRST',
+  url: 'rtmps://ingest.aadml.com:1936/src12?user=src12&pass=Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRST' };
+
+test('an RTMP stream shows its rtmps server, and its key only from the answer that made it', () => {
+  const made = pushDetails(PUSHED);
+  assert.equal(made.server, 'rtmps://ingest.aadml.com:1936/');
+  assert.equal(made.streamKey, PUSHED.stream_key);
+  assert.equal(made.url, PUSHED.url);
+  const later = pushDetails({ server: PUSHED.server, path: 'src12', key_set_at: PUSHED.key_set_at });
+  assert.equal(later.streamKey, '');
+  assert.equal(later.url, '');
+  // never a plain rtmp:// server, never another server's address for the key, nothing from a broken answer
+  assert.equal(pushDetails({ ...PUSHED, server: 'rtmp://ingest.aadml.com:1935/' }), null);
+  assert.equal(pushDetails({ ...PUSHED, server: 'javascript:alert(1)' }), null);
+  assert.equal(pushDetails({ ...PUSHED, url: 'rtmps://evil.example.com/src12?user=src12&pass=x' }).url, '');
+  assert.equal(pushDetails({ ...PUSHED, stream_key: 'src12?user=src12&pass=<script>' }).streamKey, '');
+  for (const broken of [null, undefined, 'x', 7, {}]) assert.equal(pushDetails(broken), null);
+  assert.match(PUSH_KEY_WARNING, /secret/);
+  assert.match(PUSH_KEY_WARNING, /rotate/);
+});
+
+test('an RTMP stream is added by its name and consent alone, and edited by its name and project', () => {
+  const form = { name: 'Drone', address: 'rtsp://cam.example.com/x', username: 'u', password: 'p', project: 'leads', consent: true, machine: '' };
+  assert.deepEqual(sourceFormProblems({ ...form, address: '' }, { pushing: true }), {});
+  assert.equal(sourceFormProblems({ ...form, consent: false }, { pushing: true }).consent !== undefined, true);
+  assert.equal(sourceFormProblems({ ...form, name: '' }, { pushing: true }).name, 'Give the source a name.');
+  assert.deepEqual(sourceBody(form, { pushing: true }), { name: 'Drone', kind: 'rtmp', project: 'leads', consent: true });
+  const original = { name: 'Drone', kind: 'rtmp', project: { ref: 'leads' } };
+  assert.deepEqual(sourceBody({ ...form, name: 'Roof drone' }, { editing: true, original, pushing: true }), { name: 'Roof drone' });
+  assert.equal(canWatch({ kind: 'rtmp', shown_address: 'rtmps://ingest.aadml.com:1936' }), true);   // the relay plays it
+  assert.equal(sourceKindLabel({ kind: 'rtmp' }), 'RTMP stream');
+  assert.equal(historyRows([{ at: '2026-11-18T09:00:00Z', state: 'online', cause: 'push' }])[0].cause, 'Its camera started or stopped sending to AADML');
+});
+
+test('a stream key is rotated on the camera\'s own path, and a live view asked again is said so', async () => {
+  let seen = await asked(() => videoSources.rotateKey(12));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/rotate-key/');
+  assert.equal(seen.init.method, 'POST');
+  assert.equal(seen.init.headers['X-Workspace-ID'], '7');
+  seen = await asked(() => videoSources.live(12, null, { again: true }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/?again=1');
+  seen = await asked(() => videoSources.live(12));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/');
+  seen = await asked(() => videoSources.live(12, 5, { again: true }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/?job=5');
+});
