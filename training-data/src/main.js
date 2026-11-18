@@ -8,9 +8,11 @@ import { signInUrl } from './api/client.js';
 
 import PhoneUpload from './components/PhoneUpload.vue';
 import PhoneCameraScan from './components/PhoneCameraScan.vue';
-import { cameraSecret, phoneSecret } from './api/phone.js';
+import PhoneCameraSend from './components/PhoneCameraSend.vue';
+import { cameraSecret, phoneCamSecret, phoneSecret } from './api/phone.js';
 
-// A phone opening a phone upload link (?phone=<secret>), or a camera pairing code of "Scan from phone" (?camera=<secret>):
+// A phone opening a phone upload link (?phone=<secret>), a camera pairing code of "Scan from phone" (?camera=<secret>), or
+// a phone camera's link (?phonecam=<secret>, which sends the phone's own camera to AADML):
 // the phone page alone, with no sign-in; the link is its only authority and the server checks it on every call. The
 // secret leaves the address at once and is kept for this tab only, so a reload still works and nothing of it is left
 // in the history.
@@ -28,11 +30,13 @@ function phoneLink(name, read) {
 }
 const secret = phoneLink('phone', phoneSecret);
 const pairing = secret ? '' : phoneLink('camera', cameraSecret);
+const phoneCam = secret || pairing ? '' : phoneLink('phonecam', phoneCamSecret);
 
 // Nothing else shows until AADML says who is signed in. A signed-out person goes to the AADML login page, which sends
 // them back to this exact page afterwards.
 if (secret) createApp(PhoneUpload, { secret }).mount('#training-data-app');
 else if (pairing) createApp(PhoneCameraScan, { secret: pairing }).mount('#training-data-app');
+else if (phoneCam) createApp(PhoneCameraSend, { secret: phoneCam }).mount('#training-data-app');
 else loadSession().then(session => {
   if (!session.signedIn) { window.location.assign(signInUrl()); return; }
   createApp(App).provide('session', reactive(session)).mount('#training-data-app');

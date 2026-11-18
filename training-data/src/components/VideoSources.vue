@@ -3,7 +3,9 @@
 // card (chips by state, list or grid, a row opens the source's details), the Summary and Connectors cards beside it,
 // and the "Add video source" dialog (Camera URL, a connector camera and an RTMP stream work; Verkada is said to be
 // coming). An RTMP stream (CLOUD_STREAMING_PLAN.md §14): its camera or encoder pushes to AADML; adding it shows its
-// Server and Stream key once (PushDetails.vue), with a warning to keep the key secret. From a
+// Server and Stream key once (PushDetails.vue), with a warning to keep the key secret. A phone camera
+// (CLOUD_STREAMING_PLAN.md §16): the phone's own camera, sent from its browser; adding it shows its phone link once, as a
+// QR code and a link to copy, with the steps (PhoneLinkDetails.vue). From a
 // source's own page (VideoSourcePage.vue, in the list's place; `page` tells the tab): watch it live, check it, run a
 // model on it (the tab's own dialog, through the `start` event), see its results, edit or remove it. Public cameras
 // AADML publishes are read-only. "Scan from phone" (CLOUD_STREAMING_PLAN.md 3.2 item 5): a one-time pairing code shown
@@ -13,11 +15,12 @@
 // <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
-  Activity, ArrowRight, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
+  Activity, ArrowRight, Camera, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
   LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Smartphone, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import PushDetails from './PushDetails.vue';
+import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import VideoSourcePage from './VideoSourcePage.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
@@ -31,7 +34,7 @@ import {
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
   thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
   connectorRows, connectorLine, sizeText,
-  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost, pushDetails,
+  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost, pushDetails, phoneLinkDetails,
 } from '../api/streaming.js';
 import { qrOf } from '../api/phone.js';
 
@@ -160,6 +163,7 @@ async function check(source) {
 const WAYS = [
   { id: 'connector', name: 'Connect a camera', icon: Webcam },
   { id: 'url', name: 'Camera URL', icon: Link },
+  { id: 'phonecam', name: 'Phone camera', icon: Camera },
   { id: 'phone', name: 'Scan from phone', icon: Smartphone },
   { id: 'verkada', name: 'Verkada', icon: Cloud },
   { id: 'rtmp', name: 'RTMP stream', icon: RadioTower },
@@ -169,6 +173,8 @@ const form = ref(sourceForm()); const fieldErrors = ref({}); const formError = r
 const consentNote = ref(''); const addedSaid = ref('');
 // The push details of the RTMP stream just added, its stream key with them: shown until the dialog closes, never kept.
 const addedPush = ref(null);
+// The phone link of the phone camera just added: shown until the dialog closes, never kept.
+const addedPhone = ref(null);
 // The projects offered: those a stream may start in, and the source's own default project when it is not one of them.
 const projectChoices = computed(() => {
   const list = props.projects.map(p => ({ ref: p.ref, name: p.name }));
@@ -182,7 +188,7 @@ function openAdd() {
   if (addWhy.value || !page.value) return;
   editing.value = null; way.value = 'url'; form.value = sourceForm();
   fieldErrors.value = {}; formError.value = ''; consentNote.value = ''; addedSaid.value = ''; said.value = '';
-  addedPush.value = null;
+  addedPush.value = null; addedPhone.value = null;
   stopPairing(); pairing.value = null; scannedSaid.value = '';
   editorOpen.value = true;
 }
@@ -259,13 +265,17 @@ async function openEdit(source) {
     for (const key of ['name', 'username', 'project']) if (form.value[key] === was[key]) form.value[key] = now[key];
   } catch { /* the row's own values are enough to edit */ }
 }
-function closeEditor() { if (!saving.value) { editorOpen.value = false; addedPush.value = null; } }
+function closeEditor() { if (!saving.value) { editorOpen.value = false; addedPush.value = null; addedPhone.value = null; } }
 // An RTMP stream: the "RTMP stream" tab, or editing one (its name and default project only).
 const pushing = computed(() => (editing.value ? editing.value.kind === 'rtmp' : way.value === 'rtmp'));
-watch(way, () => { if (addedPush.value) { addedPush.value = null; addedSaid.value = ''; } });
-function addAnotherPush() { addedPush.value = null; addedSaid.value = ''; }
+// A phone camera: the "Phone camera" tab, or editing one (its name and default project only).
+const phoning = computed(() => (editing.value ? editing.value.kind === 'phone' : way.value === 'phonecam'));
+// Neither has an address, a user name or a password: the camera or the phone sends to AADML itself.
+const noAddress = computed(() => pushing.value || phoning.value);
+watch(way, () => { if (addedPush.value || addedPhone.value) { addedPush.value = null; addedPhone.value = null; addedSaid.value = ''; } });
+function addAnotherPush() { addedPush.value = null; addedPhone.value = null; addedSaid.value = ''; }
 function checkField(name) {
-  const problems = sourceFormProblems(form.value, { editing: !!editing.value, pushing: pushing.value });
+  const problems = sourceFormProblems(form.value, { editing: !!editing.value, pushing: noAddress.value });
   fieldErrors.value = { ...fieldErrors.value, [name]: problems[name] || '' };
 }
 const FIELDS = ['machine', 'name', 'address', 'username', 'password', 'project', 'consent'];
@@ -349,12 +359,12 @@ async function save() {
   formError.value = ''; addedSaid.value = '';
   const isEdit = !!editing.value;
   if (!isEdit && !connecting.value) form.value.machine = '';            // a camera address: no machine
-  const problems = sourceFormProblems(form.value, { editing: isEdit, connector: connecting.value, pushing: pushing.value });
+  const problems = sourceFormProblems(form.value, { editing: isEdit, connector: connecting.value, pushing: noAddress.value });
   fieldErrors.value = problems;
   const first = FIELDS.find(f => problems[f]);
   if (first) { await nextTick(); document.getElementById(`vs-${first}`)?.focus(); return; }
   if (saving.value) return;
-  const body = sourceBody(form.value, { editing: isEdit, original: editing.value, pushing: pushing.value });
+  const body = sourceBody(form.value, { editing: isEdit, original: editing.value, pushing: noAddress.value, kind: phoning.value ? 'phone' : 'rtmp' });
   if (isEdit && !Object.keys(body).length) { editorOpen.value = false; tell('Nothing changed.'); return; }
   saving.value = true;
   try {
@@ -368,6 +378,10 @@ async function save() {
       addedSaid.value = answer?.said || `${name} is added. Open it in the list and press Check now to see a frame from it.`;
       tell(addedSaid.value);
       if (pushing.value) addedPush.value = { details: pushDetails(answer?.source?.push) };
+      if (phoning.value) {
+        const details = phoneLinkDetails(answer?.source?.phone);
+        addedPhone.value = { details: details?.url ? details : null };
+      }
       form.value = sourceForm(); fieldErrors.value = {};
     }
     load(); emit('changed');
@@ -616,7 +630,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <!-- Scan from phone: a pairing code; what the phone reads fills the Camera URL form -->
         <div v-else-if="!editing && way==='phone'" class="vs-pair">
           <p class="dialog-description">Scan the camera's label with your phone: its QR code or barcode (the camera's address, or its serial number) fills in the camera form here. Nothing is added until you check the form and press Add camera.</p>
-          <p class="vs-help">This reads an IP camera's label; it does not send your phone's own camera. To use your phone as a camera, add an <button type="button" class="link-button" @click="way = 'rtmp'">RTMP stream</button> and send it from a streaming app on the phone that can send RTMPS (for example Larix Broadcaster).</p>
+          <p class="vs-help">This reads an IP camera's label; it does not send your phone's own camera. To use your phone as a camera, add a <button type="button" class="link-button" @click="way = 'phonecam'">Phone camera</button>: the phone sends it from its browser, no app needed.</p>
           <div v-if="pairing && pairState !== 'ended'" class="vs-pair-made">
             <svg v-if="pairQr" class="vs-pair-qr" :viewBox="`0 0 ${pairQr.size} ${pairQr.size}`" shape-rendering="crispEdges" role="img" aria-label="Pairing QR code for your phone"><rect :width="pairQr.size" :height="pairQr.size" fill="#ffffff"/><path :d="pairQr.path" fill="#0f172a"/></svg>
             <div>
@@ -661,9 +675,17 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
           <UiButton class="small" @click="addAnotherPush">Add another RTMP stream</UiButton>
         </div>
 
+        <!-- Phone camera, just added: its phone link, shown this once as a QR code and a link -->
+        <div v-else-if="!editing && way==='phonecam' && addedPhone" class="vs-pushed">
+          <div class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
+          <PhoneLinkDetails v-if="addedPhone.details" :phone="addedPhone.details" id-prefix="vs-phone"/>
+          <p v-else class="field-error" role="alert">The phone camera was added, but its phone link could not be shown here. Open it in the list and make a new phone link.</p>
+          <UiButton class="small" @click="addAnotherPush">Add another phone camera</UiButton>
+        </div>
+
         <!-- Camera URL (and Edit) -->
         <form v-else class="vs-form" novalidate @submit.prevent="save">
-          <p class="dialog-description">{{ pushing ? (editing ? 'Change its name or default project. Its stream key is rotated on its own page.' : 'Your camera or encoder (OBS, a drone, a video recorder) sends its video to AADML over an encrypted RTMPS connection. After you add it, AADML shows the server and a secret stream key to put in it, once. Plain RTMP without encryption is not accepted.') : editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it; live view, recording and models run on it through the machine too (agent 1.5.0 or later).' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <p class="dialog-description">{{ phoning ? (editing ? 'Change its name or default project. A new phone link is made on its own page.' : 'Use a phone as a camera, from its browser: no app to install and no AADML sign-in on the phone. After you add it, AADML shows a phone link and its QR code, once. The phone sends its camera encrypted while its page is open.') : pushing ? (editing ? 'Change its name or default project. Its stream key is rotated on its own page.' : 'Your camera or encoder (OBS, a drone, a video recorder) sends its video to AADML over an encrypted RTMPS connection. After you add it, AADML shows the server and a secret stream key to put in it, once. Plain RTMP without encryption is not accepted.') : editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it; live view, recording and models run on it through the machine too (agent 1.5.0 or later).' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
           <div v-if="connecting && !editing" class="vs-field">
             <label for="vs-machine">The machine the camera is on</label>
             <select id="vs-machine" v-model="form.machine" class="text-input" :aria-invalid="!!fieldErrors.machine" aria-describedby="vs-machine-error">
@@ -702,7 +724,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <p id="vs-name-error" class="field-error" aria-live="polite">{{ fieldErrors.name }}</p>
           </div>
 
-          <div v-if="!pushing" class="vs-field">
+          <div v-if="!noAddress" class="vs-field">
             <label for="vs-address">Camera or stream URL</label>
             <p id="vs-address-help" class="vs-help vs-help-top">rtsp://, rtsps:// or an HLS playlist (https://…/live.m3u8). Only its scheme and server are shown afterwards<template v-if="shownNow">: {{ shownNow }}</template>.</p>
             <input id="vs-address" v-model="form.address" class="text-input" type="url" inputmode="url" autocomplete="off" spellcheck="false"
@@ -712,7 +734,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <p id="vs-address-error" class="field-error" aria-live="polite">{{ fieldErrors.address }}</p>
           </div>
 
-          <div v-if="!pushing" class="vs-row">
+          <div v-if="!noAddress" class="vs-row">
             <div class="vs-field">
               <label for="vs-username">Username <span class="vs-optional">(optional)</span></label>
               <input id="vs-username" v-model="form.username" class="text-input" type="text" autocomplete="off" spellcheck="false" :maxlength="CREDENTIAL_LIMIT"
@@ -748,9 +770,9 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 
           <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
           <UiButton type="submit" variant="primary" class="vs-inline-submit" :disabled="saving">
-            <LoaderCircle v-if="saving" class="spin" :size="15" aria-hidden="true"/> {{ saving ? 'Saving…' : editing ? 'Save changes' : pushing ? 'Add RTMP stream' : 'Add camera' }}
+            <LoaderCircle v-if="saving" class="spin" :size="15" aria-hidden="true"/> {{ saving ? 'Saving…' : editing ? 'Save changes' : phoning ? 'Add phone camera' : pushing ? 'Add RTMP stream' : 'Add camera' }}
           </UiButton>
-          <p v-if="!pushing" id="vs-password-help" class="vs-help vs-lock"><Lock :size="13" aria-hidden="true"/> AADML stores the password encrypted and never shows it again.<template v-if="editing"> A blank password keeps the saved one.</template></p>
+          <p v-if="!noAddress" id="vs-password-help" class="vs-help vs-lock"><Lock :size="13" aria-hidden="true"/> AADML stores the password encrypted and never shows it again.<template v-if="editing"> A blank password keeps the saved one.</template></p>
         </form>
       </div>
 

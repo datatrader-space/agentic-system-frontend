@@ -68,6 +68,8 @@ export const videoSources = {
   live: (id, job, { again = false } = {}) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : again ? '?again=1' : ''}`, { timeoutMs: SLOW }),
   // An RTMP stream's new stream key (an Admin; CLOUD_STREAMING_PLAN.md §14): in this answer only, the old one stops.
   rotateKey: id => apiFetch(`${SOURCES}${enc(id)}/rotate-key/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // A phone camera's new phone link (an Admin; CLOUD_STREAMING_PLAN.md §16): in this answer only, the old one stops.
+  newPhoneLink: id => apiFetch(`${SOURCES}${enc(id)}/phone-link/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
   // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
   recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
@@ -402,7 +404,7 @@ export function recentBars(recent, height = 32) {
 }
 
 // ── video sources ────────────────────────────────────────────────────────────────────────────────
-export const SOURCE_KINDS = { url: 'Camera URL', connector: 'Connected camera', rtmp: 'RTMP stream', verkada: 'Verkada camera' };
+export const SOURCE_KINDS = { url: 'Camera URL', connector: 'Connected camera', rtmp: 'RTMP stream', phone: 'Phone camera', verkada: 'Verkada camera' };
 // The chips above the list. "Public" is a camera AADML publishes for every workspace to try (read-only), whatever its
 // state; the others are states. A source that needs attention or was never checked is counted in All only.
 export const SOURCE_FILTERS = [
@@ -580,13 +582,15 @@ export function sourceFormProblems(form, { editing = false, connector = false, p
 
 // What is sent: on add, every field the person filled and the consent; on edit, only what changes (a blank address or
 // password keeps the saved one; `project: null` clears the default project).
-export function sourceBody(form, { editing = false, original = null, pushing = false } = {}) {
+// ``pushing``: a camera that sends to AADML itself (an RTMP stream, or with ``kind: 'phone'`` a phone camera): no
+// address, user name or password.
+export function sourceBody(form, { editing = false, original = null, pushing = false, kind = 'rtmp' } = {}) {
   const f = form || {};
   const name = String(f.name || '').trim();
   const address = pushing ? '' : String(f.address || '').trim();
   const username = pushing ? '' : String(f.username || '').trim();
   const password = pushing ? '' : String(f.password || '');
-  if (!editing && pushing) return { name, kind: 'rtmp', ...(f.project ? { project: f.project } : {}), consent: f.consent === true };
+  if (!editing && pushing) return { name, kind: kind === 'phone' ? 'phone' : 'rtmp', ...(f.project ? { project: f.project } : {}), consent: f.consent === true };
   if (!editing) {
     return {
       name, kind: f.machine ? 'connector' : 'url', address, ...(f.machine ? { machine: String(f.machine) } : {}),
@@ -609,7 +613,30 @@ export function sourceBody(form, { editing = false, original = null, pushing = f
 // A connector camera is read by its machine, not by AADML's relay: no live view of it yet (CLOUD_STREAMING_PLAN.md §11).
 // A camera address the relay pulls, or a connector camera its machine sends to the relay (§12).
 // An RTMP stream (§14): its camera pushes to the relay, which plays it as any camera.
-export const canWatch = source => source?.kind === 'rtmp' || /^rtsps?:\/\//i.test(sourceShown(source));
+// A phone camera (§16): the phone's browser sends to the relay, which plays it the same way.
+export const canWatch = source => source?.kind === 'rtmp' || source?.kind === 'phone' || /^rtsps?:\/\//i.test(sourceShown(source));
+
+// ── phone cameras (CLOUD_STREAMING_PLAN.md §16; backend phone_camera.py) ─────────────────────────────
+export const PHONE_STEPS = ["Scan this with the phone's camera.", 'Tap Start and allow the camera.', 'Keep the page open while it sends.'];
+export const PHONE_LINK_WARNING = 'Anyone who has this link can send video as this camera: share it only with the phone that films. It is shown only now.';
+// What the page shows of a phone camera's link, checked: the link itself only when the answer that made it carried it,
+// and only a link to this app's phone page (https, or http on this machine) with a secret that looks like one.
+export function phoneLinkDetails(phone) {
+  if (!phone || typeof phone !== 'object') return null;
+  const raw = typeof phone.url === 'string' ? phone.url.trim() : '';
+  const url = /^(https:\/\/[^\s/?#]+|http:\/\/(localhost|127\.0\.0\.1|testserver)(:[0-9]+)?)\/dashboard\/training-data\/\?phonecam=[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+  const when = v => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : '');
+  return { url, expiresAt: when(phone.expires_at), linkSetAt: when(phone.link_set_at), expired: phone.expired === true,
+    available: phone.available !== false, lifetimeDays: Number(phone.lifetime_days) || 7 };
+}
+// "Works until 25 Nov, 14:05, or until you make a new link." (or that it has ended)
+export function phoneLinkUntil(details, locale) {
+  if (!details) return '';
+  if (details.expired) return "This camera's phone link has ended. Make a new one to send from a phone again.";
+  if (!details.expiresAt) return 'It works until you make a new link.';
+  const at = new Date(details.expiresAt).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `The link works until ${at}, or until you make a new one.`;
+}
 
 // ── RTMP streams (CLOUD_STREAMING_PLAN.md §14; backend rtmp_push.py) ─────────────────────────────────
 export const PUSH_KEY_WARNING = 'Keep the stream key secret: anyone who has it can send video as this camera. It is shown only now. If it is lost or shared, rotate it.';

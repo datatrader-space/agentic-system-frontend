@@ -41,6 +41,13 @@ export function cameraSecret(search = globalThis.location?.search || '') {
   return /^[A-Za-z0-9_-]{30,64}$/.test(raw) ? raw : '';
 }
 
+// The secret of a phone camera's link in this page's address (``?phonecam=``, backend phone_camera.py), when it looks
+// like one.
+export function phoneCamSecret(search = globalThis.location?.search || '') {
+  const raw = new URLSearchParams(search).get('phonecam') || '';
+  return /^[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+}
+
 // The phone's calls: the secret is sent as the Bearer credential, never in the address. A `json` body goes as JSON.
 async function phoneFetch(path, secret, { method = 'GET', body, json, fetchImpl = fetch, timeoutMs = 120000 } = {}) {
   const controller = new AbortController();
@@ -70,6 +77,11 @@ export const phoneApi = {
     files.forEach(file => form.append('photos', file, file.name));
     return phoneFetch('phone/photos/', secret, { ...opts, method: 'POST', body: form });
   },
+};
+
+// A phone camera's own page (backend phone_camera.py): the camera's name, when its link ends and where it sends.
+export const phoneCameraApi = {
+  info: (secret, opts) => phoneFetch('phone-camera/', secret, { timeoutMs: 30000, ...opts }),
 };
 
 // A phone pairing with the Add video source dialog (backend camera_pairing.py): what it pairs with, and the one value

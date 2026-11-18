@@ -8,17 +8,19 @@
 // value (shown as text only) and its frame time; its Events (what its rules matched, with a snapshot) and Rules
 // (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. An RTMP stream (§14)
 // shows where its camera sends ("Send to AADML": the server; the stream key only right after "Rotate key", an Admin's,
-// confirmed first: the old key stops at once and the camera sending with it is disconnected). AADML's own words
-// throughout.
+// confirmed first: the old key stops at once and the camera sending with it is disconnected). A phone camera (§16)
+// shows when its phone link ends, and "New phone link" (an Admin's, confirmed first: the old link stops at once and a
+// phone sending with it is disconnected) shows the new link once, as a QR code. AADML's own words throughout.
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/;
 // stream_events_api.py workspace/video-sources/<id>/rules/ and events/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
-  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
+  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, Smartphone, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import PushDetails from './PushDetails.vue';
+import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
 import { timeAgo } from '../api/workspace.js';
@@ -26,7 +28,7 @@ import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
-  streamWhat, codesRead, frameCodesText, pushDetails,
+  streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
   workflowFromCamera, COOLDOWN_MIN,
 } from '../api/streaming.js';
@@ -145,6 +147,29 @@ async function rotateKey() {
     emit('refresh');
   } catch (e) { rotateError.value = e.message; }
   finally { rotateBusy.value = false; }
+}
+
+// ── a phone camera: when its link ends, and "New phone link" (CLOUD_STREAMING_PLAN.md §16) ─────────────────────────
+const phoned = computed(() => props.source.kind === 'phone' && props.source.shared !== true);
+// The new link is kept only while this page shows it: leaving the page drops it.
+const newPhone = ref(null);
+const phoneNow = computed(() => phoneLinkDetails(props.source.phone));
+const mayNewLink = computed(() => phoned.value && props.may.change !== false && props.source.may?.new_link !== false);
+const relinking = ref(false); const relinkBusy = ref(false); const relinkError = ref(''); const relinkSaid = ref('');
+watch(() => props.source.id, () => { newPhone.value = null; relinking.value = false; relinkSaid.value = ''; relinkError.value = ''; });
+async function newPhoneLink() {
+  if (relinkBusy.value) return;
+  relinkBusy.value = true; relinkError.value = '';
+  try {
+    const answer = await videoSources.newPhoneLink(props.source.id);
+    const details = phoneLinkDetails(answer?.source?.phone);
+    newPhone.value = details?.url ? details : null;
+    relinkSaid.value = answer?.said || 'There is a new phone link. The old one no longer works.';
+    relinking.value = false;
+    if (!newPhone.value) relinkError.value = 'A new link was made, but it could not be shown here. Make a new one again.';
+    emit('refresh');
+  } catch (e) { relinkError.value = e.message; }
+  finally { relinkBusy.value = false; }
 }
 
 const tab = ref('results');                                            // results | events | rules | recordings
@@ -275,6 +300,25 @@ watch(tab, now => {
           </div>
           <p v-if="asked" class="sp-reason" role="status"><LoaderCircle class="spin" :size="13" aria-hidden="true"/> {{ askedLine }}</p>
           <p v-else-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
+          <!-- Phone camera: its phone link -->
+          <div v-if="phoned" class="sp-push" aria-labelledby="sp-phone-h">
+            <h4 id="sp-phone-h" class="sp-push-title"><Smartphone :size="14" aria-hidden="true"/> Phone link</h4>
+            <p v-if="phoneNow && !phoneNow.available" class="sp-reason">Sending a phone's camera to AADML is switched off on this server for now.</p>
+            <p v-if="relinkSaid" class="sp-muted" role="status">{{ relinkSaid }}</p>
+            <PhoneLinkDetails v-if="newPhone" :phone="newPhone" id-prefix="sp-phone"/>
+            <p v-else-if="phoneNow" class="sp-muted">The phone opens this camera's link and sends from its browser. The link was shown once, when it was made. {{ phoneLinkUntil(phoneNow) }}</p>
+            <p v-if="relinkError" class="field-error" role="alert">{{ relinkError }}</p>
+            <template v-if="mayNewLink">
+              <div v-if="relinking" class="sp-rotate-ask" role="group" aria-labelledby="sp-relink-q">
+                <p id="sp-relink-q">Make a new phone link? The current one stops working now, and a phone sending with it is disconnected until it opens the new link.</p>
+                <span class="sp-rec-acts">
+                  <UiButton variant="primary" class="small" :disabled="relinkBusy" @click="newPhoneLink"><LoaderCircle v-if="relinkBusy" class="spin" :size="13" aria-hidden="true"/><Smartphone v-else :size="13" aria-hidden="true"/> New phone link</UiButton>
+                  <UiButton class="small" :disabled="relinkBusy" @click="relinking = false">Cancel</UiButton>
+                </span>
+              </div>
+              <UiButton v-else class="small" @click="relinking = true; relinkError = ''"><Smartphone :size="13" aria-hidden="true"/> New phone link</UiButton>
+            </template>
+          </div>
           <!-- RTMP stream: where its camera or encoder sends -->
           <div v-if="pushed" class="sp-push" aria-labelledby="sp-push-h">
             <h4 id="sp-push-h" class="sp-push-title"><RadioTower :size="14" aria-hidden="true"/> Send to AADML</h4>

@@ -77,14 +77,17 @@ async function start() {
   if (!live) { fail('failed', LIVE_NO_ANSWER); return; }
   followJob = live.job;
   const began = Date.now();
-  const pushed = props.source?.kind === 'rtmp';
+  const pushed = props.source?.kind === 'rtmp' || props.source?.kind === 'phone';
+  const phone = props.source?.kind === 'phone';
   while (!live.ready) {
     state.value = 'starting';
-    message.value = live.said || (pushed ? 'Waiting for your camera or encoder to send its video…' : 'Starting the camera on its machine…');
+    message.value = live.said || (phone ? 'Waiting for the phone to send its camera…' : pushed ? 'Waiting for your camera or encoder to send its video…' : 'Starting the camera on its machine…');
     await pause(START_POLL_MS);
     if (mine !== run) return;
     if (Date.now() - began > START_MOST_MS) {
-      fail('failed', pushed
+      fail('failed', phone
+        ? "The phone sent nothing to AADML within 6 minutes. Open the camera's phone link on the phone and tap Start, then try again."
+        : pushed
         ? 'Nothing was sent to the AADML address of this camera within 6 minutes. Start the stream on your camera or encoder with its server and stream key, then try again.'
         : 'The machine did not start sending the camera within 6 minutes. Check that it is running, then try again.');
       return;
