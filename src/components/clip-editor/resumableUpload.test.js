@@ -37,7 +37,7 @@ describe('uploadFile', () => {
   })
 
   it('a dropped connection asks where the upload stands and continues from there', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })   // only the retry wait; setImmediate stays real
     let calls = 0
     api.patch.mockImplementation(async (url, body, opts) => {
       calls++
@@ -45,13 +45,22 @@ describe('uploadFile', () => {
       return { headers: { 'upload-offset': String(Number(opts.headers['Upload-Offset']) + body.byteLength) } }
     })
     api.head.mockResolvedValue({ headers: { 'upload-offset': '4' } })                // 4 bytes had arrived
-    const done = uploadFile(fileOf(20), { projectId: 'p1' })
-    await vi.advanceTimersByTimeAsync(1500)
-    await done
-    expect(api.head).toHaveBeenCalledWith('/api/video/editor/uploads/u1/', expect.objectContaining({ baseURL: '' }))
-    expect(api.patch.mock.calls[1][2].headers['Upload-Offset']).toBe('4')
-    expect(api.patch.mock.calls[1][1].byteLength).toBe(16)
-    vi.useRealTimers()
+    try {
+      let settled = false
+      const done = uploadFile(fileOf(20), { projectId: 'p1' }).finally(() => { settled = true })
+      // Reading the part and its SHA-1 (crypto.subtle) finish on real time, not the fake clock: on a slow runner the
+      // 1 s retry wait is set only after a single advance, and never fires. Move the clock until the upload is done.
+      for (let i = 0; i < 200 && !settled; i++) {
+        await vi.advanceTimersByTimeAsync(500)
+        await new Promise(resolve => setImmediate(resolve))
+      }
+      await done
+      expect(api.head).toHaveBeenCalledWith('/api/video/editor/uploads/u1/', expect.objectContaining({ baseURL: '' }))
+      expect(api.patch.mock.calls[1][2].headers['Upload-Offset']).toBe('4')
+      expect(api.patch.mock.calls[1][1].byteLength).toBe(16)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('choosing the same file again after a reload continues the same upload', async () => {
