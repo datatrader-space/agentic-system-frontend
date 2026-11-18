@@ -119,8 +119,9 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 .cm-layer{position:absolute;overflow:hidden}
 .cm-media{position:absolute;inset:0;width:100%;height:100%;user-select:none}
 .cm-media.contain{object-fit:contain}.cm-media.cover{object-fit:cover}
-.cm-media.zoom{animation:cm-zoom 6s linear infinite alternate}
-@keyframes cm-zoom{from{transform:scale(1)}to{transform:scale(1.12)}}
+/* A clip with the zoom effect is previewed at its zoomed framing, still: no zooming animation anywhere in the app
+   (owner rule, src/noMotion.test.js). The rendered video zooms. */
+.cm-media.zoom{transform:scale(1.12)}
 .cm-text{position:absolute;transform:translate(-50%,-50%);max-width:94%;line-height:1.2;white-space:pre-wrap;pointer-events:none}
 .cm-empty{position:absolute;inset:0;display:grid;place-items:center;padding:16px;color:#a7b5cb;font-size:13px;text-align:center}
 .cm-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
