@@ -599,7 +599,7 @@ test('the pairing calls use the contract\'s paths, with the workspace', async ()
 // ── a camera's rules and events, and a recording used in a project (CLOUD_STREAMING_PLAN.md §3.5, phase 6) ──────────
 import {
   streamRules, streamEvents, ruleText, cooldownText, ruleForm, ruleProblems, ruleBody, ruleClasses, matchedText, eventTime,
-  workflowFromCamera, CAMERA_TRIGGER, COOLDOWN_MIN, COOLDOWN_DEFAULT,
+  workflowFromCamera, CAMERA_TRIGGER, COOLDOWN_MIN, COOLDOWN_DEFAULT, readCalls, readPriceText, callsAFrame, chargeText,
 } from '../src/api/streaming.js';
 
 async function asked(call) {
@@ -650,8 +650,28 @@ test('an event says what matched and when, in UTC', () => {
 
 test('Build a workflow opens the builder with this camera\'s event trigger', () => {
   assert.equal(CAMERA_TRIGGER, 'training.stream_event');
-  assert.equal(workflowFromCamera({ id: 12, name: 'Gate camera' }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate+camera');
-  assert.equal(workflowFromCamera({ id: 12, name: 'Gate' }, { id: 3 }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate&rule=3');
+  // The camera's own workspace goes with it, so the workflow is made there (the owner's decision, 2026-11-18).
+  const gate = { id: 12, name: 'Gate camera', workspace: { id: 7, name: 'Site' } };
+  assert.equal(workflowFromCamera(gate), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate+camera&workspace=7');
+  assert.equal(workflowFromCamera({ ...gate, name: 'Gate' }, { id: 3 }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate&workspace=7&rule=3');
+  // A camera the server names no workspace for (another workspace's), or a workspace id that is not one: none is sent.
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate', workspace: null }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate');
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate', workspace: { id: '7&x=1' } }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate');
+});
+
+test('a barcode read costs the server\'s share of a photo call, a tenth by default, and the dialog says it', () => {
+  assert.equal(readCalls({ photo_calls_a_read: '0.1' }), 0.1);
+  assert.equal(readCalls({ photo_calls_a_read: '0.25' }), 0.25);
+  for (const none of [null, {}, { photo_calls_a_read: '0' }, { photo_calls_a_read: 'x' }]) assert.equal(readCalls(none), 0.1);
+  assert.equal(readPriceText(0.1), 'a tenth of a photo call');
+  assert.equal(readPriceText(1), 'one photo call');
+  assert.equal(readPriceText(0.25), '0.25 of a photo call');
+  assert.equal(readPriceText(2), '2 photo calls');
+  const codes = { photo_calls_a_read: '0.1' };
+  assert.equal(callsAFrame({ useModel: true, readCodes: true, codes }), 1.1);
+  assert.equal(chargeText({ useModel: true, readCodes: false, codes, fps: 1 }), 'Each frame is one photo call from your balance: at 1 a second, 3,600 photo calls an hour.');
+  assert.equal(chargeText({ useModel: false, readCodes: true, codes, fps: 2 }), 'Each frame read costs a tenth of a photo call from your balance: at 2 a second, 720 photo calls an hour.');
+  assert.equal(chargeText({ useModel: true, readCodes: true, codes, fps: 1 }), 'Each frame is charged for the model and for reading its barcodes (a tenth of a photo call) from your balance: at 1 a second, 3,960 photo calls an hour.');
 });
 
 test('rules and events are asked for on the camera\'s own paths, with the workspace', async () => {

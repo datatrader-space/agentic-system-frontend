@@ -98,12 +98,12 @@ export const WF_NODE_DEFS = {
     category: 'trigger', icon: '📷', label: 'Camera event', sub: 'A camera rule matched',
     defaults: { source: null, rule: null, source_name: '' },
     fields: [
-      { type: 'note', text: 'Starts when a rule on this camera matches what a model finds, at most once in the rule\'s cooldown. Read the event as {{trigger.source.name}}, {{trigger.matched}}, {{trigger.frame_time}} and {{trigger.snapshot_link}}.' },
+      { type: 'note', text: 'Starts when a rule on this camera matches what a model finds, at most once in the rule\'s cooldown. Read the event as {{trigger.source.name}}, {{trigger.matched}} and {{trigger.frame_time}}. A step opens the frame with {{trigger.snapshot_url}} (it works for 15 minutes after the run starts); {{trigger.snapshot_link}} is for a signed-in person.' },
       { key: 'source', type: 'number', min: 1, title: 'Camera id', placeholder: 'from the camera\'s page in Training Data' },
       { key: 'rule', type: 'number', min: 1, title: 'Rule id (optional)', placeholder: 'any rule of the camera' },
     ],
     hint: 'Publish the workflow to have it start. It starts only for a camera of this workflow\'s workspace.',
-    outputSample: { event: 0, source: { id: 0, name: 'Camera' }, matched: { person: 1 }, frame_time: '2026-11-18T09:00:00+00:00', snapshot_link: '(link)' },
+    outputSample: { event: 0, source: { id: 0, name: 'Camera' }, matched: { person: 1 }, frame_time: '2026-11-18T09:00:00+00:00', snapshot_link: '(link)', snapshot_url: '(15-minute link)' },
   },
   'trigger.channel': {
     category: 'trigger', icon: '💬', label: 'Channel message', sub: 'Inbound slack/telegram/email',

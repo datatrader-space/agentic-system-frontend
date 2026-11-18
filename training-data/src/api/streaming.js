@@ -333,6 +333,33 @@ export function codesRead(stream, most = 50) {
       frame: Number(c.frame) || 0, t: Number(c.t) || 0 }));
 }
 
+// How many photo calls one frame read for barcodes costs: the server's own figure (options.codes.photo_calls_a_read,
+// the super admin's setting); the owner's default, a tenth, when it says none (CLOUD_STREAMING_PLAN.md section 6).
+export const DEFAULT_READ_CALLS = 0.1;
+export function readCalls(codes) {
+  const calls = Number(codes?.photo_calls_a_read);
+  return Number.isFinite(calls) && calls > 0 ? calls : DEFAULT_READ_CALLS;
+}
+// A read's price in words: "a tenth of a photo call", "one photo call", "0.25 of a photo call", "2 photo calls".
+export function readPriceText(calls) {
+  if (calls === 0.1) return 'a tenth of a photo call';
+  if (calls === 1) return 'one photo call';
+  return calls > 1 ? `${calls} photo calls` : `${calls} of a photo call`;
+}
+// What one frame of a stream costs, in photo calls: one for the model's answer, a read's share for its barcodes.
+export function callsAFrame({ useModel = true, readCodes = false, codes = null } = {}) {
+  return (useModel ? 1 : 0) + (readCodes ? readCalls(codes) : 0);
+}
+// What the start dialog says a continuous stream costs: per frame, and in photo calls an hour at ``fps``.
+export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1 } = {}) {
+  const calls = callsAFrame({ useModel, readCodes, codes });
+  const perHour = Math.round((Number(fps) || 1) * 3600 * calls).toLocaleString('en-US');
+  const price = readPriceText(readCalls(codes));
+  const each = useModel && readCodes ? `Each frame is charged for the model and for reading its barcodes (${price})`
+    : readCodes ? `Each frame read costs ${price}` : 'Each frame is one photo call';
+  return `${each} from your balance: at ${Number(fps) || 1} a second, ${perHour} photo calls an hour.`;
+}
+
 // One frame's codes in words: "QR Code SN-1; EAN-13 4006381333931", "no code", or why it was not read.
 export function frameCodesText(answer) {
   if (!answer) return '';
@@ -731,11 +758,14 @@ export function eventTime(event) {
 }
 
 // The Workflow Builder, opened with a camera-event trigger of this camera (and rule) already on the canvas
-// (WorkflowsList.vue reads these; src/utils/cameraWorkflow.js makes the canvas).
+// (WorkflowsList.vue reads these; src/utils/cameraWorkflow.js makes the canvas). The link carries the camera's own
+// workspace (``source.workspace``, as the server says it), so the workflow is made there and nowhere else.
 export const CAMERA_TRIGGER = 'training.stream_event';
 export function workflowFromCamera(source, rule = null) {
   const query = new URLSearchParams({ trigger: CAMERA_TRIGGER, source: String(source?.id ?? '') });
   if (source?.name) query.set('camera', String(source.name).slice(0, 80));
+  const workspace = source?.workspace?.id;
+  if (workspace != null && /^[1-9][0-9]{0,11}$/.test(String(workspace))) query.set('workspace', String(workspace));
   if (rule?.id) query.set('rule', String(rule.id));
   return `/dashboard/workflow-builder?${query.toString()}`;
 }

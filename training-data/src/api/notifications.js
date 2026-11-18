@@ -1,5 +1,6 @@
 // This person's Training notifications (backend: training_models_data/app_api.py — notifications/, notifications/read/,
-// notifications/<id>/read/). The same rows as the AADML bell: assignments given, returned, approved, sent back.
+// notifications/<id>/read/). The same rows as the AADML bell: assignments given, returned, approved, sent back, and a
+// saved camera that went offline or is back.
 import { apiFetch } from './client.js';
 
 export const listNotifications = () => apiFetch('/training-data/app/notifications/');

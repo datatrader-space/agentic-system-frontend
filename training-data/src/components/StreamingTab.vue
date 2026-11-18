@@ -6,7 +6,8 @@
 // Backend: streaming_api.py workspace/streams/ (list, start), workspace/streams/<id>/ (one), …/stop/, …/results/.
 // Every frame the model answers is charged as one photo call, from the balance of the person who started the stream.
 // "Read barcodes" (backend barcodes.py) reads the barcodes and QR codes of each frame, alone or after the model; each
-// frame read is charged like a photo call too, and the codes read show newest first.
+// frame read costs a share of a photo call (a tenth unless the platform changes it: options.codes.photo_calls_a_read),
+// and the codes read show newest first.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   Bell, Cctv, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
@@ -21,7 +22,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
-  sourceShown, streamWhat, codesRead, frameCodesText, windowText,
+  sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -127,8 +128,9 @@ const chosenSource = computed(() => savedSources.value.find(s => String(s.id) ==
 // A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
 // answered and read for barcodes is charged for each.
 const codesOption = computed(() => options.value.codes || null);
-const callsAFrame = computed(() => (form.value.useModel ? 1 : 0) + (form.value.readCodes ? Number(codesOption.value?.photo_calls_a_read) || 1 : 0));
-const perHour = computed(() => Math.round((Number(form.value.fps) || 1) * 3600 * (callsAFrame.value || 1)));
+const readPrice = computed(() => readPriceText(readCalls(codesOption.value)));
+const continuousCharge = computed(() => chargeText({ useModel: form.value.useModel, readCodes: form.value.readCodes,
+  codes: codesOption.value, fps: form.value.fps }));
 const capMinutes = computed(() => Math.round((Number(options.value.cap?.seconds) || 600) / 60));
 const file = ref(null); const fileInput = ref(null);
 const fieldErrors = ref({}); const formError = ref(''); const addressTouched = ref(false);
@@ -396,7 +398,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             </label>
             <label class="st-card" :class="{ chosen: form.readCodes }">
               <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">
-              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel ? ', after the model' : ', on its own' }}. Each frame read is charged like a photo call.</small></span>
+              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
             </label>
           </div>
           <p v-if="fieldErrors.read_codes" class="field-error" role="alert">{{ fieldErrors.read_codes }}</p>
@@ -433,7 +435,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             <label class="st-card st-continuous" :class="{ chosen: form.continuous }">
               <input v-model="form.continuous" type="checkbox" aria-describedby="st-continuous-help">
               <span><strong>Run continuously until I stop it</strong>
-                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ callsAFrame > 1 ? 'Each frame is charged for the model and for reading its barcodes' : 'Each frame is one photo call' }} from your balance: at {{ form.fps }} a second, {{ perHour.toLocaleString('en-US') }} photo calls an hour.</small></span>
+                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ continuousCharge }}</small></span>
             </label>
           </div>
           <div v-else-if="form.source==='address'" class="st-source">

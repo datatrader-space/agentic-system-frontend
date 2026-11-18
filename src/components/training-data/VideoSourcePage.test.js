@@ -65,6 +65,10 @@ describe('a video source page', () => {
     // Phase 6: it opens the Workflow Builder with this camera's events as the trigger (a link, not a disabled button)
     const workflow = w.findAll('a').find(a => a.text().includes('Build a workflow'));
     expect(workflow.attributes('href')).toContain('training.stream_event');
+    // It names the camera's own workspace, so the workflow is made there (the owner's decision, 2026-11-18).
+    const inWorkspace = page({ source: { ...HLS, workspace: { id: 7, name: 'Site' } } });
+    const link = inWorkspace.findAll('a').find(a => a.text().includes('Build a workflow'));
+    expect(link.attributes('href')).toContain('workspace=7');
   });
 
   it('turns cloud recording on only with its consent, for an RTSP camera', async () => {

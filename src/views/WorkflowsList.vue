@@ -121,7 +121,7 @@ import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { saveBlob } from '../utils/saveBlob'
-import { cameraStarter, cameraWorkflow } from '../utils/cameraWorkflow'
+import { cameraStarter, cameraWorkflow, NO_CAMERA_WORKSPACE } from '../utils/cameraWorkflow'
 
 const router = useRouter()
 const route = useRoute()
@@ -292,9 +292,15 @@ async function remove(g) {
 }
 
 // From a camera's page in Training Data ("Build a workflow"): a new workflow whose canvas holds that camera's event
-// trigger, opened at once (utils/cameraWorkflow.js). Any other visit lists the workflows.
+// trigger, made in the camera's own workspace and opened at once (utils/cameraWorkflow.js). A person who cannot use
+// that workspace is told so by the server, and nothing is made anywhere. Any other visit lists the workflows.
 async function createFromCamera(starter) {
   if (creating.value) return
+  if (!starter.workspace) {
+    notify.error(NO_CAMERA_WORKSPACE)
+    load()
+    return
+  }
   creating.value = true
   try {
     const { data } = await api.createWorkflowGraph(cameraWorkflow(starter))

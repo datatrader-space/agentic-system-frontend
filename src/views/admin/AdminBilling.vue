@@ -208,6 +208,14 @@
               <small :id="`h-${f.key}`">{{ f.help }}</small>
               <em v-if="errors[f.key]" :id="`e-${f.key}`" role="alert">{{ errors[f.key] }}</em>
             </label>
+            <label class="field" for="f-training_code_read_photo_calls">
+              <span>Barcode read (photo calls)</span>
+              <input id="f-training_code_read_photo_calls" v-model="form.training_code_read_photo_calls" inputmode="decimal"
+                     :aria-invalid="errors.training_code_read_photo_calls ? 'true' : undefined"
+                     :aria-describedby="errors.training_code_read_photo_calls ? 'h-training_code_read_photo_calls e-training_code_read_photo_calls' : 'h-training_code_read_photo_calls'" />
+              <small id="h-training_code_read_photo_calls">{{ CODE_READ_HELP }}</small>
+              <em v-if="errors.training_code_read_photo_calls" id="e-training_code_read_photo_calls" role="alert">{{ errors.training_code_read_photo_calls }}</em>
+            </label>
           </div>
         </fieldset>
         <div class="actions save-bar">
@@ -542,6 +550,9 @@ const TRAINING_PRICE_FIELDS = [
   { key: 'training_chat_output_per_1m_usd', label: 'Chat cost per 1M output tokens', help: CHAT_HELP },
 ]
 function optionalPrice(v) { const s = v == null ? '' : String(v).trim(); return s === '' ? null : s }
+// Cloud Streaming's barcode reader: one frame read costs this many photo calls (the owner's default, 2026-11-18: 0.1).
+// Required: an empty or 0 value is refused by the server, so a read is never free.
+const CODE_READ_HELP = 'What one frame read for barcodes costs, in photo calls: 0.1 is a tenth of the photo call price. Between 0.0001 and 10.'
 
 const form = ref(null)
 const errors = ref({})
@@ -576,6 +587,7 @@ async function loadSettings() {
     form.value = { markup: s.markup, min_topup_usd: s.min_topup_usd, max_topup_usd: s.max_topup_usd,
       presets: (s.preset_amounts || []).join(', '), starting_credit_usd: s.starting_credit_usd, low_balance_usd: s.low_balance_usd }
     for (const f of TRAINING_PRICE_FIELDS) form.value[f.key] = s[f.key] ?? ''
+    form.value.training_code_read_photo_calls = s.training_code_read_photo_calls ?? ''
   } catch (e) { if (!disposed) loadError('settings', apiError(e, 'Could not load billing settings')) }
 }
 async function saveSettings() {
@@ -587,7 +599,8 @@ async function saveSettings() {
     await api.billingAdminSaveSettings({ markup: form.value.markup, min_topup_usd: form.value.min_topup_usd,
       max_topup_usd: form.value.max_topup_usd, preset_amounts: presets,
       starting_credit_usd: form.value.starting_credit_usd, low_balance_usd: form.value.low_balance_usd,
-      ...Object.fromEntries(TRAINING_PRICE_FIELDS.map(f => [f.key, optionalPrice(form.value[f.key])])) })
+      ...Object.fromEntries(TRAINING_PRICE_FIELDS.map(f => [f.key, optionalPrice(form.value[f.key])])),
+      training_code_read_photo_calls: String(form.value.training_code_read_photo_calls ?? '').trim() })
     notify.success('Billing settings saved')
     await loadSettings()
   } catch (e) {
