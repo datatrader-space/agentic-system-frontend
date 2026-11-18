@@ -6,7 +6,7 @@
 import axios from 'axios'
 import { projectCache } from './projectCache'
 import { runProjectJob } from './projectJobs'
-import { MAX_BYTES_PER_PART } from '@/utils/droppedFiles'
+import { MAX_BYTES_PER_PART } from '../utils/droppedFiles'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
