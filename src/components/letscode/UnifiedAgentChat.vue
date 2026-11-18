@@ -85,7 +85,7 @@
     <PermissionCard v-if="!onRail" :requests="permissionRequests" @respond="onPermissionRespond" />
 
     <!-- The agent's task list for this chat, the same list the main chat shows (the shared store's `todos`). -->
-    <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
+    <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" compact /></div>
 
     <div class="uac-composer">
       <!-- @ mentions a project file: Go to file's own search and list (useFileSearch, FileResultList). -->

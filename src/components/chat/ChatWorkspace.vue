@@ -130,7 +130,7 @@
       <!-- Video jobs of this chat: estimates waiting for Generate, renders in flight (Video mode). -->
       <VideoJobsTray :conversation-id="chat.conversationId" />
       <!-- The agent's task list for this chat (TODO_WRITE): hidden until the agent writes one. -->
-      <div v-if="chat.todos && chat.todos.length" class="chat-tasks"><ChatTaskList :todos="chat.todos" /></div>
+      <div v-if="chat.todos && chat.todos.length" class="chat-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" /></div>
       <ChatComposer ref="composerRef" :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"

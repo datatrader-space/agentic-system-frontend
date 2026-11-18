@@ -326,6 +326,7 @@ describe('UnifiedAgentChat: the task list (AGENT_ENGINE_CAPABILITIES_PLAN.md sec
   beforeEach(() => { chat.conversationId = null; chat.isBusy = false; chat.todos = [] })
 
   it("shows the shared chat's task list above the composer, and follows it live", async () => {
+    chat.isStreaming = true
     const w = await mountChat()
     expect(w.find('[data-test="task-list"]').exists()).toBe(false)
     chat.todos = [
@@ -335,6 +336,11 @@ describe('UnifiedAgentChat: the task list (AGENT_ENGINE_CAPABILITIES_PLAN.md sec
     await flushPromises()
     expect(w.get('[data-test="task-count"]').text()).toBe('1 of 2 done')
     expect(w.get('.ctl-now').text()).toBe('Adding the route')
+    // ADM-1296: it spins only while the turn is live.
+    chat.isStreaming = false
+    await flushPromises()
+    expect(w.get('.ctl-now').text()).toBe('Add the route')
+    expect(w.find('[data-test="task-spinner"]').exists()).toBe(false)
     chat.todos = [{ content: 'Read the router', status: 'completed', activeForm: '' }, { content: 'Add the route', status: 'completed', activeForm: '' }]
     await flushPromises()
     expect(w.get('[data-test="task-count"]').text()).toBe('2 of 2 done')

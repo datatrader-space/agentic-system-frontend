@@ -12,7 +12,7 @@
       <p v-if="chat.error" class="st-error" role="alert">{{ chat.error }}</p>
     </div>
     <p class="st-sr" role="status" aria-live="polite" aria-atomic="true" data-test="studio-agent-announce">{{ announcement }}</p>
-    <div v-if="chat.todos && chat.todos.length" class="sap-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
+    <div v-if="chat.todos && chat.todos.length" class="sap-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" compact /></div>
     <div class="sap-composer">
       <VideoComposerPanel variant="chat" :show-mode="false" :show-tasks="false" :draft="modelValue">
         <label class="sap-prompt"><span class="st-sr">Message the {{ label }} agent</span><textarea ref="input" class="sap-input" :value="modelValue" rows="2" maxlength="8000" placeholder="What do you want to make?" @input="$emit('update:modelValue', $event.target.value)" @keydown.enter="onEnter" /></label>

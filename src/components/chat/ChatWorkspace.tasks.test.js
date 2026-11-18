@@ -51,4 +51,23 @@ describe('ChatWorkspace: the task list', () => {
     expect(tasksAt).toBeLessThan(composerAt)
     w.unmount()
   })
+
+  it('spins only while the chat\'s turn is live, and takes the settled list from the turn\'s final frame', async () => {
+    const { w, chat } = setup()
+    chat._onEvent({ type: 'todo_update', conversation_id: 2830, todos: [{ content: 'Draft the notes', status: 'in_progress' }] })
+    chat.isStreaming = true
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'ChatTaskList' }).props('running')).toBe(true)
+    chat.isStreaming = false
+    chat._onEvent({ type: 'run_finished', conversation_id: '2830', status: 'completed',
+      todos: [{ content: 'Draft the notes', status: 'stopped', reason: 'Stopped by you' }] })
+    await w.vm.$nextTick()
+    const list = w.findComponent({ name: 'ChatTaskList' })
+    expect(list.props('running')).toBe(false)
+    expect(list.props('todos')).toEqual([{ content: 'Draft the notes', status: 'stopped', activeForm: '', reason: 'Stopped by you' }])
+    chat._onEvent({ type: 'run_finished', conversation_id: '9999', status: 'completed', todos: [] })
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'ChatTaskList' }).props('todos')).toHaveLength(1)   // another chat's list never lands here
+    w.unmount()
+  })
 })

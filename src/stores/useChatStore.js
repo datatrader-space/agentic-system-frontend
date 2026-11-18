@@ -95,8 +95,10 @@ const MESSAGE_WINDOW = 50
 // DRF PageNumberPagination reports the full total in `count`. An unpaginated (bare-array) response
 // has no total — fall back to what we hold, which reads as "nothing more to load".
 // The agent's task list for a conversation (TODO_WRITE, AGENT_ENGINE_CAPABILITIES_PLAN.md section 7): the same shape
-// from the `todo_update` frame and from the conversation's `todos` on load. An item without words is not a task.
-const TODO_STATUSES = new Set(['pending', 'in_progress', 'completed'])
+// from the `todo_update` frame, from the conversation's `todos` on load and from the turn's `run_finished` frame. An
+// item without words is not a task. `stopped` (with its `reason`) is written by the server when the run settles
+// (ADM-1296): an item the turn left in progress, drawn still.
+const TODO_STATUSES = new Set(['pending', 'in_progress', 'completed', 'stopped'])
 export function normalizeTodos(list) {
   if (!Array.isArray(list)) return []
   return list
@@ -105,6 +107,7 @@ export function normalizeTodos(list) {
       content: t.content.trim(),
       status: TODO_STATUSES.has(t.status) ? t.status : 'pending',
       activeForm: typeof t.active_form === 'string' && t.active_form.trim() ? t.active_form.trim() : '',
+      ...(t.status === 'stopped' ? { reason: typeof t.reason === 'string' ? t.reason.trim() : '' } : {}),
     }))
 }
 
@@ -2627,6 +2630,10 @@ export const useChatStore = defineStore('chat', {
           // The browser notification (suppressed when actively viewing that chat) says a run FINISHED, so
           // only an answered turn gets one: the person ended a stopped turn, and a failed or empty one has
           // no answer to announce.
+          // The task list as the run settled it (an item the turn left in progress is `stopped`, with its reason).
+          if (Array.isArray(msg.todos) && String(msg.conversation_id || '') === String(this.conversationId || '')) {
+            this.todos = normalizeTodos(msg.todos)
+          }
           if (status === 'completed') {
             try {
               notifyRunFinished({

@@ -13,7 +13,8 @@ const TODOS = [
   { content: 'Update the docs', status: 'pending', activeForm: '' },
   { content: 'Write a test', status: 'completed', activeForm: '' },
 ]
-const mountList = (todos = TODOS, extra = {}) => mount(ChatTaskList, { props: { todos, ...extra }, global: { stubs: { Icon: true } } })
+// `running`: the host's turn is live (the chat store's isStreaming). The tests below that follow a live turn pass it.
+const mountList = (todos = TODOS, extra = {}) => mount(ChatTaskList, { props: { todos, running: true, ...extra }, global: { stubs: { Icon: true } } })
 
 describe('ChatTaskList', () => {
   it('is not drawn when there are no tasks', () => {
@@ -62,5 +63,35 @@ describe('ChatTaskList', () => {
   it('names the next task when none is in progress', () => {
     const w = mountList([{ content: 'One', status: 'completed', activeForm: '' }, { content: 'Two', status: 'pending', activeForm: '' }])
     expect(w.get('.ctl-now').text()).toBe('Next: Two')
+  })
+
+  // ADM-1296: 11 of 26 production conversations with a list spun an item after their run had ended.
+  it('spins an item in progress only while the turn is live', async () => {
+    const w = mountList(TODOS, { running: true })
+    expect(w.find('[data-test="task-spinner"]').exists()).toBe(true)
+    expect(w.findAll('.ctl-seg.in_progress.live')).toHaveLength(1)
+    await w.setProps({ running: false })
+    expect(w.find('[data-test="task-spinner"]').exists()).toBe(false)
+    expect(w.findAll('.ctl-seg.live')).toHaveLength(0)
+    expect(w.get('.ctl-now').text()).toBe('Add the route')       // the task itself, not "Adding…" over no work
+  })
+
+  it('draws a stopped item still, with its reason', () => {
+    const todos = [
+      { content: 'Read the router', status: 'completed', activeForm: '' },
+      { content: 'Add the route', status: 'stopped', activeForm: 'Adding the route', reason: 'Paused — balance ran out' },
+      { content: 'Run the tests', status: 'pending', activeForm: '' },
+    ]
+    const w = mountList(todos, { running: false })
+    const item = w.findAll('.ctl-item')[1]
+    expect(item.attributes('data-status')).toBe('stopped')
+    expect(item.get('[data-test="task-reason"]').text()).toBe('Paused — balance ran out')
+    expect(item.text()).toContain('(stopped)')
+    expect(item.text()).not.toContain('Adding the route')
+    expect(w.find('[data-test="task-spinner"]').exists()).toBe(false)
+    expect(w.get('.ctl-now').text()).toBe('Add the route')
+    expect(w.get('[data-test="task-stopped-why"]').text()).toBe('Paused — balance ran out')
+    expect(w.findAll('.ctl-seg.stopped')).toHaveLength(1)
+    expect(w.get('[data-test="task-live"]').text()).toBe('1 of 3 tasks done. Add the route: Paused — balance ran out')
   })
 })
