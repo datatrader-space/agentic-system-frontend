@@ -117,6 +117,20 @@ export const DEDICATED_SOURCES = [
   { value: 'open_model', label: 'Open model', about: 'A model your workspace added from Hugging Face, as it is.' },
 ];
 
+// A project's Deploy page shows the Dedicated Deployments tab for that project (DedicatedDeployments.vue with its ref):
+// the deployments of its own models and those of the workspace's open models, which belong to no project; and it starts
+// one for that project only. The backend lists only the projects of the workspace selected in AADML that this person may
+// Train in (app_api._dedicated_body), so a project that is not listed cannot start one here, and the page says why.
+export function dedicatedOfProject(deployments, ref) {
+  const rows = deployments || [];
+  return ref ? rows.filter(d => d?.source === 'open_model' || d?.project?.ref === ref) : rows;
+}
+export const PROJECT_NOT_STARTABLE = "This project's model cannot be started here: that needs the Train right in this project, and the project must be in the workspace selected in AADML.";
+export function projectStartProblem(options, ref) {
+  if (!ref) return '';
+  return (options?.projects || []).some(p => p.ref === ref) ? '' : PROJECT_NOT_STARTABLE;
+}
+
 // The open models that can be deployed as is (the backend says which, and why not for the others).
 export const deployableOpenModels = models => (models || []).filter(model => model?.deployable);
 

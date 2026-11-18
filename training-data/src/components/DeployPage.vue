@@ -1,9 +1,12 @@
 <script setup>
 // A project's Deploy page. Cloud API is real: where each model answers (staging, production), deploying an approved
 // model, cancelling a start, going back to an earlier version, approvals, the predict call with the project's own
-// address, and — for the project's Owner — the apps that may call it with their keys and access. MCP, batch
-// processing, dedicated deployment and dependent workflows have no backend yet and say so.
-// Backend: app_api.py deploy/… (deployments.py, connected_apps.py); approvals are the Models page's calls.
+// address, and — for the project's Owner — the apps that may call it with their keys and access. Batch Processing and
+// Dedicated Deployment (this project's model, or an open model of the workspace, on a GPU AADML rents or on one of the
+// workspace's own machines) are the workspace Deployments page's own tabs shown for this project; Cloud Streaming is
+// linked there; MCP says what an assistant can do with the model today (api/deploy.js DEPLOY_OPTIONS).
+// Backend: app_api.py deploy/… (deployments.py, connected_apps.py); approvals are the Models page's calls; batch_api.py
+// workspace/batches/ and app_api.py workspace/dedicated/ for the two tabs.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowRight, Ban, Check, Cloud, Copy, GitBranch, KeyRound, Layers, MessageSquare, Plug, Plus, Radio, RotateCcw, ScanSearch,
@@ -13,22 +16,18 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import ApprovalDialog from './ApprovalDialog.vue';
-import { deployApi, snippet, liveTag } from '../api/deploy.js';
+import BatchTab from './BatchTab.vue';
+import DedicatedDeployments from './DedicatedDeployments.vue';
+import { deployApi, snippet, liveTag, DEPLOY_OPTIONS } from '../api/deploy.js';
 import { modelsApi, unanswered } from '../api/models.js';
 import { workspaceApi, AADML_CHAT, focusDeploymentsTab } from '../api/workspace.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
-// The Developer Quick Start's deploy options, laid out as Roboflow's (owner, 2026-10-21). The Cloud API is here; Cloud
-// Streaming works on the workspace's Deployments page (``elsewhere``: linked there, live 2026-11-17 it said Coming soon
-// here while it worked there); every other option is shown and says Coming soon.
-const OPTIONS = [
-  { id: 'cloud', name: 'Cloud API', icon: Cloud },
-  { id: 'streaming', name: 'Cloud Streaming', icon: Radio, tab: 'streaming', elsewhere: 'Point a model at a video file or a live stream and download what it finds in its frames. It is set up for the whole workspace, on the Deployments page.' },
-  { id: 'mcp', name: 'MCP', icon: Plug, soon: 'Let an AI assistant, such as an AADML agent or Claude, call the model as a tool.' },
-  { id: 'batch', name: 'Batch Processing', icon: Layers, soon: 'Run the model over a whole folder of photos at once and download what it found.', group: 2 },
-  { id: 'dedicated', name: 'Dedicated Deployment', icon: Server, soon: 'The model on servers of its own, kept for your apps only and sized for steady traffic.', group: 2 },
-];
+// The Developer Quick Start's deploy options (api/deploy.js DEPLOY_OPTIONS: what each is in AADML today; none says
+// Coming soon, owner 2026-11-18).
+const ICONS = { cloud: Cloud, radio: Radio, plug: Plug, layers: Layers, server: Server };
+const OPTIONS = DEPLOY_OPTIONS.map(o => ({ ...o, icon: ICONS[o.icon] }));
 const option = ref('cloud');
 const chosenOption = computed(() => OPTIONS.find(o => o.id === option.value));
 const data = ref(null); const models = ref([]); const error = ref(''); const notice = ref(''); const busy = ref(false);
@@ -152,7 +151,7 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
               <template v-for="(o, i) in OPTIONS" :key="o.id">
                 <hr v-if="o.group===2 && OPTIONS[i-1]?.group!==2">
                 <button type="button" :class="{active:option===o.id}" :aria-pressed="option===o.id" @click="option=o.id">
-                  <component :is="o.icon" :size="16"/><span>{{ o.name }}</span><UiBadge v-if="o.soon" tone="purple">Coming soon</UiBadge>
+                  <component :is="o.icon" :size="16"/><span>{{ o.name }}</span>
                 </button>
               </template>
             </nav>
@@ -174,11 +173,20 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
                 <p>{{ chosenOption.elsewhere }}</p>
                 <UiButton variant="primary" @click="openWorkspaceTab(chosenOption)"><component :is="chosenOption.icon" :size="15"/> Open {{ chosenOption.name }}</UiButton>
               </div>
+              <div v-else-if="option==='batch'" class="ws-deployments deployments-workspace option-tab">
+                <BatchTab :project-ref="projectRef"/>
+              </div>
+              <div v-else-if="option==='dedicated'" class="ws-deployments deployments-workspace option-tab">
+                <DedicatedDeployments :project-ref="projectRef" @navigate="page => emit('navigate', page)"/>
+              </div>
               <div v-else class="option-soon">
                 <span class="soon-icon"><component :is="chosenOption.icon" :size="24"/></span>
-                <h3>{{ chosenOption.name }} <UiBadge tone="purple">Coming soon</UiBadge></h3>
-                <p>{{ chosenOption.soon }} It is not available in AADML yet: today an app asks this project's model through the Cloud API.</p>
-                <UiButton @click="option='cloud'"><Cloud :size="15"/> Open Cloud API</UiButton>
+                <h3>{{ chosenOption.name }}</h3>
+                <p v-for="line in chosenOption.note" :key="line">{{ line }}</p>
+                <div class="env-actions">
+                  <a class="button button--primary" :href="chatUrl" target="_blank" rel="noopener"><MessageSquare :size="15"/> Open the AADML agent</a>
+                  <UiButton @click="option='cloud'"><Cloud :size="15"/> Open Cloud API</UiButton>
+                </div>
               </div>
             </div>
           </div>
@@ -310,11 +318,11 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
         </section>
 
         <section class="panel dependent">
-          <header class="dependent-head"><h2>Dependent Workflows <UiBadge tone="purple">Coming soon</UiBadge></h2>
+          <header class="dependent-head"><h2>Dependent Workflows</h2>
             <UiButton class="small" @click="emit('navigate','models')">View Models <ArrowRight :size="13"/></UiButton></header>
           <div class="dependent-empty">
             <span class="soon-icon"><GitBranch :size="20"/></span>
-            <p>No workflows depend on this project yet. Workflows that run when a model of this project answers are not available yet.</p>
+            <p>A workflow can start from what a model finds on a camera: a rule on the camera's page, and a published workflow whose trigger is "Camera event". This page does not list those workflows, and no workflow starts on an answer of the Cloud API.</p>
             <UiButton @click="emit('navigate','workflows')"><GitBranch :size="14"/> Open Workflows</UiButton>
           </div>
         </section>
@@ -390,6 +398,7 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
 .option-soon{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:8px 4px}
 .option-soon h3{display:flex;align-items:center;gap:10px;margin:0;font-size:15px}
 .option-soon p{margin:0!important;max-width:620px;font-size:13px}
+.option-tab{max-width:none;min-width:0}
 .soon-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:10px;background:var(--aadml-soft);color:var(--aadml-primary)}
 /* Build on this model */
 .build{background:linear-gradient(105deg,#fbfcff,#fff 55%,var(--aadml-tint))}

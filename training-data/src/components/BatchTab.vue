@@ -3,6 +3,7 @@
 // them, or one dataset version), follow it while it runs, and download what it found in each photo.
 // Backend: training_models_data/batch_api.py (workspace/batches/, .../<id>/cancel/, .../<id>/results/).
 // The list is read when the tab opens, and again every 3 seconds while a batch is queued or running.
+// A project's Deploy page shows it with ``projectRef``: that project's batches, and a start for that project only.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Activity, Ban, Check, Download, Images, Info, Layers, LoaderCircle, Plus, RefreshCw } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
@@ -14,19 +15,22 @@ import UiDialog from './UiDialog.vue';
 import { timeAgo } from '../api/workspace.js';
 import {
   batchApi, DEFAULT_LIMIT, photoChoices, sourceOf, photosText, limitProblem, startProblem, modelLabel, batchSummary,
-  batchState, isActive, anyActive, progressParts, progressText, changeNotes, POLL_MS,
+  batchState, isActive, anyActive, progressParts, progressText, changeNotes, POLL_MS, batchesOfProject, batchProjectProblem,
 } from '../api/batch.js';
+
+// projectRef: the project whose Deploy page this is ('' on the workspace Deployments page).
+const props = defineProps({ projectRef: { type: String, default: '' } });
 
 const page = ref(null); const error = ref(''); const loading = ref(false);
 const said = ref(''); const announce = ref('');
-const batches = computed(() => page.value?.batches || []);
+const batches = computed(() => batchesOfProject(page.value?.batches, props.projectRef));
 const listQuery = ref(''); const listStatus = ref('');
 const listStates = computed(() => [...new Map(batches.value.map(b => [b.state, { value: b.state, label: batchState(b)[1] }])).values()]);
 const visibleBatches = computed(() => batches.value.filter(b => (!listStatus.value || b.state === listStatus.value) && [b.project.name, modelLabel(b.model)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
 const batchMetrics = computed(() => [
   { label: 'Active batches', value: batches.value.filter(isActive).length, hint: 'Queued or processing', icon: Activity },
   { label: 'Completed batches', value: batches.value.filter(b => b.state === 'done').length, hint: 'Processing finished', icon: Check },
-  { label: 'Total batches', value: batches.value.length, hint: 'In this workspace', icon: Layers },
+  { label: 'Total batches', value: batches.value.length, hint: props.projectRef ? 'In this project' : 'In this workspace', icon: Layers },
 ]);
 const projects = computed(() => page.value?.options?.projects || []);
 const limit = computed(() => Number(page.value?.limit) || DEFAULT_LIMIT);
@@ -63,7 +67,8 @@ const models = computed(() => chosenProject.value?.models || []);
 const chosenModel = computed(() => models.value.find(m => String(m.number) === String(form.value.model)) || null);
 const choices = computed(() => photoChoices(chosenProject.value));
 const chosenPhotos = computed(() => choices.value.find(c => c.value === form.value.photos) || null);
-const why = computed(() => startProblem({ may: may.value, project: chosenProject.value, model: chosenModel.value, choice: chosenPhotos.value, limit: limit.value }));
+const projectProblem = computed(() => batchProjectProblem(page.value?.options, props.projectRef));
+const why = computed(() => projectProblem.value || startProblem({ may: may.value, project: chosenProject.value, model: chosenModel.value, choice: chosenPhotos.value, limit: limit.value }));
 const summary = computed(() => (why.value ? '' : batchSummary(chosenProject.value, chosenModel.value, chosenPhotos.value)));
 
 // A changed project keeps the model and the photos only while they are still its own.
@@ -74,7 +79,8 @@ watch(() => form.value.project, () => {
 });
 
 function openCreate() {
-  const first = projects.value.find(p => !p.running && (p.models || []).length) || projects.value[0];
+  const first = props.projectRef ? projects.value.find(p => p.ref === props.projectRef)
+    : projects.value.find(p => !p.running && (p.models || []).length) || projects.value[0];
   form.value = { project: first?.ref || '', model: first?.models?.[0] ? String(first.models[0].number) : '', photos: 'all' };
   const fits = photoChoices(first).find(c => !limitProblem(c.photos, limit.value));
   if (fits) form.value.photos = fits.value;
@@ -197,7 +203,12 @@ function whenText(b) {
         <p class="dialog-description">Choose a model and the photos it should look at. Nothing starts until you press Start batch.</p>
 
         <div class="bt-row2">
-          <div class="bt-field">
+          <div v-if="projectRef" class="bt-field">
+            <span class="bt-label">Project</span>
+            <p class="bt-fixed">{{ chosenProject ? chosenProject.name : 'This project' }}</p>
+            <p v-if="projectProblem" class="field-error" role="alert">{{ projectProblem }}</p>
+          </div>
+          <div v-else class="bt-field">
             <label for="bt-project">Project</label>
             <select id="bt-project" v-model="form.project" class="text-input" :aria-invalid="!!fieldErrors.project" aria-describedby="bt-project-error">
               <option v-if="!projects.length" value="">No project you can run a batch in</option>
@@ -303,6 +314,8 @@ function whenText(b) {
 .bt-field .text-input[aria-invalid="true"]{border-color:#c0394c}
 .bt-field .field-error{margin:6px 0 0}
 .bt-field .field-error:empty{margin:0}
+.bt-label{display:block;font-size:13px;font-weight:600;color:#1d2a42;margin:0 0 8px}
+.bt-fixed{margin:0!important;padding:10px 12px;border:1px solid #e3e6ed;border-radius:7px;background:#f8f9fb;font-size:14px;color:#162139!important}
 .bt-row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
 .bt-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .bt-choice{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:12px 14px;border:1px solid #dce0e8;border-radius:9px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s}

@@ -50,7 +50,7 @@ test('the Use model dialog says what a call costs, and no amount while no price 
 
 test('no page still says a paid feature waits for charging (2026-10-29: Dedicated, Use model and Cloud Streaming are open)', async () => {
   const { readFile } = await import('node:fs/promises');
-  for (const name of ['WorkspaceModels.vue', 'WorkspaceDeployments.vue', 'StreamingTab.vue']) {
+  for (const name of ['WorkspaceModels.vue', 'DedicatedDeployments.vue', 'StreamingTab.vue']) {
     const page = await readFile(new URL(`../src/components/${name}`, import.meta.url), 'utf8');
     assert.ok(!page.includes('not_open'), name);
     assert.ok(!/charging is connected|opens with calls/.test(page), name);
