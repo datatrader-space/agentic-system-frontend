@@ -1033,8 +1033,10 @@ export default {
   // Context Files
   getConversations: (params) => api.get('/conversations/', { params }),
   getConversation: (id) => api.get(`/conversations/${id}/`),
-  // "Compact now" (Claude Code's /compact): 202 when queued; a refusal answers { error, code } in words.
-  compactConversation: (id) => api.post(`/conversations/${id}/compact/`),
+  // "Compact now" (Claude Code's /compact): 202 when queued; a refusal answers { error, code } in words. `instructions`
+  // (optional, at most 2,000 characters) is what the summary should focus on (`/compact focus on the auth fix`).
+  compactConversation: (id, instructions = '') => api.post(`/conversations/${id}/compact/`,
+    instructions ? { instructions } : {}),
   // Older pages of one thread. The conversation endpoint returns only the most recent window, so a
   // long chat opens fast; this walks backwards from the oldest message the client holds.
   // `before` is an EXCLUSIVE message id (cursor, not an offset — safe while messages are appended).

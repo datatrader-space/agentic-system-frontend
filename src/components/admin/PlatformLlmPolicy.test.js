@@ -88,18 +88,23 @@ describe('PlatformLlmPolicy', () => {
     expect(w.text()).not.toContain('Long-Context')
   })
 
-  it('bounds the compaction trigger to 50–95', async () => {
+  it('the compaction trigger is an optional override of 1–100, unset by default (ADM-1301)', async () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
-    const input = w.find('[data-test="plp-long_context_trigger_pct"] input')
-    expect(input.attributes('min')).toBe('50')
-    expect(input.attributes('max')).toBe('95')
-    expect(w.find('[data-test="plp-long_context_trigger_pct"]').text()).toContain('usable window')
-    await input.setValue('10')
-    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(50)
-    await input.setValue('99')
-    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(95)
+    const field = w.find('[data-test="plp-long_context_trigger_pct"]')
+    const input = field.find('input')
+    expect(input.attributes('min')).toBe('1')
+    expect(input.attributes('max')).toBe('100')
+    expect(input.element.value).toBe('')                                  // not set
+    expect(field.text()).toContain('33,000 tokens before the input limit')
+    expect(field.text()).toContain('can only make it compact earlier')
+    await input.setValue('0')
+    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(1)
+    await input.setValue('120')
+    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(100)
     await input.setValue('70')
     expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(70)
+    await input.setValue('')
+    expect('long_context_trigger_pct' in w.emitted('update:modelValue').at(-1)[0]).toBe(false)   // unset again
   })
 
   it('keeps the summary size at 1–40', () => {

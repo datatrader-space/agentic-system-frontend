@@ -125,8 +125,22 @@ describe("Compact now (the ring's menu)", () => {
     compactConversation.mockRejectedValueOnce({ response: { status: 400,
       data: { error: 'There is too little to compact.', code: 'too_little' } } })
     await s.compactNow()
-    expect(compactConversation).toHaveBeenCalledWith('41')
+    expect(compactConversation).toHaveBeenCalledWith('41', '')
     expect(s.compaction).toEqual({ status: 'failed', message: 'There is too little to compact.' })
+  })
+
+  it('sends what the summary should focus on, trimmed, and shows the refusal of one that is too long', async () => {
+    const s = useChatStore()
+    s.conversationId = '41'
+    compactConversation.mockResolvedValueOnce({ status: 202, data: { status: 'compacting' } })
+    await s.compactNow('  the auth fix  ')
+    expect(compactConversation).toHaveBeenLastCalledWith('41', 'the auth fix')
+    s.compaction = { status: '', message: '' }
+    compactConversation.mockRejectedValueOnce({ response: { status: 400, data: {
+      error: 'What to focus on can be at most 2,000 characters; this is 2,001.', code: 'instructions_too_long' } } })
+    await s.compactNow('x'.repeat(2001))
+    expect(s.compaction).toEqual({ status: 'failed',
+      message: 'What to focus on can be at most 2,000 characters; this is 2,001.' })
   })
 
   it('stays running until the chat is told, and is never asked twice at once or during a reply', async () => {

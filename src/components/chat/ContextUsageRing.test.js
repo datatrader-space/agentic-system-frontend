@@ -43,15 +43,53 @@ describe('ContextUsageRing', () => {
     expect(ring.classes()).toContain('is-ok')
   })
 
-  it('says it summarizes soon near the point, and on the next step past it', async () => {
-    chat.contextUsage = normalizeContextUsage({ used_tokens: 160000, window_tokens: 200000, compact_at_percent: 85 })
+  it('from 85% of the auto-compact point says how much is left, and past it that it compacts next', async () => {
+    // The point: 85% of 200k = 170k tokens. 85% of it is 144.5k.
+    chat.contextUsage = normalizeContextUsage({ used_tokens: 144000, window_tokens: 200000, compact_at_percent: 85 })
     const w = mount(ContextUsageRing)
-    expect(w.find('[data-test="context-usage-ring"]').classes()).toContain('is-near')
-    expect(w.text()).toContain('summarized soon, at 85%')
+    expect(w.find('[data-test="context-usage-ring"]').classes()).toContain('is-ok')
+    expect(w.text()).not.toContain('left until auto-compact')
+    chat.contextUsage = normalizeContextUsage({ used_tokens: 144500, window_tokens: 200000, compact_at_percent: 85 })
+    await w.vm.$nextTick()
+    const ring = w.find('[data-test="context-usage-ring"]')
+    expect(ring.classes()).toContain('is-near')
+    expect(w.find('[data-test="compact-line"]').text()).toBe('15% left until auto-compact')
+    expect(ring.attributes('aria-label')).toContain('15% left until auto-compact')       // in the label too
+    expect(w.find('[data-test="compact-now"]').exists()).toBe(true)                       // Compact now is there
+    chat.contextUsage = normalizeContextUsage({ used_tokens: 160000, window_tokens: 200000, compact_at_percent: 85 })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="compact-line"]').text()).toBe('6% left until auto-compact')
     chat.contextUsage = normalizeContextUsage({ used_tokens: 180000, window_tokens: 200000, compact_at_percent: 85 })
     await w.vm.$nextTick()
     expect(w.find('[data-test="context-usage-ring"]').classes()).toContain('is-full')
-    expect(w.text()).toContain('summarized on the next step')
+    expect(w.text()).toContain('Auto-compacts on the next step')
+  })
+
+  it('the warning follows the trigger the run sends, a 120k cap compacting at 87k (73%)', async () => {
+    chat.contextUsage = normalizeContextUsage({ used_tokens: 75000, window_tokens: 120000, compact_at_percent: 73 })
+    const w = mount(ContextUsageRing)
+    expect(w.find('[data-test="context-usage-ring"]').classes()).toContain('is-near')
+    expect(w.find('[data-test="compact-line"]').text()).toBe('14% left until auto-compact')
+  })
+
+  it('takes an optional focus for the summary, sent with Compact now or Enter, then cleared', async () => {
+    chat.contextUsage = normalizeContextUsage({ used_tokens: 124000, window_tokens: 200000, compact_at_percent: 85 })
+    chat.conversationId = '41'
+    const spy = vi.spyOn(chat, 'compactNow').mockResolvedValue()
+    const w = mount(ContextUsageRing)
+    const input = w.find('[data-test="compact-focus"]')
+    expect(input.attributes('maxlength')).toBe('2000')
+    expect(input.element.closest('label').textContent).toContain('Focus on')        // a visible label
+    await input.setValue('  the checkout bug ')
+    await w.find('[data-test="compact-now"]').trigger('click')
+    expect(spy).toHaveBeenLastCalledWith('the checkout bug')
+    expect(input.element.value).toBe('')
+    await input.setValue('the cart')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(spy).toHaveBeenLastCalledWith('the cart')
+    chat.isStreaming = true
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="compact-focus"]').attributes('disabled')).toBeDefined()
   })
 
   it('carries Compact now, which asks the store and shows what came of it', async () => {
@@ -64,6 +102,7 @@ describe('ContextUsageRing', () => {
     expect(btn.attributes('disabled')).toBeUndefined()
     await btn.trigger('click')
     expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith('')                                   // no focus given
     chat.compaction = { status: 'running', message: '' }
     await w.vm.$nextTick()
     expect(w.find('[data-test="compact-now"]').text()).toBe('Compacting…')

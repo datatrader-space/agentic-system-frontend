@@ -178,14 +178,14 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 
       <div class="plp-field" data-test="plp-history-strategy-note">
         <span class="plp-lbl">How conversation history works</span>
-        <small class="plp-desc">Every agent, on every turn, gets the same history budget: the model’s usable input window (its context window minus the space kept for the reply, and never more than Max input tokens above). The full history is sent word for word until it reaches the compaction trigger below. Then the older turns are summarized once, in the background after the turn, and the recent messages stay word for word. The next compaction summarizes the previous summary plus the messages since. An agent’s message limit only limits how many recent messages are kept after a summary.</small>
+        <small class="plp-desc">Every agent, on every turn, gets the same history budget: the model’s usable input window (its context window minus the space kept for the reply, and never more than Max input tokens above). The full history is sent word for word until what a model call carries reaches the compaction trigger below. Then, during the reply and before the next model call, the older turns are summarized once, and the recent messages stay word for word. The next compaction summarizes the previous summary plus the messages since. An agent’s message limit only limits how many recent messages are kept after a summary.</small>
       </div>
 
       <label class="plp-field" data-test="plp-long_context_trigger_pct">
-        <span class="plp-lbl">Compaction trigger <span class="plp-unit">(% of the model’s usable window)</span></span>
-        <small class="plp-desc">When the history reaches this share of the model’s usable window, the older turns are summarized. Below it, the full history is sent. Default 80. Range 50–95.</small>
-        <input type="number" min="50" max="95" :step="5" :disabled="disabled"
-               :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 50, 95)" placeholder="80" />
+        <span class="plp-lbl">Compaction trigger override <span class="plp-unit">(% of the input limit, optional)</span></span>
+        <small class="plp-desc">Leave it empty to compact like Claude Code: 33,000 tokens before the input limit (the model’s usable window, or Max input tokens when that is smaller). A 200k model compacts at 159k; a 120k limit at 87k. A percent here can only make it compact earlier: a value that would compact later is ignored. Range 1–100.</small>
+        <input type="number" min="1" max="100" :step="1" :disabled="disabled"
+               :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 1, 100)" placeholder="Not set" />
       </label>
 
       <label class="plp-field" data-test="plp-long_context_summary_pct">

@@ -2247,12 +2247,13 @@ export const useChatStore = defineStore('chat', {
 
     // "Compact now" (Claude Code's /compact): the server checks every refusal and queues the summary; the chat is
     // told when it is done (`run_compacted`, scope manual) or why not (`compaction_failed`). A refusal comes back here.
-    async compactNow() {
+    // `instructions`: what the summary should focus on (optional; the server refuses one over 2,000 characters).
+    async compactNow(instructions = '') {
       const id = this.conversationId
       if (!id || this.isStreaming || this.compaction.status === 'running') return
       this.compaction = { status: 'running', message: '' }
       try {
-        await api.compactConversation(id)
+        await api.compactConversation(id, String(instructions || '').trim())
       } catch (e) {
         if (String(this.conversationId) !== String(id)) return
         const data = e?.response?.data || {}
