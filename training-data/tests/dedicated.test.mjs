@@ -194,3 +194,57 @@ test('starting an open model sends its id and source, and nothing of a project',
     ['POST', '/api/training-data/app/workspace/dedicated/', { name: 'room-walls', project: '~5', model: 2, instance_type: 'ml.c5.large', kind: 'development' }],
   ]);
 });
+
+// ── the keys that call a deployment, in its Use dialog (owner, 2026-11-18: a key made there looked lost afterwards) ──
+import { APP_KEY_ONCE, reusableApps, appKeyLine, revokeWarning } from '../src/api/workspace.js';
+
+test('the Use dialog reads and revokes the keys at their addresses', async () => {
+  const asked = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    asked.push([init.method || 'GET', url, init.body ? JSON.parse(init.body) : null]);
+    return new Response('{"apps":[]}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    await workspaceApi.dedicatedAppKeys(7);
+    await workspaceApi.revokeDedicatedAppKey(7, 31);
+  } finally { globalThis.fetch = original; }
+  assert.deepEqual(asked, [
+    ['GET', '/api/training-data/app/workspace/dedicated/7/app-keys/', null],
+    ['POST', '/api/training-data/app/workspace/dedicated/7/app-keys/31/revoke/', {}],
+  ]);
+});
+
+test('a key is said to be shown once, and what to do when it is lost', () => {
+  assert.equal(APP_KEY_ONCE, "A key is shown only once, when it is made. Keep it in your app's settings or a password manager. Lost it? Make a new key and revoke the old one.");
+});
+
+test('a new key is offered for an app this person may change, that is on, and not made by Use in AADML', () => {
+  const listing = { apps: [
+    { name: 'Support bot', can_manage: true, linked: false, disabled: false },
+    { name: 'Shared', can_manage: false, linked: false, disabled: false },
+    { name: 'Chat link', can_manage: true, linked: true, disabled: false },
+    { name: 'Old site', can_manage: true, linked: false, disabled: true },
+  ] };
+  assert.deepEqual(reusableApps(listing), ['Support bot']);
+  assert.deepEqual(reusableApps(null), []);
+  assert.deepEqual(reusableApps({ apps: [] }), []);
+});
+
+test('a key reads when it was made, when it was last used and how many requests it made', () => {
+  const now = Date.parse('2026-11-18T12:00:00Z');
+  assert.equal(appKeyLine({ created_at: '2026-11-18T10:00:00Z', last_used_at: '2026-11-18T11:30:00Z', request_count: 1234 }, now),
+    'Made 2 hours ago · last used 30 minutes ago · 1,234 requests');
+  assert.equal(appKeyLine({ created_at: '2026-11-18T11:59:30Z', last_used_at: null, request_count: 0 }, now),
+    'Made just now · never used · 0 requests');
+  assert.equal(appKeyLine({ created_at: '2026-11-17T12:00:00Z', last_used_at: null, request_count: 1 }, now),
+    'Made 1 day ago · never used · 1 request');
+});
+
+test('revoking says the key stops at once, in the other projects its app reaches too', () => {
+  const key = { hint: 'aadml_app_…ab12' };
+  assert.equal(revokeWarning({ name: 'Support bot', other_projects: 0 }, key),
+    'Requests with aadml_app_…ab12 are refused at once. This cannot be undone: an app that uses it needs a new key.');
+  assert.match(revokeWarning({ name: 'Support bot', other_projects: 2 }, key), /"Support bot" also reaches 2 other projects: the key stops working there too\./);
+  assert.match(revokeWarning({ name: 'Support bot', other_projects: 1 }, key), /1 other project:/);
+});

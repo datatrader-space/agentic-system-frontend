@@ -8,7 +8,8 @@
 // environment, a machine of this workspace, the person's balance). A chat project's trained version is offered the same
 // way (backend dedicated.start_chat; owner, 2026-11-18): approved for the environment on the project's Deploy page, on a
 // GPU that holds it or one of the workspace's machines, and called as OpenAI's chat completions.
-// Backend: app_api.py workspace/dedicated/ (list, start) and workspace/dedicated/<id>/stop/.
+// Backend: app_api.py workspace/dedicated/ (list, start), workspace/dedicated/<id>/stop/, and the Use dialog's app keys:
+// workspace/dedicated/<id>/app-key/ (make one), app-keys/ (the list) and app-keys/<key>/revoke/.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Activity, Check, Code, Copy, Cpu, KeyRound, LoaderCircle, Plus, RefreshCw, Rocket, Server, Square, Wallet } from 'lucide-vue-next';
 import '../deployments.css';
@@ -23,7 +24,8 @@ import {
   workspaceApi, projectLink, modelName, timeAgo, DEDICATED_NAME_RULE, dedicatedNameProblem, dedicatedCostSummary,
   dedicatedModels, missingApproval, dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels,
   dedicatedMachinesFor, machineKind, openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall,
-  useSnippet, dedicatedOfProject, projectStartProblem, focusDeploymentsTab, APP_KEY_WHERE,
+  useSnippet, dedicatedOfProject, projectStartProblem, focusDeploymentsTab, APP_KEY_ONCE, reusableApps,
+  appKeyLine, revokeWarning,
 } from '../api/workspace.js';
 
 // projectRef: the project whose Deploy page this is ('' on the workspace Deployments page). chat: that project is a chat
@@ -210,16 +212,57 @@ const CHAT_ABOUT = "It takes OpenAI's chat format, so OpenAI's own client works 
 function openUse(d) {
   using.value = d; language.value = useLanguages(d)[0]; copied.value = ''; copyError.value = '';
   keyName.value = ''; madeKey.value = null; keyError.value = '';
+  keyList.value = null; keysError.value = ''; keyApp.value = ''; revoking.value = null; revokeError.value = ''; keySaid.value = '';
+  if (d.project) loadKeys(d.id);
 }
-// Making the app key right here (workspaceApi.dedicatedAppKey): it may call this deployment's project in its
-// environment, works at once, and is shown only in this dialog, once.
-const keyName = ref(''); const madeKey = ref(null); const keyBusy = ref(false); const keyError = ref('');
+// The keys that already call this deployment (workspaceApi.dedicatedAppKeys): each app with an invoke grant on its
+// project in its environment, and that app's keys that work, by their hint. A key is shown once, when it is made, so
+// without this list a key made earlier looked lost (owner, 2026-11-18). A server without the list (404) shows none.
+const keyList = ref(null); const keysError = ref(''); const keySaid = ref('');
+const keyApps = computed(() => keyList.value?.apps || []);
+const reusable = computed(() => reusableApps(keyList.value));
+async function loadKeys(id) {
+  try {
+    const listing = await workspaceApi.dedicatedAppKeys(id);
+    if (using.value?.id !== id) return;                       // the dialog moved on to another deployment
+    keyList.value = listing; keysError.value = '';
+    // Making a key reuses an app already listed, unless the person chooses a new one.
+    if (!keyApp.value || (keyApp.value !== NEW_APP && !reusable.value.includes(keyApp.value))) keyApp.value = reusable.value[0] || NEW_APP;
+  } catch (e) {
+    if (using.value?.id !== id) return;
+    keyList.value = null;
+    keysError.value = e.status === 404 ? '' : e.message;
+  }
+}
+// Making the app key right here (workspaceApi.dedicatedAppKey): for an app listed (the default) or a new one named here.
+// It may call this deployment's project in its environment, works at once, and is shown only in this dialog, once.
+const NEW_APP = '\u0000new';                 // no app name holds a NUL (the database cannot store one)
+const keyName = ref(''); const keyApp = ref(''); const madeKey = ref(null); const keyBusy = ref(false); const keyError = ref('');
+const keyAppName = computed(() => (keyApp.value && keyApp.value !== NEW_APP ? keyApp.value : keyName.value.trim()));
 async function makeAppKey() {
-  if (!using.value || keyBusy.value || !keyName.value.trim()) return;
-  keyBusy.value = true; keyError.value = '';
-  try { madeKey.value = (await workspaceApi.dedicatedAppKey(using.value.id, keyName.value.trim())).made; }
-  catch (e) { keyError.value = e.message; }
+  const name = keyAppName.value;
+  if (!using.value || keyBusy.value || !name) return;
+  keyBusy.value = true; keyError.value = ''; keySaid.value = '';
+  const id = using.value.id;
+  try {
+    madeKey.value = (await workspaceApi.dedicatedAppKey(id, name)).made;
+    loadKeys(id);
+  } catch (e) { keyError.value = e.message; }
   finally { keyBusy.value = false; }
+}
+// Revoking a listed key, after the person confirms (workspaceApi.revokeDedicatedAppKey; the server checks who may).
+const revoking = ref(null); const revokeBusy = ref(false); const revokeError = ref('');
+function askRevoke(app, key) { revoking.value = { app, key }; revokeError.value = ''; keySaid.value = ''; }
+async function confirmRevoke() {
+  if (!using.value || !revoking.value || revokeBusy.value) return;
+  revokeBusy.value = true; revokeError.value = '';
+  const id = using.value.id;
+  try {
+    const answer = await workspaceApi.revokeDedicatedAppKey(id, revoking.value.key.id);
+    if (using.value?.id !== id) return;
+    keyList.value = answer; keySaid.value = answer.said || ''; revoking.value = null;
+  } catch (e) { revokeError.value = e.message; }
+  finally { revokeBusy.value = false; }
 }
 async function copyText(text, what) {
   try {
@@ -419,16 +462,53 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
             <span v-else>The key of an app of this workspace allowed, in {{ environmentLabel(using.environment).toLowerCase() }}, on any of its projects: it starts with aadml_app_. It is made on that project's Deployments page, under "Apps that may call the model". A key from Connect app (tmd_) only sends records in.</span></dd></div>
         </dl>
         <section v-if="using.project" class="use-key" aria-labelledby="use-key-h">
-          <h3 id="use-key-h">Make an app key for this deployment</h3>
+          <h3 id="use-key-h">App keys for this deployment</h3>
+          <p class="use-key-once">{{ APP_KEY_ONCE }}</p>
+          <div v-if="keyList" class="use-key-list">
+            <p v-if="!keyApps.length" class="ded-help">No app may call it yet. Make its first key below.</p>
+            <ul v-else class="use-key-apps" aria-label="Apps that may call this deployment">
+              <li v-for="app in keyApps" :key="app.id" class="use-key-app">
+                <div class="use-key-app-head"><strong>{{ app.name }}</strong>
+                  <UiBadge v-if="app.disabled" tone="neutral">Turned off</UiBadge>
+                  <UiBadge v-if="app.linked" tone="neutral">Use in AADML</UiBadge>
+                </div>
+                <p v-if="app.keys === null" class="ded-help">Its keys are listed to a person who manages every project it reaches, or to an Admin of the workspace.</p>
+                <p v-else-if="!app.keys.length" class="ded-help">No key that works.{{ app.can_manage && !app.linked ? ' Make one below.' : '' }}</p>
+                <ul v-else class="use-key-keys">
+                  <li v-for="k in app.keys" :key="k.id" class="use-key-row">
+                    <div class="use-key-row-text"><code>{{ k.hint }}</code><span v-if="k.name" class="use-key-name">{{ k.name }}</span><small>{{ appKeyLine(k) }}</small></div>
+                    <UiButton v-if="app.can_manage && !app.linked" class="danger" :aria-label="`Revoke ${k.hint} of ${app.name}`" @click="askRevoke(app, k)">Revoke</UiButton>
+                  </li>
+                </ul>
+                <p v-if="app.linked" class="ded-help">Made by "Use in AADML" for a chat model: it is changed only on the project's Deploy page.</p>
+              </li>
+            </ul>
+            <div v-if="revoking" class="use-key-confirm" role="alertdialog" aria-labelledby="use-key-revoke-h" aria-describedby="use-key-revoke-d">
+              <strong id="use-key-revoke-h">Revoke {{ revoking.key.hint }} of {{ revoking.app.name }}?</strong>
+              <p id="use-key-revoke-d">{{ revokeWarning(revoking.app, revoking.key) }}</p>
+              <p v-if="revokeError" class="field-error" role="alert">{{ revokeError }}</p>
+              <div class="dialog-actions">
+                <UiButton @click="revoking=null">Keep it</UiButton>
+                <UiButton variant="primary" class="danger" :disabled="revokeBusy" @click="confirmRevoke">{{ revokeBusy ? 'Revoking…' : 'Revoke key' }}</UiButton>
+              </div>
+            </div>
+            <p v-if="keySaid" class="ded-help" role="status">{{ keySaid }}</p>
+          </div>
+          <p v-else-if="keysError" class="ded-help">The keys could not be listed: {{ keysError }}</p>
+          <h4 class="use-key-sub">Make a key</h4>
           <template v-if="!madeKey">
-            <p class="ded-help">Name the app that will call it (a new one, or one of yours). It is allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }} and gets a key that works at once.</p>
+            <p class="ded-help">{{ reusable.length ? 'Choose the app that will call it, or a new one.' : 'Name the app that will call it (a new one, or one of yours).' }} It is allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }} and gets a key that works at once.</p>
             <form class="use-key-form" @submit.prevent="makeAppKey">
-              <input v-model="keyName" class="text-input" maxlength="120" placeholder="App name, e.g. Support site" aria-label="Name of the app that calls this deployment">
-              <UiButton type="submit" variant="primary" :disabled="keyBusy || !keyName.trim()"><KeyRound :size="14" aria-hidden="true"/> {{ keyBusy ? 'Making…' : 'Make the key' }}</UiButton>
+              <select v-if="reusable.length" v-model="keyApp" class="text-input" aria-label="App that calls this deployment">
+                <option v-for="name in reusable" :key="name" :value="name">{{ name }}</option>
+                <option :value="NEW_APP">A new app…</option>
+              </select>
+              <input v-if="!reusable.length || keyApp===NEW_APP" v-model="keyName" class="text-input" maxlength="120" placeholder="App name, e.g. Support site" aria-label="Name of the app that calls this deployment">
+              <UiButton type="submit" variant="primary" :disabled="keyBusy || !keyAppName"><KeyRound :size="14" aria-hidden="true"/> {{ keyBusy ? 'Making…' : 'Make the key' }}</UiButton>
             </form>
           </template>
           <div v-else class="use-key-made" role="status">
-            <strong>The key for {{ madeKey.app }}. Copy it now: it is shown only this once.</strong>
+            <strong>The key for {{ madeKey.app }}. Copy it now: it will not be shown again.</strong>
             <div class="use-key-line"><code>{{ madeKey.key }}</code><button type="button" class="copy-icon" :aria-label="copied==='key' ? 'Key copied' : 'Copy the key'" @click="copyText(madeKey.key,'key')"><Check v-if="copied==='key'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></div>
             <p class="ded-help">Put it in the code above where it says &lt;your app key&gt;.</p>
           </div>
@@ -535,6 +615,21 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 .use-key h3{font-size:14px;margin:0 0 6px}
 .use-key-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .use-key-form .text-input{flex:1 1 220px;min-width:0}
+.use-key-once{margin:0 0 10px;padding:8px 10px;border-radius:7px;background:#fff7e6;color:#5c3d00;font-size:12px;line-height:1.5}
+.use-key-list{display:grid;gap:8px;margin-bottom:12px}
+.use-key-apps,.use-key-keys{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.use-key-app{padding:10px;border:1px solid #e3e6ed;border-radius:8px;min-width:0}
+.use-key-app-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.use-key-keys{margin-top:6px}
+.use-key-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;min-width:0}
+.use-key-row-text{display:grid;gap:2px;min-width:0}
+.use-key-row-text code{overflow-wrap:anywhere;font-size:12px}
+.use-key-row-text small{color:#5f6d82;font-size:12px}
+.use-key-name{font-size:12px;color:#33415a}
+.use-key-row .danger:not(.button--primary){color:#b42318}
+.use-key-confirm{padding:10px;border:1px solid #f0c4bf;border-radius:8px;background:#fff5f4}
+.use-key-confirm p{margin:6px 0 0;font-size:12px;line-height:1.5}
+.use-key-sub{font-size:13px;margin:12px 0 0}
 .use-key-made{display:grid;gap:8px}
 .use-key-line{display:flex;align-items:center;gap:6px;min-width:0}
 .use-key-line code{overflow-wrap:anywhere;min-width:0;font-size:12px}

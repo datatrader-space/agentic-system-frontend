@@ -45,7 +45,36 @@ export const workspaceApi = {
   // the key is in this one answer only. Live, 2026-11-18: the Use dialog sent people to Connect app, whose tmd_ keys
   // only send records in, and the call was refused.
   dedicatedAppKey: (id, name) => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-key/`, { method: 'POST', body: { name }, timeoutMs: SLOW }),
+  // The apps that may call this deployment and their keys that work (a hint, never the key), for a person who manages
+  // its project; and revoking one of them. Both answer the list. Owner, 2026-11-18: the key made in the Use dialog was
+  // shown once and the dialog said nothing of it afterwards, so it looked lost and a new one was made each time.
+  dedicatedAppKeys: id => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-keys/`),
+  revokeDedicatedAppKey: (id, keyId) => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-keys/${enc(keyId)}/revoke/`, { method: 'POST', body: {} }),
 };
+
+// An app key is shown once, when it is made (only its hash is kept), said the same way wherever keys are listed.
+export const APP_KEY_ONCE = "A key is shown only once, when it is made. Keep it in your app's settings or a password manager. Lost it? Make a new key and revoke the old one.";
+
+// The apps of a deployment's key list a new key may be made for: ones this person may change, that are on, and that
+// were not made by "Use in AADML" (those are changed only through their link). Their names, as the make form offers them.
+export function reusableApps(listing) {
+  return (listing?.apps || []).filter(app => app.can_manage && !app.linked && !app.disabled).map(app => app.name);
+}
+
+// One key of the list in words: when it was made, when it was last used, how many requests it made.
+export function appKeyLine(key, now = Date.now()) {
+  const made = key.created_at ? `Made ${timeAgo(key.created_at, now)}` : '';
+  const used = key.last_used_at ? `last used ${timeAgo(key.last_used_at, now)}` : 'never used';
+  const count = Number(key.request_count || 0);
+  return [made, used, `${count.toLocaleString('en-US')} request${count === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+}
+
+// What revoking a key does, asked before it is done. A key is its app's: it stops working in every project the app reaches.
+export function revokeWarning(app, key) {
+  const others = Number(app?.other_projects || 0);
+  const elsewhere = others ? ` "${app.name}" also reaches ${others} other project${others === 1 ? '' : 's'}: the key stops working there too.` : '';
+  return `Requests with ${key.hint} are refused at once.${elsewhere} This cannot be undone: an app that uses it needs a new key.`;
+}
 
 // Where an app key (aadml_app_) is made, said the same way on every page. A project's Connect app keys (tmd_) only send
 // records in: they never call a model.
