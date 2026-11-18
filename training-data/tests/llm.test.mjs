@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts, settingsUnsaved, trainingMachinesQuery } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts, settingsUnsaved, trainingMachinesQuery, llmApi } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -219,4 +219,20 @@ test('a machine getting a training job ready says what comes down and how far', 
   assert.equal(readyText({ phase: 'starting' }), 'Starting the training on your machine');
   assert.equal(readyText({ phase: 'training', steps: 3, steps_done: 1 }), null);
   assert.equal(progressLine({ phase: 'downloading', part: 'image', done_bytes: 5, total_bytes: 10 }).share, 0.5);
+});
+
+test('the machine list of a chat test server asks with one "?" (a doubled one answered 400 on the Test page)', async () => {
+  const asked = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async url => { asked.push(url); return new Response('{"machines":[]}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await llmApi.trialMachines('bakery', { version: 2 });
+    await llmApi.trialMachines('bakery', { base_model: 'qwen2.5-0.5b-instruct' });
+    await llmApi.trialMachines('bakery', {});
+  } finally { globalThis.fetch = real; }
+  assert.equal(asked.length, 3);
+  assert.match(asked[0], /\/trials\/machines\/\?version=2$/);
+  assert.match(asked[1], /\/trials\/machines\/\?base_model=qwen2\.5-0\.5b-instruct$/);
+  assert.match(asked[2], /\/trials\/machines\/$/);
+  for (const url of asked) assert.ok(!url.includes('??'), url);
 });

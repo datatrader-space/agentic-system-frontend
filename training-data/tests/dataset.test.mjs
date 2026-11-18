@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { query, recipeOf, FILTERS } from '../src/api/dataset.js';
+import { query, recipeOf, FILTERS, nextVersionTitle } from '../src/api/dataset.js';
+import { readFile } from 'node:fs/promises';
 
 test('only the filters that are set go to the server; "All" means no filter', () => {
   assert.equal(query({ q: '', status: 'All', page: 1, ...FILTERS }), '?page=1');
@@ -149,4 +150,16 @@ test('the Source step counts the photos for the purpose chosen, never another pu
   assert.equal(sourceLine({ kind: 'train_val', photos: 9, new: 2, latest: 'v3' }, 'test'), null);   // a late answer for another purpose
   assert.equal(sourceLine({ kind: 'train_val', photos: 1, new: 0, latest: 'v3' }, 'train_val'), '1 photo with an approved label can go into a Training / validation version (0 new since v3).');
   assert.equal(sourceLine(null, 'test'), null);
+});
+
+test('a new version is offered the next number of its purpose, never a second "Version 1"', async () => {
+  const versions = [{ kind: 'train_val', number: 1 }, { kind: 'test', number: 1 }, { kind: 'train_val', number: 2 }];
+  assert.equal(nextVersionTitle(versions, 'train_val'), 'Version 3');
+  assert.equal(nextVersionTitle(versions, 'test'), 'Version 2');
+  assert.equal(nextVersionTitle(versions, 'golden'), 'Version 1');
+  assert.equal(nextVersionTitle(null, 'train_val'), 'Version 1');
+  const studio = await readFile(new URL('../src/components/ProjectStudio.vue', import.meta.url), 'utf8');
+  assert.ok(!studio.includes("versionName=ref('Version 1')"), 'the name is not fixed at "Version 1"');
+  assert.ok(studio.includes('nextVersionTitle(state.value.versions,split.value)'));
+  assert.ok(studio.includes('title:versionName.value.trim()||versionDefault.value'));
 });
