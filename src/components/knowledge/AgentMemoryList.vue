@@ -24,7 +24,6 @@
         <option value="user">User (across chats)</option>
         <option value="project">Project (repo)</option>
         <option value="agent">Agent</option>
-        <option value="conversation">Conversation</option>
       </select>
       <select v-model="status" @change="loadMemory"
               class="text-sm border border-gray-300 rounded-lg px-2 py-1.5">

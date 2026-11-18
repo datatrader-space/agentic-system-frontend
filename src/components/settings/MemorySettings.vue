@@ -303,7 +303,8 @@ const SCOPE_HINTS = {
   project: 'Each project keeps its own memory, used only in that project\'s chats.',
   agent: 'What each of your agents keeps for itself.',
   shared_agent: 'What a shared agent, such as the Super Agent, remembers about you.',
-  conversation: 'Kept for one chat only.',
+  // Chat-only memory is no longer saved (backend ADM-1264 M1); these are the ones kept before, to read or delete.
+  conversation: 'Saved for one chat only, before memory moved to your account and projects. Nothing new is saved here.',
 }
 const EMPTY = {
   user: 'No account-wide memories yet. Add one to get started.',

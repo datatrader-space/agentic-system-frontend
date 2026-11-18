@@ -15,13 +15,20 @@
      rests on other people's runs). Past runs are shown, not edited.
 
      A chip is saved with its answer; the server brings its status up to date on every load, so a fact marked
-     outdated or a practice retired stays that way after a reload. -->
+     outdated or a practice retired stays that way after a reload.
+
+     The same row shows what the answer SAVED ("Saved to memory", `field="memoriesSaved"`, backend ADM-1264 M3): the
+     memories the server's ledger holds from this turn, sent live as each save lands and kept on the answer. It is the
+     ground truth of a save — an answer that only SAYS it noted something shows no row — and a saved memory can be
+     marked outdated or forgotten right here, like any other. -->
 <template>
-  <div v-if="chips.length" class="mc-wrap" data-test="memory-chips">
+  <div v-if="chips.length" class="mc-wrap" :class="{ saved: isSaved }"
+       :data-test="isSaved ? 'memory-saved' : 'memory-chips'" :role="isSaved ? 'status' : undefined">
     <div class="mc-row">
       <span class="mc-label">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /></svg>
-        Memory used
+        <svg v-if="isSaved" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /></svg>
+        {{ label }}
       </span>
       <button
         v-for="c in chips" :key="c.ref" type="button"
@@ -77,9 +84,14 @@ import api from '../../services/api'
 
 const props = defineProps({
   message: { type: Object, required: true },
+  // Which list of the message this row shows: `memories` (drawn on) or `memoriesSaved` (saved this turn).
+  field: { type: String, default: 'memories' },
+  label: { type: String, default: 'Memory used' },
 })
 
-const chips = computed(() => (Array.isArray(props.message.memories) ? props.message.memories : [])
+const isSaved = computed(() => props.field === 'memoriesSaved')
+
+const chips = computed(() => (Array.isArray(props.message[props.field]) ? props.message[props.field] : [])
   .filter((c) => c && c.ref && c.text))
 
 const states = reactive({})
@@ -100,11 +112,16 @@ function stateOf (c) {
   return states[c.ref]
 }
 
+// A saved memory says WHERE it was kept (the person's own memory, the project's, the agent's).
+const SAVED_WHERE = { user: 'You', project: 'Project', agent: 'Agent' }
+
 function kindLabel (c) {
+  if (c.via === 'saved') return SAVED_WHERE[c.scope] || 'Saved'
   return { fact: 'Saved', run: 'Past run', hint: 'Learned', procedure: 'Procedure', topic: 'Topic' }[c.kind] || 'Memory'
 }
 
 function titleOf (c) {
+  if (c.via === 'saved') return `Saved to memory: ${c.text}`
   const how = c.via === 'opened' ? 'The agent opened this memory' : 'This memory was in front of the agent'
   const outcome = c.kind === 'run' && c.outcome ? ` (that run: ${c.outcome})` : ''
   return `${how}${outcome}: ${c.text}`
@@ -164,6 +181,8 @@ const unretire = (c) => act(c, () => api.undoLearnedNotHelpful(c.id), (data) => 
   font-size: .74rem; font-weight: 600; color: var(--vm-text-muted, var(--vm-ink-faint));
 }
 .mc-label svg { width: 14px; height: 14px; }
+/* "Saved to memory": the label and the check in the success ink, so a real save reads apart from "Memory used". */
+.mc-wrap.saved .mc-label { color: var(--vm-green-ink); }
 .mc-chip {
   /* At most 320px, never wider than its row: a fixed 320px pushed the Studio's narrow agent panel into a sideways
      scroll (ADM-1247). The text ellipsis below then does its job. */
