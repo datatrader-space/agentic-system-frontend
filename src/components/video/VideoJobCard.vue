@@ -69,6 +69,9 @@
       <audio v-else-if="outputKind === 'audio'" class="vjc-audio" :src="job.output.url" controls preload="metadata" />
       <MediaThumb v-else-if="outputKind === 'image'" eager class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
       <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open the {{ fileWord }}</a>
+      <!-- A clip shorter than the length asked, or an edit whose result is not the length it was predicted to be
+           (ADM-1291): said in words from the server (output.length_note), never hidden behind a plain "Ready". -->
+      <p v-if="lengthNote" class="vjc-warn" role="status" data-test="video-job-length-note">{{ lengthNote }}</p>
       <!-- The other pictures of the same request (extra_outputs), beside the first one. -->
       <ul v-if="extras.length" class="vjc-extras" :aria-label="`${extras.length} more result${extras.length > 1 ? 's' : ''}`" data-test="video-job-extras">
         <li v-for="(x, i) in extras" :key="x.attachment_id">
@@ -137,6 +140,7 @@ const extras = computed(() => (props.job.state === 'ready' && Array.isArray(prop
   ? props.job.extra_outputs.filter((x) => x && x.attachment_id && x.url) : []))
 // What each result file is, read from the file's own media type (ADM-1161), never from the operation name.
 const outputKind = computed(() => jobOutputKind(props.job))
+const lengthNote = computed(() => (props.job.output && typeof props.job.output.length_note === 'string' ? props.job.output.length_note : ''))
 const kindOf = (x) => jobOutputKind(props.job, x)
 const fileWord = computed(() => (props.job.output && /vtt|srt/i.test(String(props.job.output.mime_type || '')) ? 'captions' : 'file'))
 const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',

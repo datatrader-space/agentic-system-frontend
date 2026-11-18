@@ -184,6 +184,15 @@ describe('VideoJobCard', () => {
     expect(at('0.560000')).toContain('Cost $0.56')
   })
 
+  it('a clip shorter than asked says so in the words the server gives; a clip of the right length says nothing (ADM-1291)', () => {
+    const out = { attachment_id: 'v1', url: '/media/v.mp4', media_type: 'video', duration_ms: 5167 }
+    const short = { ...base, state: 'ready', output: { ...out, short_by_ms: 4833, length_note: 'It came back 5.2 s of the 10 s asked.' } }
+    const w = mount(VideoJobCard, { props: { job: short } })
+    expect(w.find('[data-test="video-job-length-note"]').text()).toBe('It came back 5.2 s of the 10 s asked.')
+    const fine = mount(VideoJobCard, { props: { job: { ...base, state: 'ready', output: { ...out, length_note: null } } } })
+    expect(fine.find('[data-test="video-job-length-note"]').exists()).toBe(false)
+  })
+
   it('a failure shows the reason', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'failed', error: { message: 'Monthly limit reached.' } } } })
     expect(w.find('[role="alert"]').text()).toContain('Monthly limit reached.')
