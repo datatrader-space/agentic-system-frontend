@@ -183,7 +183,7 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 
       <label class="plp-field" data-test="plp-long_context_trigger_pct">
         <span class="plp-lbl">Compaction trigger override <span class="plp-unit">(% of the input limit, optional)</span></span>
-        <small class="plp-desc">Leave it empty to compact like Claude Code: 33,000 tokens before the input limit (the model’s usable window, or Max input tokens when that is smaller). A 200k model compacts at 159k; a 120k limit at 87k. A percent here can only make it compact earlier: a value that would compact later is ignored. Range 1–100.</small>
+        <small class="plp-desc">Leave it empty to compact like Claude Code: 33,000 tokens before the input limit (the model’s usable window, or Max input tokens when that is smaller). A 200k model compacts at 159k; a 120k limit at 87k; a limit under 66k at half of it (32k at 16k). A percent here can only make it compact earlier: a value that would compact later is ignored. Range 1–100.</small>
         <input type="number" min="1" max="100" :step="1" :disabled="disabled"
                :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 1, 100)" placeholder="Not set" />
       </label>
