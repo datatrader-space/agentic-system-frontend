@@ -54,6 +54,9 @@ const total = computed(() => props.plan?.total_step_count ?? steps.value.length)
 const done = computed(() => props.plan?.completed_step_count
   ?? steps.value.filter((s) => stepState(s) === 'completed' || stepState(s) === 'skipped').length)
 const currentStepId = computed(() => props.plan?.current_step_id || null)
+// The person's "keep planning" notes on this plan, oldest first (backend `plan_view._change_requests`).
+const changeRequests = computed(() => (Array.isArray(props.plan?.change_requests) ? props.plan.change_requests : [])
+  .filter((c) => c && String(c.note || '').trim()))
 // THE REPAIR LOOP. `done / total` answers "how far through the plan", which stops being the interesting
 // question the moment a loop starts: steps tick green when they produce evidence and never un-tick when
 // a verifier rejects that evidence. Production conv 1518 spent five passes over eleven minutes and the
@@ -157,6 +160,14 @@ function submitDecision(decision) {
     </div>
 
     <template v-if="expanded">
+      <!-- THE PERSON'S OWN WORDS ON THE PLAN. "No, keep planning" sent notes back to the run and nothing showed them
+           (phase 8 run 3, finding 27). Each note once, read from the plan's decision record, so a reload keeps it. -->
+      <section v-if="changeRequests.length" class="ipc-notes" aria-label="Your notes on the plan" data-test="ipc-notes">
+        <p v-for="(c, i) in changeRequests" :key="i" class="ipc-note">
+          <span class="ipc-note-hd">You asked for changes<template v-if="changeRequests.length > 1 || version > 1"> to version {{ c.version_number }}</template></span>
+          <span class="ipc-note-body">{{ c.note }}</span>
+        </p>
+      </section>
       <ul class="ipc-steps" role="list">
         <li v-for="(s, i) in steps" :key="s.step_id"
             :class="[isRoadmap ? 'milestone' : stepState(s), { current: !isRoadmap && s.step_id === currentStepId }]"
@@ -240,6 +251,12 @@ function submitDecision(decision) {
 .pill-revised, .pill-paused, .pill-draft { background: var(--surf2); color: var(--ink2); }
 .ipc-stopped { margin: 6px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--blk-bg);
                color: var(--blk); font-size: 12px; line-height: 1.45; }
+
+.ipc-notes { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 4px; }
+.ipc-note { margin: 0; padding: 8px 10px; border-left: 3px solid var(--acc); border-radius: 6px; background: var(--surf2);
+            display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.5; }
+.ipc-note-hd { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.ipc-note-body { color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .ipc-attempt {
   margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 16px;

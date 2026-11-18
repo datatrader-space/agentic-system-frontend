@@ -211,7 +211,7 @@ const lastUserPrompt = ref('')
 // What the main chat held before this page took the shared chat over; given back when the page closes.
 let previous = null
 
-const { permissionRequests, handlePermissionEvent, respondPermission } =
+const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } =
   usePermission((obj) => chat.sendRaw(obj), () => chat.conversationId)
 
 function lastAssistant() {
@@ -226,6 +226,9 @@ function cardFor(message) {
 // Frames only a project turn sends. Everything else (the stream, the steps, approvals) is the shared chat's.
 function onProjectFrame(d) {
   const t = d?.type
+  // A new turn of this chat began (here, in another tab, or a turn the server started): a card the last turn asked
+  // is no longer waiting. The shared chat still handles the frame.
+  if (t === 'turn_started' || t === 'followup_turn_started') expirePermissions()
   if (handlePermissionEvent(d)) { scrollDown(); return true }
   if (t === 'tool_result') {
     // The Activity tab beside the editor lists the turn's steps in words; the chat still draws the frame.
@@ -263,6 +266,7 @@ async function send(text) {
     input.value = msg                                        // not sent: the words stay in the box
     return
   }
+  expirePermissions()                                        // the last turn's card is not waiting any more
   picked = []
   selection.value = null
   scrollDown()

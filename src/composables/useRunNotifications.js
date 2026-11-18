@@ -19,15 +19,24 @@ export function ensureNotifyPermission() {
   } catch { /* no-op */ }
 }
 
+// True when this page is in front of the person: its tab visible and its window focused. Also what the chat store
+// tells the server about the chat it shows (`chat_presence`), so a turn that ends on screen gets no bell notification.
+export function pageIsFocused() {
+  try {
+    return typeof document !== 'undefined'
+      && document.visibilityState === 'visible'
+      && (typeof document.hasFocus !== 'function' || document.hasFocus())
+  } catch {
+    return false
+  }
+}
+
 // True when the user is actively viewing THIS chat (visible, focused, on its URL) — suppress then.
 function _activelyViewing(conversationId) {
   try {
     const onThisChat = typeof window !== 'undefined'
       && window.location.pathname.includes('/chat/' + conversationId)
-    const focused = typeof document !== 'undefined'
-      && document.visibilityState === 'visible'
-      && (typeof document.hasFocus !== 'function' || document.hasFocus())
-    return onThisChat && focused
+    return onThisChat && pageIsFocused()
   } catch {
     return false
   }

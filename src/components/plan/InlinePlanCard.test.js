@@ -20,6 +20,25 @@ describe('InlinePlanCard', () => {
     expect(w.emitted().decide[0][0]).toEqual({ decision: 'approve', comment: '' })
   })
 
+  // Phase 8 run 3, finding 27: the "No, keep planning" note was shown nowhere in the chat.
+  it("shows each of the person's plan notes once, under the plan", () => {
+    const w = mount(InlinePlanCard, { props: { plan: view({
+      version_number: 2, plan_status: 'executing', plan_status_user: 'active',
+      change_requests: [{ version_number: 1, note: 'Prices in PKR, and add a size guide', decided_at: null },
+                        { version_number: 1, note: '   ', decided_at: null }],
+    }) } })
+    const notes = w.find('[data-test="ipc-notes"]')
+    expect(notes.exists()).toBe(true)
+    expect(notes.findAll('.ipc-note')).toHaveLength(1)
+    expect(notes.text()).toContain('You asked for changes to version 1')
+    expect(notes.text()).toContain('Prices in PKR, and add a size guide')
+  })
+
+  it('shows no notes block when the person sent none', () => {
+    const w = mount(InlinePlanCard, { props: { plan: view() } })
+    expect(w.find('[data-test="ipc-notes"]').exists()).toBe(false)
+  })
+
   it('renders a blocked step with a waiting subtag (distinct pill)', () => {
     const w = mount(InlinePlanCard, { props: { plan: view({
       plan_status: 'blocked', plan_status_user: 'blocked',

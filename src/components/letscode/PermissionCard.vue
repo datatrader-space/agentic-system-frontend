@@ -2,10 +2,12 @@
   <!-- Coding Agent permission card. The agent paused on a protected/risky action (e.g. create .env, run a
        risky command). The user allows (once / task / project) or denies; the choice goes back as
        permission_response and the agent remembers it. No native dialogs. -->
-  <div v-for="(r, i) in requests" :key="i" class="pc" role="group" :aria-label="`Permission needed: ${riskLabel(r.card)}`">
+  <div v-for="(r, i) in requests" :key="i" class="pc" :class="{ expired: r.expired }" role="group"
+       :aria-label="r.expired ? `Permission request expired: ${riskLabel(r.card)}` : `Permission needed: ${riskLabel(r.card)}`"
+       :data-test="r.expired ? 'pc-expired' : 'pc-live'">
     <div class="pc-head">
-      <Icon icon="lucide:shield-alert" class="pc-ic" aria-hidden="true" />
-      <span class="pc-title">Permission needed</span>
+      <Icon :icon="r.expired ? 'lucide:clock' : 'lucide:shield-alert'" class="pc-ic" aria-hidden="true" />
+      <span class="pc-title">{{ r.expired ? 'Permission request expired' : 'Permission needed' }}</span>
       <span class="pc-risk">{{ riskLabel(r.card) }}</span>
     </div>
 
@@ -13,7 +15,10 @@
 
     <div v-if="r.card.path || r.card.command" class="pc-target">{{ r.card.path || r.card.command }}</div>
 
-    <div class="pc-actions">
+    <!-- A card from an earlier turn: its request ended with that turn, so there is nothing left to allow. -->
+    <p v-if="r.expired" class="pc-expired-note">This was asked in an earlier turn and was not answered. Ask again if you still want it done.</p>
+
+    <div v-else class="pc-actions">
       <button
         v-for="(opt, k) in (r.card.options && r.card.options.length ? r.card.options : DEFAULT_OPTIONS)"
         :key="k" type="button"
@@ -22,7 +27,7 @@
       >{{ opt }}</button>
     </div>
 
-    <p v-if="r.card.safe_alternative" class="pc-alt">
+    <p v-if="r.card.safe_alternative && !r.expired" class="pc-alt">
       <Icon icon="lucide:lightbulb" aria-hidden="true" /> {{ r.card.safe_alternative }}
     </p>
   </div>
@@ -70,5 +75,9 @@ function riskLabel(card) {
 .pc-btn.deny:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
 .pc-alt { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--vm-ink-soft); }
 .pc-alt :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; color: color-mix(in srgb, var(--vm-amber) 70%, var(--vm-ink)); }
+.pc-btn:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
+.pc.expired { border-color: var(--vm-line-2); background: var(--vm-surface-soft); }
+.pc.expired .pc-ic, .pc.expired .pc-risk { color: var(--vm-ink-soft); }
+.pc-expired-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--vm-ink-soft); }
 @media (max-width: 640px) { .pc-btn { min-height: 44px; } }
 </style>

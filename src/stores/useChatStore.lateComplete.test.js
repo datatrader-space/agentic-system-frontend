@@ -56,12 +56,21 @@ describe('a second assistant_message_complete still lands', () => {
     expect(s._assistantId).toBe(null)
   })
 
-  it('never writes onto an errored bubble', () => {
+  // The late frame of a turn that ended on an error is THAT turn's text: it lands on its own (errored) bubble, as the
+  // saved row shows it after a reload, and never on the answer before it (phase 8 run 3, conversation 1281: the
+  // wallet-stop text and its token counts were drawn on the previous build summary).
+  it('the late frame of an errored turn lands on that turn, never on the previous answer', () => {
     const s = useChatStore()
+    s._beginAssistant()
+    s._cur().content = 'previous answer'
+    s._endAssistant()
+    const previous = lastAssistant(s)
     s._beginAssistant()
     s._errAssistant('provider timed out')
     s._onEvent({ type: 'assistant_message_complete', full_message: 'late text' })
-    expect(lastAssistant(s).content || '').not.toContain('late text')
+    expect(previous.content).toBe('previous answer')
+    expect(lastAssistant(s)).not.toBe(previous)
+    expect(lastAssistant(s).content).toBe('late text')
     expect(lastAssistant(s).error).toBe('provider timed out')
   })
 

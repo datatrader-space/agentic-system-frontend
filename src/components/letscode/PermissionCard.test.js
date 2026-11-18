@@ -36,6 +36,14 @@ describe('PermissionCard', () => {
     expect(btns).toContain('Deny')
   })
 
+  it('an expired card says so and offers no buttons', () => {
+    const w = mount(PermissionCard, { props: { requests: [{ card: SECRET_CARD, expired: true }] } })
+    expect(w.find('[data-test="pc-expired"]').exists()).toBe(true)
+    expect(w.text()).toContain('Permission request expired')
+    expect(w.text()).toContain('asked in an earlier turn')
+    expect(w.findAll('button')).toHaveLength(0)
+  })
+
   it('renders nothing when there are no requests', () => {
     const w = mount(PermissionCard, { props: { requests: [] } })
     expect(w.findAll('button')).toHaveLength(0)

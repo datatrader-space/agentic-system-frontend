@@ -14,7 +14,7 @@ import { usePlanStore } from './usePlanStore'
 import { useVideoStore } from './useVideoStore'
 import { useAgentTimeline, isRichEvent, compactionStep } from '../composables/useAgentTimeline'
 import { shownCost } from '../composables/tokens'
-import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
+import { ensureNotifyPermission, notifyRunFinished, pageIsFocused } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
 import { resumeStatusLine } from '../utils/resumeStatus'
 import { voiceReplyOf, voiceReplyFromFrame } from '../utils/voiceNotes'
@@ -23,6 +23,8 @@ import { voiceReplyOf, voiceReplyFromFrame } from '../utils/voiceNotes'
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
 // New Chat shows the identical friendly, param-free activity (Searching → Generating) instead of raw tool I/O.
 const _tl = useAgentTimeline()
+// The page's focus / visibility listeners for `chat_presence` are added once (`_watchPresence`).
+let _presenceListening = false
 const _think = new ThinkStreamFilter()
 
 let _seq = 0
@@ -100,6 +102,17 @@ function countOf(d, loaded) {
 function mergeById(current, incoming) {
   const seen = new Set(current.map((s) => String(s.id)))
   return current.concat(incoming.filter((s) => !seen.has(String(s.id))))
+}
+
+// The chat frame a replayed run event carries, or null for a lifecycle event (`plan_created`, `run_completed`: no
+// frame). The server sends the frame's type in `frame` and the frame itself in `payload` (`run_events.entry`). The
+// page read `frame` as the frame object, so on a reload it applied nothing, only cleared the bubble, and the timeline
+// came back from the next live frame on: 13 steps from "Creating a file" instead of 24 (phase 8 run 3, finding 30).
+function replayedFrame(e, conversationId) {
+  if (!e || typeof e.frame !== 'string' || !e.frame || !e.payload || typeof e.payload !== 'object') return null
+  const frame = { ...e.payload, type: e.frame }
+  if (frame.conversation_id == null) frame.conversation_id = conversationId
+  return frame
 }
 
 //: The composer's modes (LONG_RUN_LIKE_CLAUDE_CODE_PLAN §3.2). There is no "auto": the mode is the conversation's,
@@ -293,6 +306,9 @@ export const useChatStore = defineStore('chat', {
     conversationProjectId: null, // the project the OPEN chat is filed in (null: none)
     // setInterval handle for the resumed-turn progress poll (see _startProgressPolling).
     _progressTimer: null,
+    // What this page last told the server about the chat it shows (`chat_presence`): "<conversation>|<viewing>".
+    _presenceSent: '',
+    _presenceTimer: null,
     //: When a frame last arrived from the server, and the watchdog that notices when they stop.
     //: A socket can die WITHOUT onClose/onError — a server restart whose FIN never reaches the browser,
     //: or a half-open connection — and then nothing on this page ever learns the turn finished.
@@ -1449,6 +1465,9 @@ export const useChatStore = defineStore('chat', {
           // keepalive ping and the socket can drop without onClose flagging _recovering, yet the turn still
           // completes server-side. Without this, the answer only appears after a manual refresh.
           if (this._recovering || this.isStreaming || this._taskRunActive) this._recoverAfterReconnect()
+          // A new socket: the server knows nothing of what this page shows yet.
+          this._presenceSent = ''
+          this._reportPresence(true)
         },
         onError: () => {
           // The socket never gives up reconnecting, so an error only ever means "reconnecting" —
@@ -1469,6 +1488,7 @@ export const useChatStore = defineStore('chat', {
     // socket — we reuse the live one and just point it at the new conversation. Only a different repo
     // endpoint (or no socket yet) creates a connection.
     _connect() {
+      this._watchPresence()
       const repo = this.repoId || 0
       if (this._conn && this._conn.repoId === repo) {
         this._conn.setConversation(this.conversationId)
@@ -1522,7 +1542,37 @@ export const useChatStore = defineStore('chat', {
     },
 
     disconnect() {
+      if (this._presenceTimer) { clearInterval(this._presenceTimer); this._presenceTimer = null }
       this._teardown(true)
+    },
+
+    // ── Whether the person is looking at this chat (backend agent/services/chat_presence.py) ─────────────────────
+    // Claude Code tells you a task finished only when you are not looking. The server skips the "<agent> finished"
+    // notification for a turn whose chat a page shows to the person, visible and focused (phase 8 run 3, finding 41:
+    // chat 1269 was open in a tab and still got one). This page says which chat it shows and whether it is in front
+    // of the person: at once when that changes (focus, blur, the tab hidden or shown, checked every 5 s for another
+    // chat opened), and again every 30 s, since the server forgets a page it has not heard from for 75 s.
+    _reportPresence(force = false) {
+      const cid = this.conversationId != null ? String(this.conversationId) : ''
+      const viewing = !!cid && pageIsFocused()
+      const key = `${cid}|${viewing}`
+      if (!this._conn || (!force && key === this._presenceSent)) return
+      if (!cid && !this._presenceSent) return   // it never showed a chat: nothing to take back
+      this._conn.sendIfOpen({ type: 'chat_presence', conversation_id: cid, viewing })
+      this._presenceSent = key
+    },
+
+    _watchPresence() {
+      if (this._presenceTimer || typeof window === 'undefined' || typeof document === 'undefined') return
+      if (!_presenceListening) {   // once per page: the store lives as long as the page
+        _presenceListening = true
+        const now = () => this._reportPresence()
+        window.addEventListener('focus', now)
+        window.addEventListener('blur', now)
+        document.addEventListener('visibilitychange', now)
+      }
+      let ticks = 0
+      this._presenceTimer = setInterval(() => { ticks += 1; this._reportPresence(ticks % 6 === 0) }, 5000)
     },
 
     // Mid-turn socket drop: enter a soft "reconnecting" state instead of erroring. Idempotent.
@@ -1948,10 +1998,15 @@ export const useChatStore = defineStore('chat', {
     // `_cur()` answers "which message is LIVE", which becomes undefined the moment a turn ends. A
     // terminal frame that arrives after that still belongs to the message the turn produced, and
     // dropping its text is how an answer ends up visible only after a page reload.
+    //
+    // The newest assistant bubble, AN ERRORED ONE INCLUDED: every turn opens its bubble at the end, so the newest is
+    // the turn's own. Skipping errored bubbles wrote a failed turn's final text into the PREVIOUS answer: the balance
+    // ran out, the `error` frame ended the new bubble, and the turn's `assistant_message_complete` that followed ("I
+    // completed this before the run was interrupted… balance $0.09") and its token counts landed on the build summary
+    // above it (phase 8 run 3, conversation 1281; the database had them apart, 4807 and 4809).
     _lastAssistantOfTurn() {
       for (let i = this.messages.length - 1; i >= 0; i--) {
-        const m = this.messages[i]
-        if (m.role === 'assistant' && !m.error) return m
+        if (this.messages[i].role === 'assistant') return this.messages[i]
       }
       return null
     },
@@ -2092,8 +2147,9 @@ export const useChatStore = defineStore('chat', {
 
     // `run_events_replay`: { conversation_id, events: [{seq, type, frame?, payload, plan_version, ts}], last_seq,
     // has_more?, live? }. Events are applied in `seq` order and a `seq` already applied is dropped, so an event that
-    // comes both in the replay and live is shown once. An event with a `frame` is a chat frame and goes through the
-    // normal frame handling. `events_missing` means the server recorded a gap: it is logged, nothing is shown.
+    // comes both in the replay and live is shown once. An event with a `frame` (the frame's TYPE, a string) is a chat
+    // frame whose body is `payload` (backend `run_events.entry`), and goes through the normal frame handling.
+    // `events_missing` means the server recorded a gap: it is logged, nothing is shown.
     _applyRunEvents(msg) {
       const cid = msg.conversation_id != null ? String(msg.conversation_id) : String(this.conversationId ?? '')
       if (!cid || this.conversationId == null || cid !== String(this.conversationId)) return
@@ -2106,7 +2162,7 @@ export const useChatStore = defineStore('chat', {
       const onScreen = !!msg.live || this.isStreaming || this._recovering
       // From the start, onto a turn already drawn here (a dropped socket the page lived through): the bubble is
       // rebuilt from the log instead of the log being added to what it already shows.
-      if (!msg.live && before === 0 && onScreen && events.some((e) => e.frame && Number(e.seq) > 0)) {
+      if (!msg.live && before === 0 && onScreen && events.some((e) => replayedFrame(e, cid) && Number(e.seq) > 0)) {
         const m = this._cur()
         if (m) { m.content = ''; _think.reset() }
         _tl.reset()
@@ -2120,8 +2176,9 @@ export const useChatStore = defineStore('chat', {
           console.info('[chat] the run recorded a gap in its events', e.payload || {})
           continue
         }
-        if (!onScreen || !e.frame || typeof e.frame !== 'object') continue
-        const frame = e.frame.conversation_id == null ? { ...e.frame, conversation_id: cid } : e.frame
+        if (!onScreen) continue
+        const frame = replayedFrame(e, cid)
+        if (!frame) continue
         try { this._onEvent(frame) } catch (_e) { /* one bad frame never stops the catch-up */ }
       }
       if (last !== before) this._runSeq = { ...this._runSeq, [cid]: last }

@@ -10,9 +10,11 @@ vi.mock('../services/api', () => ({
   default: { getConversationMessages: vi.fn(() => Promise.resolve({ data: { results: [] } })), getAgents: vi.fn(() => Promise.resolve({ data: [] })) },
 }))
 
+// An event exactly as the server sends it (`run_coordinator.services.run_events.entry`): `type` is the stored type,
+// `frame` the frame's type, `payload` the frame as the page drew it.
 const chunk = (seq, text, replace = false) => ({
-  seq, type: 'assistant_message_chunk', payload: {}, plan_version: 1, ts: null,
-  frame: { type: 'assistant_message_chunk', chunk: text, ...(replace ? { replace: true } : {}) },
+  seq, type: 'runtime.assistant_message_chunk', plan_version: 1, ts: null, frame: 'assistant_message_chunk',
+  payload: { type: 'assistant_message_chunk', chunk: text, ...(replace ? { replace: true } : {}) },
 })
 
 function resumed() {
@@ -110,9 +112,28 @@ describe('reload catch-up from the run log', () => {
   it('a replayed frame that is a card (an approval) goes through the normal handling, once', () => {
     const { chat } = resumed()
     const card = { type: 'hitl_request', request_id: 'h1', summary: 'Approve?' }
-    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', events: [{ seq: 1, type: 'hitl_request', frame: card, payload: {} }] })
-    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', live: true, events: [{ seq: 1, type: 'hitl_request', frame: card, payload: {} }] })
+    const ev = { seq: 1, type: 'runtime.hitl_request', frame: 'hitl_request', payload: card }
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', events: [ev] })
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', live: true, events: [ev] })
     expect(chat.hitlRequests.map((r) => r.request_id)).toEqual(['h1'])
+  })
+
+  it('a reload rebuilds the whole turn from the server-shaped log: every step, nothing doubled (finding 30)', () => {
+    const { chat } = resumed()
+    const call = (seq, id, tool) => ({ seq, type: 'runtime.tool_call', frame: 'tool_call',
+                                      payload: { type: 'tool_call', tool, tool_call_id: id } })
+    const result = (seq, id, tool) => ({ seq, type: 'runtime.tool_result', frame: 'tool_result',
+                                        payload: { type: 'tool_result', tool, tool_call_id: id, success: true } })
+    const lifecycle = { seq: 3, type: 'plan_created', payload: { plan_id: 'p' } }
+    const events = [call(1, 'a', 'CODE_READ_FILE'), result(2, 'a', 'CODE_READ_FILE'), lifecycle,
+                    call(4, 'b', 'CODE_CREATE_FILE'), result(5, 'b', 'CODE_CREATE_FILE'), chunk(6, 'Working on it', true)]
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', last_seq: 6, events })
+    expect(chat._cur().toolCalls.map((t) => t.name)).toEqual(['CODE_READ_FILE', 'CODE_CREATE_FILE'])
+    expect(chat._cur().content).toBe('Working on it')
+    // The same events again, live (the follow overlaps the read): nothing is drawn twice.
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', live: true, last_seq: 6, events })
+    expect(chat._cur().toolCalls).toHaveLength(2)
+    expect(chat._runSeq['41']).toBe(6)
   })
 
   it('opening a conversation from history forgets its cursor, so the next catch-up starts from the beginning', () => {

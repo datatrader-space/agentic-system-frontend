@@ -155,6 +155,19 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 
+  // Phase 8 run 3, finding 34: a card from turn 1 kept live Allow buttons on later turns.
+  it('a permission card from an earlier turn shows as expired once another turn starts', async () => {
+    const w = await mountChat()
+    chat.surfaceHandler({ type: 'permission_request', card: { capability: 'run_command', command: 'npm i', reason: 'it installs packages' } })
+    await flushPromises()
+    const card = () => w.findComponent({ name: 'PermissionCard' }).props('requests')
+    expect(card().map((r) => r.expired)).toEqual([false])
+    expect(chat.surfaceHandler({ type: 'turn_started', conversation_id: '5', message_id: 9 })).toBe(false)
+    await flushPromises()
+    expect(card().map((r) => r.expired)).toEqual([true])
+    w.unmount()
+  })
+
   // ADM-1185 / ADM-1200: only the end-of-turn card for a protected file's values runs the request again on Allow;
   // an action the agent is about to take pauses on the shared approval card and the same run goes on, never re-sent.
   it('runs the request again on Allow only for a protected file card, never for an action card', async () => {

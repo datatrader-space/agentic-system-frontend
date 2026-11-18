@@ -30,6 +30,24 @@ describe('usePermission — coding-agent permission cards', () => {
     expect(respondPermission({}, 'deny')).toBe('deny')
   })
 
+  it('a card from an earlier turn expires: it stays shown, and answering it sends nothing', () => {
+    const send = vi.fn()
+    const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } = usePermission(send, () => 'c1')
+    const card = { capability: 'run_command', command: 'npm install' }
+    handlePermissionEvent({ type: 'permission_request', card })
+    expect(permissionRequests.value[0].expired).toBe(false)
+    expirePermissions()
+    expect(permissionRequests.value).toHaveLength(1)
+    expect(permissionRequests.value[0].expired).toBe(true)
+    expect(respondPermission(permissionRequests.value[0].card, 'Allow once')).toBe(null)
+    expect(send).not.toHaveBeenCalled()
+    // A card the next turn asks is live again.
+    const next = { capability: 'run_command', command: 'npm test' }
+    handlePermissionEvent({ type: 'permission_request', card: next })
+    expect(respondPermission(next, 'Deny')).toBe('deny')
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
   it('choiceForLabel maps labels and falls back sensibly', () => {
     expect(choiceForLabel('Allow once')).toBe('allow_once')
     expect(choiceForLabel('Allow for this task')).toBe('allow_task')
