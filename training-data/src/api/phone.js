@@ -41,11 +41,12 @@ export function cameraSecret(search = globalThis.location?.search || '') {
   return /^[A-Za-z0-9_-]{30,64}$/.test(raw) ? raw : '';
 }
 
-// The secret of a phone camera's link in this page's address (``?phonecam=``, backend phone_camera.py), when it looks
-// like one.
-export function phoneCamSecret(search = globalThis.location?.search || '') {
-  const raw = new URLSearchParams(search).get('phonecam') || '';
-  return /^[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+// The secret of a phone camera's link in this page's address, when it looks like one. It is in the fragment
+// (``#phonecam=<secret>``, backend phone_camera.PAGE), which a browser never sends to a server, so no server on the way
+// can log it.
+export function phoneCamSecret(hash = globalThis.location?.hash || '') {
+  const found = /^#phonecam=([A-Za-z0-9_-]{30,100})$/.exec(String(hash));
+  return found ? found[1] : '';
 }
 
 // The phone's calls: the secret is sent as the Bearer credential, never in the address. A `json` body goes as JSON.

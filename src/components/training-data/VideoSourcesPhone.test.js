@@ -6,7 +6,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
 const SECRET = 'Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRSTUV';
-const LINK = `https://aadml.com/dashboard/training-data/?phonecam=${SECRET}`;
+const LINK = `https://aadml.com/dashboard/training-data/#phonecam=${SECRET}`;
 const added = [];
 vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
   const actual = await real();

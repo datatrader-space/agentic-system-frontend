@@ -124,9 +124,10 @@ test('a refused link is said and not retried; the relay or the network being awa
 });
 
 test('the phone link secret is read from the address only when it looks like one, and sent as Bearer only', async () => {
-  assert.equal(phoneCamSecret(`?phonecam=${SECRET}`), SECRET);
-  assert.equal(phoneCamSecret('?phonecam=short'), '');
-  assert.equal(phoneCamSecret(`?phonecam=${SECRET}<x>`), '');
+  assert.equal(phoneCamSecret(`#phonecam=${SECRET}`), SECRET);
+  assert.equal(phoneCamSecret(`?phonecam=${SECRET}`), '');                  // never from the query: servers log it
+  assert.equal(phoneCamSecret('#phonecam=short'), '');
+  assert.equal(phoneCamSecret(`#phonecam=${SECRET}<x>`), '');
   assert.equal(phoneCamSecret(`?camera=${SECRET}`), '');
   const seen = [];
   const fetchImpl = async (url, init) => { seen.push({ url, init }); return { ok: true, json: async () => ({ name: 'Dock', whip: '/live-publish/src3/whip' }) }; };
@@ -137,12 +138,12 @@ test('the phone link secret is read from the address only when it looks like one
 });
 
 test('the camera page shows a phone link only as the server made it, and when it ends', () => {
-  const url = `https://aadml.com/dashboard/training-data/?phonecam=${SECRET}`;
+  const url = `https://aadml.com/dashboard/training-data/#phonecam=${SECRET}`;
   const shown = phoneLinkDetails({ url, expires_at: '2026-11-25T12:00:00+00:00', link_set_at: '2026-11-18T12:00:00+00:00', expired: false, available: true, lifetime_days: 7 });
   assert.equal(shown.url, url);
   assert.equal(shown.expired, false);
   assert.match(phoneLinkUntil(shown, 'en-GB'), /^The link works until .*25.*, or until you make a new one\.$/);
-  for (const bad of ['javascript:alert(1)', `http://aadml.com/dashboard/training-data/?phonecam=${SECRET}`, `https://aadml.com/x?phonecam=${SECRET}`, 'https://aadml.com/dashboard/training-data/?phonecam=short']) {
+  for (const bad of ['javascript:alert(1)', `http://aadml.com/dashboard/training-data/#phonecam=${SECRET}`, `https://aadml.com/x#phonecam=${SECRET}`, 'https://aadml.com/dashboard/training-data/#phonecam=short', `https://aadml.com/dashboard/training-data/?phonecam=${SECRET}`]) {
     assert.equal(phoneLinkDetails({ url: bad }).url, '', bad);
   }
   assert.equal(phoneLinkDetails({ expires_at: 'nope' }).expiresAt, '');

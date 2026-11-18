@@ -12,7 +12,7 @@ import PhoneCameraSend from './components/PhoneCameraSend.vue';
 import { cameraSecret, phoneCamSecret, phoneSecret } from './api/phone.js';
 
 // A phone opening a phone upload link (?phone=<secret>), a camera pairing code of "Scan from phone" (?camera=<secret>), or
-// a phone camera's link (?phonecam=<secret>, which sends the phone's own camera to AADML):
+// a phone camera's link (#phonecam=<secret>, in the fragment, which sends the phone's own camera to AADML):
 // the phone page alone, with no sign-in; the link is its only authority and the server checks it on every call. The
 // secret leaves the address at once and is kept for this tab only, so a reload still works and nothing of it is left
 // in the history.

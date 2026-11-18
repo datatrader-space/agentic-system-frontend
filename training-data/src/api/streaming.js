@@ -624,7 +624,7 @@ export const PHONE_LINK_WARNING = 'Anyone who has this link can send video as th
 export function phoneLinkDetails(phone) {
   if (!phone || typeof phone !== 'object') return null;
   const raw = typeof phone.url === 'string' ? phone.url.trim() : '';
-  const url = /^(https:\/\/[^\s/?#]+|http:\/\/(localhost|127\.0\.0\.1|testserver)(:[0-9]+)?)\/dashboard\/training-data\/\?phonecam=[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+  const url = /^(https:\/\/[^\s/?#]+|http:\/\/(localhost|127\.0\.0\.1|testserver)(:[0-9]+)?)\/dashboard\/training-data\/#phonecam=[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
   const when = v => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : '');
   return { url, expiresAt: when(phone.expires_at), linkSetAt: when(phone.link_set_at), expired: phone.expired === true,
     available: phone.available !== false, lifetimeDays: Number(phone.lifetime_days) || 7 };
