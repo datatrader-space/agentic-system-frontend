@@ -7,7 +7,13 @@
 
     <!-- Video ads: the brand kit and video concepts, each with its price -->
     <template v-if="tab === 'video'">
-      <label class="st-field" data-field="brand_id">Brand<select v-model="brandId" class="st-input"><option value="">Choose brand</option><option v-for="b in brands" :key="b.brand_id || b.id" :value="b.brand_id || b.id">{{ b.name }}{{ b.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
+      <!-- A brand kit is optional (backend ADS_CHAT_FLOW_PLAN.md): the product's photo is enough; a kit adds its colours, logo and voice. -->
+      <label class="st-field" data-field="product_id">Saved product<select v-model="productId" class="st-input" data-test="video-product"><option value="">None, use a photo</option><option v-for="p in products" :key="p.product_id" :value="p.product_id">{{ p.name }}{{ p.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
+      <template v-if="!productId">
+        <InputSlot label="Product photo" :kinds="['image']" :limit="8" :allow-upload="false" :items="videoPhotos" data-field="product_attachment_ids" @pick="addPhotos(videoPhotos, $event)" @remove="videoPhotos.splice(videoPhotos.indexOf($event),1)" />
+        <label v-if="videoPhotos.length" class="st-field">Product name (as on the pack)<input v-model="videoProductName" class="st-input" maxlength="120" data-test="video-product-name" /></label>
+      </template>
+      <label class="st-field" data-field="brand_id">Brand kit (optional)<select v-model="brandId" class="st-input" data-test="video-brand"><option value="">No brand kit</option><option v-for="b in brands" :key="b.brand_id || b.id" :value="b.brand_id || b.id">{{ b.name }}{{ b.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
       <label class="st-field" data-field="url">Brand website<input v-model="website" class="st-input" type="url" /></label><button class="st-button" :disabled="busy || !website" @click="readBrand">Read website</button>
       <StageProgress :stages="brandStages" label="Reading the brand website" />
       <p v-if="draft" class="st-muted">Review this draft before saving it.</p>
@@ -17,16 +23,16 @@
         <InputSlot label="Brand images (logo first)" required :kinds="['image']" :limit="8" :allow-upload="false" :items="draft.images || []" @pick="addImages(draft, $event, 8)" @remove="draft.images.splice(draft.images.indexOf($event),1)" />
         <div v-for="(image,i) in draft.images || []" :key="image.attachment_id" class="creative-card"><span>{{ image.source_url }}</span><button class="st-button" :disabled="i === 0" @click="draft.images.unshift(...draft.images.splice(i,1))">Use as logo (first)</button><button class="st-button" @click="draft.images.splice(i,1)">Remove image</button></div>
         <ElementRightsFields v-model="brandRights" kind="brand" :name="draft.name" :schema="elementSchema" />
-        <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length || !rightsComplete('brand', brandRights)" @click="saveBrand">Save reviewed brand</button>
+        <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length || !rightsComplete('brand', brandRights)" data-test="brand-save" @click="saveBrand">Save reviewed brand</button>
         <p v-if="!draft.name || !draft.images?.length" class="st-muted" role="status" data-test="brand-save-needs">{{ !draft.name ? 'Give the brand a name' : 'Add at least one brand image, the logo first' }} to save it.</p>
         <p v-else-if="!rightsComplete('brand', brandRights)" class="st-muted" role="status" data-test="brand-save-rights">Confirm your rights to the brand to save it.</p>
       </template>
       <button v-if="!draft" class="st-button" @click="draft = { name:'', description:'', website:'', tagline:'', voice:'', audience:'', images:[] }">New brand</button>
       <label class="st-field" data-field="platform">Platform<select v-model="platform" class="st-input"><option v-for="p in adOptions.platforms" :key="p.id" :value="p.id">{{ p.label }}, {{ p.aspect_ratio }}, up to {{ p.max_seconds }} seconds</option></select></label>
       <label class="st-field" data-field="goal">Goal<select v-model="goal" class="st-input"><option v-for="g in adOptions.goals" :key="g" :value="g">{{ words(g) }}</option></select></label>
-      <label class="st-field" data-field="product_id">Product Element (optional)<select v-model="productId" class="st-input"><option value="">No product</option><option v-for="p in elementProducts" :key="p.ingredient_id" :value="p.ingredient_id">{{ p.name }}</option></select></label>
       <label class="st-field" data-field="notes">Notes<textarea v-model="notes" class="st-input" /></label><label class="st-field" data-field="n">Concept count<input v-model.number="count" type="number" min="1" :max="adOptions.max_concepts || 4" class="st-input" /></label>
-      <button class="st-button primary" :disabled="busy || !brandId || !platform" @click="concepts">Develop concepts</button>
+      <button class="st-button primary" :disabled="busy || !platform || !(productId || videoPhotos.length || brandId)" data-test="video-concepts" @click="concepts">Develop concepts</button>
+      <p v-if="!(productId || videoPhotos.length || brandId)" class="st-muted" role="status">Choose a saved product or add the product's photo.</p>
       <div v-for="(concept,i) in drafts" :key="i" class="creative-card">
         <p class="ads2-price" data-test="concept-price">{{ priceWords(concept.price) }}</p>
         <label v-for="field in ['title','hook','angle','cta']" :key="field" class="st-field">{{ words(field) }}<textarea v-model="concept[field]" class="st-input" /></label>
@@ -55,18 +61,22 @@
         <button class="st-button" :disabled="busy || !productDraft.title || !productDraft.images?.length || !rightsComplete('product', productRights)" data-test="product-save" @click="saveProduct">Save product</button>
         <p v-if="productDraft.title && productDraft.images?.length && !rightsComplete('product', productRights)" class="st-muted" role="status" data-test="product-save-rights">Confirm your rights to the product to save it.</p>
       </template>
-      <ul v-if="products.length" class="ads2-list" aria-label="Your products"><li v-for="p in products" :key="p.product_id"><strong>{{ p.name }}</strong><span class="st-muted">{{ p.price ? `${p.price} ${p.currency}` : 'No price' }}</span></li></ul>
+      <ul v-if="products.length" class="ads2-list" aria-label="Your products"><li v-for="p in products" :key="p.product_id"><strong>{{ p.name }}</strong><span class="st-muted">{{ p.price ? `${p.price} ${p.currency}` : 'No price' }}{{ p.usable === false ? ', not approved yet' : '' }}</span></li></ul>
       <p v-else class="st-empty"><strong>No products yet</strong>Read a product page to keep its name, price and photos for your ads.</p>
     </template>
 
     <!-- Static image ads: concepts for one product, made in one batch -->
     <template v-else-if="tab === 'static'">
-      <label class="st-field" data-field="product_id">Product<select v-model="staticProduct" class="st-input" data-test="static-product"><option value="">Choose product</option><option v-for="p in products" :key="p.product_id" :value="p.product_id">{{ p.name }}</option></select></label>
-      <label class="st-field" data-field="brand_id">Brand (its logo and colours)<select v-model="staticBrand" class="st-input"><option value="">No brand</option><option v-for="b in brands" :key="b.brand_id" :value="b.brand_id">{{ b.name }}{{ b.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
+      <label class="st-field" data-field="product_id">Product<select v-model="staticProduct" class="st-input" data-test="static-product"><option value="">None, use a photo</option><option v-for="p in products" :key="p.product_id" :value="p.product_id">{{ p.name }}{{ p.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
+      <template v-if="!staticProduct">
+        <InputSlot label="Product photo" :kinds="['image']" :limit="8" :allow-upload="false" :items="staticPhotos" data-field="product_attachment_ids" @pick="addPhotos(staticPhotos, $event)" @remove="staticPhotos.splice(staticPhotos.indexOf($event),1)" />
+        <label v-if="staticPhotos.length" class="st-field">Product name (as on the pack)<input v-model="staticProductName" class="st-input" maxlength="120" /></label>
+      </template>
+      <label class="st-field" data-field="brand_id">Brand kit (optional: its logo and colours)<select v-model="staticBrand" class="st-input"><option value="">No brand kit</option><option v-for="b in brands" :key="b.brand_id" :value="b.brand_id">{{ b.name }}</option></select></label>
       <label class="st-field" data-field="platform">Placement<select v-model="staticPlatform" class="st-input"><option v-for="p in adOptions.static_platforms || []" :key="p.id" :value="p.id">{{ p.label }}, {{ p.aspect_ratio }}</option></select></label>
       <MediaRoutePicker v-model="staticRoute" operation="edit_image" label="Picture model" />
       <label class="st-field" data-field="notes">Notes<textarea v-model="staticNotes" class="st-input" /></label><label class="st-field" data-field="n">Concept count<input v-model.number="staticCount" type="number" min="1" :max="adOptions.static_max_concepts || 6" class="st-input" /></label>
-      <button class="st-button primary" :disabled="busy || !staticProduct || !staticPlatform" data-test="static-concepts" @click="staticConcepts">Write concepts</button>
+      <button class="st-button primary" :disabled="busy || !(staticProduct || staticPhotos.length) || !staticPlatform" data-test="static-concepts" @click="staticConcepts">Write concepts</button>
       <div v-for="(c,i) in staticDrafts" :key="i" class="creative-card" data-test="static-concept">
         <label class="ads2-pick"><input v-model="c.chosen" type="checkbox" /> Make this one</label>
         <p class="ads2-price" data-test="concept-price">{{ priceWords(c.price) }}</p>
@@ -74,7 +84,7 @@
         <label class="st-field">Words go at the<select v-model="c.text_zone" class="st-input"><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
       </div>
       <button v-if="staticDrafts.length" class="st-button primary" :disabled="busy || !chosen.length" data-test="static-batch" @click="staticBatch">Review estimates for {{ chosen.length }} {{ chosen.length === 1 ? 'ad' : 'ads' }}</button>
-      <p v-if="staticDrafts.length" class="st-muted">Each picture waits for your Generate. Its words and logo are then placed exactly, at no cost.</p>
+      <p v-if="staticDrafts.length" class="st-muted">Each picture waits for your Generate. Its words{{ staticBrand ? ' and logo are' : ' are' }} then placed exactly, at no cost.</p>
     </template>
 
     <!-- The Ad Multiplier: new hooks or calls to action for a finished ad -->
@@ -119,7 +129,8 @@ import AdBatchCard from './AdBatchCard.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { studioError, useStudioChat } from './studioForm'
-// Ads Studio (ADS_STUDIO_V2_PLAN.md): video ads from a brand kit, products read from a shop page, static image ads in
+// Ads Studio (ADS_STUDIO_V2_PLAN.md, ADS_CHAT_FLOW_PLAN.md): video ads from a product's photo or a saved product (a brand kit
+// is optional), products read from a shop page, static image ads in
 // batches, the Ad Multiplier and the product recipes. Every paid step waits for the person's Generate on its card.
 const emit = defineEmits(['job'])
 const router = useRouter(), video = useVideoStore(), { busy, error, run } = useCreativeForm()
@@ -140,10 +151,20 @@ function priceWords(p) {
 const newReadId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : '')
 
 // ── video ads ──
-// A brand kit or product is approved by the person's own Save with their rights statement (ELEMENTS_V2_PLAN.md).
+const brands = ref([]), brandId = ref(''), website = ref(''), draft = ref(null), colors = ref(''), adOptions = ref({}), platform = ref(''), goal = ref('awareness'), productId = ref(''), notes = ref(''), count = ref(3), drafts = ref([])
+// The person's own Save with their rights statement approves a brand or a product, as on the Elements page.
 const brandRights = ref(emptyRights()), productRights = ref(emptyRights()), elementSchema = ref(null)
-useVideoStore().loadIngredientSchema().then(s => { elementSchema.value = s })
-const brands = ref([]), brandId = ref(''), website = ref(''), draft = ref(null), colors = ref(''), adOptions = ref({}), platform = ref(''), goal = ref('awareness'), productId = ref(''), elementProducts = ref([]), notes = ref(''), count = ref(3), drafts = ref([])
+video.loadIngredientSchema?.().then(sch => { elementSchema.value = sch })
+// A product given by its photo (no saved product needed): its photos and the name on the pack.
+const videoPhotos = ref([]), videoProductName = ref(''), staticPhotos = ref([]), staticProductName = ref('')
+function addPhotos(list, items) {
+  for (const item of items) {
+    if (list.length >= 8) break
+    if (item.attachment_id && !list.some(x => x.attachment_id === item.attachment_id)) list.push({ attachment_id: item.attachment_id, name: item.name || item.title, url: item.url, thumbnail_url: item.thumbnail_url, media_type: 'image' })
+  }
+}
+const productFields = (id, photos, name) => id ? { product_id: id }
+  : (photos.length ? { product_attachment_ids: photos.map(x => x.attachment_id), product: name.trim() ? { name: name.trim() } : {} } : {})
 const brandRead = ref(''), brandAnswer = ref([])
 const brandStages = computed(() => video.stages?.[brandRead.value] || brandAnswer.value)
 function readBrand() { brandRead.value = newReadId(); brandAnswer.value = []; run(async alive => { const { data } = await api.post('/video/brands/read/', { url: website.value, ...(brandRead.value ? { read_id: brandRead.value } : {}), ...await chatFields() }); if (alive()) { brandAnswer.value = data.stages || []; draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
@@ -156,7 +177,7 @@ function addImages(target, items, limit) {
   }
 }
 function saveBrand() { run(async alive => { const d = draft.value; const { data } = await api.post('/video/brands/', { name: d.name, description: d.description, traits: { colors: colors.value.split(',').map(v => v.trim()).filter(Boolean), website: d.website, tagline: d.tagline, voice: d.voice, audience: d.audience }, attachment_ids: (d.images || []).map(i => i.attachment_id), ...rightsPayload('brand', brandRights.value) }); if (alive()) { brands.value.push(data); brandId.value = data.brand_id || data.id; draft.value = null; brandRights.value = emptyRights() } }) }
-const brief = () => ({ brand_id: brandId.value, platform: platform.value, ...(productId.value ? { product_id: productId.value } : {}) })
+const brief = () => ({ platform: platform.value, ...(brandId.value ? { brand_id: brandId.value } : {}), ...productFields(productId.value, videoPhotos.value, videoProductName.value) })
 const normalized = concept => { const c = { ...concept, scenes: concept.scenes.map(s => ({ ...s, planned_ms: Number(s.planned_ms) })) }; delete c.price; c.total_ms = c.scenes.reduce((sum, s) => sum + s.planned_ms, 0); return c }
 function concepts() { run(async alive => { const { data } = await api.post('/video/ads/concepts/', { ...brief(), goal: goal.value, notes: notes.value, n: count.value, ...await chatFields() }); if (alive()) drafts.value = data.concepts || [] }) }
 function priceAgain(concept) { run(async alive => { const { data } = await api.post('/video/ads/concepts/price/', { concept: normalized(concept), platform: platform.value, ...await chatFields() }); if (alive()) concept.price = data }) }
@@ -166,12 +187,12 @@ function makeProject(concept) { run(async alive => { const { data } = await api.
 const products = ref([]), productUrl = ref(''), productDraft = ref(null), productRead = ref(''), productAnswer = ref([])
 const productStages = computed(() => video.stages?.[productRead.value] || productAnswer.value)
 function readProduct(model) { productRead.value = newReadId(); productAnswer.value = []; run(async alive => { const { data } = await api.post('/video/products/read/', { url: productUrl.value, model, ...(productRead.value ? { read_id: productRead.value } : {}), ...await chatFields() }); if (alive()) { productAnswer.value = data.stages || []; productDraft.value = data } }) }
-function saveProduct() { run(async alive => { const d = productDraft.value; const { data } = await api.post('/video/products/', { title: d.title, price: d.price, currency: d.currency, brand: d.brand, description: d.description, url: d.url, attachment_ids: (d.images || []).map(i => i.attachment_id), ...rightsPayload('product', productRights.value) }); if (alive()) { products.value.unshift(data); productDraft.value = null; productRights.value = emptyRights(); productAnswer.value = []; staticProduct.value = data.product_id } }) }
+function saveProduct() { run(async alive => { const d = productDraft.value; const { data } = await api.post('/video/products/', { title: d.title, price: d.price, currency: d.currency, brand: d.brand, description: d.description, url: d.url, attachment_ids: (d.images || []).map(i => i.attachment_id), ...rightsPayload('product', productRights.value) }); if (alive()) { products.value.unshift(data); productDraft.value = null; productAnswer.value = []; productRights.value = emptyRights(); staticProduct.value = data.product_id } }) }
 
 // ── static image ads ──
 const staticProduct = ref(''), staticBrand = ref(''), staticPlatform = ref(''), staticRoute = ref(''), staticNotes = ref(''), staticCount = ref(3), staticDrafts = ref([])
 const chosen = computed(() => staticDrafts.value.filter(c => c.chosen))
-const staticBody = () => ({ product_id: staticProduct.value, platform: staticPlatform.value, ...(staticBrand.value ? { brand_id: staticBrand.value } : {}), ...(staticRoute.value ? { route_id: staticRoute.value } : {}) })
+const staticBody = () => ({ ...productFields(staticProduct.value, staticPhotos.value, staticProductName.value), platform: staticPlatform.value, ...(staticBrand.value ? { brand_id: staticBrand.value } : {}), ...(staticRoute.value ? { route_id: staticRoute.value } : {}) })
 function staticConcepts() { run(async alive => { const { data } = await api.post('/video/ads/static/concepts/', { ...staticBody(), n: staticCount.value, notes: staticNotes.value, ...await chatFields() }); if (alive()) staticDrafts.value = (data.concepts || []).map(c => ({ ...c, chosen: true })) }) }
 const cleanConcept = c => Object.fromEntries(['headline','primary_text','in_image_text','cta','visual','text_zone','angle'].map(k => [k, c[k] || '']))
 function staticBatch() { run(async alive => { const { data } = await api.post('/video/ads/batches/', { ...staticBody(), concepts: chosen.value.map(cleanConcept), ...await chatFields() }); if (alive()) showBatch(data) }) }
@@ -219,10 +240,10 @@ async function loadRecipes() { try { const { data } = await api.getStudioRecipes
 function openRecipe(r) { router.push({ path: '/video-studio/marketing', query: { recipe: r.id, ...(recipeProduct.value ? { product: recipeProduct.value } : {}) } }) }
 
 onMounted(() => run(async alive => {
-  const [b, o, p, prods] = await Promise.all([api.get('/video/brands/'), api.get('/video/ads/options/'), api.get('/video/ingredients/'), api.get('/video/products/')])
+  const [b, o, prods] = await Promise.all([api.get('/video/brands/'), api.get('/video/ads/options/'), api.get('/video/products/')])
   if (!alive()) return
   brands.value = b.data?.brands || []; adOptions.value = o.data || {}; platform.value = o.data?.platforms?.[0]?.id || ''; staticPlatform.value = o.data?.static_platforms?.[0]?.id || ''
-  elementProducts.value = (p.data?.ingredients || []).filter(item => item.kind === 'product'); products.value = prods.data?.products || []
+  products.value = prods.data?.products || []
 }))
 useStudioPreparedBrief(notes)
 </script>

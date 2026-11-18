@@ -54,7 +54,7 @@ describe('Ads Studio v2', () => {
     await click(w, 'product-model-yes')
     expect(api.post.mock.calls[1][1]).toMatchObject({ model: 'yes' })
     api.post.mockResolvedValueOnce({ data: { product_id: 'prod-2', name: 'Clay Mug' } })
-    // Saving a product approves it, so the person states their rights first (Elements v2).
+    // The person's own Save carries their rights statement, as on the Elements page (ADS_CHAT_FLOW_PLAN.md).
     expect(w.get('[data-test="product-save"]').attributes('disabled')).toBeDefined()
     expect(w.get('[data-test="product-save-rights"]').text()).toContain('Confirm your rights')
     await w.get('[data-test="ea-basis-owned"]').setValue(true)
@@ -139,6 +139,21 @@ describe('Ads Studio v2', () => {
     expect(api.post.mock.calls[1][1].concept).toMatchObject({ title: 'Fresh', total_ms: 4000 })
     expect(api.post.mock.calls[1][1].concept).not.toHaveProperty('price')
     expect(w.get('[data-test="concept-price"]').text()).toBe('No published price before you make it')
+    w.unmount()
+  })
+  it('video concepts need no brand kit: the product photo and its name are enough', async () => {
+    const w = setup(); await flushPromises()
+    const go = w.get('[data-test="video-concepts"]')
+    expect(go.attributes('disabled')).toBeDefined()                      // nothing to make an ad of yet
+    w.findComponent(InputSlot).vm.$emit('pick', [{ attachment_id: 'pack-1', media_type: 'image' }]); await flushPromises()
+    await w.get('[data-test="video-product-name"]').setValue('Seed Mix')
+    expect(go.attributes('disabled')).toBeUndefined()
+    api.post.mockResolvedValueOnce({ data: { concepts: [] } })
+    await go.trigger('click'); await flushPromises()
+    const [path, body] = api.post.mock.calls.at(-1)
+    expect(path).toBe('/video/ads/concepts/')
+    expect(body).toMatchObject({ platform: 'reels', product_attachment_ids: ['pack-1'], product: { name: 'Seed Mix' } })
+    expect(body).not.toHaveProperty('brand_id')
     w.unmount()
   })
 

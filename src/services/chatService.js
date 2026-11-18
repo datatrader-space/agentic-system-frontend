@@ -14,6 +14,7 @@
 //                     tool_call {tool, params} / tool_result {tool_name, result, success}
 //                     agent_session_complete | stop_acknowledged | error {error|message}
 import { reconnectDelay, RECONNECT_BASE_MS, RECONNECT_CAP_MS } from '../utils/reconnectingSocket.js'
+import api from './api'
 
 // Heartbeat / reconnect tuning. A backend reload kills the socket WITHOUT always delivering a
 // close frame (half-open) — so we ping and treat silence as death, then reconnect automatically.
@@ -192,11 +193,29 @@ export class ChatConnection {
     if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return
     const delay = reconnectDelay(this._reconnectAttempts)
     this._reconnectAttempts += 1
-    if (this._reconnectAttempts === RECONNECT_LOST_AFTER) this.handlers.onConnectionState?.('lost')
+    if (this._reconnectAttempts === RECONNECT_LOST_AFTER) {
+      this.handlers.onConnectionState?.('lost')
+      this._checkSignedIn()
+    }
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null
       this.connect(this.repoId)
     }, delay)
+  }
+
+  // A refused handshake reaches the browser as a plain close (1006), the same as a network drop, so a signed-out page
+  // retried forever (one tab: 83 refusals in 40 minutes, 2026-11-18). After a few failures ask the server once: a
+  // 401 means the session is gone, so stop retrying; the global 401 handler (services/api.js) then lands on /login.
+  async _checkSignedIn() {
+    try {
+      await api.getCurrentUser()
+    } catch (e) {
+      if (e?.response?.status === 401) {
+        this.closedByUs = true
+        if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+        this.handlers.onConnectionState?.('signed_out')
+      }
+    }
   }
 
   _raw(obj) {

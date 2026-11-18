@@ -60,9 +60,9 @@ describe('Creative flow boundaries',()=>{
     api.getStoryboard.mockResolvedValue({ data: { revision: 4, scenes: [{ scene_id: 's', order: 0, title: 'Scene 1', cinema: {}, keyframes: [], takes: [], keyframe_jobs_pending: ['job'] }] } })
     await click(w, 'Refresh storyboard'); expect(w.text()).toContain('Keyframes pending'); w.unmount()
   })
-  it('sends the selected product ingredient id when developing concepts', async () => {
+  it('sends the selected saved product id when developing concepts', async () => {
     const get = api.get.getMockImplementation()
-    api.get.mockImplementation(path => path === '/video/ingredients/' ? Promise.resolve({ data: { ingredients: [{ ingredient_id: 'product-1', name: 'Product', kind: 'product' }] } })
+    api.get.mockImplementation(path => path === '/video/products/' ? Promise.resolve({ data: { products: [{ product_id: 'product-1', name: 'Product' }] } })
       : path === '/video/brands/' ? Promise.resolve({ data: { brands: [{ brand_id: 'b', name: 'Brand' }] } })
       : path === '/video/ads/options/' ? Promise.resolve({ data: { platforms: [{ id: 'social', label: 'Social' }], goals: ['awareness'] } }) : get(path))
     api.post.mockResolvedValue({ data: { concepts: [] } })
@@ -83,7 +83,7 @@ describe('Creative flow boundaries',()=>{
     const save = w.findAll('button').find(button => button.text() === 'Save reviewed brand')
     expect(save.attributes('disabled')).toBeDefined()
     expect(w.get('[data-test="brand-save-needs"]').text()).toBe('Add at least one brand image, the logo first to save it.')
-    const images = w.findComponent(InputSlot)
+    const images = w.findAllComponents(InputSlot).find(slot => slot.props('label') === 'Brand images (logo first)')
     expect(images.props()).toMatchObject({ kinds: ['image'], limit: 8, allowUpload: false })
     images.vm.$emit('pick', [{ attachment_id: 'logo' }]); await flushPromises()
     expect(w.find('[data-test="brand-save-needs"]').exists()).toBe(false)
