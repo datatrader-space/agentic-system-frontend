@@ -60,6 +60,43 @@ describe('WorkTimeline', () => {
     w.unmount()
   })
 
+  it('a closed call shows the start of its IN and OUT, fading out, as Claude Code does; a click opens it', async () => {
+    const bash = { stepId: 'step_b', toolCallId: 'b', tool: 'CODE_RUN_COMMAND', title: 'Bash', label: 'Running a command',
+                   status: 'ok', input: { command: 'ls -la' }, output: 'app\ncomponents\nlib\npublic\nscripts' }
+    const w = mountIt({ steps: [bash] })
+    const preview = w.get('[data-test="wt-preview"]')
+    expect(preview.classes()).toContain('is-closed')
+    expect(preview.text()).toContain('ls -la')
+    expect(preview.text()).toContain('components')
+    expect(w.find('[data-test="wt-io"]').exists()).toBe(false)
+    await preview.trigger('click')
+    expect(w.get('[data-test="wt-toggle"]').attributes('aria-expanded')).toBe('true')
+    expect(w.get('[data-test="wt-out"]').text()).toContain('scripts')
+    expect(w.find('[data-test="wt-preview"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('a Read shows its path alone, and a subagent its task, until opened', () => {
+    const w = mountIt()
+    const rows = w.findAll('[data-test="wt-row"]')
+    const read = rows.find((r) => r.text().includes('src/app.py'))
+    expect(read.find('[data-test="wt-preview"]').exists()).toBe(false)
+    expect(read.get('.wt-desc').classes()).toContain('is-path')
+    const sub = rows.find((r) => r.attributes('data-kind') === 'subagent')
+    expect(sub.find('[data-test="wt-preview"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('a long OUT saved as its ref still previews from its saved first lines, without a fetch', () => {
+    const long = { stepId: 'step_l', toolCallId: 'l', tool: 'CODE_RUN_COMMAND', title: 'Bash', label: 'Running a command',
+                   status: 'ok', input: { command: 'npm test' }, ioRef: 'step:9', outputChars: 9000,
+                   outputHead: 'PASS a.test.js\nPASS b.test.js\nPASS c.test.js\nPASS d.test.js' }
+    const w = mountIt({ steps: [long] })
+    expect(w.get('[data-test="wt-preview"]').text()).toContain('PASS a.test.js')
+    expect(get).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
   it('a file edit shows its diff in OUT, and a failure says why', async () => {
     const w = mountIt()
     expect(w.text()).toContain('the step could not be completed')

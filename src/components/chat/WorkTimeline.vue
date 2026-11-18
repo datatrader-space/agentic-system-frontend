@@ -29,12 +29,13 @@
                v-html="renderInlineMarkdown(stripThinkTags(r.step.reasoningText))"></div>
         </div>
 
-        <!-- A tool call or a subagent: the name in bold, what it did, then IN and OUT on click. -->
+        <!-- A tool call or a subagent: the name in bold and what it did; under it the start of its IN and OUT (a few
+             faded lines, as Claude Code shows them), whole once opened. A Read shows its path alone. -->
         <div v-else-if="r.kind === 'tool' || r.kind === 'subagent'" class="wt-body">
           <button type="button" class="wt-head" :aria-expanded="isOpen(r) ? 'true' : 'false'"
                   :aria-controls="`wt-p-${uid}-${r.key}`" data-test="wt-toggle" @click="toggle(r)">
             <span class="wt-name" translate="no">{{ toolName(r.step) }}</span>
-            <span class="wt-desc" translate="no" :title="toolDescription(r.step)">{{ toolDescription(r.step) }}</span>
+            <span class="wt-desc" :class="{ 'is-path': !showsPreview(r.step) }" translate="no" :title="toolDescription(r.step)">{{ toolDescription(r.step) }}</span>
             <span v-if="r.step.durationMs != null && r.step.durationMs >= 1000" class="wt-dur">{{ fmtSeconds(r.step.durationMs) }}</span>
             <svg class="wt-chev" :class="{ open: isOpen(r) }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 1 1-1.4-1.4L10.6 10 7.3 6.7a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
           </button>
@@ -55,26 +56,40 @@
                         class="wt-media-thumb" />
           </div>
 
-          <div v-if="isOpen(r)" :id="`wt-p-${uid}-${r.key}`" class="wt-io" data-test="wt-io">
-            <p v-if="ioState(r).loading" class="wt-note" role="status">Loading…</p>
-            <p v-else-if="ioState(r).error" class="wt-note wt-note-err" role="alert">{{ ioState(r).error }}</p>
+          <!-- Open: IN and OUT whole (a long one scrolls in its box; nothing is cut). -->
+          <div v-if="isOpen(r)" :id="`wt-p-${uid}-${r.key}`" class="wt-io" data-test="wt-io" data-open="true">
+            <p v-if="ioState(r).loading" class="wt-io-msg" role="status">Loading…</p>
+            <p v-else-if="ioState(r).error" class="wt-io-msg wt-note-err" role="alert">{{ ioState(r).error }}</p>
             <template v-else>
-              <div class="wt-io-block">
-                <div class="wt-io-head"><span class="wt-io-label">IN</span>
-                  <button v-if="inText(r)" type="button" class="wt-copy" aria-label="Copy the input" @click="copy(inText(r), `${r.key}-in`)">{{ copied === `${r.key}-in` ? 'Copied' : 'Copy' }}</button>
-                </div>
+              <div class="wt-io-row">
+                <span class="wt-io-label" aria-hidden="true">IN</span>
                 <pre class="wt-pre" tabindex="0" translate="no" aria-label="Input" data-test="wt-in">{{ inText(r) || 'Not shown for this call.' }}</pre>
+                <button v-if="inText(r)" type="button" class="wt-copy" aria-label="Copy the input" @click="copy(inText(r), `${r.key}-in`)">{{ copied === `${r.key}-in` ? 'Copied' : 'Copy' }}</button>
               </div>
-              <div class="wt-io-block">
-                <div class="wt-io-head"><span class="wt-io-label">OUT</span>
-                  <button v-if="outText(r)" type="button" class="wt-copy" aria-label="Copy the output" @click="copy(outText(r), `${r.key}-out`)">{{ copied === `${r.key}-out` ? 'Copied' : 'Copy' }}</button>
-                </div>
-                <pre v-if="diffLines(withIo(r)).length" class="wt-pre wt-diff" tabindex="0" translate="no" aria-label="Changes" data-test="wt-diff"><span
-                  v-for="(d, i) in diffLines(withIo(r))" :key="i" class="wt-diff-line" :class="diffClass(d.sign)">{{ d.sign === '@' ? d.text : `${d.sign} ${d.text}` }}
+              <div class="wt-io-row">
+                <span class="wt-io-label" aria-hidden="true">OUT</span>
+                <div class="wt-io-out">
+                  <pre v-if="diffLines(withIo(r)).length" class="wt-pre wt-diff" tabindex="0" translate="no" aria-label="Changes" data-test="wt-diff"><span
+                    v-for="(d, i) in diffLines(withIo(r))" :key="i" class="wt-diff-line" :class="diffClass(d.sign)">{{ d.sign === '@' ? d.text : `${d.sign} ${d.text}` }}
 </span></pre>
-                <pre class="wt-pre" tabindex="0" translate="no" aria-label="Output" data-test="wt-out">{{ outText(r) || (r.step.status === 'running' ? 'Running…' : 'No output.') }}</pre>
+                  <pre class="wt-pre" tabindex="0" translate="no" aria-label="Output" data-test="wt-out">{{ outText(r) || (r.step.status === 'running' ? 'Running…' : 'No output.') }}</pre>
+                </div>
+                <button v-if="outText(r)" type="button" class="wt-copy" aria-label="Copy the output" @click="copy(outText(r), `${r.key}-out`)">{{ copied === `${r.key}-out` ? 'Copied' : 'Copy' }}</button>
               </div>
             </template>
+          </div>
+          <!-- Closed: the start of IN and OUT, fading out. A click on it opens the row (the header is the keyboard's
+               way in, so this preview is not a second button). -->
+          <div v-else-if="showsPreview(r.step) && (inPreview(r) || outPreview(r))" class="wt-io is-closed"
+               data-test="wt-preview" aria-hidden="true" @click="toggle(r)">
+            <div v-if="inPreview(r)" class="wt-io-row">
+              <span class="wt-io-label">IN</span>
+              <pre class="wt-pre" translate="no">{{ inPreview(r) }}</pre>
+            </div>
+            <div v-if="outPreview(r)" class="wt-io-row">
+              <span class="wt-io-label">OUT</span>
+              <pre class="wt-pre" translate="no">{{ outPreview(r) }}</pre>
+            </div>
           </div>
         </div>
 
@@ -113,7 +128,7 @@ import { stripThinkTags } from '../../composables/useAgentTimeline'
 import { renderInlineMarkdown } from '../../utils/inlineMarkdown'
 import {
   workRows, toolName, toolDescription, ioText, diffLines, dotState, thoughtLabel, subagentChildren, needsLoad,
-  elapsedText,
+  elapsedText, showsPreview,
 } from './workRail'
 
 const props = defineProps({
@@ -183,6 +198,13 @@ function outText(r) {
   if (s.output != null && s.output !== '') return ioText(s.output)
   return s.error ? ioText(s.error) : ''
 }
+// A closed row's preview: what is held in the page (the whole text, or the saved head of a long one), shown a few
+// lines deep by the style. Nothing is fetched for a preview.
+function inPreview(r) { return inText(r) || ioText(r.step.inputHead) }
+function outPreview(r) {
+  const t = outText(r) || ioText(r.step.outputHead)
+  return t || (r.step.status === 'running' ? 'Running…' : '')
+}
 function diffClass(sign) {
   return sign === '+' ? 'is-add' : sign === '-' ? 'is-del' : sign === '@' ? 'is-hunk' : ''
 }
@@ -222,7 +244,7 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
 /* The one continuous line every dot sits on. */
 .wt-rail::before { content: ''; position: absolute; left: 6.5px; top: 10px; bottom: 10px; width: 1px; background: var(--vm-line-2); }
 .wt-row { position: relative; padding: 3px 0; min-width: 0; }
-.wt-row + .wt-row { margin-top: 4px; }
+.wt-row + .wt-row { margin-top: 10px; }
 /* Each dot sits ON the line (opaque, so the line passes behind it on any surface it is drawn on). */
 .wt-dot { position: absolute; left: -19px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--vm-ink-faint); }
 .wt-row.wt-text .wt-dot, .wt-row.wt-answer .wt-dot { top: 12px; }
@@ -231,7 +253,7 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
 .wt-dot.is-failed { background: var(--vm-red-ink); }
 .wt-dot.is-waiting { background: var(--vm-amber); }
 .wt-dot.is-notrun { background: var(--vm-line-2); box-shadow: inset 0 0 0 1.5px var(--vm-ink-faint); }
-.wt-dot.is-quiet { width: 6px; height: 6px; left: -18px; background: var(--vm-line-2); box-shadow: inset 0 0 0 1px var(--vm-ink-faint); }
+.wt-dot.is-quiet { width: 7px; height: 7px; left: -18.5px; background: var(--vm-ink-faint); opacity: .6; }
 .wt-dot.is-steer { background: var(--vm-link); }
 .wt-dot.is-running { background: var(--vm-violet); animation: wt-pulse 1.4s ease-in-out infinite; }
 @keyframes wt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
@@ -245,34 +267,47 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
   transition: background-color .15s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .wt-head:hover { background: color-mix(in srgb, var(--vm-ink) 5%, transparent); }
 .wt-head:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
-.wt-head-quiet { color: var(--vm-ink-soft); }
+.wt-head-quiet { color: var(--vm-ink-faint); }
 .wt-name { flex: 0 0 auto; font-weight: 650; color: var(--vm-ink); font-size: 13px; }
 .wt-desc { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vm-ink-soft);
   font-family: var(--vm-font-mono, ui-monospace, monospace); font-size: 12.5px; }
+.wt-desc.is-path { color: var(--vm-link); }
 .wt-dur { flex: 0 0 auto; color: var(--vm-ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 .wt-chev { flex: 0 0 auto; align-self: center; width: 14px; height: 14px; color: var(--vm-ink-faint); transition: transform .15s; }
 .wt-chev.open { transform: rotate(90deg); }
-.wt-thought-label { font-style: italic; }
+.wt-thought-label { font-size: 13px; }
 .wt-thought-text { margin: 2px 0 4px; padding-left: 2px; color: var(--vm-ink-soft); font-size: 13px; white-space: pre-wrap;
   overflow-wrap: anywhere; }
 
 .wt-note { margin: 2px 0 0; font-size: 12.5px; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
 .wt-note-err { color: var(--vm-red-ink); }
 
-/* IN and OUT: monospace, whole. A long one scrolls inside its box; nothing is cut. */
-.wt-io { margin: 4px 0 6px; display: flex; flex-direction: column; gap: 6px; }
-.wt-io-block { border: 1px solid var(--vm-line); border-radius: 8px; background: var(--vm-surface-soft); overflow: hidden; }
-.wt-io-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 4px 3px 10px;
-  border-bottom: 1px solid var(--vm-line); }
-.wt-io-label { font: 700 11px/1.2 var(--vm-font-mono, ui-monospace, monospace); letter-spacing: .06em; color: var(--vm-ink-faint); }
-.wt-copy { min-height: 26px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--vm-ink-soft);
-  font: 600 11.5px var(--vm-font-sans, inherit); cursor: pointer; transition: background-color .15s, color .15s;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.wt-copy:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
-.wt-copy:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
-.wt-pre { margin: 0; padding: 8px 10px; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+/* IN and OUT: ONE box, a narrow gutter naming each part (as Claude Code draws it), monospace. Closed, each part shows
+   its first lines fading out; open, the whole text, a long one scrolling inside its part. Nothing is cut. */
+.wt-io { margin: 6px 0 2px; border: 1px solid var(--vm-line); border-radius: 8px; background: var(--vm-surface-soft);
+  overflow: hidden; }
+.wt-io-row { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: start; }
+.wt-io-row + .wt-io-row { border-top: 1px solid var(--vm-line); }
+.wt-io-label { padding: 7px 0 0 10px; font: 600 10.5px/1.5 var(--vm-font-mono, ui-monospace, monospace); letter-spacing: .04em;
+  color: var(--vm-ink-faint); user-select: none; }
+.wt-io-out { min-width: 0; }
+.wt-io-msg { margin: 0; padding: 8px 12px; font-size: 12.5px; color: var(--vm-ink-soft); }
+.wt-pre { margin: 0; padding: 6px 12px 6px 2px; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
   font: 12px/1.5 var(--vm-font-mono, ui-monospace, monospace); color: var(--vm-ink); background: transparent; }
 .wt-pre:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: -2px; }
+/* Closed: three lines, fading out; the whole box opens the row. */
+.wt-io.is-closed { cursor: pointer; }
+.wt-io.is-closed .wt-pre { max-height: calc(12px * 1.5 * 3 + 12px); overflow: hidden; color: var(--vm-ink-soft);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent); mask-image: linear-gradient(to bottom, #000 45%, transparent); }
+.wt-io.is-closed:hover { border-color: var(--vm-line-2); }
+/* Copy: shown on hover or focus, always on touch. */
+.wt-copy { position: absolute; top: 3px; right: 4px; min-height: 26px; padding: 0 9px; border: 1px solid var(--vm-line);
+  border-radius: 6px; background: var(--vm-surface); color: var(--vm-ink-soft); font: 600 11.5px var(--vm-font-sans, inherit);
+  cursor: pointer; opacity: 0; transition: opacity .15s, background-color .15s, color .15s;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.wt-io-row:hover .wt-copy, .wt-io-row:focus-within .wt-copy { opacity: 1; }
+.wt-copy:hover { color: var(--vm-ink); }
+.wt-copy:focus-visible { opacity: 1; outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
 .wt-diff { border-bottom: 1px solid var(--vm-line); }
 .wt-diff-line { display: block; }
 .wt-diff-line.is-add { color: var(--vm-green-ink); background: var(--vm-green-soft); }
@@ -305,8 +340,10 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
 
 @media (pointer: coarse) {
   .wt-head { min-height: 44px; }
-  .wt-copy { min-height: 44px; min-width: 44px; }
+  .wt-copy { min-height: 44px; min-width: 44px; opacity: 1; }
 }
+/* The open row's text keeps clear of its Copy button. */
+.wt-io-row:has(.wt-copy) .wt-pre { padding-right: 64px; }
 @media (prefers-reduced-motion: reduce) {
   .wt-dot.is-running, .wt-glyph { animation: none; }
   .wt-head, .wt-chev, .wt-copy { transition: none; }

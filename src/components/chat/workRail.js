@@ -209,9 +209,26 @@ export function compactIo(row) {
   const out = { ...row }
   const inText = row.input == null ? '' : (typeof row.input === 'string' ? row.input : JSON.stringify(row.input))
   const outText = row.output == null ? '' : String(row.output)
-  if (inText.length > INLINE_IO_CHARS) { out.inputChars = inText.length; delete out.input }
-  if (outText.length > INLINE_IO_CHARS) { out.outputChars = outText.length; delete out.output }
+  // Its first lines stay as the closed row's preview (Claude Code shows a few faded lines of each); the whole text is
+  // loaded by the ref when the row is opened.
+  if (inText.length > INLINE_IO_CHARS) { out.inputChars = inText.length; out.inputHead = headOf(ioText(row.input)); delete out.input }
+  if (outText.length > INLINE_IO_CHARS) { out.outputChars = outText.length; out.outputHead = headOf(ioText(row.output)); delete out.output }
   return out
+}
+
+//: How many lines a closed row's IN and OUT preview shows (Claude Code shows a few lines that fade out).
+export const PREVIEW_LINES = 3
+// The first lines of a long IN or OUT, kept in the saved timeline for the closed row's preview: one line more than
+// the preview shows, so its fade still says there is more.
+export function headOf(text) {
+  return String(text || '').split('\n').slice(0, PREVIEW_LINES + 1).join('\n').slice(0, 600)
+}
+
+// Does a closed tool row show its IN/OUT preview? Claude Code shows a Read as its path alone (the file is the OUT) and
+// a subagent as its task with what it used nested under it; every other call shows the start of what went in and
+// what came back. Both still open to their whole IN and OUT.
+export function showsPreview(row) {
+  return !!row && !isSubagent(row) && toolName(row) !== 'Read'
 }
 
 // "12s", "1m 05s": the live status line's elapsed time.

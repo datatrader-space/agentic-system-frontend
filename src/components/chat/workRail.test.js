@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   workRows, toolDescription, toolName, ioText, diffLines, dotState, thoughtLabel, subagentChildren, compactIo,
-  needsLoad, stripBase64, elapsedText, INLINE_IO_CHARS,
+  needsLoad, stripBase64, elapsedText, INLINE_IO_CHARS, PREVIEW_LINES,
 } from './workRail'
 
 const B64 = 'QUJD'.repeat(80)
@@ -103,6 +103,14 @@ describe('the saved snapshot of a row', () => {
     expect(kept.input).toBeUndefined()
     expect(kept.outputChars).toBe(big.length)
     expect(needsLoad(kept)).toBe(true)
+  })
+
+  it("a long one keeps its first lines as the closed row's preview (the whole loads by the ref)", () => {
+    const NL = String.fromCharCode(10)
+    const lines = Array.from({ length: 400 }, (_, i) => `line ${i} ${'z'.repeat(20)}`).join(NL)
+    const kept = compactIo(tool('c1', { input: { command: 'npm test' }, output: lines, ioRef: 'step:1' }))
+    expect(kept.output).toBeUndefined()
+    expect(kept.outputHead.split(NL)).toEqual(lines.split(NL).slice(0, PREVIEW_LINES + 1))
   })
 
   it('a long one without a ref is kept whole (nothing to load it again from)', () => {
