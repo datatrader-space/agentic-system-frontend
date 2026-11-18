@@ -52,7 +52,8 @@ export const videoSources = {
   remove: id => apiFetch(`${SOURCES}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
   // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
   // renew_after}. Anyone who may see the source may watch it.
-  live: id => apiFetch(`${SOURCES}${enc(id)}/live/`, { timeoutMs: SLOW }),
+  // ``job``: a connector camera's live job the page follows (CLOUD_STREAMING_PLAN.md §12): its failure is said, not retried.
+  live: (id, job) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : ''}`, { timeoutMs: SLOW }),
   // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
   recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
@@ -487,7 +488,8 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
 // ── live view ────────────────────────────────────────────────────────────────────────────────────
 // Live view goes through AADML's media relay, which reads rtsp:// and rtsps:// cameras only for now.
 // A connector camera is read by its machine, not by AADML's relay: no live view of it yet (CLOUD_STREAMING_PLAN.md §11).
-export const canWatch = source => source?.kind !== 'connector' && /^rtsps?:\/\//i.test(sourceShown(source));
+// A camera address the relay pulls, or a connector camera its machine sends to the relay (§12).
+export const canWatch = source => /^rtsps?:\/\//i.test(sourceShown(source));
 
 export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras only for now.';
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
@@ -509,7 +511,11 @@ export function liveAnswer(body) {
   const lasts = Number(body.expires_in) > 0 ? Number(body.expires_in) : 300;
   const renew = Number(body.renew_after) > 0 ? Number(body.renew_after) : lasts * 0.8;
   const seconds = Math.max(5, Math.min(renew, Math.max(5, lasts - 5)));
-  return { playlist, token, renewInMs: Math.round(seconds * 1000) };
+  // A connector camera (§12): ``ready`` false until its machine's video reaches the relay, ``job`` the live job to
+  // follow, ``said`` what is happening meanwhile. A camera address is always ready.
+  const job = Number.isInteger(body.job) && body.job > 0 ? body.job : null;
+  const said = typeof body.said === 'string' ? body.said.trim().slice(0, 300) : '';
+  return { playlist, token, renewInMs: Math.round(seconds * 1000), ready: body.ready !== false, job, said };
 }
 
 // Why live view did not start, in words: the server's own sentence where it gave one.

@@ -20,7 +20,7 @@ test('a camera on a machine: a private rtsp address, its machine, no live view',
   assert.deepEqual(sourceFormProblems({ ...form, machine: '3' }, { connector: true }), {});
   assert.equal(sourceFormProblems({ ...form, machine: '3' }).address !== undefined, true);   // as a camera URL it is private
   assert.deepEqual(sourceBody({ ...form, machine: '3' }), { name: 'Loading bay', kind: 'connector', address: 'rtsp://192.168.1.20/s1', machine: '3', consent: true });
-  assert.equal(canWatch({ kind: 'connector', shown_address: 'rtsp://192.168.1.20:554' }), false);
+  assert.equal(canWatch({ kind: 'connector', shown_address: 'rtsp://192.168.1.20:554' }), true);   // its machine sends it (§12)
   assert.equal(canWatch({ kind: 'url', shown_address: 'rtsp://cam.example.com' }), true);
 });
 
@@ -369,9 +369,16 @@ test('only an rtsp:// or rtsps:// camera can be watched live', () => {
   assert.equal(canWatch(null), false);
 });
 
+test('a connector camera is not played until its machine is sending it, and its live job is followed', () => {
+  const waiting = liveAnswer({ playlist: '/live/src9/index.m3u8', token: 'abc', ready: false, job: 37, said: 'Asked 235e to send the camera live.' });
+  assert.deepEqual([waiting.ready, waiting.job, waiting.said], [false, 37, 'Asked 235e to send the camera live.']);
+  assert.equal(liveAnswer({ playlist: '/live/src9/index.m3u8', token: 'abc', ready: true, job: 37 }).ready, true);
+  assert.equal(liveAnswer({ playlist: '/live/src9/index.m3u8', token: 'abc', job: '37; drop' }).job, null);
+});
+
 test('the live answer gives the playlist, the token and when to renew it', () => {
   assert.deepEqual(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 300, renew_after: 240 }),
-    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000 });
+    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000, ready: true, job: null, said: '' });
   // No renew_after: four fifths of the token's life; never at or past its end, never sooner than 5 seconds.
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 100 }).renewInMs, 80000);
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 60, renew_after: 600 }).renewInMs, 55000);

@@ -174,7 +174,7 @@ async function removeRecording(row) {
             <img v-if="thumb" :src="thumb" :alt="`Newest frame from ${source.name}`" referrerpolicy="no-referrer" @error="thumbBroken = true">
             <span v-else class="sp-still-none"><ImageOff :size="22" aria-hidden="true"/><small>No frame yet</small></span>
             <div class="sp-still-foot">
-              <small>{{ watchable ? 'Not watching.' : source.kind === 'connector' ? `${source.machine ? source.machine.name : 'Its machine'} takes a frame of it when you check it; live view comes later.` : 'Live view plays RTSP cameras; this is its newest frame.' }} {{ lastFrameText(source) }}</small>
+              <small>{{ watchable ? 'Not watching.' : 'Live view plays RTSP cameras; this is its newest frame.' }} {{ lastFrameText(source) }}</small>
               <UiButton v-if="watchable" class="small" @click="watchAgain"><Tv :size="14" aria-hidden="true"/> Watch live</UiButton>
             </div>
           </div>

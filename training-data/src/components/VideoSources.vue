@@ -459,7 +459,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 
         <!-- Camera URL (and Edit) -->
         <form v-else class="vs-form" novalidate @submit.prevent="save">
-          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it through the machine (agent 1.4.0 or later); live view and recording come later.' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it, and live view plays it while you watch, both through the machine (agent 1.5.0 or later for live view); recording comes later.' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
           <div v-if="connecting && !editing" class="vs-field">
             <label for="vs-machine">The machine the camera is on</label>
             <select id="vs-machine" v-model="form.machine" class="text-input" :aria-invalid="!!fieldErrors.machine" aria-describedby="vs-machine-error">

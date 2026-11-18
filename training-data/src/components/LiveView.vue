@@ -20,6 +20,11 @@ const state = ref('connecting'); const message = ref('');
 watch(state, value => emit('state', value), { immediate: true });
 let hls = null; let renewTimer = null; let token = ''; let run = 0;
 const RETRY_MS = 15000;
+// A connector camera (CLOUD_STREAMING_PLAN.md §12): its machine is asked to send it, and the page asks again every
+// START_POLL_MS (following that live job) until the video has reached the relay, for at most START_MOST_MS.
+const START_POLL_MS = 3000; const START_MOST_MS = 6 * 60 * 1000;
+let followJob = null;
+const pause = ms => new Promise(resolve => { setTimeout(resolve, ms); });
 
 function stop() {
   run += 1;
@@ -41,7 +46,7 @@ function scheduleRenew(ms, mine) {
   clearTimeout(renewTimer);
   renewTimer = setTimeout(async () => {
     try {
-      const next = liveAnswer(await videoSources.live(props.source.id));
+      const next = liveAnswer(await videoSources.live(props.source.id, followJob));
       if (mine !== run) return;
       if (!next) { fail('failed', LIVE_NO_ANSWER); return; }
       token = next.token;
@@ -59,7 +64,7 @@ async function start() {
   const mine = run;
   const id = props.source?.id;
   if (id === undefined || id === null) return;
-  state.value = 'connecting'; message.value = '';
+  state.value = 'connecting'; message.value = ''; followJob = null;
   let live;
   try {
     live = liveAnswer(await videoSources.live(id));
@@ -69,6 +74,27 @@ async function start() {
   }
   if (mine !== run) return;
   if (!live) { fail('failed', LIVE_NO_ANSWER); return; }
+  followJob = live.job;
+  const began = Date.now();
+  while (!live.ready) {
+    state.value = 'starting'; message.value = live.said || 'Starting the camera on its machine…';
+    await pause(START_POLL_MS);
+    if (mine !== run) return;
+    if (Date.now() - began > START_MOST_MS) {
+      fail('failed', 'The machine did not start sending the camera within 6 minutes. Check that it is running, then try again.');
+      return;
+    }
+    try {
+      live = liveAnswer(await videoSources.live(id, followJob));
+    } catch (e) {
+      if (mine === run) fail('refused', liveErrorText(e));
+      return;
+    }
+    if (mine !== run) return;
+    if (!live) { fail('failed', LIVE_NO_ANSWER); return; }
+    followJob = live.job || followJob;
+  }
+  state.value = 'connecting'; message.value = '';
   let Hls;
   try { ({ default: Hls } = await import('hls.js')); }
   catch { if (mine === run) fail('failed', 'The video player could not be loaded. Check your connection and try again.'); return; }
@@ -102,8 +128,8 @@ onUnmounted(stop);
   <div v-if="inline && source" class="lv-inline">
     <div class="lv-stage lv-stage-inline">
       <video ref="video" class="lv-video" muted playsinline controls :aria-label="`Live video from ${source.name}`" @playing="playing"></video>
-      <div v-if="state !== 'playing'" class="lv-over" :role="state === 'connecting' ? 'status' : 'alert'">
-        <template v-if="state === 'connecting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>Connecting to the camera…</span></template>
+      <div v-if="state !== 'playing'" class="lv-over" :role="state === 'connecting' || state === 'starting' ? 'status' : 'alert'">
+        <template v-if="state === 'connecting' || state === 'starting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>{{ state === 'starting' ? message : 'Connecting to the camera…' }}</span></template>
         <template v-else>
           <VideoOff :size="22" aria-hidden="true"/><span>{{ message }}</span>
           <UiButton class="small" @click="start"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
@@ -117,8 +143,8 @@ onUnmounted(stop);
       <p class="dialog-description">{{ sourceShown(source) }}. The sound is off until you turn it on.</p>
       <div class="lv-stage">
         <video ref="video" class="lv-video" muted playsinline controls :aria-label="`Live video from ${source.name}`" @playing="playing"></video>
-        <div v-if="state !== 'playing'" class="lv-over" :role="state === 'connecting' ? 'status' : 'alert'">
-          <template v-if="state === 'connecting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>Connecting to the camera…</span></template>
+        <div v-if="state !== 'playing'" class="lv-over" :role="state === 'connecting' || state === 'starting' ? 'status' : 'alert'">
+          <template v-if="state === 'connecting' || state === 'starting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>{{ state === 'starting' ? message : 'Connecting to the camera…' }}</span></template>
           <template v-else><VideoOff :size="22" aria-hidden="true"/><span>{{ message }}</span></template>
         </div>
       </div>
