@@ -129,7 +129,7 @@ import { fmtTokens } from '../../composables/tokens'
 import { stripThinkTags } from '../../composables/useAgentTimeline'
 import { renderInlineMarkdown } from '../../utils/inlineMarkdown'
 import {
-  workRows, toolName, toolDescription, ioText, diffLines, dotState, thoughtLabel, subagentChildren, needsLoad,
+  workRows, toolName, toolDescription, ioText, outputText, diffLines, dotState, thoughtLabel, subagentChildren, needsLoad,
   elapsedText, showsPreview,
 } from './workRail'
 
@@ -201,7 +201,7 @@ function withIo(r) {
 function inText(r) { return ioText(withIo(r).input) }
 function outText(r) {
   const s = withIo(r)
-  if (s.output != null && s.output !== '') return ioText(s.output)
+  if (s.output != null && s.output !== '') return outputText(s.output)
   return s.error ? ioText(s.error) : ''
 }
 // A closed row's preview: what is held in the page (the whole text, or the saved head of a long one), shown a few

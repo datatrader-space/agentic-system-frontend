@@ -45,6 +45,52 @@ export function ioText(value) {
   try { return stripBase64(JSON.stringify(value, null, 2)) } catch { return stripBase64(String(value)) }
 }
 
+// A workspace tool's result is written for the MODEL (backend `agent/services/sandbox/result_shape.py`): line 1 is a
+// JSON object of small fields (ok, exit_code, handles, ids), then each payload as plain text under a `--- name ---`
+// line. The person sees what the tool produced, as Claude Code shows it: the payload text, led by the error and the
+// exit code only when the call failed. Any other result reads as ioText does. Never cut.
+const PAYLOAD_KEYS = ['content', 'stdout', 'output', 'diff', 'report', 'matches', 'files', 'paths', 'entries', 'logs']
+function sectionKey(line) {
+  const t = String(line || '')
+  if (!t.startsWith('--- ') || !t.endsWith(' ---')) return null
+  const key = t.slice(4, -4)
+  return PAYLOAD_KEYS.includes(key) ? key : null
+}
+export function outputText(value) {
+  if (typeof value !== 'string') return ioText(value)
+  const text = value.replace(/^\s+/, '')
+  const nl = text.indexOf('\n')
+  const first = nl < 0 ? text : text.slice(0, nl)
+  let head = null
+  try { head = JSON.parse(first) } catch { return ioText(value) }
+  if (!head || typeof head !== 'object' || Array.isArray(head)) return ioText(value)
+  const lines = nl < 0 ? [] : text.slice(nl + 1).split('\n')
+  if (lines.length && sectionKey(lines[0]) == null) return ioText(value)      // a JSON line then prose: not the shape
+  // Each payload, in the order the backend writes them: a line reading `--- name ---` opens a section only for a
+  // payload that comes after the current one, so printed output that looks like a marker stays output.
+  const parts = []
+  let cur = null
+  for (const line of lines) {
+    const key = sectionKey(line)
+    if (key && (!cur || PAYLOAD_KEYS.indexOf(key) > PAYLOAD_KEYS.indexOf(cur.key))) {
+      cur = { key, lines: [] }
+      parts.push(cur)
+    } else if (cur) {
+      cur.lines.push(line)
+    }
+  }
+  const exit = head.exit_code
+  const failed = head.ok === false || (exit != null && Number(exit) !== 0)
+  const lead = []
+  if (failed && head.error) lead.push(String(head.error))
+  if (failed && exit != null && Number(exit) !== 0) lead.push(`Exit code ${exit}`)
+  const body = parts.length === 1 ? parts[0].lines.join('\n')
+    : parts.map((p) => `${p.key}:\n${p.lines.join('\n')}`).join('\n\n')
+  // Nothing produced: a command that printed nothing says so; any other call keeps its small fields as they were.
+  if (!body.trim() && !lead.length) return (exit != null && !failed) ? '(No output)' : ioText(first)
+  return stripBase64([...lead, body].filter((x) => String(x).trim()).join('\n'))
+}
+
 function inputObject(row) {
   const v = row && row.input
   if (v && typeof v === 'object' && !Array.isArray(v)) return v
@@ -214,7 +260,7 @@ export function compactIo(row) {
   // Its first lines stay as the closed row's preview (Claude Code shows a few faded lines of each); the whole text is
   // loaded by the ref when the row is opened.
   if (inText.length > INLINE_IO_CHARS) { out.inputChars = inText.length; out.inputHead = headOf(ioText(row.input)); delete out.input }
-  if (outText.length > INLINE_IO_CHARS) { out.outputChars = outText.length; out.outputHead = headOf(ioText(row.output)); delete out.output }
+  if (outText.length > INLINE_IO_CHARS) { out.outputChars = outText.length; out.outputHead = headOf(outputText(row.output)); delete out.output }
   return out
 }
 

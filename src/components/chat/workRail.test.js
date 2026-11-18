@@ -1,7 +1,7 @@
 // ADM-1302 — the Work timeline's rows and how a tool row reads (pure).
 import { describe, it, expect } from 'vitest'
 import {
-  workRows, toolDescription, toolName, ioText, diffLines, dotState, thoughtLabel, subagentChildren, compactIo,
+  workRows, toolDescription, toolName, ioText, outputText, diffLines, dotState, thoughtLabel, subagentChildren, compactIo,
   needsLoad, stripBase64, elapsedText, INLINE_IO_CHARS, PREVIEW_LINES,
 } from './workRail'
 
@@ -121,5 +121,37 @@ describe('the saved snapshot of a row', () => {
   it('elapsed time reads like Claude Code\'s', () => {
     expect(elapsedText(12400)).toBe('12s')
     expect(elapsedText(65000)).toBe('1m 05s')
+  })
+})
+
+describe('outputText: what a tool produced, not the model\'s header line (phase 8 live, 2026-11-19)', () => {
+  const head = (o) => JSON.stringify(o)
+  it('a command that succeeded shows what it printed, with no ids or handles', () => {
+    const out = `${head({ ok: true, exit_code: 0, status: 'succeeded', handle: 'h1', lease_id: 'lease_1', risky: false })}\n--- stdout ---\nv25.9.0`
+    expect(outputText(out)).toBe('v25.9.0')
+    expect(outputText(out)).not.toContain('lease_')
+  })
+  it('a command that failed leads with its error and exit code', () => {
+    const out = `${head({ ok: false, error: 'the command failed', exit_code: 2 })}\n--- stdout ---\nnpm ERR! missing script`
+    expect(outputText(out)).toBe('the command failed\nExit code 2\nnpm ERR! missing script')
+  })
+  it('a command that printed nothing says so', () => {
+    expect(outputText(head({ ok: true, exit_code: 0 }))).toBe('(No output)')
+  })
+  it('a result with no payload keeps its small fields', () => {
+    expect(outputText(head({ ok: true, path: 'a.txt', bytes: 3 }))).toBe(ioText(head({ ok: true, path: 'a.txt', bytes: 3 })))
+  })
+  it('printed output that looks like a marker stays output', () => {
+    const out = `${head({ ok: true, exit_code: 0 })}\n--- stdout ---\nline 1\n--- content ---\nline 2`
+    expect(outputText(out)).toBe('line 1\n--- content ---\nline 2')        // content comes before stdout: not a section
+  })
+  it('two payloads are each named', () => {
+    const out = `${head({ ok: true })}\n--- stdout ---\nbuilt\n--- logs ---\nwarn x`
+    expect(outputText(out)).toBe('stdout:\nbuilt\n\nlogs:\nwarn x')
+  })
+  it('anything else reads as ioText does', () => {
+    expect(outputText('plain words')).toBe('plain words')
+    expect(outputText('{"a": 1}')).toBe(ioText('{"a": 1}'))
+    expect(outputText({ a: 1 })).toBe(ioText({ a: 1 }))
   })
 })
