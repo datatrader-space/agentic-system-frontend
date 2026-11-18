@@ -14,9 +14,11 @@ vi.mock('../services/api', () => ({
   default: { getConversationMessages: (...a) => getConversationMessages(...a), get: vi.fn(), post: vi.fn() },
 }))
 const notifyRunFinished = vi.fn()
+const pageIsFocused = vi.fn(() => false)
 vi.mock('../composables/useRunNotifications', () => ({
   notifyRunFinished: (...a) => notifyRunFinished(...a),
   ensureNotifyPermission: vi.fn(),
+  pageIsFocused: () => pageIsFocused(),
 }))
 
 import { useChatStore } from './useChatStore'
@@ -47,6 +49,8 @@ describe('run_finished settles the turn on screen, whatever the status', () => {
     setActivePinia(createPinia())
     getConversationMessages.mockReset()
     notifyRunFinished.mockReset()
+    pageIsFocused.mockReset()
+    pageIsFocused.mockReturnValue(false)
   })
 
   it('completed: settles at once, notifies, and lands the saved answer', async () => {
@@ -56,9 +60,26 @@ describe('run_finished settles the turn on screen, whatever the status', () => {
     s._onEvent(finished('completed'))
     expect(s.isStreaming).toBe(false)                 // before history answers
     expect(notifyRunFinished).toHaveBeenCalledTimes(1)
-    expect(notifyRunFinished).toHaveBeenCalledWith({ agentName: 'Helper', snippet: 'It reported', conversationId: '41' })
+    expect(notifyRunFinished).toHaveBeenCalledWith({ agentName: 'Helper', snippet: 'It reported', conversationId: '41', seen: false })
     await flush()
     expect(s.messages[s.messages.length - 1].content).toBe(ANSWER_ROW.content)
+  })
+
+  // Phase 8 run 3, finding 41: a Let's Code chat on screen still raised one (the page judged by its `/chat/<id>` URL).
+  it('a turn the person watched end is marked seen: by this page showing the chat, or by the server', async () => {
+    getConversationMessages.mockResolvedValue(history([USER_ROW, ANSWER_ROW]))
+    pageIsFocused.mockReturnValue(true)
+    const s = resumed()                                  // chat 41 is the open chat, whatever the page's URL
+    s._onEvent(finished('completed'))
+    expect(notifyRunFinished.mock.calls[0][0].seen).toBe(true)
+    pageIsFocused.mockReturnValue(false)
+    notifyRunFinished.mockReset()
+    s.conversationId = 99                                 // another chat is open here...
+    s._onEvent(finished('completed', { seen: true }))     // ...but another page of the person showed chat 41
+    expect(notifyRunFinished.mock.calls[0][0].seen).toBe(true)
+    notifyRunFinished.mockReset()
+    s._onEvent(finished('completed', { seen: false }))
+    expect(notifyRunFinished.mock.calls[0][0].seen).toBe(false)
   })
 
   it('a frame with no status (an older backend) is a completed turn', async () => {

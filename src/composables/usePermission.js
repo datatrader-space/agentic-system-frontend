@@ -16,7 +16,7 @@ export function choiceForLabel(label) {
   return String(label || '').toLowerCase().includes('deny') ? 'deny' : 'allow_once'
 }
 
-export function usePermission(sendFn, getConversationId) {
+export function usePermission(sendFn) {
   const permissionRequests = ref([])   // [{ card, message_id, expired }]
 
   function handlePermissionEvent(evt) {

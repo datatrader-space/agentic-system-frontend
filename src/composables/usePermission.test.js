@@ -4,7 +4,7 @@ import { usePermission, choiceForLabel } from './usePermission'
 describe('usePermission — coding-agent permission cards', () => {
   it('consumes permission_request and ignores other events', () => {
     const send = vi.fn()
-    const { permissionRequests, handlePermissionEvent } = usePermission(send, () => 'c1')
+    const { permissionRequests, handlePermissionEvent } = usePermission(send)
     expect(handlePermissionEvent({ type: 'assistant_typing' })).toBe(false)
     const card = { capability: 'create', path: '.env', options: ['Allow once', 'Deny'] }
     expect(handlePermissionEvent({ type: 'permission_request', card })).toBe(true)
@@ -14,7 +14,7 @@ describe('usePermission — coding-agent permission cards', () => {
 
   it('respondPermission sends a mapped choice and dequeues', () => {
     const send = vi.fn()
-    const { permissionRequests, handlePermissionEvent, respondPermission } = usePermission(send, () => 'c1')
+    const { permissionRequests, handlePermissionEvent, respondPermission } = usePermission(send)
     const card = { capability: 'create', path: '.env' }
     handlePermissionEvent({ type: 'permission_request', card })
     const choice = respondPermission(card, 'Always allow for this project')
@@ -25,14 +25,14 @@ describe('usePermission — coding-agent permission cards', () => {
 
   it('respondPermission accepts raw choice values too', () => {
     const send = vi.fn()
-    const { respondPermission } = usePermission(send, () => 'c1')
+    const { respondPermission } = usePermission(send)
     expect(respondPermission({}, 'allow_once')).toBe('allow_once')
     expect(respondPermission({}, 'deny')).toBe('deny')
   })
 
   it('a card from an earlier turn expires: it stays shown, and answering it sends nothing', () => {
     const send = vi.fn()
-    const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } = usePermission(send, () => 'c1')
+    const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } = usePermission(send)
     const card = { capability: 'run_command', command: 'npm install' }
     handlePermissionEvent({ type: 'permission_request', card })
     expect(permissionRequests.value[0].expired).toBe(false)

@@ -1552,9 +1552,16 @@ export const useChatStore = defineStore('chat', {
     // chat 1269 was open in a tab and still got one). This page says which chat it shows and whether it is in front
     // of the person: at once when that changes (focus, blur, the tab hidden or shown, checked every 5 s for another
     // chat opened), and again every 30 s, since the server forgets a page it has not heard from for 75 s.
+    // Does this page show chat `conversationId` to the person now: it is the open chat, in a visible, focused page.
+    // The one test for "looking at it", for the server's presence and the browser notification alike.
+    _showsChat(conversationId) {
+      return conversationId != null && this.conversationId != null && String(conversationId) !== ''
+        && String(conversationId) === String(this.conversationId) && pageIsFocused()
+    },
+
     _reportPresence(force = false) {
       const cid = this.conversationId != null ? String(this.conversationId) : ''
-      const viewing = !!cid && pageIsFocused()
+      const viewing = !!cid && this._showsChat(cid)
       const key = `${cid}|${viewing}`
       if (!this._conn || (!force && key === this._presenceSent)) return
       if (!cid && !this._presenceSent) return   // it never showed a chat: nothing to take back
@@ -2529,6 +2536,8 @@ export const useChatStore = defineStore('chat', {
             try {
               notifyRunFinished({
                 agentName: msg.agent_name, snippet: msg.snippet, conversationId: msg.conversation_id,
+                // Watched on this page, or on another of the person's pages (the server's presence), on any surface.
+                seen: msg.seen === true || this._showsChat(msg.conversation_id),
               })
             } catch { /* best-effort */ }
           }

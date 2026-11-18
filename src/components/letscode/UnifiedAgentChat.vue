@@ -212,7 +212,7 @@ const lastUserPrompt = ref('')
 let previous = null
 
 const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } =
-  usePermission((obj) => chat.sendRaw(obj), () => chat.conversationId)
+  usePermission((obj) => chat.sendRaw(obj))
 
 function lastAssistant() {
   for (let i = chat.messages.length - 1; i >= 0; i--) if (chat.messages[i].role === 'assistant') return chat.messages[i]

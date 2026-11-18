@@ -136,6 +136,17 @@ describe('reload catch-up from the run log', () => {
     expect(chat._runSeq['41']).toBe(6)
   })
 
+  it('a reload redraws an open card from the log and drops an answered one (finding 30)', () => {
+    const { chat } = resumed()
+    const card = (seq, id) => ({ seq, type: 'runtime.hitl_request', frame: 'hitl_request',
+                                 payload: { type: 'hitl_request', request_id: id, summary: 'Run npm install?',
+                                            payload: { kind: 'tool_approval' }, conversation_id: '41' } })
+    const done = { seq: 2, type: 'runtime.hitl_resolved', frame: 'hitl_resolved',
+                   payload: { type: 'hitl_resolved', request_id: 'h1', status: 'completed' } }
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', last_seq: 3, events: [card(1, 'h1'), done, card(3, 'h2')] })
+    expect(chat.hitlRequests.map((r) => r.request_id)).toEqual(['h2'])
+  })
+
   it('opening a conversation from history forgets its cursor, so the next catch-up starts from the beginning', () => {
     const chat = useChatStore()
     chat._runSeq = { 41: 12 }
