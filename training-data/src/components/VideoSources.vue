@@ -21,6 +21,7 @@ import PushDetails from './PushDetails.vue';
 import VideoSourcePage from './VideoSourcePage.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import MachineConnection from './MachineConnection.vue';
 import UiDialog from './UiDialog.vue';
 import { modelName, timeAgo } from '../api/workspace.js';
 import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT } from '../api/machines.js';
@@ -163,8 +164,7 @@ const WAYS = [
   { id: 'verkada', name: 'Verkada', icon: Cloud },
   { id: 'rtmp', name: 'RTMP stream', icon: RadioTower },
 ];
-const SYSTEMS = ['Windows', 'macOS', 'Linux'];
-const editorOpen = ref(false); const editing = ref(null); const way = ref('url'); const system = ref('Windows');
+const editorOpen = ref(false); const editing = ref(null); const way = ref('url');
 const form = ref(sourceForm()); const fieldErrors = ref({}); const formError = ref(''); const saving = ref(false);
 const consentNote = ref(''); const addedSaid = ref('');
 // The push details of the RTMP stream just added, its stream key with them: shown until the dialog closes, never kept.
@@ -271,6 +271,15 @@ function checkField(name) {
 const FIELDS = ['machine', 'name', 'address', 'username', 'password', 'project', 'consent'];
 // A camera on one of the workspace's machines (CLOUD_STREAMING_PLAN.md §11): the "Connect a camera" tab, or editing one.
 const machineRows = ref(null); const machinesError = ref('');
+// Adding the computer the cameras are near, here in the dialog: the one command (MachineConnection, as on the Machines
+// page) and, once it has joined, it is chosen for the camera. Live, 2026-11-18: the owner could not find where the
+// command was; this tab only said "the Machines page".
+const addingMachine = ref(false);
+async function machineAdded(machine) {
+  addingMachine.value = false;
+  await loadMachines();
+  if (machine?.id !== undefined) form.value.machine = String(machine.id);
+}
 const connecting = computed(() => (editing.value ? editing.value.kind === 'connector' : way.value === 'connector'));
 const usableMachines = computed(() => (machineRows.value || []).filter(m => m.state !== 'removed'));
 async function loadMachines() {
@@ -567,24 +576,10 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 
       <div id="vs-way-panel" class="vs-way-panel" :role="editing ? undefined : 'tabpanel'" :aria-labelledby="editing ? undefined : `vs-way-${way}`">
         <!-- Connect a camera: the connector is not released yet; nothing here pretends it is. -->
-        <div v-if="!editing && way==='connector' && machineRows !== null && !usableMachines.length">
-          <ol class="vs-steps">
-            <li>
-              <span class="vs-step-n" aria-hidden="true">1</span>
-              <div class="vs-step-body">
-                <h4>Connect a machine on the cameras' network</h4>
-                <p>The connector is AADML's machine agent, on a computer in the same network as your cameras. It only reaches out to AADML, so no port is opened on your router. Add the computer on the Machines page (Models, Your machines), then come back here to add its cameras.</p>
-                <p v-if="machinesError" class="field-error" role="alert">{{ machinesError }}</p>
-                <div class="vs-os" role="tablist" aria-label="Computer">
-                  <button v-for="(os, i) in SYSTEMS" :id="`vs-os-${os.toLowerCase()}`" :key="os" type="button" role="tab" :aria-selected="system===os" aria-controls="vs-os-panel"
-                          :tabindex="system===os ? 0 : -1" :class="{ on: system===os }" @click="system=os" @keydown="tabKeys($event, i, SYSTEMS, n => { system = n; }, 'vs-os')">{{ os }}</button>
-                </div>
-                <div id="vs-os-panel" class="vs-code" role="tabpanel" :aria-labelledby="`vs-os-${system.toLowerCase()}`">
-                  The Machines page gives the one command for {{ system }} that starts the agent and joins it to this workspace.
-                </div>
-              </div>
-            </li>
-          </ol>
+        <div v-if="!editing && way==='connector' && machineRows !== null && (!usableMachines.length || addingMachine)" class="vs-add-machine">
+          <p class="dialog-description">A camera on your own network is read by one of your computers on that network, running AADML's machine agent. It only reaches out to AADML: no port is opened on your router. Make the command below, run it once in a terminal on that computer, and the computer appears here.</p>
+          <p v-if="machinesError" class="field-error" role="alert">{{ machinesError }}</p>
+          <MachineConnection continue-label="Use it for the camera" @cancel="addingMachine = false" @connected="machineAdded"/>
         </div>
 
         <!-- Scan from phone: a pairing code; what the phone reads fills the Camera URL form -->
@@ -645,6 +640,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
               <option v-for="m in usableMachines" :key="m.id" :value="String(m.id)">{{ machineLine(m) }}</option>
             </select>
             <p v-if="fieldErrors.machine" id="vs-machine-error" class="field-error" role="alert">{{ fieldErrors.machine }}</p>
+            <button v-if="!addingMachine" type="button" class="link-button vs-add-machine-link" @click="addingMachine = true">The camera is near another computer? Add that computer</button>
             <div v-if="chosenMachine" class="vs-find">
               <UiButton :disabled="!!findWhy || finding?.state === 'looking'" aria-describedby="vs-find-help" @click="findCameras">
                 <LoaderCircle v-if="finding?.state === 'looking'" class="spin" :size="14" aria-hidden="true"/><Search v-else :size="14" aria-hidden="true"/>
