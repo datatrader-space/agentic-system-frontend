@@ -85,7 +85,14 @@ const myTemplates = provideStudioTemplates(user)
 // Unsent drafts belong to the person who wrote them: when the signed-in person changes or signs out, that person's
 // drafts on this browser are removed (sign-out in app.vue also removes them).
 watch(() => user.value?.id, (id, previous) => { if (previous && String(id || '') !== String(previous)) clearStudioDrafts(String(previous)) })
-const pageTitle = computed(() => route.path.endsWith('/dashboard') ? 'Dashboard' : studioFeatures.value.find(f => f.route === route.path)?.label || 'Discover')
+// The page's name in the top bar comes from its route's studioFeature, so pages that are not a feature of their own
+// (Team spend, a project's room, a share link) are named, not shown as Discover.
+const PAGE_TITLES = { dashboard: 'Dashboard', 'team-spend': 'Team spend' }
+const pageTitle = computed(() => {
+  const id = route.meta?.studioFeature
+  return PAGE_TITLES[id] || studioFeatures.value.find(f => f.id === id)?.label
+    || studioFeatures.value.find(f => f.route === route.path)?.label || 'Discover'
+})
 const workspaceBar=ref(null), designNotes=ref(null)
 const menuOpen = ref(false), sidebar = ref(null), menuTrigger = ref(null)
 const historyDialog = ref(null), historyOpen = ref(false)

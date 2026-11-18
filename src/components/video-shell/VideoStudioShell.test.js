@@ -22,7 +22,9 @@ async function mountAt(path) {
     routes: [
       { path: '/video-studio', component: VideoStudioShell, children: [
         { path: '', component: Blank }, { path: 'projects', component: Blank },
-        { path: 'library', component: Blank }, { path: 'ingredients', component: Blank }, { path: 'help', component: Blank }] },
+        { path: 'library', component: Blank }, { path: 'ingredients', component: Blank }, { path: 'help', component: Blank },
+        { path: 'team-spend', component: Blank, meta: { studioFeature: 'team-spend' } },
+        { path: 'projects/:projectId', component: Blank, meta: { studioFeature: 'projects' } }] },
       { path: '/dashboard/:rest(.*)*', component: Blank },
     ],
   })
@@ -36,6 +38,14 @@ async function mountAt(path) {
 beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()); document.body.classList.remove('vs-theme') })
 
 describe('VideoStudioShell', () => {
+  it("names Team spend and a project's room in the top bar, not Discover", async () => {
+    for (const [path, title] of [['/video-studio/team-spend', 'Team spend'], ['/video-studio/projects/p1', 'Projects'],
+                                 ['/video-studio/library', 'Library'], ['/video-studio', 'Discover']]) {
+      const { w } = await mountAt(path)
+      expect(w.findComponent({ name: 'StudioWorkspaceBar' }).props('title')).toBe(title)
+      w.unmount()
+    }
+  })
   it('marks the current page in its navigation', async () => {
     const { w } = await mountAt('/video-studio/library')
     expect(w.get('[data-test="vs-nav-library"]').attributes('aria-current')).toBe('page')
