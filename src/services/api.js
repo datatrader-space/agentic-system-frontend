@@ -307,9 +307,24 @@ function _uploadId() {
 // API methods
 export default {
   getStudioFeatures: () => api.get('/video/features/'),
+  // Publishing (backend CREATIVE_SUITE_P7_P8_PLAN.md): the person's own platform sign-ins and publications.
+  getPublishConnections: () => api.get('/video/publishing/connections/', { noCache: true }),
+  getPublishDestinations: platform => api.get(`/video/publishing/${encodeURIComponent(platform)}/destinations/`, { noCache: true }),
+  getPublications: () => api.get('/video/publishing/publications/', { noCache: true }),
+  createPublication: (data, key) => api.post('/video/publishing/publications/', data, key ? { headers: { 'Idempotency-Key': key } } : undefined),
+  publicationAction: (id, action) => api.post(`/video/publishing/publications/${encodeURIComponent(id)}/${action}/`),
+  // Community templates: share a project as a remixable template, remix one, withdraw, report.
+  getCommunityTemplates: params => api.get('/video/community/templates/', { params, noCache: true }),
+  shareCommunityTemplate: data => api.post('/video/community/templates/', data),
+  communityTemplateAction: (id, action, data, key) => api.post(`/video/community/templates/${encodeURIComponent(id)}/${action}/`, data || {}, key ? { headers: { 'Idempotency-Key': key } } : undefined),
+  // P8: the timeline as Lottie, and a finished video as a downloadable web page.
+  getTimelineLottie: (projectId, revisionId) => api.get(`/video/projects/${encodeURIComponent(projectId)}/timeline/lottie/`, { params: revisionId ? { revision_id: revisionId } : {}, noCache: true }),
+  downloadWebPage: data => api.post('/video/webpage/', data, { responseType: 'blob' }),
   getMediaRoutes: operation => api.get('/video/media/routes/', { params: { operation } }),
   prepareMediaJob: data => api.post('/video/media/jobs/', data),
   getStudioJob: id => api.get(`/video/jobs/${encodeURIComponent(id)}/`),
+  // The mask a ready area selection made (ADM-1251), as PNG bytes through this API: the page reads its pixels.
+  getStudioJobMask: id => getBlob(`/video/jobs/${encodeURIComponent(id)}/mask/`),
   getStoryboard: id => api.get(`/video/projects/${encodeURIComponent(id)}/storyboard/`),
   getCinemaControls: () => api.get('/video/cinema/controls/'),
   getStudioRecipes: page => api.get('/video/recipes/', { params: { page } }),

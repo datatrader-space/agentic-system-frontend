@@ -103,8 +103,8 @@ function readGroups() {
   return Object.fromEntries(STUDIO_GROUPS.map(group => [group, typeof saved[group] === 'boolean' ? saved[group] : false]))
 }
 const groupOpen = ref(readGroups())
-const workspaceIcons = {projects:'folder',library:'library',canvas:'canvas'}
-const workspace = computed(() => ['projects','library','canvas'].map(id => studioFeatures.value.find(f => f.id === id)).filter(Boolean))
+const workspaceIcons = {projects:'folder',library:'library',canvas:'canvas',publish:'publish',community:'community'}
+const workspace = computed(() => ['projects','library','canvas','publish','community'].map(id => studioFeatures.value.find(f => f.id === id)).filter(Boolean))
 const workspaceTop = computed(() => [
   {id:'dashboard', label:'Dashboard',to:'/video-studio/dashboard',icon:'layers',active:route.path === '/video-studio/dashboard'},
   {id:'home',label:'Discover',to:'/video-studio',icon:'grid',active:['/video-studio','/video-studio/'].includes(route.path) && !route.query.saved},

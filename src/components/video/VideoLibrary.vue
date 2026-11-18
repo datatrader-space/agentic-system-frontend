@@ -136,7 +136,7 @@
 import { studioChatName } from '../../services/studioMessagePresentation'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { studioLooks } from '../../services/studioLooks'
+import { allLooks, loadAllPresets } from '../../services/studioPresets'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
@@ -209,7 +209,8 @@ function chatLink(it) {
     : `/dashboard/chat/${it.conversation_id}`
 }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
-const lookTitle = computed(() => studioLooks.find(look => look.id === lib.value.preset)?.title || 'this look')
+loadAllPresets()
+const lookTitle = computed(() => allLooks().find(look => look.id === lib.value.preset)?.title || 'this look')
 // Only the page is filtered by a look; the drawer and the picker always list every file.
 const lookFilter = () => (isPage.value ? props.preset || '' : '')
 // The page owns the look filter (it is in its address): it is asked to drop it, and the new address reloads the list.

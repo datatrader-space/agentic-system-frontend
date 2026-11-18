@@ -118,7 +118,7 @@ const OPS = { generate: 'New clip', change: 'Video change', extend: 'Continue cl
               // Media jobs (media_ops.OPERATIONS) share this card.
               speech: 'Speech', sound: 'Sound effect', sfx: 'Sound effect', music: 'Music', voice_change: 'Voice change',
               transcribe: 'Transcript', image: 'Image', edit_image: 'Image edit', upscale: 'Upscale', lipsync: 'Lip-sync',
-              motion: 'Motion transfer', avatar: 'Talking avatar', train: 'Identity training' }
+              motion: 'Motion transfer', avatar: 'Talking avatar', train: 'Identity training', segment: 'Area selection' }
 // An operation this list does not name yet is titled by what the job makes, never as a video by default.
 const KINDS = { video: 'Video', image: 'Image', audio: 'Audio', text: 'Transcript', training: 'Identity training' }
 const STATES = { awaiting_authorization: 'Estimate', queued: 'Queued', submitting: 'Sending', running: 'Rendering',

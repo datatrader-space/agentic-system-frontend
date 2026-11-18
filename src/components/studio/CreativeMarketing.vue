@@ -1,7 +1,8 @@
 <template>
   <div class="creative-form">
-    <CreativeError :error="shownError" locate />
+    <CreativeError v-if="kind !== 'ads'" :error="shownError" locate />
     <template v-if="kind !== 'ads'">
+      <ConsentStep v-if="consent" :request="consent" @agreed="agreeConsent" @cancel="consent = null" />
       <label class="st-field" data-field="recipe_id">Recipe<select v-model="recipeId" class="st-input" @change="resetRecipe"><option value="">Choose recipe</option><option v-for="r in recipes" :key="r.id" :value="r.id" :disabled="!r.ready">{{ r.title }}{{ r.ready ? '' : ' — Not yet proven' }}</option></select></label>
       <template v-if="recipe">
         <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" :only="recipe.needs ? recipe.route_ids || [] : null" :only-note="needsNote" />
@@ -20,46 +21,25 @@
       </template>
       <Teleport v-if="monitor" defer :to="`#${monitor}`"><MediaMonitor :items="monitorItems" :empty="recipe ? 'Add the files this recipe needs to see them here.' : 'Choose a recipe, then add the files it needs.'" /></Teleport>
     </template>
-    <template v-else>
-      <label class="st-field" data-field="brand_id">Brand<select v-model="brandId" class="st-input"><option value="">Choose brand</option><option v-for="brand in brands" :key="brand.brand_id || brand.id" :value="brand.brand_id || brand.id">{{ brand.name }}{{ brand.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
-      <label class="st-field" data-field="url">Brand website<input v-model="website" class="st-input" type="url" /></label><button class="st-button" :disabled="busy || !website" @click="readBrand">Read website</button>
-      <p v-if="draft" class="st-muted">Review this draft before saving it.</p>
-      <template v-if="draft">
-        <label v-for="field in ['name','description','website','tagline','voice','audience']" :key="field" class="st-field">{{ words(field) }}<textarea v-model="draft[field]" class="st-input" rows="2" /></label>
-        <label class="st-field">Colors (comma separated)<input v-model="colors" class="st-input" /></label>
-        <InputSlot label="Brand images (logo first)" required :kinds="['image']" :limit="8" :allow-upload="false" :items="draft.images || []" @pick="addBrandImages" @remove="draft.images.splice(draft.images.indexOf($event),1)" />
-        <div v-for="(image,i) in draft.images || []" :key="image.attachment_id" class="creative-card"><span>{{ image.source_url }}</span><button class="st-button" :disabled="i === 0" @click="draft.images.unshift(...draft.images.splice(i,1))">Use as logo (first)</button><button class="st-button" @click="draft.images.splice(i,1)">Remove image</button></div>
-        <ElementRightsFields v-model="brandRights" kind="brand" :name="draft.name" :schema="elementSchema" />
-        <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length || !rightsComplete('brand', brandRights)" @click="saveBrand">Save reviewed brand</button>
-        <p v-if="!draft.name || !draft.images?.length" class="st-muted" role="status" data-test="brand-save-needs">{{ !draft.name ? 'Give the brand a name' : 'Add at least one brand image, the logo first' }} to save it.</p>
-        <p v-else-if="!rightsComplete('brand', brandRights)" class="st-muted" role="status" data-test="brand-save-rights">Confirm your rights to the brand to save it.</p>
-      </template>
-      <button v-if="!draft" class="st-button" @click="draft = { name:'', description:'', website:'', tagline:'', voice:'', audience:'', images:[] }">New brand</button>
-      <label class="st-field" data-field="platform">Platform<select v-model="platform" class="st-input"><option v-for="p in adOptions.platforms" :key="p.id" :value="p.id">{{ p.label }} · {{ p.aspect_ratio }} · up to {{ p.max_seconds }} seconds</option></select></label>
-      <label class="st-field" data-field="goal">Goal<select v-model="goal" class="st-input"><option v-for="g in adOptions.goals" :key="g" :value="g">{{ words(g) }}</option></select></label>
-      <label class="st-field" data-field="product_id">Product Element (optional)<select v-model="productId" class="st-input"><option value="">No product</option><option v-for="p in products" :key="p.ingredient_id" :value="p.ingredient_id">{{ p.name }}</option></select></label>
-      <label class="st-field" data-field="notes">Notes<textarea v-model="notes" class="st-input" /></label><label class="st-field" data-field="n">Concept count<input v-model.number="count" type="number" min="1" :max="adOptions.max_concepts || 4" class="st-input" /></label>
-      <button class="st-button primary" :disabled="busy || !brandId || !platform" @click="concepts">Develop concepts</button>
-      <div v-for="(concept,i) in drafts" :key="i" class="creative-card"><label v-for="field in ['title','hook','angle','cta']" :key="field" class="st-field">{{ words(field) }}<textarea v-model="concept[field]" class="st-input" /></label><div v-for="(s,j) in concept.scenes" :key="j"><label v-for="field in ['visual','voiceover','on_screen_text','planned_ms']" :key="field" class="st-field">{{ words(field) }}<input v-model="s[field]" class="st-input" :type="field === 'planned_ms' ? 'number' : 'text'" /></label></div><button class="st-button" :disabled="busy" @click="makeProject(concept)">Use concept in Storyboard</button></div>
-    </template>
+    <AdsStudio v-else @job="emit('job', $event)" />
   </div>
 </template>
 <script setup>
 import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import api from '../../services/api'
+import { loadStudioRoutes, schemaEnum } from '../../services/studioModelRoutes'
 import { routeOptionLabel } from '../../utils/studioPrice'
 import InputSlot from './InputSlot.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import CreativeError from './CreativeError.vue'
-import ElementRightsFields from '../video/ElementRightsFields.vue'
-import { emptyRights, rightsComplete, rightsPayload } from '../video/elementKinds'
-import { useVideoStore } from '../../stores/useVideoStore'
+import ConsentStep from './ConsentStep.vue'
+import AdsStudio from './AdsStudio.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { modelAliases, studioError, useStudioChat } from './studioForm'
-const props = defineProps({ kind:String }), emit = defineEmits(['job']), router = useRouter(), { busy,error,run } = useCreativeForm()
+const props = defineProps({ kind:String }), emit = defineEmits(['job']), route = useRoute(), { busy,error,run } = useCreativeForm()
 // The server's field and slot names ("on_screen_text", "light") said in words on the page.
 const WORDS = { voice: 'How the brand speaks', audience: 'Who it is for', hook: 'Hook (the first two seconds)', angle: 'Why it works', cta: 'Call to action', visual: 'What the camera sees', on_screen_text: 'On-screen text', planned_ms: 'Length (milliseconds)', image: 'Photo', video: 'Your video' }
 const words = key => WORDS[key] || String(key || '').replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase())
@@ -70,29 +50,34 @@ const recipes = ref([]), recipeId = ref(''), slots = ref({}), options = ref({}),
 const { chatFields } = useStudioChat(() => props.kind)
 const shownError = computed(() => {
   const slotFields = (recipe.value?.slots || []).map(s => `slots.${s.name}`)
-  return studioError(error.value, ['recipe_id','route_id',...slotFields,'brand_id','url','platform','goal','product_id','notes','n'], { ...modelAliases('route_id'), ...(slotFields[0] ? { references: slotFields[0] } : {}) })
+  return studioError(consent.value ? null : error.value, ['recipe_id','route_id',...slotFields], { ...modelAliases('route_id'), ...(slotFields[0] ? { references: slotFields[0] } : {}) })
 })
 // An image recipe runs on a media model the person chooses; a video recipe uses the Studio's video model.
 const monitor = inject('studioMonitor', '')
 const monitorItems = computed(() => (recipe.value?.slots || []).filter(s => slots.value[s.name]).map(s => ({ ...slots.value[s.name], media_type: slots.value[s.name].media_type || s.media_type, url: slots.value[s.name].url || slots.value[s.name].thumbnail_url, name: slots.value[s.name].title || slots.value[s.name].filename || s.name, role: s.name })))
 const recipeRoute = ref(''), mediaRecipe = computed(() => !!recipe.value && !['video','change'].includes(recipe.value.operation))
-// A brand kit is approved by the person's own Save with their rights statement (ELEMENTS_V2_PLAN.md).
-const brandRights = ref(emptyRights()), elementSchema = ref(null)
-useVideoStore().loadIngredientSchema().then(s => { elementSchema.value = s })
-const brands = ref([]), brandId = ref(''), website = ref(''), draft = ref(null), colors = ref(''), adOptions = ref({}), platform = ref(''), goal = ref('awareness'), productId = ref(''), products = ref([]), notes = ref(''), count = ref(3), drafts = ref([])
-onMounted(() => run(async alive => {
-  if (props.kind !== 'ads') { const {data} = await api.getStudioRecipes(props.kind); if (alive()) recipes.value = data.recipes || []; return }
-  const [b,o,p] = await Promise.all([api.get('/video/brands/'), api.get('/video/ads/options/'), api.get('/video/ingredients/')])
-  if (!alive()) return
-  brands.value = b.data.brands || []; adOptions.value = o.data; platform.value = o.data.platforms?.[0]?.id || ''; products.value = (p.data.ingredients || []).filter(item => item.kind === 'product')
-}))
+const notes = ref('')
+onMounted(() => { if (props.kind !== 'ads') run(async alive => { const {data} = await api.getStudioRecipes(props.kind); if (alive()) { recipes.value = data.recipes || []; await chooseLinkedRecipe() } }) })
+// The Ads page links here with a recipe and a saved product (?recipe=ugc&product=<id>): the recipe is chosen and the
+// product's first photo fills its product slot.
+async function chooseLinkedRecipe() {
+  const id = String(route?.query?.recipe || '')
+  if (!id || !recipes.value.some(r => r.id === id)) return
+  recipeId.value = id; resetRecipe()
+  const pid = String(route.query.product || '')
+  const slot = recipe.value.slots.find(s => s.name === 'product' && s.media_type === 'image')
+  if (!pid || !slot) return
+  const { data } = await api.get('/video/products/')
+  const product = (data?.products || []).find(p => p.product_id === pid)
+  if (product?.attachment_ids?.length) slots.value[slot.name] = { attachment_id: product.attachment_ids[0], name: product.name, media_type: 'image' }
+}
 function resetRecipe() { slots.value = {}; options.value = Object.fromEntries(Object.entries(recipe.value?.options || {}).map(([k,v]) => [k,v[0]])); loadVideoRoutes() }
 // A video recipe runs on a video model the person chooses, at the size they choose, the smallest first (live 2026-10-28:
 // with no choice it went to the Studio's default model, Kling 3.0 Pro, which cannot edit an upload, at its top size).
 // An edit lists the models proven for either kind of clip: the server picks the task from the clip itself.
 const videoRoutes = ref([]), videoRouteId = ref(''), videoLoading = ref(false), resolution = ref('')
 const videoRoute = computed(() => videoRoutes.value.find(r => String(r.route_id) === videoRouteId.value))
-const resolutions = computed(() => videoRoute.value?.schema?.properties?.resolution?.enum || [])
+const resolutions = computed(() => schemaEnum(videoRoute.value, 'resolution'))
 watch(videoRoute, () => { resolution.value = resolutions.value[0] || '' })
 let videoSeq = 0
 async function loadVideoRoutes() {
@@ -102,20 +87,23 @@ async function loadVideoRoutes() {
   const tasks = String(recipe.value.task || '').startsWith('edit_') ? ['edit_uploaded', 'edit_generated'] : [recipe.value.task]
   videoLoading.value = true
   try {
-    const answers = await Promise.all(tasks.map(task => api.getStudioRoutes(task)))
+    const list = await loadStudioRoutes(tasks)
     if (mine !== videoSeq) return
-    const seen = new Set()
-    videoRoutes.value = answers.flatMap(({ data }) => data.routes || []).filter(r => !seen.has(r.route_id) && seen.add(r.route_id))
+    videoRoutes.value = list
     videoRouteId.value = videoRoutes.value[0] ? String(videoRoutes.value[0].route_id) : ''
   } catch { if (mine === videoSeq) error.value = { message: 'Could not load the models.' } }
   finally { if (mine === videoSeq) videoLoading.value = false }
 }
 function recipeBody(chosen) { return { ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:chosen } }
-function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody(options.value), ...await chatFields() }); if (alive()) emit('job',data) }) }
+const consent = ref(null)
+let retry = null
+watch(error, e => { if (e?.code === 'consent_required' && retry) consent.value = { message: e.message, files: (e.alternatives || []).map(file => ({ ...file, name: Object.values(slots.value).find(v => v?.attachment_id === file.attachment_id)?.name || 'This photo' })) } })
+function agreeConsent() { consent.value = null; retry?.() }
+function prepareRecipe() { retry = prepareRecipe; run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody(options.value), ...await chatFields() }); if (alive()) emit('job',data) }) }
 // A recipe's set (Zooms and shots: close-up, medium, wide): one job per value, in order, each its own estimate card.
 // A refusal stops the rest; the ones already made stay in Results.
 const recipeSet = computed(() => { const [name, values] = Object.entries(recipe.value?.sets || {})[0] || []; return name && values?.length ? { name, values } : null })
-function prepareSet() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const set = recipeSet.value; for (const value of set.values) { const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody({ ...options.value, [set.name]:value }), ...await chatFields() }); if (!alive()) return; emit('job',data) } }) }
+function prepareSet() { retry = prepareSet; run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const set = recipeSet.value; for (const value of set.values) { const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody({ ...options.value, [set.name]:value }), ...await chatFields() }); if (!alive()) return; emit('job',data) } }) }
 // Why no model is offered for a recipe that needs more than its task.
 const needsNote = computed(() => (recipe.value?.needs || []).includes('reshape') ? 'None of the models you can use can change the shape of a picture yet.' : 'None of the models you can use can do this yet.')
 // A look that names a recipe (the Effects looks) chooses it, with the look's options, once the recipes are listed.
@@ -124,19 +112,6 @@ function chooseLookRecipe(value) {
   recipeId.value = value.recipe; resetRecipe()
   for (const [k, v] of Object.entries(value.recipeOptions || {})) if (recipe.value.options?.[k]?.includes(v)) options.value[k] = v
 }
-function readBrand() { run(async alive => { const {data} = await api.post('/video/brands/read/',{ url:website.value, ...await chatFields() }); if (alive()) { draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
-function addBrandImages(items) {
-  if (!draft.value) return
-  const images = draft.value.images || (draft.value.images = [])
-  for (const item of items) {
-    if (images.length >= 8) break
-    if (item.attachment_id && !images.some(image => image.attachment_id === item.attachment_id)) images.push({ attachment_id: item.attachment_id })
-  }
-}
-function saveBrand() { run(async alive => { const d = draft.value; const {data} = await api.post('/video/brands/',{ name:d.name, description:d.description, traits:{ colors:colors.value.split(',').map(v => v.trim()).filter(Boolean), website:d.website, tagline:d.tagline, voice:d.voice, audience:d.audience }, attachment_ids:(d.images || []).map(i => i.attachment_id), ...rightsPayload('brand', brandRights.value) }); if (alive()) { brands.value.push(data); brandId.value = data.brand_id || data.id; draft.value = null; brandRights.value = emptyRights() } }) }
-const brief = () => ({ brand_id:brandId.value, platform:platform.value, ...(productId.value ? { product_id:productId.value } : {}) })
-function concepts() { run(async alive => { const {data} = await api.post('/video/ads/concepts/',{ ...brief(), goal:goal.value, notes:notes.value, n:count.value, ...await chatFields() }); if (alive()) drafts.value = data.concepts || [] }) }
-function makeProject(concept) { run(async alive => { const normalized = { ...concept, scenes:concept.scenes.map(s => ({ ...s, planned_ms:Number(s.planned_ms) })) }; normalized.total_ms = normalized.scenes.reduce((sum,s) => sum+s.planned_ms,0); const {data} = await api.post('/video/ads/projects/',{ ...brief(), concept:normalized, ...await chatFields() }); if (alive()) router.push({ path:'/video-studio/storyboard', query:{ project_id:data.project_id } }) }) }
 const preparedLook = useStudioPreparedBrief(notes)
 watch([preparedLook, recipes], ([value]) => chooseLookRecipe(value))
 </script>

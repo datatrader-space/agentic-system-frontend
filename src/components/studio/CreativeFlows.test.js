@@ -13,7 +13,7 @@ import api from '../../services/api'
 import { useChatStore } from '../../stores/useChatStore'
 const routeQuery = vi.hoisted(() => ({ project_id: 'p' }))
 vi.mock('vue-router',()=>({useRoute:()=>({query:routeQuery}),useRouter:()=>({push:vi.fn()})}))
-vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),patch:vi.fn(),put:vi.fn(),getStoryboard:vi.fn(),getCinemaControls:vi.fn(),getMediaRoutes:vi.fn(),getStudioRecipes:vi.fn(),runStudioRecipe:vi.fn(),getMediaVoices:vi.fn(),getStudioQuote:vi.fn()}}))
+vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),patch:vi.fn(),put:vi.fn(),getStoryboard:vi.fn(),getCinemaControls:vi.fn(),getMediaRoutes:vi.fn(),getStudioRecipes:vi.fn(),runStudioRecipe:vi.fn(),getMediaVoices:vi.fn(),getStudioQuote:vi.fn(),getTimelineLottie:vi.fn(),downloadWebPage:vi.fn()}}))
 vi.mock('../../composables/useNotify',()=>({notify:{error:vi.fn(),success:vi.fn(),warning:vi.fn()}}))
 // The page's Studio session has its chat open (useStudioSession), so each request goes into that chat.
 const setup = (component,kind) => { const pinia = createPinia(); setActivePinia(pinia); useChatStore(pinia).conversationId = 'c1'; return mount(component,{props:{kind},global:{plugins:[pinia],stubs:{InputSlot:true,RouterLink:true}}}) }
@@ -27,11 +27,10 @@ describe('Creative flow boundaries',()=>{
     api.getStoryboard.mockResolvedValue({data:{revision:4,scenes:[{scene_id:'s',order:0,title:'Scene',intent:'A tree',cinema:{},keyframes:[{attachment_id:'frame',url:'/frame'}],takes:[],next_step:'keyframe'}]}})
     api.get.mockImplementation(async path=>({data:path==='/video/projects/'?{projects:[{project_id:'p',title:'Project'}]}:path==='/video/projects/p/'?{project_id:'p',revision:4,scenes:[{scene_id:'s',intent:'A tree'}],timeline:{revision_id:7,edl:{tracks:[{kind:'video',clips:[{attachment_id:'v'}]}]}}}:path==='/video/ads/options/'?{platforms:[],goals:[]}:path==='/video/brands/'?{brands:[]}:path==='/video/ingredients/'?{ingredients:[]}:path==='/video/explainers/p/'?{scenes:[]}:{} }))
   })
-  it('exports the immutable saved timeline revision',async()=>{
-    api.post.mockResolvedValue({data:{job_id:'export',operation:'export',state:'queued'}})
-    const w=setup(Board,'editor'); await flushPromises(); await click(w,'Export saved timeline')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/',{operation:'export',project_id:'p',params:{timeline_revision_id:7},...inChat('editor')})
-    expect(w.emitted('job')[0][0].job_id).toBe('export'); w.unmount()
+  it('opens the clip editor on a storyboard project (one editor, VIDEO_CLIP_EDITOR_PLAN.md E1)',async()=>{
+    const w=setup(Board,'storyboard'); await flushPromises()
+    expect(w.find('[data-test="board-edit-cut"]').exists()).toBe(true)
+    expect(w.text()).not.toContain('Save timeline'); w.unmount()
   })
   it('shows the current storyboard on a conflicting keyframe choice without retrying',async()=>{
     api.post.mockRejectedValue({response:{status:409,data:{storyboard:{revision:5,scenes:[{scene_id:'new',title:'Current server scene',cinema:{},takes:[],keyframes:[]}]}}}})
@@ -41,7 +40,7 @@ describe('Creative flow boundaries',()=>{
   it('reads a brand into an editable draft without saving it',async()=>{
     api.post.mockResolvedValue({data:{name:'Draft brand',website:'https://example.com',colors:['#fff'],images:[]}})
     const w=setup(Marketing,'ads'); await flushPromises(); await w.get('input[type="url"]').setValue('https://example.com'); await click(w,'Read website')
-    expect(w.text()).toContain('Review this draft'); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/read/',{url:'https://example.com',...inChat('ads')}); w.unmount()
+    expect(w.text()).toContain('Review this draft'); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/read/',{url:'https://example.com',read_id:expect.any(String),...inChat('ads')}); w.unmount()
   })
   it('emits a separate approval proposal for every narration scene',async()=>{
     api.getMediaRoutes.mockResolvedValue({data:{routes:[{route_id:'r',name:'Speech',ready:true}]}})
@@ -53,21 +52,6 @@ describe('Creative flow boundaries',()=>{
     expect(w.get('[data-test="media-route"]').element.value).toBe('r'); expect(api.getMediaVoices).toHaveBeenCalledWith(expect.objectContaining({route_id:'r'})); await w.get('input[type="radio"][value="v"]').setValue(true); await click(w,'Review narration estimates')
     expect(w.emitted('job').map(row=>row[0].job_id)).toEqual(['one','two']); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/explainers/p/narrate/',{route_id:'r',voice_id:'v'}); w.unmount()
   })
-  it('offers and sends exactly the seven supported overlay positions', async () => {
-    api.post.mockResolvedValue({ data: { revision_id: 8 } })
-    const w = setup(Board, 'editor'); await flushPromises()
-    w.findAllComponents(InputSlot).find(slot => slot.props('label') === 'Image overlays').vm.$emit('pick', [{ attachment_id: 'logo' }])
-    await flushPromises()
-    const position = w.findAll('label').find(label => label.text().startsWith('Position')).get('select')
-    const positions = ['top-left','top','top-right','center','bottom-left','bottom','bottom-right']
-    expect(position.findAll('option').map(option => option.element.value)).toEqual(positions)
-    for (const value of positions) {
-      await position.setValue(value); await click(w, 'Save timeline')
-      const edl = api.post.mock.calls.at(-1)[1].edl
-      expect(edl.tracks.find(track => track.kind === 'overlay').items[0]).toEqual({ attachment_id: 'logo', position: value, scale: 0.18 })
-    }
-    w.unmount()
-  })
   it('does not show a pending notice for an empty job list and numbers scenes from one', async () => {
     api.getStoryboard.mockResolvedValue({ data: { revision: 4, scenes: [{ scene_id: 's', order: 0, title: 'Scene 1', cinema: {}, keyframes: [], takes: [], keyframe_jobs_pending: [] }] } })
     const w = setup(Board, 'storyboard'); await flushPromises()
@@ -75,28 +59,6 @@ describe('Creative flow boundaries',()=>{
     expect(w.get('h2').text()).toBe('1. Scene 1')
     api.getStoryboard.mockResolvedValue({ data: { revision: 4, scenes: [{ scene_id: 's', order: 0, title: 'Scene 1', cinema: {}, keyframes: [], takes: [], keyframe_jobs_pending: ['job'] }] } })
     await click(w, 'Refresh storyboard'); expect(w.text()).toContain('Keyframes pending'); w.unmount()
-  })
-  it('omits cleared numeric values from every timeline record while preserving zero and false', async () => {
-    const get = api.get.getMockImplementation()
-    api.get.mockImplementation(path => path !== '/video/projects/p/' ? get(path) : Promise.resolve({ data: {
-      project_id: 'p', scenes: [], timeline: { revision_id: 7, edl: { tracks: [
-        { kind: 'video', clips: [{ attachment_id: 'v', in_ms: 1, out_ms: 2000, hold_ms: 0, empty: null, transition: { kind: 'crossfade', ms: 500 } }] },
-        { kind: 'audio', clips: [{ attachment_id: 'a', start_ms: 0, in_ms: 1, out_ms: 2000, gain_db: 0, duck: false, mute_original: false }] },
-        { kind: 'overlay', items: [{ attachment_id: 'logo', position: 'top', scale: 0.18, start_ms: 1, end_ms: 2000 }] },
-        { kind: 'text', cues: [{ text: 'Caption', start_ms: 1, end_ms: 2000 }] },
-      ] } },
-    } }))
-    api.post.mockResolvedValue({ data: { revision_id: 8 } })
-    const w = setup(Board, 'editor'); await flushPromises()
-    for (const input of w.findAll('input[type="number"]')) await input.setValue('')
-    await click(w, 'Save timeline')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/projects/p/timeline/', { edl: { tracks: [
-      { kind: 'video', clips: [{ attachment_id: 'v', hold_ms: 0, transition: { kind: 'crossfade' } }] },
-      { kind: 'audio', clips: [{ attachment_id: 'a', duck: false, mute_original: false }] },
-      { kind: 'overlay', items: [{ attachment_id: 'logo', position: 'top' }] },
-      { kind: 'text', cues: [{ text: 'Caption' }], position: 'bottom' },
-    ] } })
-    w.unmount()
   })
   it('sends the selected product ingredient id when developing concepts', async () => {
     const get = api.get.getMockImplementation()
@@ -414,3 +376,5 @@ describe('Studio recipes and Cinema controls v2', () => {
     w.unmount()
   })
 })
+
+// P8 (backend CREATIVE_SUITE_P7_P8_PLAN.md): the saved timeline as Lottie, and the project's video as a web page.

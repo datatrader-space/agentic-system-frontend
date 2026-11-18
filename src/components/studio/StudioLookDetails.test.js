@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Details from './StudioLookDetails.vue'
 import { provideStudioTemplates } from '../../composables/useStudioTemplates'
 import { studioLooks } from '../../services/studioLooks'
+// The Image page's looks are served by the Recipe API (F-D4): a copy of what it serves.
+import SERVED from '../../services/__fixtures__/studioPresets.json'
 
 describe('Every approved look is editable before it reaches the Agent', () => {
-  it.each(studioLooks)('$id exposes its real variables and applies visible text without submitting', async look => {
+  it.each([...SERVED.filter(look => look.clientOnly), ...studioLooks])('$id exposes its real variables and applies visible text without submitting', async look => {
     const w = mount(Details, {props:{look}})
     expect(w.findAll('input')).toHaveLength(look.variables.length)
     const changed = 'My personal direction for '+look.title
@@ -41,7 +43,7 @@ describe('Save as my template', () => {
   it('asks for a name in the page and saves the page, the look, the edited prompt, its texts and the page settings', async () => {
     const prompt = vi.spyOn(window, 'prompt')
     api.post.mockImplementation((_, body) => Promise.resolve({ data: { ...body, id: 12 } }))
-    const look = studioLooks.find(item => item.id === 'image-look-1')
+    const look = SERVED.find(item => item.id === 'image-look-1')
     const w = withTemplates({ look, settings: { aspect_ratio: '3:4', n: 2, resolution: '' } }); await flushPromises()
     await w.findAll('.sld-fields input')[0].setValue('My teapot')
     await w.get('[data-test="look-save-mine"]').trigger('click')

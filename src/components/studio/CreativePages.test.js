@@ -2,7 +2,7 @@
 // The nine pages that were "Coming soon" (CREATIVE_SUITE_PAGES_2_CODEX_BRIEF.md): each sends exactly its request,
 // shows the consent step when the backend asks for it and retries the same request, and never starts a job.
 import { reactive } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import api from '../../services/api'
 import CreativeAudio from './CreativeAudio.vue'
@@ -14,12 +14,13 @@ import CreativeIdentity from './CreativeIdentity.vue'
 import CreativeMarketing from './CreativeMarketing.vue'
 import MaskCanvas from './MaskCanvas.vue'
 import MediaSlot from './MediaSlot.vue'
+import MediaRoutePicker from './MediaRoutePicker.vue'
 const chat = vi.hoisted(() => ({ value: null }))
 const video = vi.hoisted(() => ({ value: null }))
 vi.mock('../../stores/useChatStore', () => ({ useChatStore: () => chat.value }))
 vi.mock('../../stores/useVideoStore', () => ({ useVideoStore: () => video.value }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('../../services/api', () => ({ default: Object.fromEntries(['getMediaRoutes','prepareMediaJob','getMediaVoices','recordLikenessConsent','getStudioRoutes','prepareVideoJob','getCharacterTraits','prepareCharacterPortraits','prepareCharacterSheet','saveCharacter','getIdentities','getStudioElements','trainIdentity','deleteIdentity','prepareIdentityImages','uploadConversationFile','getStudioRecipes','runStudioRecipe','get','post'].map(name => [name, vi.fn()])) }))
+vi.mock('../../services/api', () => ({ default: Object.fromEntries(['getMediaRoutes','prepareMediaJob','getMediaVoices','recordLikenessConsent','getStudioRoutes','prepareVideoJob','getCharacterTraits','prepareCharacterPortraits','prepareCharacterSheet','saveCharacter','getIdentities','getStudioElements','trainIdentity','deleteIdentity','prepareIdentityImages','uploadConversationFile','getStudioRecipes','runStudioRecipe','getStudioJob','getStudioJobMask','getStudioQuote','get','post'].map(name => [name, vi.fn()])) }))
 const stubs = { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, VideoLibrary: true }
 const job = { job_id: 'j1', state: 'awaiting_authorization' }
 const consentRefusal = (ids) => ({ response: { data: { error: { code: 'consent_required', field: 'references', message: 'Confirm you have the consent of the person shown or heard.', alternatives: ids.map(id => ({ attachment_id: id, statement: 'I confirm that the person shown or heard in this file is me.', statement_version: '2026-10-22' })) } } } })
@@ -168,6 +169,199 @@ describe('Image edit', () => {
     setSlot(w, 'Image to edit', [file('img', 'image')]); await w.get('[data-test="edit-prompt"]').setValue('Change it')
     await w.get('form').trigger('submit'); await flushPromises()
     expect(w.text()).toContain('This model takes no mask: describe the change in words.'); expect(w.emitted('job')).toBeUndefined(); w.unmount()
+  })
+})
+
+describe('Image edit: click to select an area (ADM-1251)', () => {
+  // A stand-in for the canvas (jsdom draws nothing): it records what the page asks of it.
+  const canvasCalls = { value: null }
+  const MaskStub = {
+    name: 'MaskCanvas', props: ['src', 'brush', 'mode', 'points', 'box'], emits: ['change', 'size', 'point', 'box'],
+    template: '<div data-test="mask-stub" :data-mode="mode" />',
+    setup(_, { expose }) { expose(canvasCalls.value); return {} },
+  }
+  const FILL = { route_id: 9, name: 'FLUX.1 [pro] Fill', ready: true, provider: 'fal', model: 'fal-ai/flux-pro/v1/fill', takes_mask: true, requires_mask: true, needs: { prompt: true, mask: true } }
+  const SAM = { route_id: 21, name: 'Segment Anything Model 3', ready: true, provider: 'fal', model: 'fal-ai/sam-3/image' }
+  let target
+  beforeEach(() => {
+    canvasCalls.value = { setMask: vi.fn(async () => true), toBlob: vi.fn(async () => new Blob(['png'], { type: 'image/png' })), invert: vi.fn(), grow: vi.fn(), shrink: vi.fn(), undo: vi.fn(), clear: vi.fn() }
+    api.getMediaRoutes.mockImplementation(async op => ({ data: { routes: op === 'segment' ? [SAM] : [FILL] } }))
+    api.getStudioQuote.mockResolvedValue({ data: { estimate_usd: '0.006', max_usd: '0.006', pricing_status: 'exact' } })
+    target = document.createElement('div'); target.id = 'mon'; document.body.appendChild(target)
+  })
+  afterEach(() => { target?.remove() })
+  const mountEdit = () => mount(CreativeImageEdit, { attachTo: document.body, global: { stubs: { ...stubs, MaskCanvas: MaskStub }, provide: { studioMonitor: 'mon' } } })
+  const mask = w => w.findComponent({ name: 'MaskCanvas' })
+  async function ready() {
+    const w = mountEdit(); await flushPromises()
+    setSlot(w, 'Image to edit', [file('pic', 'image')]); await flushPromises()
+    return w
+  }
+
+  it('clicks and a box become the selection, priced first, and finding it waits for Generate on its card', async () => {
+    const w = await ready()
+    expect(w.get('[data-test="mask-select"]').attributes('aria-checked')).toBe('true')
+    expect(w.get('[data-test="mask-find"]').attributes('disabled')).toBeDefined()           // nothing selected yet
+    mask(w).vm.$emit('point', { x: 0.5, y: 0.4, label: 1 })
+    mask(w).vm.$emit('point', { x: 0.9, y: 0.1, label: 0 })
+    await w.get('[data-test="mask-box"]').trigger('click')
+    mask(w).vm.$emit('box', { x_min: 0.2, y_min: 0.2, x_max: 0.7, y_max: 0.8 }); await flushPromises()
+    expect(w.get('[data-test="mask-selection"]').text()).toBe('Selected: 1 point on it, 1 point off it, a box.')
+    expect(mask(w).props('points')).toHaveLength(2)
+    await new Promise(r => setTimeout(r, 750)); await flushPromises()
+    expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind: 'media', operation: 'segment', route_id: 21 }))
+    expect(w.get('[data-test="mask-price"]').text()).toBe('$0.006')
+    api.prepareMediaJob.mockResolvedValueOnce({ data: { job_id: 's1', state: 'awaiting_authorization', quote: { estimate_usd: '0.006' } } })
+    await w.get('[data-test="mask-find"]').trigger('click'); await flushPromises()
+    expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({ operation: 'segment', route_id: 21,
+      request: { points: [{ x: 0.5, y: 0.4, label: 1 }, { x: 0.9, y: 0.1, label: 0 }], box: { x_min: 0.2, y_min: 0.2, x_max: 0.7, y_max: 0.8 } },
+      references: [{ attachment_id: 'pic', role: 'edit_source' }], conversation_id: 'c1' })
+    expect(w.get('[data-test="mask-estimate"]').text()).toContain('Finding this area costs $0.006.')
+    neverStarted()                                                                           // only the card starts it
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      api.post.mockResolvedValueOnce({ data: { job_id: 's1', state: 'queued' } })
+      api.getStudioJob.mockResolvedValueOnce({ data: { job_id: 's1', state: 'ready' } })
+      const png = new Blob(['mask'], { type: 'image/png' })
+      api.getStudioJobMask.mockResolvedValueOnce({ data: png })
+      await w.get('[data-test="mask-generate"]').trigger('click'); await flushPromises()
+      expect(api.post).toHaveBeenCalledWith('/video/jobs/s1/start/', { accept: true })
+      expect(w.get('[data-test="mask-finding"]').text()).toBe('Finding the area…')
+      await vi.advanceTimersByTimeAsync(1100); await flushPromises()
+      expect(api.getStudioJobMask).toHaveBeenCalledWith('s1')
+      expect(canvasCalls.value.setMask).toHaveBeenCalledWith(png)
+      expect(mask(w).props('mode')).toBe('paint')                                            // refine it with the brush
+    } finally { vi.useRealTimers() }
+    w.unmount()
+  })
+
+  it('words alone can find the area, and Decline ends the card at no cost', async () => {
+    const w = await ready()
+    await w.get('[data-test="mask-words"]').setValue('the mug')
+    api.prepareMediaJob.mockResolvedValueOnce({ data: { job_id: 's2', state: 'awaiting_authorization', quote: { estimate_usd: '0.006' } } })
+    await w.get('[data-test="mask-find"]').trigger('click'); await flushPromises()
+    expect(api.prepareMediaJob.mock.calls[0][0].request).toEqual({ prompt: 'the mug' })
+    api.post.mockResolvedValueOnce({ data: { job_id: 's2', state: 'cancelled' } })
+    await w.get('[data-test="mask-decline"]').trigger('click'); await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/video/jobs/s2/decline/', {})
+    expect(w.find('[data-test="mask-estimate"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('refines the marked area with Invert, Grow, Shrink, Undo and Clear', async () => {
+    const w = await ready()
+    for (const name of ['invert', 'grow', 'shrink', 'clear']) expect(w.get(`[data-test="mask-${name}"]`).attributes('disabled')).toBeDefined()
+    mask(w).vm.$emit('change', true); await flushPromises()
+    for (const name of ['invert', 'grow', 'shrink', 'undo', 'clear']) await w.get(`[data-test="mask-${name}"]`).trigger('click')
+    for (const name of ['invert', 'grow', 'shrink', 'undo', 'clear']) expect(canvasCalls.value[name]).toHaveBeenCalledOnce()
+    w.unmount()
+  })
+
+  it('a model that edits only a marked area asks for it, then sends the mask with the edit', async () => {
+    api.uploadConversationFile.mockResolvedValue({ data: { attachment_id: 'mask1' } })
+    const w = await ready()
+    await w.get('[data-test="edit-prompt"]').setValue('A glass of water')
+    expect(w.get('[data-test="edit-prepare"]').attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('Select or paint the area to change first.')
+    mask(w).vm.$emit('change', true); await flushPromises()
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({ operation: 'edit_image', route_id: '9', request: { prompt: 'A glass of water' },
+      references: [{ attachment_id: 'pic', role: 'edit_source' }, { attachment_id: 'mask1', role: 'mask' }], conversation_id: 'c1' })
+    neverStarted(); w.unmount()
+  })
+
+  it('a model that edits only a marked area is offered only where a mask is sent', async () => {
+    api.getMediaRoutes.mockResolvedValue({ data: { routes: [FILL, { route_id: 7, name: 'Nano Banana', ready: true, provider: 'openrouter', model: 'g', takes_mask: false }] } })
+    const plain = mount(MediaRoutePicker, { props: { operation: 'edit_image' }, global: { stubs } }); await flushPromises()
+    expect(plain.findAll('option').map(o => o.element.value)).toEqual(['7'])
+    const masked = mount(MediaRoutePicker, { props: { operation: 'edit_image', masked: true }, global: { stubs } }); await flushPromises()
+    expect(masked.findAll('option').map(o => o.element.value)).toEqual(['9', '7'])
+    plain.unmount(); masked.unmount()
+  })
+
+  it('without a selection model the area is painted, and the click tools are not offered', async () => {
+    api.getMediaRoutes.mockImplementation(async op => ({ data: { routes: op === 'segment' ? [{ ...SAM, ready: false }] : [FILL] } }))
+    const w = await ready()
+    expect(w.find('[data-test="mask-select"]').exists()).toBe(false)
+    expect(w.get('[data-test="mask-paint"]').attributes('aria-checked')).toBe('true')
+    expect(w.get('[data-test="mask-no-select"]').text()).toContain('paint it instead')
+    w.unmount()
+  })
+})
+
+describe('The mask canvas: clicks, a box and a selection', () => {
+  function canvasEnv() {
+    const ctx = { putImageData: vi.fn(), getImageData: vi.fn(), drawImage: vi.fn() }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 })
+    HTMLCanvasElement.prototype.toBlob = function (cb, type) { cb(new Blob(['x'], { type })) }
+    if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class { constructor(data, width, height) { Object.assign(this, { data, width, height }) } }
+    return ctx
+  }
+  async function mounted(props) {
+    const w = mount(MaskCanvas, { props: { src: 'blob:img', ...props } })
+    const img = w.get('img').element
+    Object.defineProperty(img, 'naturalWidth', { value: 20 }); Object.defineProperty(img, 'naturalHeight', { value: 10 })
+    await w.get('img').trigger('load')
+    return w
+  }
+  const fire = (w, type, x, y, extra = {}) => w.get('canvas').element.dispatchEvent(Object.assign(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true, ...extra }), { pointerId: 1 }))
+
+  it('a click in Select is a point on it, Alt-click and "Not this" are points off it, as fractions of the picture', async () => {
+    canvasEnv()
+    const w = await mounted({ mode: 'select' })
+    fire(w, 'pointerdown', 50, 25)
+    fire(w, 'pointerdown', 100, 50, { altKey: true })
+    await w.setProps({ mode: 'remove' }); fire(w, 'pointerdown', 200, 100)
+    expect(w.emitted('point')).toEqual([[{ x: 0.25, y: 0.25, label: 1 }], [{ x: 0.5, y: 0.5, label: 0 }], [{ x: 1, y: 1, label: 0 }]])
+    await w.setProps({ points: [{ x: 0.25, y: 0.25, label: 1 }, { x: 0.5, y: 0.5, label: 0 }] })
+    expect(w.findAll('[data-test="mask-point"]').map(p => p.text())).toEqual(['+', '−'])
+    expect(await w.vm.toBlob()).toBeNull()                                                   // a point marks nothing yet
+    w.unmount(); vi.restoreAllMocks()
+  })
+
+  it('a drag in Box is a box; a click is not', async () => {
+    canvasEnv()
+    const w = await mounted({ mode: 'box' })
+    fire(w, 'pointerdown', 20, 10); fire(w, 'pointermove', 120, 60); fire(w, 'pointerup', 180, 90)
+    fire(w, 'pointerdown', 50, 50); fire(w, 'pointerup', 50, 50)
+    expect(w.emitted('box')).toEqual([[{ x_min: 0.1, y_min: 0.1, x_max: 0.9, y_max: 0.9 }]])
+    w.unmount(); vi.restoreAllMocks()
+  })
+
+  it("a selection's mask is laid on at the picture's size, refined, undone, and saved as the PNG", async () => {
+    canvasEnv()
+    const w = await mounted({ mode: 'paint' })
+    const half = new Uint8Array(10 * 5); for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) half[y * 10 + x] = 255
+    expect(w.vm.setMaskData(half, 10, 5)).toBe(true)                                         // scaled 2x to 20 x 10
+    const marked = w.vm.maskData()
+    expect([marked[0], marked[9], marked[10], marked[9 * 20 + 9], marked[19]]).toEqual([255, 255, 0, 255, 0])
+    expect(w.emitted('change').at(-1)).toEqual([true])
+    w.vm.invert()
+    expect(w.vm.maskData()[0]).toBe(0)
+    w.vm.undo()
+    expect(w.vm.maskData()[0]).toBe(255)
+    w.vm.grow()
+    expect(w.vm.maskData()[11]).toBe(255)                                                    // 2 px wider
+    const blob = await w.vm.toBlob()
+    expect(blob.type).toBe('image/png')
+    w.vm.clear()
+    expect(w.emitted('change').at(-1)).toEqual([false])
+    expect(await w.vm.toBlob()).toBeNull()
+    w.unmount(); vi.restoreAllMocks()
+  })
+
+  it('paints and erases with the brush, straight into the mask', async () => {
+    canvasEnv()
+    const w = await mounted({ mode: 'paint', brush: 4 })                                     // 4 px shown = 0.4 px here
+    fire(w, 'pointerdown', 0, 0); fire(w, 'pointermove', 190, 0); fire(w, 'pointerup', 190, 0)
+    expect(w.vm.maskData()[0]).toBe(255)
+    expect(w.vm.maskData()[18]).toBe(255)
+    expect(w.emitted('change').at(-1)).toEqual([true])
+    await w.setProps({ mode: 'erase' })
+    fire(w, 'pointerdown', 0, 0); fire(w, 'pointermove', 190, 0); fire(w, 'pointerup', 190, 0)
+    expect(w.emitted('change').at(-1)).toEqual([false])
+    w.unmount(); vi.restoreAllMocks()
   })
 })
 

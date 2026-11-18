@@ -3,23 +3,9 @@
     <label class="st-field" data-field="project_id">Project<select v-model="projectId" class="st-input" @change="open"><option value="">{{ kind === 'cinema' ? 'Standalone shot' : 'Choose project' }}</option><option v-for="p in projects" :key="p.project_id" :value="p.project_id">{{ p.title }}</option></select></label>
     <CreativeError :error="shownError" locate />
     <template v-if="!projectId && kind !== 'cinema'"><label class="st-field" data-field="title">New project title<input v-model="newTitle" class="st-input" /></label><button class="st-button" :disabled="busy || !newTitle.trim()" @click="createProject">Create project</button></template>
-    <template v-if="projectId && kind !== 'editor'"><label class="st-field">New scene description<textarea v-model="newIntent" class="st-input" /></label><button class="st-button" :disabled="busy || !project || !newIntent.trim()" @click="addScene">Add scene</button></template>
-    <template v-if="kind === 'editor' && projectId">
-      <section class="ce-timeline" aria-label="Timeline overview"><header><h2>Your edit, in sequence.</h2><span>{{ videoClips.length }} clips · {{ sounds.length }} sounds</span></header><div class="ce-ruler"><span>Start</span><span>Sequence</span><span>End</span></div><div class="ce-lane" aria-label="Video track"><span>VIDEO</span><div v-for="(clip,i) in videoClips" :key="i" :style="{ flex: Math.max(1, (clip.out_ms || 5000) - (clip.in_ms || 0)) }"><b>Clip {{ i+1 }}</b><small>{{ clip.in_ms || 0 }}–{{ clip.out_ms || '?' }} ms</small></div><p v-if="!videoClips.length">Choose clips from Library to build the sequence.</p></div><div class="ce-lane ce-audio" aria-label="Audio track"><span>AUDIO</span><div v-for="(sound,i) in sounds" :key="i"><b>Sound {{ i+1 }}</b><small>Starts at {{ sound.start_ms || 0 }} ms</small></div><p v-if="!sounds.length">Your soundtrack appears here.</p></div></section><p class="st-muted">Arrange your clips, sounds and images below. Times are in milliseconds.</p>
-      <InputSlot label="Video clips" :kinds="['video']" :limit="50" :allow-upload="false" @pick="addClips('video', $event)" />
-      <div v-for="(clip,i) in videoClips" :key="i" class="creative-card">
-        <span>Clip {{ i + 1 }}</span><button class="st-button" @click="move(i,-1)" :disabled="i === 0">Move earlier</button><button class="st-button" @click="videoClips.splice(i,1)">Remove</button>
-        <label class="st-field">In<input v-model.number="clip.in_ms" type="number" min="0" class="st-input" /></label><label class="st-field">Out<input v-model.number="clip.out_ms" type="number" min="1" class="st-input" /></label>
-        <label class="st-field">Transition<select v-model="clip.transition.kind" class="st-input"><option v-for="t in transitions" :key="t.value" :value="t.value">{{ t.label }}</option></select></label><label v-if="clip.transition.kind !== 'cut'" class="st-field">Transition duration<input v-model.number="clip.transition.ms" class="st-input" type="number" min="100" max="2000" /></label>
-      </div>
-      <InputSlot label="Sounds" :kinds="['audio']" :limit="8" :items="sounds" :allow-upload="false" @pick="addClips('audio',$event)" @remove="sounds.splice(sounds.indexOf($event),1)" />
-      <div v-for="(sound,i) in sounds" :key="i" class="creative-card"><label v-for="field in ['start_ms','in_ms','out_ms','gain_db']" :key="field" class="st-field">{{ field }}<input v-model.number="sound[field]" class="st-input" type="number" :min="field === 'gain_db' ? -40 : 0" :max="field === 'gain_db' ? 12 : undefined" /></label><label><input type="checkbox" v-model="sound.duck" /> Duck</label><label><input type="checkbox" v-model="sound.mute_original" /> Mute original</label></div>
-      <InputSlot label="Image overlays" :kinds="['image']" :limit="8" :items="overlays" :allow-upload="false" @pick="addClips('overlay',$event)" @remove="overlays.splice(overlays.indexOf($event),1)" />
-      <div v-for="(image,i) in overlays" :key="i" class="creative-card"><label class="st-field">Position<select v-model="image.position" class="st-input"><option v-for="pos in positions" :key="pos">{{ pos }}</option></select></label><label class="st-field">Scale<input v-model.number="image.scale" class="st-input" type="number" min="0.02" max="1" step="0.01" /></label><label class="st-field">Start<input v-model.number="image.start_ms" class="st-input" type="number" min="0" /></label><label class="st-field">End<input v-model.number="image.end_ms" class="st-input" type="number" min="1" /></label></div>
-      <button class="st-button" :disabled="busy" @click="saveTimeline">Save timeline</button><button class="st-button primary" :disabled="busy || !revisionId" @click="exportTimeline">Export saved timeline</button><p v-if="revisionId" role="status">Saved revision {{ revisionId }}. Save changes again before exporting them.</p>
-      <h2>Captions</h2><div v-for="(cue,i) in captionCues" :key="i" class="creative-card"><label class="st-field">Text<input v-model="cue.text" class="st-input" maxlength="300" /></label><label class="st-field">Start<input v-model.number="cue.start_ms" type="number" min="0" class="st-input" /></label><label class="st-field">End<input v-model.number="cue.end_ms" type="number" min="1" class="st-input" /></label><button class="st-button" @click="captionCues.splice(i,1)">Remove caption</button></div><button class="st-button" @click="captionCues.push({text:'',start_ms:0,end_ms:5000})">Add caption</button>
-    </template>
-    <template v-else>
+    <template v-if="projectId"><label class="st-field">New scene description<textarea v-model="newIntent" class="st-input" /></label><button class="st-button" :disabled="busy || !project || !newIntent.trim()" @click="addScene">Add scene</button></template>
+    <RouterLink v-if="projectId && kind === 'storyboard'" class="st-button" data-test="board-edit-cut" :to="{ path: '/video-studio/editor', query: { project_id: projectId } }">Edit the cut in the clip editor</RouterLink>
+    <template v-if="kind">
       <label class="st-field" data-field="route_id">{{ projectId ? 'Keyframe model' : 'Video model' }}<select v-model="routeId" class="st-input" data-test="board-route"><option value="">Choose model</option><option v-for="r in routes" :key="r.route_id" :value="r.route_id" :disabled="!r.ready">{{ routeLabel(r) }}{{ r.ready === false ? ' — Not yet proven' : '' }}</option></select></label>
       <p v-if="routeSummary" class="st-muted" data-test="board-reference-summary">{{ routeSummary }}</p>
       <label v-if="projectId" class="st-field" data-field="n">Keyframes per scene<input v-model.number="count" type="number" min="1" max="4" class="st-input" /></label>
@@ -54,7 +40,6 @@ import api from '../../services/api'
 import { routeOptionLabel } from '../../utils/studioPrice'
 import { useLivePrice } from '../../composables/useLivePrice'
 import LivePrice from './LivePrice.vue'
-import InputSlot from './InputSlot.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useVideoStore } from '../../stores/useVideoStore'
@@ -64,10 +49,7 @@ const props = defineProps({ kind: String }), emit = defineEmits(['job']), route 
 // What the chosen video model takes as references (the backend's per-model data), shown under the picker.
 const routeSummary = computed(() => routes.value.find(r => String(r.route_id) === String(routeId.value))?.inputs?.spec?.summary || '')
 const projects = ref([]), projectId = ref(route.query.project_id || route.query.project || ''), board = ref(null), project = ref(null), routes = ref([]), routeId = ref(''), count = ref(1), controls = ref([]), cinema = ref({}), prompt = ref('')
-const videoClips = ref([]), sounds = ref([]), overlays = ref([]), texts = ref([]), revisionId = ref(null)
 const newTitle = ref(''), newIntent = ref('')
-const captionCues = ref([])
-const transitions = [['cut','Cut'],['crossfade','Crossfade'],['fade_black','Fade through black'],['fade_white','Fade through white'],['wipe','Wipe'],['slide','Slide'],['dissolve','Dissolve']].map(([value, label]) => ({ value, label })), positions = ['top-left','top','top-right','center','bottom-left','bottom','bottom-right']
 const { busy, error, run } = useCreativeForm()
 // Each request carries the open chat and this page (a Manual page sends no chat message), so its results stay in the
 // chat. An error is shown at its field; the model the backend names ('model', 'model_id', 'route_id') is the menu of
@@ -134,12 +116,6 @@ async function loadProject(alive) {
   if (!alive() || id !== projectId.value) return
   project.value = p.data; board.value = b.data
   for (const s of board.value.scenes || []) s.cinema = { ...unset(), ...(s.cinema || {}) }   // every control shows "Default" until chosen
-  const tracks = p.data.timeline?.edl?.tracks || []
-  videoClips.value = (tracks.find(t => t.kind === 'video')?.clips || []).map(c => ({ ...c, transition: c.transition || { kind: 'cut', ms: 500 } }))
-  sounds.value = tracks.filter(t => t.kind === 'audio').flatMap(t => t.clips || [])
-  overlays.value = tracks.filter(t => t.kind === 'overlay').flatMap(t => t.items || [])
-  texts.value = tracks.filter(t => t.kind === 'text'); revisionId.value = p.data.timeline?.revision_id || null
-  captionCues.value = texts.value.flatMap(t => t.cues || [])
 }
 // Opening a project (choosing, creating, or the page's first load) reads its storyboard and its model lists. It is not
 // one of `run`'s exclusive actions, which drop a call made while another runs: a project chosen while the page was
@@ -177,26 +153,6 @@ const shotQuote = useLivePrice(() => props.kind === 'cinema' && !projectId.value
   ? { kind: 'video', route_id: routeId.value, prompt: prompt.value.trim(), cinema: chosenCinema(cinema.value), params: renderParams(), ...(chat.conversationId ? { conversation_id: chat.conversationId } : {}) } : null)
 const shotPrice = computed(() => ({ price: shotQuote.price.value, loading: shotQuote.loading.value, problem: shotQuote.problem.value, code: shotQuote.code.value }))
 function prepareShot() { if (shotQuote.blocked.value) return; modelField.value = 'route_id'; const accept = shotQuote.acceptFields.value; run(async alive => { const { data } = await api.post('/video/jobs/',{ operation: 'generate', route_id: routeId.value, prompt: prompt.value, cinema: chosenCinema(cinema.value), params: renderParams(), ...(accept.length ? { accept } : {}), ...await chatFields() }); if (alive()) emit('job',data) }) }
-function addClips(kind,items) { for (const item of items) { const id = item.attachment_id; if (kind === 'video') videoClips.value.push({ attachment_id: id, in_ms: 0, transition: { kind: 'cut', ms: 500 } }); if (kind === 'audio' && sounds.value.length < 8) sounds.value.push({ attachment_id: id, start_ms: 0, gain_db: 0, duck: false, mute_original: false }); if (kind === 'overlay' && overlays.value.length < 8) overlays.value.push({ attachment_id: id, position: 'top-right', scale: 0.18 }) } }
-function move(i,delta) { const clips = videoClips.value; [clips[i],clips[i+delta]] = [clips[i+delta],clips[i]] }
-function cleanTimelineItem(item) {
-  return Object.fromEntries(Object.entries(item)
-    .filter(([, value]) => value !== '' && value !== null && value !== undefined)
-    .map(([key, value]) => [key, typeof value === 'object' && !Array.isArray(value) ? cleanTimelineItem(value) : value]))
-}
-function saveTimeline() {
-  run(async alive => {
-    const edl = { tracks: [
-      { kind: 'video', clips: videoClips.value.map(c => cleanTimelineItem({ ...c, transition: c.transition.kind === 'cut' ? undefined : c.transition })) },
-      { kind: 'audio', clips: sounds.value.map(cleanTimelineItem) },
-      { kind: 'overlay', items: overlays.value.map(cleanTimelineItem) },
-      { kind: 'text', cues: captionCues.value.map(cleanTimelineItem), position: 'bottom' },
-    ] }
-    const { data } = await api.post(`/video/projects/${projectId.value}/timeline/`, { edl })
-    if (alive()) revisionId.value = data.revision_id
-  })
-}
-function exportTimeline() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation:'export', project_id:projectId.value, params:{ timeline_revision_id:revisionId.value }, ...await chatFields() }); if (alive()) emit('job',data) }) }
 async function patchScenes(scenes, alive) {
   try { return await api.patch(`/video/projects/${projectId.value}/`, { revision: board.value.revision, scenes }) }
   catch (e) { if (e.response?.status === 409) { await loadProject(alive); throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
@@ -215,4 +171,4 @@ watch([preparedLook, controls], ([look]) => {
 }, { immediate: true })
 </script>
 
-<style scoped>.ce-timeline{border:1px solid var(--vm-line);border-radius:10px;background:var(--vm-bg);padding:18px;overflow:hidden}.ce-timeline header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.ce-timeline h2{font-size:18px;font-weight:500}.ce-timeline header span,.ce-ruler{font-size:10px;color:var(--vm-ink-faint)}.ce-ruler{display:flex;justify-content:space-between;padding:16px 0 9px;margin-left:48px;border-bottom:1px solid var(--vm-line);margin-bottom:12px}.ce-lane{display:flex;gap:6px;align-items:stretch;min-height:62px;margin:8px 0;overflow:auto}.ce-lane>span{width:42px;flex-shrink:0;font-size:9px;color:var(--vm-ink-faint);align-self:center;letter-spacing:.08em}.ce-lane>div{min-width:90px;background:#2e4c65;border:1px solid #5f819d;border-radius:6px;padding:10px;font-size:11px;flex:1}.ce-lane small{display:block;font-size:9px;margin-top:6px;color:#a9c6de}.ce-lane p{font-size:11px;align-self:center;color:var(--vm-ink-faint)}.ce-audio>div{background:#343c60;border-color:#626e9a}.ce-lane b{font-weight:500}@media(max-width:680px){.ce-timeline{padding:13px}.ce-timeline header span{font-size:11px}}</style>
+

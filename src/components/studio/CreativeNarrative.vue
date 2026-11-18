@@ -37,7 +37,7 @@
         <button class="st-button primary" :disabled="busy" @click="cut">Cut the video (free)</button>
       </template>
     </template>
-    <RouterLink v-if="resultProject" :to="{ path:'/video-studio/editor', query:{ project_id:resultProject } }">Open resulting project in Editor</RouterLink>
+    <RouterLink v-if="resultProject" :to="{ path:'/video-studio/editor', query:{ project_id:resultProject } }">Open the short in the clip editor</RouterLink>
   </div>
 </template>
 <script setup>

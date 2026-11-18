@@ -1,7 +1,7 @@
 <template>
   <section class="discover st-workspace" aria-labelledby="discover-title" data-test="studio-discover">
     <header class="discover-heading"><div class="discover-eyebrow">DISCOVER YOUR CREATIVE STUDIO</div><h1 id="discover-title">What will you create next?</h1><p>Choose a look or a tool. Your agent helps with the rest.</p><RouterLink class="st-button primary" to="/video-studio/dashboard" aria-label="Ask your Studio agent"><span class="discover-agent-label">✧ Ask your Studio agent →</span><span class="discover-agent-short" aria-hidden="true">✧ Ask agent</span></RouterLink></header>
-    <nav class="discover-views" aria-label="Discover views"><button v-for="view in views" :key="view.id" type="button" :aria-pressed="active === view.id" :class="{ active: active === view.id }" @click="active = view.id">{{ view.label }} <span>{{ view.id === 'tools' ? features.length : studioLooks.length }}</span></button></nav>
+    <nav class="discover-views" aria-label="Discover views"><button v-for="view in views" :key="view.id" type="button" :aria-pressed="active === view.id" :class="{ active: active === view.id }" @click="active = view.id">{{ view.label }} <span>{{ view.id === 'tools' ? features.length : looks.length }}</span></button></nav>
     <div class="discover-toolbar"><div><h2>{{ active === 'tools' ? 'All tools' : 'Choose a look. Make it yours.' }}</h2><p>{{ active === 'tools' ? 'A page for each part of your creative workflow.' : 'Each look is a prepared prompt and the references it needs. Open one and make it yours.' }}</p></div><div v-if="active === 'tools'" class="discover-mode"><span>Open creative tools in</span><StudioModeSwitch /></div></div>
     <div class="discover-controls"><div class="discover-filters" role="group" aria-label="Filter features"><button v-for="name in active === 'tools' ? ['All features', ...categories] : ['All', ...lookCategories]" :key="name" type="button" :aria-pressed="(active === 'tools' ? category : lookCategory) === name" @click="active === 'tools' ? category = name : lookCategory = name">{{ name }}</button></div><div class="discover-search-row"><label class="discover-search"><span class="st-sr">Search {{ active === 'tools' ? 'features' : 'looks' }}</span><input v-model="query" type="search" :placeholder="active === 'tools' ? 'Search tools, features or what you want to do…' : 'Find a look or style…'" /></label><span>{{ active === 'tools' ? sections.reduce((total,section) => total + section.items.length,0) + ' tools' : shownLooks.length + ' looks' }}</span></div></div>
     <template v-if="active === 'tools'"><section v-for="section in sections" :key="section.label" :data-count="section.items.length" class="discover-section"><div class="discover-section-title"><h2>{{ section.label }}</h2><small>{{ section.items.length }} tools</small></div><div class="discover-tools"><RouterLink v-for="feature in section.items" :key="feature.id" :to="toolLink(feature)" class="discover-tool" :data-test="`discover-tool-${feature.id}`"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path :d="studioIcons[feature.icon]" /></svg><h3>{{ feature.label }}</h3><span v-if="feature.status !== 'live'" class="st-pill">{{ feature.status === 'soon' ? 'Soon' : 'Beta' }}</span><span class="discover-arrow">↗</span></div><p>{{ feature.purpose }}</p><footer><span>{{ creative(feature.id) ? (video.studioMode === 'agent' ? '✧ Open in Agent' : '☷ Open in Manual') : 'Open '+feature.label }}</span><small v-if="lookCount(feature.id)">{{ lookCount(feature.id) }} ready-made looks</small></footer></RouterLink></div></section></template>
@@ -15,7 +15,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { RouterLink } from 'vue-router'
 import { studioFeatures, STUDIO_GROUPS, getStudioFeature, studioIcons } from '../services/studioFeatures'
-import { studioLooks } from '../services/studioLooks'
+import { allLooks, loadAllPresets } from '../services/studioPresets'
 import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 import { useVideoStore } from '../stores/useVideoStore'
 import StudioLookMedia from '../components/studio/StudioLookMedia.vue'
@@ -27,7 +27,10 @@ const route = useRoute(), router = useRouter()
 watch(() => [route.query.conversation, route.query.project], ([conversation,project]) => { if (conversation || project) router.replace({ path: '/video-studio/dashboard', query: route.query, hash: route.hash }) }, { immediate: true })
 const video = useVideoStore()
 const lookTool=ref(''), lookCategory=ref('All'), sort=ref('Featured')
-const lookCategories=[...new Set(studioLooks.map(look => look.category))]
+// Every look: this app's own and the Image and Video pages' (Recipe API, F-D4), read once.
+loadAllPresets()
+const looks = computed(() => allLooks())
+const lookCategories = computed(() => [...new Set(looks.value.map(look => look.category))])
 const saved = useStudioSavedLooks()
 const active = ref(route.query.view === 'looks' || route.query.saved ? 'looks' : 'tools'), category = ref('All features'), query = ref('')
 watch(() => [route.query.view, route.query.saved], ([view, onlySaved]) => { if (view === 'looks' || onlySaved) active.value = 'looks' })
@@ -38,10 +41,10 @@ const creative = id => !['projects','library','help'].includes(id)
 // The tools that have looks, counted from the catalogue rather than written into the label.
 const lookToolCount = computed(() => features.value.filter(f => creative(f.id)).length)
 const toolLink = feature => creative(feature.id) ? { path: feature.route, query: { mode: video.studioMode } } : feature.route
-const lookCount = id => studioLooks.filter(look => look.feature === id).length
+const lookCount = id => looks.value.filter(look => look.feature === id).length
 const matches = text => text.toLowerCase().includes(query.value.trim().toLowerCase())
 const sections = computed(() => categories.filter(name => category.value === 'All features' || category.value === name).map(label => ({ label, items: features.value.filter(f => f.group === label && matches(f.label+' '+f.purpose)) })).filter(section => section.items.length))
-const shownLooks = computed(() => studioLooks.filter(look => (!route.query.saved || saved.ids.value.includes(look.id)) && (!lookTool.value || look.feature === lookTool.value) && (lookCategory.value === 'All' || look.category === lookCategory.value) && matches(look.title+' '+look.purpose+' '+getStudioFeature(look.feature)?.label)).slice().sort((a,b) => sort.value === 'Name A–Z' ? a.title.localeCompare(b.title) : sort.value === 'Fewest inputs' ? a.slots.filter(s=>s.required).length - b.slots.filter(s=>s.required).length : 0))
+const shownLooks = computed(() => looks.value.filter(look => (!route.query.saved || saved.ids.value.includes(look.id)) && (!lookTool.value || look.feature === lookTool.value) && (lookCategory.value === 'All' || look.category === lookCategory.value) && matches(look.title+' '+look.purpose+' '+getStudioFeature(look.feature)?.label)).slice().sort((a,b) => sort.value === 'Name A–Z' ? a.title.localeCompare(b.title) : sort.value === 'Fewest inputs' ? a.slots.filter(s=>s.required).length - b.slots.filter(s=>s.required).length : 0))
 // My templates: the person's own saved directions. Use opens the template's page filled in (nothing is sent there);
 // Rename asks for the name in the card; Delete asks first in the app's confirm dialog.
 const mine = useStudioTemplates()

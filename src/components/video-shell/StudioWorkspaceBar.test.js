@@ -4,7 +4,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, expect, it, vi } from 'vitest'
 import Bar from './StudioWorkspaceBar.vue'
 import api from '../../services/api'
-vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn()}}))
+// The Image page's looks are served by the Recipe API (F-D4); one of them is searched for below.
+vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),getStudioRecipes:vi.fn(page=>Promise.resolve({data:{presets:page==='image'?[{id:'image-look-1',feature:'image',title:'Softbox product portrait',purpose:'A clean campaign image.',category:'Images',slots:[],settings:{},promptTemplate:'x',variants:['a'],clientOnly:true}]:[]}}))}}))
 const stubs={RouterLink:{props:['to'],template:'<a :data-to="JSON.stringify(to)"><slot /></a>'},VideoJobCard:true}
 beforeEach(()=>{setActivePinia(createPinia());vi.clearAllMocks()})
 function render(){const w=mount(Bar,{props:{title:'Video',user:{id:'one',username:'Maker'}},global:{stubs}});for(const dialog of w.findAll('dialog')){dialog.element.showModal=vi.fn();dialog.element.close=vi.fn()}return w}

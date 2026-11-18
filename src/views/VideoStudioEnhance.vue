@@ -32,6 +32,7 @@ const syncPresetRoute = useStudioPresetRoute()
 import { useStudioToolDraft } from '../composables/useStudioToolDraft'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import api from '../services/api'
+import { loadStudioRoutes, schemaEnum } from '../services/studioModelRoutes'
 import { routeOptionLabel } from '../utils/studioPrice'
 import { useLivePrice } from '../composables/useLivePrice'
 import LivePrice from '../components/studio/LivePrice.vue'
@@ -82,10 +83,9 @@ async function loadExtendRoutes() {
   if (extendLoaded) return
   extendLoaded = true; extendLoading.value = true; extendFailure.value = ''
   try {
-    const answers = await Promise.all(['native_extend', 'image_to_video'].map(task => api.getStudioRoutes(task)))
+    const list = await loadStudioRoutes(['native_extend', 'image_to_video'])
     if (disposed) return
-    const seen = new Set()
-    extendRoutes.value = answers.flatMap(({ data }) => data.routes || []).filter(r => !seen.has(r.route_id) && seen.add(r.route_id))
+    extendRoutes.value = list
     extendRoute.value = extendRoutes.value[0] ? String(extendRoutes.value[0].route_id) : ''
   } catch { if (!disposed) { extendFailure.value = 'Could not load the models.'; extendLoaded = false } }
   finally { if (!disposed) extendLoading.value = false }
@@ -93,7 +93,7 @@ async function loadExtendRoutes() {
 watch(operation, op => { if (op === 'extend') loadExtendRoutes() }, { immediate: true })
 // The size it is made at, the smallest first (live 2026-10-28: with none sent, quoted at 1080p, $0.71 for 5 s).
 const extendResolution = ref('')
-const extendResolutions = computed(() => extendRoutes.value.find(r => String(r.route_id) === extendRoute.value)?.schema?.properties?.resolution?.enum || [])
+const extendResolutions = computed(() => schemaEnum(extendRoutes.value.find(r => String(r.route_id) === extendRoute.value), 'resolution'))
 watch(extendResolutions, list => { extendResolution.value = list[0] || '' })
 const { linkFromLibrary } = useSessionProject()
 // A Library video from another chat is linked to this session's project (unpinned) before it is used, as on every

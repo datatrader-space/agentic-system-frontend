@@ -4,7 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 const state = vi.hoisted(() => ({ chat: null, route: null, replace: vi.fn() }))
-const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn(), getStudioQuote: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn(), getStudioQuote: vi.fn(), getStudioRecipes: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => state.route, useRouter: () => ({ replace: state.replace }) }))
 vi.mock('../stores/useChatStore', () => ({ useChatStore: () => state.chat }))
 vi.mock('../services/api', () => ({ default: api }))
@@ -12,7 +12,11 @@ vi.mock('../composables/useNotify', () => ({ notify: { warning: vi.fn(), error: 
 import VideoStudioGenerate from './VideoStudioGenerate.vue'
 import { useVideoStore } from '../stores/useVideoStore'
 import { clearStudioDraftMemory } from '../services/studioDraftMemory'
-import { presetsFor, composePreset } from '../services/studioPresets'
+import { presetsFor, composePreset, loadPresets } from '../services/studioPresets'
+// The Image and Video presets as the Recipe API serves them (a copy of video_studio/services/studio_presets.json).
+import SERVED from '../services/__fixtures__/studioPresets.json'
+api.getStudioRecipes.mockImplementation(page => Promise.resolve({ data: { page, recipes: [], presets: SERVED.filter(p => p.feature === page) } }))
+await loadPresets('image'); await loadPresets('video')
 import { studioDraftKey, keepLocalDraft } from '../services/studioDrafts'
 import { provideStudioTemplates } from '../composables/useStudioTemplates'
 let wrapper, video

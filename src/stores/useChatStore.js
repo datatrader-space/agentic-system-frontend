@@ -2181,6 +2181,11 @@ export const useChatStore = defineStore('chat', {
         }
         return
       }
+      // A stage of a brand or product read from its website (Ads Studio), kept by the video store by its read_id.
+      if (t === 'video_stage') {
+        try { useVideoStore().onStageFrame(msg) } catch { /* the page still gets every stage in its answer */ }
+        return
+      }
       // A storyboard plan (ADM-1146): one approval card for every scene, mirrored by the video store.
       if (t === 'video_plan') {
         try { useVideoStore().onPlanFrame(msg) } catch { /* the chat continues without the card */ }

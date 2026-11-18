@@ -5,6 +5,9 @@ const existing = {
   library: () => import('../views/VideoStudioLibrary.vue'),
   elements: () => import('../views/VideoStudioElements.vue'),
   help: () => import('../views/VideoStudioHelp.vue'),
+  editor: () => import('../views/VideoClipEditor.vue'),
+  publish: () => import('../views/VideoStudioPublish.vue'),
+  community: () => import('../views/VideoStudioCommunity.vue'),
 }
 export const studioChildRoutes = studioFeatures.value.map(feature => ({
   path: feature.route.slice('/video-studio'.length).replace(/^\//, ''),

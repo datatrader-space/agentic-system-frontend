@@ -11,7 +11,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { studioFeatures } from '../../services/studioFeatures'
-import { studioLooks } from '../../services/studioLooks'
+import { allLooks, loadAllPresets } from '../../services/studioPresets'
 import { useChatStore } from '../../stores/useChatStore'
 import { useVideoStore } from '../../stores/useVideoStore'
 import VideoJobCard from '../video/VideoJobCard.vue'
@@ -49,11 +49,12 @@ const results = computed(() => {
   const q = query.value.trim().toLowerCase(), match = value => value.toLowerCase().includes(q)
   return [
     { label: 'Tools', items: studioFeatures.value.filter(f => f.id !== 'home' && match(f.label+' '+f.purpose)).map(f => ({id:f.id,label:f.label,description:f.purpose,to:{path:f.route,query:{mode:'agent'}}})) },
-    { label: 'Ready-made looks', items: studioLooks.filter(l => match(l.title+' '+l.purpose)).map(l => ({id:l.id,label:l.title,description:l.purpose,to:{path:'/video-studio/'+l.feature,query:{preset:l.id,mode:'agent'}}})) },
+    { label: 'Ready-made looks', items: allLooks().filter(l => match(l.title+' '+l.purpose)).map(l => ({id:l.id,label:l.title,description:l.purpose,to:{path:'/video-studio/'+l.feature,query:{preset:l.id,mode:'agent'}}})) },
     { label: 'Projects', items: projects.value.filter(p => match(p.title || '')).map(p => ({id:p.project_id,label:p.title || 'Untitled project',description:'Continue your project',to:{path:'/video-studio/dashboard',query:p.conversation_id?{conversation:String(p.conversation_id)}:{project:p.project_id}}})) },
   ].map(g => ({...g,items:g.items.slice(0,q?15:5)})).filter(g=>g.items.length)
 })
 async function openSearch() {
+  loadAllPresets()
   searchDialog.value?.showModal(); await nextTick(); searchInput.value?.focus()
   const seq = ++sequence; projects.value=[]; projectError.value=''
   try { const {data}=await api.get('/video/projects/'); if(seq===sequence) projects.value=data.projects || [] }

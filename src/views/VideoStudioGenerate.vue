@@ -6,6 +6,7 @@
       <StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
       <StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" :settings="pageSettings" @apply="choose" />
       <BottomSheet v-if="narrow && !isAgent" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
+      <p v-if="!presetsReady" class="st-status" role="status" data-test="studio-presets-loading">Loading the presets...</p><div v-if="presetsError" class="st-error" role="alert" data-test="studio-presets-error">{{ presetsError }}<button type="button" class="st-button" @click="readPresets">Try again</button></div>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />
       <p v-if="draftMessage" class="st-error" role="status">{{ draftMessage }}</p>
@@ -42,7 +43,7 @@ import { readStudioDraft, keepStudioDraft } from '../services/studioDraftMemory'
 import { studioDraftKey, readLocalDraft, keepLocalDraft, dropLocalDraft } from '../services/studioDrafts'
 import { useStudioTemplates, templateLook } from '../composables/useStudioTemplates'
 import { plainText } from '../composables/useChatHistory'
-import { composePreset, presetsFor } from '../services/studioPresets'
+import { composePreset, loadPresets, presetsFor, presetsLoaded } from '../services/studioPresets'
 import { LOOK_ID } from '../services/studioLooks'
 import StudioPage from '../components/studio/StudioPage.vue'
 import StudioVersions from '../components/studio/StudioVersions.vue'
@@ -68,8 +69,16 @@ const props = defineProps({ kind: { type: String, required: true } })
 const router = useRouter(), route = useRoute(), { chat, video, ready, loading, error, initialize } = useStudioSession(props.kind)
 const user = inject('studioUser', ref(null))
 const { isAgent, hintHidden, dismissHint } = useStudioExperience(props.kind, route.query.mode)
-const initialPreset = presetsFor(props.kind).find(p => p.id === route.query.preset)
-const agentDraft = ref(initialPreset ? (initialPreset.clientOnly ? composePreset(initialPreset) : `Use this preset: ${initialPreset.title}.`) : ''), agentPanel = ref(null), helper = ref(''), helperNote = ref('')
+// The page's presets come from the Recipe API (F-D4); everything that starts from one waits until they are read.
+const presetsReady = ref(presetsLoaded(props.kind)), presetsError = ref('')
+async function readPresets() {
+  presetsError.value = ''
+  try { await loadPresets(props.kind) } catch { presetsError.value = 'Could not load the presets.' }
+  finally { presetsReady.value = true }
+}
+readPresets()
+const startDraft = preset => preset ? (preset.clientOnly ? composePreset(preset) : `Use this preset: ${preset.title}.`) : ''
+const agentDraft = ref(startDraft(presetsFor(props.kind).find(p => p.id === route.query.preset))), agentPanel = ref(null), helper = ref(''), helperNote = ref('')
 const chatExpanded = ref(false)
 watch(isAgent, agent => {
   if (!agent) { chatExpanded.value = false; if (!selectedId.value && !route.query.useIn && !presetChosen.value) choose(presets.value[0]) }
@@ -81,6 +90,13 @@ const presets = computed(() => presetsFor(props.kind))
 const selectedOverride = ref(null)
 const selectedId = ref(route.query.useIn ? '' : presets.value.some(p => p.id === route.query.preset) ? route.query.preset : ''), selected = computed(() => selectedOverride.value?.id === selectedId.value ? selectedOverride.value : presets.value.find(preset => preset.id === selectedId.value))
 const presetSheet = ref(null), presetChosen = ref(false)
+// The preset the page was opened with (?preset=), once the presets are read: as it was when they were bundled here.
+watch(presetsReady, loaded => {
+  const preset = loaded ? presets.value.find(p => p.id === route.query.preset) : null
+  if (!preset) return
+  if (!agentDraft.value.trim()) agentDraft.value = startDraft(preset)
+  if (!route.query.useIn && !selectedId.value) selectedId.value = preset.id
+}, { immediate: true })
 function selectPresetId(id) { presetChosen.value = true; if (id) choose(presets.value.find(item => item.id === id)); else { if (selected.value && agentDraft.value === composePreset(selected.value, values.value, details.value)) agentDraft.value = ''; selectedId.value = ''; formError.value = ''; syncPresetRoute('', video.studioMode) } }
 // What the agent is told about this page with every message and Manual request: the page, and the look or preset
 // it came from (a client-only look id too; the backend keeps any well-formed id and grants nothing for it).
@@ -278,8 +294,8 @@ onBeforeUnmount(() => { window.removeEventListener('video-compose', composeAgain
 // Tab-scoped drafts are tied to an authenticated user id; no signed URLs or local File objects are persisted.
 const draftKey = computed(() => user.value?.id ? `aadml.studio.f0.${user.value.id}.${props.kind}.${route.query.conversation || 'draft'}` : '')
 let restoredKey = '', leaving = false
-watch([ready, draftKey], ([isReady, key]) => {
-  if (!isReady || !key || key === restoredKey) return
+watch([ready, draftKey, presetsReady], ([isReady, key, loaded]) => {
+  if (!isReady || !key || !loaded || key === restoredKey) return
   restoredKey = key
   let stored = null
   try { stored = JSON.parse(sessionStorage.getItem(key) || 'null'); if (stored) { restore(stored); records.value = Array.isArray(stored.records) ? stored.records.filter(record => record && typeof record === 'object' && typeof record.at === 'string').slice(0,30) : [] } } catch { /* blocked storage never blocks the page */ }
@@ -327,9 +343,9 @@ const pageSettings = computed(() => props.kind === 'image'
 // supports fill the form, as a look's prepared brief does. Nothing is sent, run or spent.
 const myTemplates = useStudioTemplates(), templateMessage = ref('')
 let usedTemplate = ''
-watch([ready, () => myTemplates.ready.value, () => route.query.template], async ([isReady, listed, id]) => {
+watch([ready, () => myTemplates.ready.value, () => route.query.template, presetsReady], async ([isReady, listed, id, loaded]) => {
   if (!id) { usedTemplate = ''; return }
-  if (!isReady || !listed || usedTemplate === String(id)) return
+  if (!isReady || !listed || !loaded || usedTemplate === String(id)) return
   usedTemplate = String(id)
   const template = myTemplates.find(id)
   if (!template || template.page !== props.kind) templateMessage.value = 'This template is not on your account, or it is for another page.'

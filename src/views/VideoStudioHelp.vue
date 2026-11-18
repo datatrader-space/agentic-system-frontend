@@ -149,6 +149,27 @@
           </p>
         </section>
 
+        <!-- The clip editor (VIDEO_CLIP_EDITOR_PLAN.md P4) -->
+        <section id="editor" class="doc-section" aria-labelledby="h-editor" data-test="help-clip-editor">
+          <h2 id="h-editor">The clip editor</h2>
+          <p>Under <strong>Edit &amp; enhance</strong>, the clip editor puts your own clips, pictures and sound on tracks.
+            Upload files (a dropped connection carries on where it stopped), or bring them from the Library. A higher
+            video track is drawn over a lower one, so a small clip on it is picture in picture.</p>
+          <p><strong>Editing.</strong> Select a clip, then split it at the playhead, trim either end, move it, delete it, or
+            delete it and close the gap. Every drag also has a typed time in Settings and a button, and Undo takes back any
+            edit. Add text and captions, make captions from speech (a paid transcript, with its estimate first), join two
+            clips with a transition, and set speed, volume, fades, crop, position and size.</p>
+          <p><strong>Keyboard.</strong> With the timeline focused: Space plays, S splits, Delete deletes (Shift+Delete closes
+            the gap), D duplicates, Alt+arrows move a clip a frame (Shift: a second), the arrows move between clips, and
+            Ctrl+Z / Ctrl+Shift+Z undo and redo. Switch the shortcuts off under the toolbar.</p>
+          <p><strong>Saving.</strong> Your edits are saved two seconds after you stop. If the agent or another tab changes
+            the project in the meantime, the editor stops saving and tells you; reload to continue on the newest version.</p>
+          <p><strong>Export</strong> is free: choose the shapes and 720p or 1080p, and the result lands in your Library and
+            the project. The monitor plays light copies, so it is close but not exact; <strong>Preview this part
+            exactly</strong> renders a few seconds exactly as the export will. You may run two exports at a time.</p>
+          <p class="links"><router-link to="/video-studio/editor" class="text-link">Open the clip editor</router-link></p>
+        </section>
+
         <!-- Writing a prompt -->
         <section id="prompts" class="doc-section" aria-labelledby="h-prompts">
           <h2 id="h-prompts">Writing a good prompt</h2>
@@ -258,7 +279,7 @@ const modelsError = ref('')
 const sections = [
   { id: 'kinds', title: 'What you can make' }, { id: 'process', title: 'How a video gets made' },
   { id: 'models', title: 'Which model for which video' }, { id: 'recipes', title: 'Recipes' },
-  { id: 'library', title: 'Library and ingredients' }, { id: 'prompts', title: 'Writing a good prompt' },
+  { id: 'library', title: 'Library and ingredients' }, { id: 'editor', title: 'The clip editor' }, { id: 'prompts', title: 'Writing a good prompt' },
   { id: 'costs', title: 'What it costs' }, { id: 'refunds', title: 'Refunds' },
   { id: 'keeping', title: 'How long files are kept' }, { id: 'trouble', title: 'When something goes wrong' },
 ]

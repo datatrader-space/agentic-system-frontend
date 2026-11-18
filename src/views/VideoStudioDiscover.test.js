@@ -7,7 +7,10 @@ import Discover from './VideoStudioDiscover.vue'
 import api from '../services/api'
 import { defineComponent, h, ref } from 'vue'
 import { provideStudioTemplates } from '../composables/useStudioTemplates'
-vi.mock('../services/api', () => ({ default: { post: vi.fn(), getStudioFeatures: vi.fn(), get: vi.fn(), patch: vi.fn(), delete: vi.fn() } }))
+// The Image and Video looks come from the Recipe API (F-D4): three each, as the catalogue serves them.
+const servedLook = (page, i, title) => ({ id: `${page}-look-${i}`, feature: page, title, purpose: `A ${page} look.`, category: page === 'image' ? 'Images' : 'Videos', slots: [], settings: {}, promptTemplate: 'Make it.', variants: ['Keep the prepared direction.'], clientOnly: true, variables: [] })
+vi.mock('../services/api', () => ({ default: { post: vi.fn(), getStudioFeatures: vi.fn(), get: vi.fn(), patch: vi.fn(), delete: vi.fn(),
+  getStudioRecipes: vi.fn(page => Promise.resolve({ data: { presets: [1, 2, 3].map(i => servedLook(page, i, i === 1 && page === 'image' ? 'Softbox product portrait' : `${page} look ${i}`)) } })) } }))
 const confirmMock = vi.hoisted(() => vi.fn())
 vi.mock('../composables/useConfirm', () => ({ confirm: confirmMock }))
 vi.mock('../composables/useNotify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }))
@@ -22,11 +25,11 @@ async function open() {
   return router
 }
 describe('Discover is the goal-first Studio landing', () => {
-  it('offers each of the 26 existing tools exactly once, without a Start from scratch detour', async () => {
+  it('offers each of the 28 existing tools exactly once, without a Start from scratch detour', async () => {
     await open()
     const links = wrapper.findAll('[data-test^="discover-tool-"]')
-    expect(links).toHaveLength(26)
-    expect(new Set(links.map(link => link.attributes('data-test'))).size).toBe(26)
+    expect(links).toHaveLength(28)
+    expect(new Set(links.map(link => link.attributes('data-test'))).size).toBe(28)
     expect(links.find(link => link.attributes('data-test') === 'discover-tool-video').attributes('href')).toContain('mode=agent')
     expect(wrapper.text()).not.toContain('Start from scratch')
     expect(api.post).not.toHaveBeenCalled()
@@ -34,7 +37,7 @@ describe('Discover is the goal-first Studio landing', () => {
   it('filters ready-made looks and links directly to an editable tool preset without requesting media', async () => {
     await open()
     await wrapper.findAll('.discover-views button')[1].trigger('click')
-    expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(74)
+    expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(74)          // the app's own, plus 6 served
     await wrapper.get('input[type="search"]').setValue('Softbox product portrait')
     expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(1)
     expect(wrapper.get('[data-test="discover-look-image-look-1"]').attributes('href')).toContain('/video-studio/image?preset=image-look-1&mode=agent')

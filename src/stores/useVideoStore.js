@@ -153,6 +153,8 @@ export const useVideoStore = defineStore('video', {
     jobs: {},
     // Storyboard plans by id (ADM-1146): one approval for every scene, shown as one card (ADM-1170).
     plans: {},
+    // The stages of a brand or product read from its website, by the read_id the page sent (`video_stage` frames).
+    stages: {},
     busy: false,
     // The open project and the panel. conversationId is the chat they were loaded for.
     conversationId: null,
@@ -491,6 +493,8 @@ export const useVideoStore = defineStore('video', {
     },
     // A `video_plan` frame: the plan as its card shows it, pushed on every change (ADM-1146).
     onPlanFrame(data) { this._putPlan(data) },
+    // A `video_stage` frame (ADS_STUDIO_V2_PLAN.md section 5): every stage of the read so far, replaced whole.
+    onStageFrame(data) { if (data?.read_id && Array.isArray(data.stages)) this.stages = { ...this.stages, [data.read_id]: data.stages } },
     // A conversation's plans, so a page opened again shows its plan card. Errors leave the cards as they were.
     async loadPlans(conversationId) {
       if (!conversationId) return false
@@ -855,28 +859,6 @@ export const useVideoStore = defineStore('video', {
     },
     // A project's versions, or, in a chat with no project, the chat's own generated and edited videos (the
     // chat keeps its own active video, so Restore works there too).
-    /**
-     * Save the finishing timeline (trims, captions, music) as a new revision. The server freezes each scene
-     * to its current take, so the export renders exactly this cut even if a take changes later.
-     */
-    async saveTimeline(edl) {
-      if (!this.project) return null
-      try {
-        const res = await api.post(`/video/projects/${this.project.project_id}/timeline/`, { edl })
-        const timeline = { revision: res.data.revision, revision_id: res.data.revision_id, edl: res.data.edl }
-        this.project = { ...this.project, timeline }
-        return timeline
-      } catch (e) {
-        notify.error(errText(e, 'Could not save the timeline.'))
-        return null
-      }
-    },
-    // Export the saved timeline revision in each shape. Without a revision the server freezes the scenes'
-    // current takes at request time.
-    async exportTimeline(aspects, { chat, revisionId = null } = {}) {
-      return this.local('export', { aspects: aspects && aspects.length ? aspects : ['16:9'],
-                                    timeline_revision_id: revisionId || undefined }, { chat })
-    },
     // ── Library and Ingredients ───────────────────────────────────────────────────────────────────
     async loadLibraryProjects() {
       try {

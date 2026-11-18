@@ -1,12 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+// The Image and Video presets are served by the Recipe API (F-D4); their content is checked by the backend's catalogue
+// check (video_studio/tests/test_recipes.py). Here: what the page composes from what it is served.
+vi.mock('../../services/api', () => ({ default: { getStudioRecipes: vi.fn(page => Promise.resolve({ data: { presets: Array.from({ length: 8 }, (_, i) => ({ id: `${page}-${i}`, feature: page, title: `T${i}`, slots: [{ id: 'product', label: 'Your product', role: 'subject' }], settings: {}, promptTemplate: 'Show {product} clearly.', variants: ['One.', 'Two.'] })) } })) } }))
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { STUDIO_GROUPS, studioFeatures, featureLink, studioIcons } from '../../services/studioFeatures'
-import { presetsFor, composePreset } from '../../services/studioPresets'
+import { presetsFor, composePreset, loadPresets } from '../../services/studioPresets'
 import { studioChildRoutes } from '../../services/studioRoutes'
 describe('F0 feature and route catalog', () => {
   it('has every planned page, a working route pattern and honest status metadata', () => {
-    expect(studioFeatures.value).toHaveLength(27)
-    expect(new Set(studioFeatures.value.map(feature => feature.id)).size).toBe(27)
+    expect(studioFeatures.value).toHaveLength(29)
+    expect(new Set(studioFeatures.value.map(feature => feature.id)).size).toBe(29)
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/video-studio', component: { template: '<div />' }, children: studioChildRoutes }] })
     for (const feature of studioFeatures.value) {
       expect(STUDIO_GROUPS).toContain(feature.group); expect(studioIcons[feature.icon]).toBeTruthy()
@@ -27,7 +30,9 @@ describe('F0 feature and route catalog', () => {
     expect(router.currentRoute.value.path).toBe('/video-studio/elements')
     expect(router.currentRoute.value.query).toEqual({ conversation: 'c9', source: 'old' }); expect(router.currentRoute.value.hash).toBe('#saved')
   })
-  it.each(['image','video'])('provides at least eight original %s compositions with declared slots', feature => {
+  it.each(['image','video'])('composes every %s preset the Recipe API serves with its declared slots', async feature => {
+    expect(presetsFor(feature)).toEqual([])                       // nothing of its own: one source, the API
+    await loadPresets(feature)
     const presets = presetsFor(feature)
     expect(presets.length).toBeGreaterThanOrEqual(8)
     for (const preset of presets) { expect(preset.promptTemplate).toBeTruthy(); expect(preset.variants.length).toBeGreaterThan(1); expect(composePreset(preset, {}, 'Original detail')).toContain('Original detail'); expect(composePreset(preset)).not.toMatch(/\{[a-z]+\}/) }
