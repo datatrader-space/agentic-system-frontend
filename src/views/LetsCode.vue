@@ -470,7 +470,9 @@ async function cloneRepo(r) {
   if (cloningUrl.value) return
   cloningUrl.value = r.clone_url
   try {
-    const { data } = await api.createProject({ github_url: r.clone_url, name: r.name, branch: r.default_branch })
+    // No branch: the server clones the repository's own default branch, read from the remote itself (GitHub's
+    // listing says "main" even for an empty repository, and that clone then failed on a branch that does not exist).
+    const { data } = await api.createProject({ github_url: r.clone_url, name: r.name })
     await loadProjects()
     openProject(data)
   } catch (e) {
