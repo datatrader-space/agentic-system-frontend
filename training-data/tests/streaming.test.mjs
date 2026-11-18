@@ -489,10 +489,11 @@ test('this month\'s spend on a camera is its frames, its recording storage and t
   assert.deepEqual(spendItems(null), []);
 });
 
-test('the Connectors card lists the machines that have cameras, with their state, agent and cameras', () => {
+test('the Machines card lists every machine, with its state, agent and cameras (one with none too, so it can be removed)', () => {
   const machines = [
     { id: 3, name: 'Shop PC', state: 'online', agent_version: '1.5.0' },
-    { id: 4, name: 'Spare', state: 'online', agent_version: '1.5.0' },                     // no camera: not listed
+    { id: 4, name: 'Spare', state: 'online', agent_version: '1.5.0' },                     // no camera yet: listed, 0
+    { id: 11, name: 'Gone', state: 'removed', agent_version: '1.5.0' },                    // removed, no camera: not listed
     { id: 5, name: 'Back office', state: 'offline', agent_version: '1.4.0' },
   ];
   const sources = [
@@ -505,9 +506,10 @@ test('the Connectors card lists the machines that have cameras, with their state
   ];
   const rows = connectorRows(machines, sources);
   assert.deepEqual(rows.map(r => [r.name, r.badge[1], r.agent, r.cameras]), [
-    ['Back office', 'Offline', '1.4.0', 1], ['Old laptop', 'Removed', '', 1], ['Shop PC', 'Online', '1.5.0', 2],
+    ['Back office', 'Offline', '1.4.0', 1], ['Old laptop', 'Removed', '', 1], ['Shop PC', 'Online', '1.5.0', 2], ['Spare', 'Online', '1.5.0', 0],
   ]);
   assert.equal(connectorLine(rows[2]), '2 cameras · agent 1.5.0');
+  assert.equal(connectorLine(rows[3]), '0 cameras · agent 1.5.0');
   assert.equal(connectorLine(rows[1]), '1 camera');
   assert.deepEqual(connectorRows([], []), []);
   assert.deepEqual(connectorRows(undefined, [{ kind: 'connector', machine: { id: 3, name: 'Shop PC', state: 'online' } }]).map(r => r.badge), [['green', 'Online']]);

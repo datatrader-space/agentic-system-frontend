@@ -24,7 +24,7 @@ import UiBadge from './UiBadge.vue';
 import MachineConnection from './MachineConnection.vue';
 import UiDialog from './UiDialog.vue';
 import { modelName, timeAgo } from '../api/workspace.js';
-import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT } from '../api/machines.js';
+import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT, MACHINE_COMMANDS } from '../api/machines.js';
 import { Search } from 'lucide-vue-next';
 import {
   videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
@@ -409,12 +409,27 @@ async function confirmRemove() {
 }
 
 // ── the Connectors card: the workspace's machines that have cameras (the machines list and the sources) ────────────
-const connectorMachines = ref(null);
+const connectorMachines = ref(null); const mayManageMachines = ref(false);
+// Removing a machine from here (machinesApi.remove, as Manage machines does): its key stops at once, its cameras stop
+// being read, and the computer is cleared with MACHINE_COMMANDS.clean.
+const removingMachine = ref(null); const removeMachineBusy = ref(false); const removeMachineError = ref('');
+async function removeMachine() {
+  if (!removingMachine.value || removeMachineBusy.value) return;
+  removeMachineBusy.value = true; removeMachineError.value = '';
+  try {
+    const name = removingMachine.value.name;
+    await machinesApi.remove(removingMachine.value.id);
+    removingMachine.value = null;
+    tell(`${name} is removed. Its key no longer works; clear it from the computer with the command shown.`);
+    await loadConnectors(); await loadMachines(); load();
+  } catch (e) { removeMachineError.value = e.message; }
+  finally { removeMachineBusy.value = false; }
+}
 async function loadConnectors() {
-  try { connectorMachines.value = (await machinesApi.list())?.machines || []; }
+  try { const answer = await machinesApi.list(); connectorMachines.value = answer?.machines || []; mayManageMachines.value = !!answer?.may_manage; }
   catch { connectorMachines.value = []; }          // the sources' own machine names and states are shown then
 }
-watch(() => sources.value.some(s => s.kind === 'connector'), has => { if (has && connectorMachines.value === null) loadConnectors(); }, { immediate: true });
+watch(page, () => { if (connectorMachines.value === null) loadConnectors(); }, { immediate: true });   // every machine, cameras or not
 watch(page, () => { if (connectorMachines.value !== null) loadConnectors(); });
 const connectors = computed(() => connectorRows(connectorMachines.value || machineRows.value || [], sources.value));
 function connectCamera() {
@@ -541,15 +556,17 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
       <section class="vs-card vs-panel" aria-labelledby="vs-connectors-h">
         <header class="vs-bar">
           <div class="vs-title">
-            <h3 id="vs-connectors-h">Connectors</h3>
+            <h3 id="vs-connectors-h">Machines</h3>
             <button type="button" class="vs-help-btn" aria-label="About connectors" :aria-expanded="helpOpen==='connectors'" aria-controls="vs-help-connectors" @click="toggleHelp('connectors')"><CircleQuestionMark :size="15" aria-hidden="true"/></button>
           </div>
         </header>
         <p v-if="helpOpen==='connectors'" id="vs-help-connectors" class="vs-helptext">A connector is a small program on a computer in your own network. It reaches out to AADML, so cameras that are not on the internet can be used without opening a port on your router.</p>
-        <ul v-if="connectors.length" class="vs-connectors" aria-label="Machines with cameras">
+        <ul v-if="connectors.length" class="vs-connectors" aria-label="Your machines">
           <li v-for="c in connectors" :key="c.id">
             <span class="vs-connector-name"><strong>{{ c.name }}</strong><small>{{ connectorLine(c) }}</small></span>
             <UiBadge :tone="c.badge[0]">{{ c.badge[1] }}</UiBadge>
+            <button v-if="mayManageMachines && c.state !== 'removed'" type="button" class="icon-button vs-machine-remove" :aria-label="`Remove ${c.name}`" :title="`Remove ${c.name}`"
+                    @click="removingMachine = c; removeMachineError = ''"><Trash2 :size="15" aria-hidden="true"/></button>
           </li>
         </ul>
         <div v-else class="vs-empty vs-empty-plain">
@@ -564,6 +581,20 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
     </aside>
   </div>
 
+
+    <!-- Removing a machine -->
+    <UiDialog :open="!!removingMachine" :title="removingMachine ? `Remove ${removingMachine.name}?` : ''" @close="removingMachine = null">
+      <template v-if="removingMachine">
+        <p class="dialog-description">Its key stops working at once.{{ removingMachine.cameras ? ` Its ${removingMachine.cameras} camera${removingMachine.cameras === 1 ? '' : 's'} stop${removingMachine.cameras === 1 ? 's' : ''} being read (live view, recording and models on ${removingMachine.cameras === 1 ? 'it' : 'them'}); the camera${removingMachine.cameras === 1 ? ' stays' : 's stay'} listed until you remove ${removingMachine.cameras === 1 ? 'it' : 'them'} or move ${removingMachine.cameras === 1 ? 'it' : 'them'} to another machine.` : '' }} Training it has not finished fails, and models it serves stop.</p>
+        <p class="vs-help">Then clear it from the computer, in a terminal there:</p>
+        <code class="vs-code">{{ MACHINE_COMMANDS.clean }}</code>
+        <p v-if="removeMachineError" class="field-error" role="alert">{{ removeMachineError }}</p>
+        <div class="dialog-actions">
+          <UiButton @click="removingMachine = null">Cancel</UiButton>
+          <UiButton variant="primary" class="danger" :disabled="removeMachineBusy" @click="removeMachine"><Trash2 :size="14" aria-hidden="true"/> {{ removeMachineBusy ? 'Removing…' : 'Remove machine' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
 
     <!-- "Add video source" and "Edit" -->
     <UiDialog class="vs-dialog" :open="editorOpen" :title="editing ? `Edit ${editing.name}` : 'Add video source'" @close="closeEditor">

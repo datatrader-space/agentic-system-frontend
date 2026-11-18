@@ -723,11 +723,14 @@ export function connectorRows(machines, sources) {
     if (!named.has(id)) named.set(id, m);
   }
   const known = new Map((machines || []).filter(m => m && m.id !== undefined && m.id !== null).map(m => [String(m.id), m]));
-  return [...cameras.keys()].map(id => {
+  // Every machine of the workspace that is not removed (one with no camera yet too: it can be removed or given cameras
+  // here), and a removed one still named by a camera. Live, 2026-11-18: the owner found no way to remove a machine.
+  const ids = new Set([...cameras.keys(), ...[...known.values()].filter(m => m.state !== 'removed').map(m => String(m.id))]);
+  return [...ids].map(id => {
     const m = known.get(id) || named.get(id) || {};
     const state = m.state === 'online' ? 'online' : m.state === 'removed' ? 'removed' : 'offline';
     return { id, name: m.name || 'A machine', state, badge: state === 'online' ? ['green', 'Online'] : ['neutral', state === 'removed' ? 'Removed' : 'Offline'],
-      agent: typeof m.agent_version === 'string' ? m.agent_version : '', cameras: cameras.get(id) };
+      agent: typeof m.agent_version === 'string' ? m.agent_version : '', cameras: cameras.get(id) || 0 };
   }).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
