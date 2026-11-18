@@ -22,3 +22,7 @@ studioChildRoutes.push({ path: 'ingredients', name: 'video-studio-ingredients', 
 // Dashboard reuses the existing production Studio composer/session, while Discover is the default landing.
 studioChildRoutes.push({ path: 'dashboard', name: 'video-studio-dashboard', component: () => import('../views/VideoStudio.vue'), meta: { studioFeature: 'dashboard' } })
 studioChildRoutes.push({ path: 'discover', redirect: to => ({ path: '/video-studio', query: to.query, hash: to.hash }) })
+// Team sharing (ADM-1248): a project's review, canvas and usage; a share link; the workspace's spend per member.
+studioChildRoutes.push({ path: 'projects/:projectId/:tab(review|canvas|usage)?', name: 'video-studio-project-room', component: () => import('../views/VideoStudioProjectRoom.vue'), props: true, meta: { studioFeature: 'projects' } })
+studioChildRoutes.push({ path: 'share/:token', name: 'video-studio-share', component: () => import('../views/VideoStudioShare.vue'), props: true, meta: { studioFeature: 'projects' } })
+studioChildRoutes.push({ path: 'team-spend', name: 'video-studio-team-spend', component: () => import('../views/VideoStudioTeamSpend.vue'), meta: { studioFeature: 'team-spend' } })

@@ -10,6 +10,17 @@
         <p v-if="summary" class="bar-sub">{{ summary }}</p>
       </div>
       <div class="bar-actions">
+        <!-- The open project's sharing, review and canvas (ADM-1248). -->
+        <template v-if="video.project && video.project.project_id">
+          <button type="button" class="btn" data-test="studio-share" @click="shareOpen = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6M8 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6M2 20a6 6 0 0 1 12 0M14 20a6 6 0 0 1 8-5.6" /></svg>
+            <span>{{ video.project.abilities && !video.project.abilities.manage ? 'Who has access' : 'Share' }}</span>
+          </button>
+          <router-link :to="{ name: 'video-studio-project-room', params: { projectId: video.project.project_id, tab: 'review' } }" class="btn" data-test="studio-review">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2Z" /></svg>
+            <span>Review and canvas</span>
+          </router-link>
+        </template>
         <button type="button" class="btn" data-test="studio-open-library" @click="video.libraryOpen = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 4h16v16H4z" /><path d="M4 15l5-5 4 4 3-3 4 4" /></svg>
@@ -116,6 +127,7 @@
     <VideoLibrary v-if="video.libraryOpen" />
     <HITLModal :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
     <FullDocCostCard />
+    <ProjectShareDialog v-if="video.project && video.project.project_id" :open="shareOpen" :project-id="String(video.project.project_id)" :title="video.project.title || ''" @close="shareOpen = false" />
   </section>
 </template>
 
@@ -137,6 +149,7 @@ import VideoLibrary from '../components/video/VideoLibrary.vue'
 import ChatMessageList from '../components/chat/ChatMessageList.vue'
 import HITLModal from '../components/HITLModal.vue'
 import FullDocCostCard from '../components/chat/FullDocCostCard.vue'
+import ProjectShareDialog from '../components/studio/ProjectShareDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,6 +160,7 @@ const previousModes = { image: chat.imageMode, canvas: canvas.mode }
 const loading = ref(true)
 const error = ref('')
 const openingProject = ref(false)
+const shareOpen = ref(false)
 const composerEl = ref(null)
 const mobileTab = ref('agent')
 const views = [{ value: 'agent', label: 'Agent' }, { value: 'canvas', label: 'Preview and edit' }]

@@ -238,6 +238,7 @@
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
                 <option value="viewer">Viewer</option>
+                <option value="billing">Billing: sees spend, cannot make or edit</option>
               </select>
               <button class="btn-primary" :disabled="membersModal.busy || !membersModal.addUserId" @click="addWsMember">Add</button>
             </div>

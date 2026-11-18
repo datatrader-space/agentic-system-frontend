@@ -103,4 +103,14 @@ export default {
     resendInvite: (slug, id) => tenancyApi.post(`/orgs/${slug}/invites/${id}/`),
     cancelInvite: (slug, id) => tenancyApi.delete(`/orgs/${slug}/invites/${id}/`),
 
+    // ── Single sign-on and verified domains (ADM-1248; org owners and admins only) ──────────────────
+    getOrgDomains: (slug) => tenancyApi.get(`/orgs/${slug}/domains/`),
+    addOrgDomain: (slug, domain) => tenancyApi.post(`/orgs/${slug}/domains/`, { domain }),
+    verifyOrgDomain: (slug, id) => tenancyApi.post(`/orgs/${slug}/domains/${id}/verify/`),
+    removeOrgDomain: (slug, id) => tenancyApi.delete(`/orgs/${slug}/domains/${id}/`),
+    getOrgSso: (slug) => tenancyApi.get(`/orgs/${slug}/sso/`),
+    createOrgSso: (slug, data) => tenancyApi.post(`/orgs/${slug}/sso/`, data),
+    updateOrgSso: (slug, id, data) => tenancyApi.patch(`/orgs/${slug}/sso/${id}/`, data),
+    deleteOrgSso: (slug, id) => tenancyApi.delete(`/orgs/${slug}/sso/${id}/`),
+
 }

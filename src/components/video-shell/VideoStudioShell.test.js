@@ -122,7 +122,7 @@ describe('F0 grouped navigation', () => {
 it('matches the approved workspace-first hierarchy without duplicated destinations', async () => {
   const { w } = await mountAt('/video-studio')
   expect(w.findAll('.vs-group-toggle').map(b => b.text())).toEqual(['Create','Edit & enhance','Characters','Video tools','Avatars & shorts','Story','Marketing'])
-  expect(w.findAll('.vs-workspace-nav > a').map(a => a.text())).toEqual(['Dashboard','Discover','Saved templates0','My templates0','Projects','Library','Canvas','Publish','Community'])
+  expect(w.findAll('.vs-workspace-nav > a').map(a => a.text())).toEqual(['Dashboard','Discover','Saved templates0','My templates0','Projects','Library','Canvas','Publish','Community','Team spend'])
   expect(w.find('.vs-fixed-workspace').exists()).toBe(false)
   expect(w.findAll('.vs-foot > a').map(a => a.text())).toEqual(['Help & shortcuts'])
   expect(w.findAll('.vs-nav-item[data-test="vs-nav-projects"]')).toHaveLength(1)
