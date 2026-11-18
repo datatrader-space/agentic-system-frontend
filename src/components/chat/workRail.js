@@ -169,7 +169,9 @@ export function workRows(steps, { finished = false, hasAnswer = false } = {}) {
     if (s.isText) {
       if (String(s.text || '').trim()) rows.push({ kind: 'text', key: s.stepId, step: s })
     } else if (s.phase === 'reasoning') {
-      if (String(s.reasoningText || '').trim() || s.status === 'running') rows.push({ kind: 'thought', key: s.stepId, step: s })
+      if (String(s.reasoningText || '').trim() || s.status === 'running' || s.hiddenThought) {
+        rows.push({ kind: 'thought', key: s.stepId, step: s })
+      }
     } else if (s.isSteer) {
       rows.push({ kind: 'steer', key: s.stepId, step: s })
     } else if (s.isCompaction) {

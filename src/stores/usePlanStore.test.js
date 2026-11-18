@@ -33,6 +33,13 @@ describe('usePlanStore', () => {
     expect(store.activeRunIdsByConversation['5']).toContain('system_b:5')
   })
 
+  it('a load that comes back with no plan says so, never "loading" for ever (live test 2026-11-18)', async () => {
+    mockApi.get.mockResolvedValueOnce({ data: {} })
+    await store.hydrateRun('system_b:9')
+    expect(store.planFor('system_b:9')).toBeNull()
+    expect(store.connStateFor('system_b:9')).toBe('empty')
+  })
+
   it('progress says a paused run is over, so nothing reads it as an active plan (conv 1645)', async () => {
     mockApi.get.mockResolvedValueOnce({ data: snap({ run_status: 'paused', plan_status: 'paused', plan_status_user: 'paused',
       steps: [{ step_id: 'a', status: 'in_progress' }] }) })

@@ -126,6 +126,16 @@ describe('WorkTimeline', () => {
     w.unmount()
   })
 
+  it('a private thought shows how long it took and opens to say the model keeps its reasoning private', async () => {
+    const w = mountIt({ steps: [{ stepId: 'h1', phase: 'reasoning', isPhase: true, status: 'ok', durationMs: 2400,
+                                  reasoningText: '', hiddenThought: true }], hasAnswer: false })
+    const btn = w.get('[data-test="wt-toggle"]')
+    expect(btn.text()).toContain('Thought for 2.4s')
+    await btn.trigger('click')
+    expect(w.get('[data-test="wt-thought-text"]').text()).toContain('keeps its reasoning private')
+    w.unmount()
+  })
+
   it('a long IN/OUT kept as its ref is loaded whole on expand, from this conversation', async () => {
     const big = 'line\n'.repeat(3000)
     get.mockResolvedValue({ data: { input: { path: 'big.txt' }, output: big } })

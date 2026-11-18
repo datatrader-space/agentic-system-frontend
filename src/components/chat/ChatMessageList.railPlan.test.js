@@ -11,12 +11,13 @@ import ChatMessageList from './ChatMessageList.vue'
 
 class FakeResizeObserver { observe() {} disconnect() {} }
 
-function mountWith(plan) {
+function mountWith(plan, loadState = null) {
   setActivePinia(createPinia())
   vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   const chat = useChatStore()
   const plans = usePlanStore()
   if (plan) plans.plansByRunId = { r1: plan }
+  if (loadState) plans.hydrationStatusByRunId = { r1: loadState }
   chat.messages = [
     { id: 'u1', role: 'user', content: 'Read package.json', status: 'done' },
     { id: 'a1', role: 'assistant', content: 'It is 16.4.6.', status: 'done', turnMode: 'work',
@@ -47,6 +48,13 @@ describe('a Work turn\'s plan on its rail', () => {
   it('a plan not loaded yet keeps its row, so its card can load it', () => {
     const w = mountWith(null)
     expect(w.find('.has-rail-plan').exists()).toBe(true)
+  })
+
+  it('a run whose load came back with no plan, or failed, gets no row (the lone dot of the live test)', () => {
+    for (const state of ['empty', 'error']) {
+      const w = mountWith(null, state)
+      expect(w.find('.has-rail-plan').exists(), state).toBe(false)
+    }
   })
 
   it('the card and the rail ask the same question', () => {

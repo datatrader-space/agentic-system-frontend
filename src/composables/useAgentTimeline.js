@@ -215,6 +215,16 @@ export function useAgentTimeline() {
         if (openReasoning) {
           if (evt.duration_ms != null) openReasoning.durationMs = evt.duration_ms
           _closeRow(openReasoning, 'ok')
+        } else if (evt.hidden) {
+          // The model thought but keeps its reasoning private (sent only encrypted): one closed thought with its
+          // time and no text, so the timeline still shows that it thought (Claude Code's "Thought for Ns").
+          _closeOpenPhases()
+          const row = _phaseRow('reasoning', 'Thinking')
+          row.status = 'ok'
+          row.hiddenThought = true
+          row.durationMs = evt.duration_ms != null ? evt.duration_ms : null
+          if (evt.plan_step_id) row.planStepId = evt.plan_step_id
+          steps.value.push(row)
         }
         return true
       }

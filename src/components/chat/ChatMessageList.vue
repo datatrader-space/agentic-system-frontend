@@ -113,12 +113,18 @@ function isFirstAnchor(messageId, planId, runId) {
 }
 // A Work turn (ADM-1302): its plan card and approvals are drawn on its rail, not after it.
 const isWorkTurn = (m) => !!m && m.role === 'assistant' && m.turnMode === 'work'
-// A plan the card would not draw (stepless) gets no rail row either: the row's dot stood alone over nothing
-// (live test 2026-11-18). A plan not loaded yet keeps its row, so its card mounts and loads it.
+// A plan the card would not draw gets no rail row either: the row's dot stood alone over nothing (live test
+// 2026-11-18). That is a stepless plan, and a run whose load came back with no plan or failed. A plan still to be
+// loaded keeps its row, so its card mounts and loads it.
 const plans = usePlanStore()
+const LOADED_WITHOUT_A_PLAN = new Set(['empty', 'error'])
 function firstPlans(m) {
-  return (m.planArtifacts || []).filter((a) => a && isFirstAnchor(m.id, a.plan_id, a.run_id)
-    && !planIsStepless(plans.planFor(a.run_id)))
+  return (m.planArtifacts || []).filter((a) => {
+    if (!a || !isFirstAnchor(m.id, a.plan_id, a.run_id)) return false
+    const plan = plans.planFor(a.run_id)
+    if (plan) return !planIsStepless(plan)
+    return !LOADED_WITHOUT_A_PLAN.has(plans.connStateFor(a.run_id))
+  })
 }
 // The person's messages that a Work turn answers: drawn as a box, as Claude Code draws them (ADM-1302). A message
 // with no answer yet takes the mode it was sent in (the conversation's).

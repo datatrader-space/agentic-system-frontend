@@ -70,6 +70,25 @@ describe('useAgentTimeline — a Work turn', () => {
     tl.addPlan('P1', 'R1')
     expect(tl.steps.value.filter((s) => s.isPlan).length).toBe(1)
   })
+
+  it('a model that thought in private still shows "Thought for Ns" with no text (its reasoning came encrypted)', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ type: 'reasoning_done', step_id: 'step_h', duration_ms: 2400, hidden: true })
+    tl.addText('It is 4.', true)
+    const rows = workRows(tl.steps.value)
+    expect(rows.map((r) => r.kind)).toEqual(['thought', 'text'])
+    expect(rows[0].step.hiddenThought).toBe(true)
+    expect(rows[0].step.durationMs).toBe(2400)
+    expect(rows[0].step.reasoningText || '').toBe('')
+  })
+
+  it('a reasoning_done without hidden and with no open thought adds nothing', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ type: 'reasoning_done', step_id: 'step_x', duration_ms: 10 })
+    expect(workRows(tl.steps.value)).toEqual([])
+  })
 })
 
 describe('useAgentTimeline — a Chat turn keeps today\'s shape', () => {

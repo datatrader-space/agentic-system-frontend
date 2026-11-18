@@ -25,7 +25,9 @@
             <span class="wt-thought-label">{{ thoughtLabel(r.step) }}</span>
             <svg class="wt-chev" :class="{ open: isOpen(r) }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 1 1-1.4-1.4L10.6 10 7.3 6.7a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
           </button>
-          <div v-if="isOpen(r)" :id="`wt-p-${uid}-${r.key}`" class="wt-thought-text" data-test="wt-thought-text"
+          <p v-if="isOpen(r) && r.step.hiddenThought" :id="`wt-p-${uid}-${r.key}`" class="wt-thought-text"
+             data-test="wt-thought-text">This model keeps its reasoning private, so only how long it thought is shown.</p>
+          <div v-else-if="isOpen(r)" :id="`wt-p-${uid}-${r.key}`" class="wt-thought-text" data-test="wt-thought-text"
                v-html="renderInlineMarkdown(stripThinkTags(r.step.reasoningText))"></div>
         </div>
 

@@ -122,6 +122,11 @@ export const usePlanStore = defineStore('plan', {
       try {
         const res = await api.get(`/run-coordinator/runs/${encodeURIComponent(runId)}/plan/`, { noCache: true })
         const snap = res.data
+        if (!snap || !snap.run_id) {
+          // Loaded, and the run has no plan: said as that, never left "loading" for ever.
+          this.hydrationStatusByRunId[runId] = 'empty'
+          return null
+        }
         this._applySnapshot(snap)
         return snap
       } catch (e) {
