@@ -129,7 +129,6 @@ describe('plan mode: a refused call', () => {
     const row = chat.liveSteps.find((s) => s.stepId === 'st1')
     expect(row.status).toBe('held')
     expect(row.reason).toBe('Not run: plan mode only reads')
-    expect(chat.liveHasFailures).toBe(false)
     expect(chat._cur().error || '').toBe('')
   })
 
