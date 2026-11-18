@@ -1502,6 +1502,11 @@ export const useChatStore = defineStore('chat', {
     _connectionHandlers() {
       return {
         onEvent: (msg) => this._onEvent(msg),
+        // After a few failed reconnects (chatService): is the session gone? A 401 also lands on /login through the
+        // global 401 handler in services/api.js.
+        checkSignedIn: async () => {
+          try { await api.getCurrentUser(); return true } catch (e) { return e?.response?.status !== 401 }
+        },
         onOpen: () => {
           // Reconnected after a mid-turn drop. The backend keeps the turn alive and PERSISTS its answer
           // (turn lifetime is decoupled from the socket), so recover by reloading history. Trigger whenever

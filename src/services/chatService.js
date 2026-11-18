@@ -205,18 +205,17 @@ export class ChatConnection {
   // A refused handshake reaches the browser as a plain close (1006), the same as a network drop, so a signed-out page
   // retried forever (one tab: 83 refusals in 40 minutes, 2026-11-18). After a few failures ask the server once: a
   // 401 means the session is gone, so stop retrying; the global 401 handler (services/api.js) then lands on /login.
-  // The API module is loaded only here, with its full name: this file is also imported by the Training Data app's
-  // assistant chat, which its Node tests load without Vite (a static import broke them, CI of b6df47a).
+  // The check is the caller's (handlers.checkSignedIn -> false when the session is gone): this file is shared with the
+  // Training Data app, which has its own API and build, so it imports neither app's API itself (CI of b6df47a/c29a21b).
   async _checkSignedIn() {
-    try {
-      const { default: api } = await import('./api.js')
-      await api.getCurrentUser()
-    } catch (e) {
-      if (e?.response?.status === 401) {
-        this.closedByUs = true
-        if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
-        this.handlers.onConnectionState?.('signed_out')
-      }
+    const check = this.handlers.checkSignedIn
+    if (!check) return
+    let signedIn = true
+    try { signedIn = (await check()) !== false } catch { signedIn = true }
+    if (!signedIn) {
+      this.closedByUs = true
+      if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+      this.handlers.onConnectionState?.('signed_out')
     }
   }
 

@@ -1,8 +1,6 @@
 // F-H4: the chat socket never gives up, backs off with full jitter capped at 30 s, and a send on a dead
 // socket connects at once.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-const api = vi.hoisted(() => ({ getCurrentUser: vi.fn(async () => ({ data: { id: 1 } })) }))
-vi.mock('./api', () => ({ default: api }))
 import { ChatConnection, reconnectDelay, RECONNECT_CAP_MS, RECONNECT_LOST_AFTER } from './chatService'
 
 const sockets = []
@@ -101,9 +99,9 @@ describe('ChatConnection reconnect', () => {
 
 describe('ChatConnection on a signed-out page', () => {
   it('asks the server once after a few failures and stops retrying when the session is gone (401)', async () => {
-    api.getCurrentUser.mockRejectedValueOnce({ response: { status: 401 } })
+    const checkSignedIn = vi.fn(async () => false)                 // the caller's check: the session is gone
     const onConnectionState = vi.fn()
-    const conn = new ChatConnection(null, { onConnectionState })
+    const conn = new ChatConnection(null, { onConnectionState, checkSignedIn })
     conn.connect(0)
     for (let i = 0; i < RECONNECT_LOST_AFTER; i++) {
       sockets[sockets.length - 1].fail()
@@ -116,9 +114,9 @@ describe('ChatConnection on a signed-out page', () => {
   })
 
   it('keeps reconnecting when the person is still signed in', async () => {
-    api.getCurrentUser.mockResolvedValueOnce({ data: { id: 1 } })
+    const checkSignedIn = vi.fn(async () => true)
     const onConnectionState = vi.fn()
-    const conn = new ChatConnection(null, { onConnectionState })
+    const conn = new ChatConnection(null, { onConnectionState, checkSignedIn })
     conn.connect(0)
     for (let i = 0; i < RECONNECT_LOST_AFTER + 2; i++) {
       sockets[sockets.length - 1].fail()
