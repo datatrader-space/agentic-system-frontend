@@ -671,7 +671,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <div v-else-if="!editing && way==='rtmp' && addedPush" class="vs-pushed">
           <div class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
           <PushDetails v-if="addedPush.details" :push="addedPush.details" id-prefix="vs-push"/>
-          <p v-else class="field-error" role="alert">The stream was added, but its stream key could not be shown here. Open it in the list and rotate its key to get one.</p>
+          <p v-else class="field-error" role="alert">The stream was added, but its stream key could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R), open the stream in the list and rotate its key to get one.</p>
           <UiButton class="small" @click="addAnotherPush">Add another RTMP stream</UiButton>
         </div>
 
@@ -679,7 +679,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <div v-else-if="!editing && way==='phonecam' && addedPhone" class="vs-pushed">
           <div class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
           <PhoneLinkDetails v-if="addedPhone.details" :phone="addedPhone.details" id-prefix="vs-phone"/>
-          <p v-else class="field-error" role="alert">The phone camera was added, but its phone link could not be shown here. Open it in the list and make a new phone link.</p>
+          <p v-else class="field-error" role="alert">The phone camera was added, but its phone link could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R), open the camera in the list and make a new phone link.</p>
           <UiButton class="small" @click="addAnotherPush">Add another phone camera</UiButton>
         </div>
 

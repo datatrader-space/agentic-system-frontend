@@ -143,7 +143,7 @@ async function rotateKey() {
     newPush.value = pushDetails(answer?.source?.push);
     rotateSaid.value = answer?.said || 'The stream key is rotated. The old one no longer works.';
     rotating.value = false;
-    if (!newPush.value?.streamKey) rotateError.value = 'The key was rotated, but the new one could not be shown here. Rotate it again.';
+    if (!newPush.value?.streamKey) rotateError.value = "The key was rotated, but the new one could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R, or pull down on a phone), then rotate it again.";
     emit('refresh');
   } catch (e) { rotateError.value = e.message; }
   finally { rotateBusy.value = false; }
@@ -166,7 +166,7 @@ async function newPhoneLink() {
     newPhone.value = details?.url ? details : null;
     relinkSaid.value = answer?.said || 'There is a new phone link. The old one no longer works.';
     relinking.value = false;
-    if (!newPhone.value) relinkError.value = 'A new link was made, but it could not be shown here. Make a new one again.';
+    if (!newPhone.value) relinkError.value = "A new link was made, but it could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R, or pull down on a phone), then make a new phone link.";
     emit('refresh');
   } catch (e) { relinkError.value = e.message; }
   finally { relinkBusy.value = false; }
