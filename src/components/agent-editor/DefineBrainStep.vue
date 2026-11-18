@@ -593,8 +593,12 @@ const capCount = computed(() =>
 
 // The MAIN model drives the conversation, so it must be able to chat and call tools. Video models are
 // media-only (the sync marks them supports_tools=false); offering one here would silently break the
-// agent's whole turn loop, not just its video calls.
-const chatModels = computed(() => models.value.filter(m => !(m.can_generate_video && m.supports_tools === false)))
+// agent's whole turn loop, not just its video calls. A model's KIND says what it is (backend
+// agent/services/model_kind.py): chat, or unknown because its provider did not say, are main models; speech,
+// transcription, image, video and embedding models are not. The model already chosen stays listed.
+const CHAT_KINDS = ['chat', 'unknown']
+const chatModels = computed(() => models.value.filter(m => m.id === props.agent.default_model
+  || (!(m.can_generate_video && m.supports_tools === false) && CHAT_KINDS.includes(m.kind || 'unknown'))))
 
 // The model's own name (which may name its maker), never the provider it runs on.
 function modelLabel(m) {

@@ -350,3 +350,29 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
     expect(w.vm.modelsFor().length).toBe(MANY.length)
   })
 })
+
+describe('DefineBrainStep — the main model picker reads each model kind', () => {
+  const KINDS = [
+    { id: 30, name: 'chat', model_id: 'chat', kind: 'chat', metadata: {} },
+    { id: 31, name: 'unknown', model_id: 'unknown', kind: 'unknown', metadata: {} },
+    { id: 32, name: 'no-kind-field', model_id: 'no-kind-field', metadata: {} },
+    { id: 33, name: 'tts', model_id: 'tts', kind: 'speech', metadata: {} },
+    { id: 34, name: 'stt', model_id: 'stt', kind: 'transcription', metadata: {} },
+    { id: 35, name: 'img', model_id: 'img', kind: 'image', metadata: {} },
+  ]
+  async function mountKinds(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation(() => Promise.resolve({ data: KINDS }))
+    return mountExpanded(agent)
+  }
+
+  it('lists chat and unknown models, never speech, transcription or image models', async () => {
+    const w = await mountKinds()
+    expect(w.vm.chatModels.map(m => m.id)).toEqual([30, 31, 32])
+  })
+
+  it('keeps the model already chosen listed, so it can be seen and changed', async () => {
+    const w = await mountKinds({ default_model: 33 })
+    expect(w.vm.chatModels.map(m => m.id)).toEqual([30, 31, 32, 33])
+  })
+})
