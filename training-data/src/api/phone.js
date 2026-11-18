@@ -67,7 +67,11 @@ async function phoneFetch(path, secret, { method = 'GET', body, json, fetchImpl 
   } finally { clearTimeout(timer); }
   let data = null;
   try { data = await response.json(); } catch { data = null; }
-  if (!response.ok) throw new ApiError(response.status, data?.code || 'refused', typeof data?.error === 'string' ? data.error.slice(0, 300) : 'The link was refused.');
+  if (!response.ok) {
+    const error = new ApiError(response.status, data?.code || 'refused', typeof data?.error === 'string' ? data.error.slice(0, 300) : 'The link was refused.', data?.field);
+    if (data?.recording && typeof data.recording === 'object') error.recording = data.recording;   // a refused Record still says where it stands
+    throw error;
+  }
   return data;
 }
 
@@ -80,10 +84,34 @@ export const phoneApi = {
   },
 };
 
-// A phone camera's own page (backend phone_camera.py): the camera's name, when its link ends and where it sends.
+// A phone camera's own page (backend phone_camera.py): the camera's name, when its link ends, where it sends and its
+// recording (``recording``: absent from a server older than the Record button, which then is not shown). ``record``
+// asks the server to start or stop the camera's cloud recording (recordings.phone_record): it decides, with every
+// check of turning recording on; this page only asks and shows the answer or the refusal's reason.
 export const phoneCameraApi = {
   info: (secret, opts) => phoneFetch('phone-camera/', secret, { timeoutMs: 30000, ...opts }),
+  record: (secret, on, opts) => phoneFetch('phone-camera/recording/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: { on: on === true } }),
 };
+
+// What the phone's Record button shows of a ``recording`` answer: null when the server said nothing of it (an older
+// server); else whether it is on (and paid), whether this phone may start and stop it, the server's own words, and the
+// seconds it has run by the server's clock (counted on from ``at``, this page's own clock, so the phone's time of day
+// never matters).
+export function recordingOf(answer, at = Date.now()) {
+  const r = answer && typeof answer === 'object' ? answer : null;
+  if (!r || typeof r.on !== 'boolean') return null;
+  const seconds = Number.isFinite(r.seconds) && r.seconds >= 0 ? r.seconds : 0;
+  return { on: r.on, unpaid: r.unpaid === true, may: r.may === true, said: typeof r.said === 'string' ? r.said.slice(0, 300) : '',
+    days: Number.isFinite(r.days) ? r.days : null, seconds, at };
+}
+
+// "4:05" or "1:02:09" for a recording that has run `seconds`.
+export function elapsedText(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  const two = n => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${two(m)}:${two(s % 60)}` : `${m}:${two(s % 60)}`;
+}
 
 // A phone pairing with the Add video source dialog (backend camera_pairing.py): what it pairs with, and the one value
 // it sends (what it scanned from the camera's label, or what the person typed).
@@ -108,4 +136,28 @@ export function inBatches(files, size = 10) {
   const parts = [];
   for (let i = 0; i < files.length; i += size) parts.push(files.slice(i, i + size));
   return parts;
+}
+
+// What this tab keeps of a phone camera's page across a reload (sessionStorage, beside the link's own `tmd.phonecam`,
+// main.js): the camera chosen, and whether it was sending, with when that was last said. A reload ends the WebRTC
+// session, so a tab that was sending starts again by itself (live, 2026-11-18: a reload left a recording camera with
+// nothing sent and the page showing Start). Never after Stop: Stop clears it. Kept only while said in the last
+// RESUME_MS (the page says it again every 30 seconds while it sends), so a tab restored hours later does not open the
+// camera by itself.
+export const CAMERA_STATE_KEY = 'tmd.phonecam.state';
+export const RESUME_MS = 2 * 60 * 1000;
+function store() { try { return globalThis.sessionStorage || null; } catch { return null; } }
+export function cameraMemory(storage = store(), now = Date.now()) {
+  let kept = {};
+  try { kept = JSON.parse(storage?.getItem(CAMERA_STATE_KEY) || '{}') || {}; } catch { kept = {}; }
+  const facing = kept.facing === 'user' ? 'user' : 'environment';
+  const at = Number(kept.at) || 0;
+  return { facing, resume: kept.sending === true && at <= now && now - at < RESUME_MS };
+}
+export function rememberCamera({ facing, sending }, storage = store(), now = Date.now()) {
+  try {
+    const was = JSON.parse(storage?.getItem(CAMERA_STATE_KEY) || '{}') || {};
+    const next = { facing: (facing ?? was.facing) === 'user' ? 'user' : 'environment', sending: sending ?? was.sending === true, at: now };
+    storage?.setItem(CAMERA_STATE_KEY, JSON.stringify(next));
+  } catch { /* no storage here: a reload shows Start */ }
 }

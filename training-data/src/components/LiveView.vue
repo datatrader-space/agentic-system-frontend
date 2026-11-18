@@ -26,6 +26,12 @@ const RETRY_MS = 15000;
 const START_POLL_MS = 3000; const START_MOST_MS = 6 * 60 * 1000;
 let followJob = null;
 const pause = ms => new Promise(resolve => { setTimeout(resolve, ms); });
+// A pushed camera (an RTMP stream, a phone) whose stream ended while it played (its sender reconnected, or a phone
+// turned and sent again in its new shape: PhoneCameraSend.vue), and any camera whose relay stream was made again, is
+// played again by itself, AGAIN_MS later, at most AGAIN_MOST times a watch; a person's own Try again starts the count
+// again.
+const AGAIN_MS = 2000; const AGAIN_MOST = 50;
+let agains = 0;
 
 function stop() {
   run += 1;
@@ -60,8 +66,9 @@ function scheduleRenew(ms, mine) {
   }, ms);
 }
 
-async function start() {
+async function start({ again = false } = {}) {
   stop();
+  if (!again) agains = 0;
   const mine = run;
   const id = props.source?.id;
   if (id === undefined || id === null) return;
@@ -117,7 +124,30 @@ async function start() {
   hls = player;
   let parsed = false;                                     // the relay reached the camera and served its playlist
   player.on(Hls.Events.MANIFEST_PARSED, () => { parsed = true; if (hls === player) video.value?.play().catch(() => { /* the controls can start it */ }); });
-  player.on(Hls.Events.ERROR, (_event, data) => { if (data?.fatal && hls === player) fail('failed', parsed ? notPlayableText(live) : LIVE_NO_ANSWER); });
+  const playAgain = () => {
+    agains += 1;
+    stop();
+    const waiting = run;
+    state.value = 'starting'; message.value = phone ? 'The phone turned or reconnected: waiting for its video…' : 'The camera reconnected: waiting for its video…';
+    setTimeout(() => { if (waiting === run) start({ again: true }); }, AGAIN_MS);
+  };
+  player.on(Hls.Events.ERROR, (_event, data) => {
+    if (!data?.fatal || hls !== player) return;
+    if (parsed && pushed && agains < AGAIN_MOST) { playAgain(); return; }
+    fail('failed', parsed ? notPlayableText(live) : LIVE_NO_ANSWER);
+  });
+  // A new init segment address is a new stream on the relay (MediaMTX makes a new HLS muxer, with new names, when its
+  // publisher comes back). hls.js does not take it: it stalled on the old picture with only non-fatal errors (local
+  // test, Google Chrome, 2026-11-18). A new player takes it, in its own size: a phone that turned is shown in its new
+  // shape, not stretched to the first one.
+  let firstInit = '';
+  player.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+    const init = data?.details?.fragments?.[0]?.initSegment;
+    const name = init?.relurl || init?.url || '';
+    if (!name || hls !== player) return;
+    if (!firstInit) { firstInit = name; return; }
+    if (name !== firstInit && agains < AGAIN_MOST) playAgain();
+  });
   player.loadSource(live.playlist);
   player.attachMedia(video.value);
   scheduleRenew(live.renewInMs, mine);
@@ -140,7 +170,7 @@ onUnmounted(stop);
         <template v-if="state === 'connecting' || state === 'starting'"><LoaderCircle class="spin" :size="22" aria-hidden="true"/><span>{{ state === 'starting' ? message : 'Connecting to the camera…' }}</span></template>
         <template v-else>
           <VideoOff :size="22" aria-hidden="true"/><span>{{ message }}</span>
-          <UiButton class="small" @click="start"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
+          <UiButton class="small" @click="start()"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
         </template>
       </div>
     </div>
@@ -158,7 +188,7 @@ onUnmounted(stop);
       </div>
       <p class="lv-sr" aria-live="polite">{{ state === 'playing' ? 'Playing live.' : '' }}</p>
       <div class="dialog-actions">
-        <UiButton v-if="state === 'failed' || state === 'refused'" @click="start"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
+        <UiButton v-if="state === 'failed' || state === 'refused'" @click="start()"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
         <UiButton variant="primary" @click="close">Close</UiButton>
       </div>
     </template>

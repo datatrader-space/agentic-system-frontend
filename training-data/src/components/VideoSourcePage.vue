@@ -125,6 +125,19 @@ const recLine = computed(() => {
   if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
+// A phone camera's Record button (§16): its phone records only after an Admin lets it, with the recording consent;
+// that Admin pays for what it records. ``rec.phone`` is absent from a server older than the button.
+const phoneRec = computed(() => rec.value?.phone || null);
+const askingPhone = ref(false); const phoneConsent = ref(false);
+function askPhone() { phoneConsent.value = false; recError.value = ''; askingPhone.value = true; }
+async function letPhone(on) { await setRecording(on ? { phone: true, consent: phoneConsent.value } : { phone: false }); if (!recError.value) askingPhone.value = false; }
+const phoneRecLine = computed(() => {
+  const p = phoneRec.value;
+  if (!p) return '';
+  if (p.may && p.works) return `The phone link shows Record: it starts and stops this camera's recording, charged to ${p.by || 'the Admin who let it'}.`;
+  if (p.may) return `The phone's Record does not work now: ${p.by || 'the Admin who let it'} is no longer an Admin of this workspace. Let the phone record again to pay for it yourself.`;
+  return "The phone's page shows Record, but it records only after an Admin lets it here. Its recordings are then charged to that Admin.";
+});
 
 // ── an RTMP stream: where its camera sends, and "Rotate key" (CLOUD_STREAMING_PLAN.md §14) ────────────────────────
 const pushed = computed(() => props.source.kind === 'rtmp' && props.source.shared !== true);
@@ -358,6 +371,20 @@ watch(tab, now => {
                 <UiButton class="small" type="button" :disabled="recBusy" @click="asking = false">Cancel</UiButton>
               </span>
             </form>
+            <div v-if="phoneRec" class="sp-rec-phone">
+              <p class="sp-muted">{{ phoneRecLine }}</p>
+              <form v-if="mayRecord && askingPhone" class="sp-rec-form" @submit.prevent="letPhone(true)">
+                <label class="sp-rec-consent"><input v-model="phoneConsent" type="checkbox"> {{ rec.consent_text }}</label>
+                <span class="sp-rec-acts">
+                  <UiButton type="submit" variant="primary" class="small" :disabled="recBusy || !phoneConsent"><Smartphone :size="13" aria-hidden="true"/> Let the phone record</UiButton>
+                  <UiButton class="small" type="button" :disabled="recBusy" @click="askingPhone = false">Cancel</UiButton>
+                </span>
+              </form>
+              <span v-else-if="mayRecord" class="sp-rec-acts">
+                <UiButton v-if="!phoneRec.may || !phoneRec.works" class="small" :disabled="recBusy" @click="askPhone"><Smartphone :size="13" aria-hidden="true"/> Let the phone record</UiButton>
+                <UiButton v-if="phoneRec.may" class="small" :disabled="recBusy" @click="letPhone(false)">Stop letting the phone record</UiButton>
+              </span>
+            </div>
             <p v-if="recError" class="field-error" role="alert">{{ recError }}</p>
             <p v-else-if="recSaid" class="sp-muted" role="status">{{ recSaid }}</p>
           </div>
@@ -645,6 +672,8 @@ watch(tab, now => {
 .sp-rec-days select{width:auto;min-height:36px}
 .sp-rec-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:#33415a}
 .sp-rec-consent input{margin-top:3px}
+.sp-rec-phone{display:grid;gap:8px;padding-top:8px;border-top:1px solid #f0d5d2}
+.sp-rec-phone .sp-muted{margin:0}
 .sp-tabs{display:flex;gap:4px}
 .sp-tabs button{min-height:36px;padding:0 12px;border:0;border-radius:8px;background:none;color:#475569;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .sp-tabs button.on{background:var(--aadml-soft);color:var(--aadml-primary)}

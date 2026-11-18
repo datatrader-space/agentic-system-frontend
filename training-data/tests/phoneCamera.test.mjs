@@ -4,8 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cameraConstraints, codecOrder, preferCodecs, sessionUrlOf, whipUrlOk, publish, retryDelay, PublishError, REFUSED_TEXT,
+  swapCamera, shapeOf, canHoldLandscape, holdLandscape, releaseLandscape,
 } from '../src/api/phoneCamera.js';
-import { phoneCamSecret, phoneCameraApi } from '../src/api/phone.js';
+import { phoneCamSecret, phoneCameraApi, recordingOf, elapsedText } from '../src/api/phone.js';
 import { phoneLinkDetails, phoneLinkUntil, sourceBody, canWatch, sourceKindLabel, PHONE_STEPS } from '../src/api/streaming.js';
 
 const SECRET = 'Ab_cd-0123456789abcdefghijklmnopqrstuvwxyzAB';
@@ -158,4 +159,101 @@ test('a phone camera is added by its name, project and consent only, and is watc
   assert.deepEqual(sourceBody({ name: 'Drone', consent: true }, { pushing: true }), { name: 'Drone', kind: 'rtmp', consent: true });
   assert.equal(canWatch({ kind: 'phone', address: 'Phone browser (WebRTC)' }), true);
   assert.equal(sourceKindLabel({ kind: 'phone' }), 'Phone camera');
+});
+
+// A phone that opens one camera at a time: asking for a second while one is open fails as a phone does.
+function oneCameraPhone({ failFacing = null } = {}) {
+  const open = new Set(); const log = [];
+  const getUserMedia = async constraints => {
+    const facing = constraints.video.facingMode.ideal;
+    log.push(['ask', facing, open.size]);
+    if (open.size) throw Object.assign(new Error('Could not start video source'), { name: 'NotReadableError' });
+    if (facing === failFacing) throw Object.assign(new Error('Requested device not found'), { name: 'NotFoundError' });
+    const track = { facing, stop: () => { open.delete(track); log.push(['stop', facing]); } };
+    open.add(track);
+    return { getVideoTracks: () => [track], getTracks: () => [track] };
+  };
+  return { getUserMedia, open, log };
+}
+
+test('switching camera lets the open one go before the other is asked for, and brings it back when the other fails', async () => {
+  const phone = oneCameraPhone();
+  const back = await phone.getUserMedia(cameraConstraints('environment'));
+  const front = await swapCamera({ stream: back, facing: 'user', back: 'environment', getUserMedia: phone.getUserMedia });
+  assert.equal(front.getVideoTracks()[0].facing, 'user');
+  assert.deepEqual(phone.log.slice(1), [['stop', 'environment'], ['ask', 'user', 0]]);   // nothing open when it asks
+  assert.equal(phone.open.size, 1);
+
+  const noFront = oneCameraPhone({ failFacing: 'user' });
+  const was = await noFront.getUserMedia(cameraConstraints('environment'));
+  await assert.rejects(swapCamera({ stream: was, facing: 'user', back: 'environment', getUserMedia: noFront.getUserMedia }), e => {
+    assert.equal(e.name, 'NotFoundError');
+    assert.equal(e.reopened.getVideoTracks()[0].facing, 'environment');                  // the phone keeps sending
+    return true;
+  });
+  const neither = async () => { throw Object.assign(new Error('busy'), { name: 'NotReadableError' }); };
+  await assert.rejects(swapCamera({ stream: null, facing: 'user', back: 'environment', getUserMedia: neither }), e => e.reopened === null);
+});
+
+test('a picture is landscape or portrait by its size, and the screen is held sideways only where the browser can', async () => {
+  assert.deepEqual([shapeOf(1280, 720), shapeOf(720, 1280), shapeOf(0, 0), shapeOf(undefined, 5)], ['landscape', 'portrait', '', '']);
+  const calls = [];
+  const doc = { fullscreenEnabled: true, fullscreenElement: null, documentElement: { requestFullscreen: async () => { calls.push('full'); doc.fullscreenElement = {}; } },
+    exitFullscreen: async () => { calls.push('exit'); doc.fullscreenElement = null; } };
+  const scr = { orientation: { lock: async kind => { calls.push(`lock ${kind}`); }, unlock: () => { calls.push('unlock'); } } };
+  assert.equal(canHoldLandscape(doc, scr), true);
+  assert.equal(await holdLandscape(doc, scr), true);
+  await releaseLandscape(doc, scr);
+  assert.deepEqual(calls, ['full', 'lock landscape', 'unlock', 'exit']);
+  const iphone = { orientation: { lock: async () => { throw Object.assign(new Error('not supported'), { name: 'NotSupportedError' }); } } };
+  assert.equal(canHoldLandscape({ fullscreenEnabled: false, documentElement: {} }, iphone), false);   // no page full screen
+  calls.length = 0; doc.fullscreenElement = null;
+  assert.equal(await holdLandscape(doc, iphone), false);                                   // refused: full screen left again
+  assert.deepEqual(calls, ['full', 'exit']);
+  assert.equal(await holdLandscape(undefined, undefined), false);
+});
+
+test('Record asks the server with the link as Bearer, and the page shows only what the server answered', async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => { seen.push({ url, init }); return { ok: true, json: async () => ({ said: 'Recording.', recording: { on: true, unpaid: false, may: true, said: '', seconds: 4, days: 30 } }) }; };
+  const answer = await phoneCameraApi.record(SECRET, true, { fetchImpl });
+  assert.equal(seen[0].url, '/api/training-data/v1/phone-camera/recording/');
+  assert.equal(seen[0].init.method, 'POST');
+  assert.equal(seen[0].init.headers.Authorization, `Bearer ${SECRET}`);
+  assert.equal(seen[0].init.credentials, 'omit');
+  assert.deepEqual(JSON.parse(seen[0].init.body), { on: true });
+  await phoneCameraApi.record(SECRET, 'yes', { fetchImpl });
+  assert.deepEqual(JSON.parse(seen[1].init.body), { on: false });                         // only true starts it
+  assert.deepEqual(recordingOf(answer.recording, 1000), { on: true, unpaid: false, may: true, said: '', days: 30, seconds: 4, at: 1000 });
+  assert.equal(recordingOf(undefined), null);                                              // an older server: no Record
+  assert.equal(recordingOf({ may: true }), null);
+  const refused = async () => ({ ok: false, status: 403, json: async () => ({ error: 'Recording is off for this camera: an Admin turns it on in Cloud Streaming.', code: 'recording_off', recording: { on: false, may: false, said: 'x', seconds: null } }) });
+  await assert.rejects(phoneCameraApi.record(SECRET, true, { fetchImpl: refused }), e => {
+    assert.equal(e.status, 403); assert.equal(e.code, 'recording_off');
+    assert.match(e.message, /an Admin turns it on in Cloud Streaming/);
+    assert.equal(recordingOf(e.recording).may, false);
+    return true;
+  });
+  assert.deepEqual([elapsedText(0), elapsedText(65.9), elapsedText(3729), elapsedText(-3)], ['0:00', '1:05', '1:02:09', '0:00']);
+});
+
+test('a tab remembers its camera and that it was sending, so a reload resumes, never after Stop and never hours later', async () => {
+  const { cameraMemory, rememberCamera, CAMERA_STATE_KEY, RESUME_MS } = await import('../src/api/phone.js');
+  const box = new Map();
+  const storage = { getItem: k => (box.has(k) ? box.get(k) : null), setItem: (k, v) => box.set(k, String(v)) };
+  assert.deepEqual(cameraMemory(storage, 1000), { facing: 'environment', resume: false });       // nothing kept
+  rememberCamera({ facing: 'user' }, storage, 1000);
+  assert.deepEqual(cameraMemory(storage, 2000), { facing: 'user', resume: false });              // chosen, not sending
+  rememberCamera({ sending: true }, storage, 3000);
+  assert.deepEqual(cameraMemory(storage, 4000), { facing: 'user', resume: true });               // the camera is kept
+  assert.equal(cameraMemory(storage, 3000 + RESUME_MS).resume, false);                           // too long ago
+  rememberCamera({ sending: false }, storage, 5000);                                             // Stop
+  assert.equal(cameraMemory(storage, 6000).resume, false);
+  box.set(CAMERA_STATE_KEY, '{not json');
+  assert.deepEqual(cameraMemory(storage, 6000), { facing: 'environment', resume: false });
+  box.set(CAMERA_STATE_KEY, JSON.stringify({ facing: 'x', sending: 'yes', at: 6000 }));
+  assert.deepEqual(cameraMemory(storage, 6001), { facing: 'environment', resume: false });       // only true resumes
+  const broken = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } };
+  assert.deepEqual(cameraMemory(broken, 1), { facing: 'environment', resume: false });
+  rememberCamera({ sending: true }, broken, 1);                                                  // no storage: no throw
 });

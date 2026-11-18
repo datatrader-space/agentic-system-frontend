@@ -15,6 +15,58 @@ export function cameraConstraints(facing = 'environment') {
   };
 }
 
+// Open the phone's other camera. A phone opens one camera at a time: asking for the front one while the back one is
+// still open fails with NotReadableError ("the camera is in use by another app"), live on a phone, 2026-11-18. So the
+// open camera is let go first, then the other one is asked for; the page puts its track on the sender already sending
+// (RTCRtpSender.replaceTrack), so the WHIP session goes on. When the other camera cannot be opened, the one that was
+// open (`back`) is opened again so the phone keeps sending, and the first error is thrown with `reopened`: that stream,
+// or null when it could not be opened either.
+export async function swapCamera({ stream, facing, back, getUserMedia }) {
+  for (const track of stream?.getTracks?.() || []) { try { track.stop(); } catch { /* already stopped */ } }
+  try { return await getUserMedia(cameraConstraints(facing)); }
+  catch (error) {
+    let reopened = null;
+    try { reopened = await getUserMedia(cameraConstraints(back)); } catch { reopened = null; }
+    const failed = error instanceof Error ? error : new Error(String(error));
+    try { failed.reopened = reopened; } catch { /* a frozen error: the caller sees no reopened stream */ }
+    throw failed;
+  }
+}
+
+// A picture's shape from its size: 'landscape', 'portrait' or '' while not known. The browser turns the camera's frames
+// itself before it sends them (the relay's WebRTC answer takes no urn:3gpp:video-orientation, so nothing is sent
+// unturned: seen in MediaMTX 1.15.4's answer, 2026-11-18), so what the phone shows is what AADML gets.
+export function shapeOf(width, height) {
+  const w = Number(width) || 0; const h = Number(height) || 0;
+  if (!w || !h) return '';
+  return w >= h ? 'landscape' : 'portrait';
+}
+
+// A phone whose screen does not turn (Android's Auto-rotate off, the iPhone's Portrait Orientation Lock on) sends a
+// portrait picture however it is held: the browser turns the frames by the screen, not by how the phone is held. Where
+// the browser can hold the screen in landscape itself (Android Chrome: full screen, then screen.orientation.lock), the
+// page offers it; elsewhere (an iPhone) it says how to let the screen turn.
+export function canHoldLandscape(doc = globalThis.document, scr = globalThis.screen) {
+  return !!(doc?.fullscreenEnabled && typeof doc.documentElement?.requestFullscreen === 'function'
+    && typeof scr?.orientation?.lock === 'function');
+}
+export async function holdLandscape(doc = globalThis.document, scr = globalThis.screen) {
+  if (!canHoldLandscape(doc, scr)) return false;
+  let entered = false;
+  try {
+    if (!doc.fullscreenElement) { await doc.documentElement.requestFullscreen({ navigationUI: 'hide' }); entered = true; }
+    await scr.orientation.lock('landscape');
+    return true;
+  } catch {
+    if (entered) { try { await doc.exitFullscreen(); } catch { /* already left */ } }
+    return false;
+  }
+}
+export async function releaseLandscape(doc = globalThis.document, scr = globalThis.screen) {
+  try { scr?.orientation?.unlock?.(); } catch { /* not held */ }
+  if (doc?.fullscreenElement) { try { await doc.exitFullscreen(); } catch { /* already left */ } }
+}
+
 // The codecs the relay's live view and recordings can carry (MediaMTX 1.15.4's HLS muxer takes AV1, VP9, H265 and
 // H264, never VP8: "the stream doesn't contain any supported codec", seen in the local test with a browser that had no
 // H.264 encoder), in the order they are asked for: H.264 first (every browser plays it), then VP9 and AV1.
