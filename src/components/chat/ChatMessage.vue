@@ -91,6 +91,21 @@
           <span v-if="fullError" class="longanswer-err">{{ fullError }}</span>
         </div>
 
+        <!-- THE RUN PAUSED FOR MONEY (backend agent/services/budget_pause.py). The answer is its one line; this row
+             is what to do about it, on the latest reply only: Top up (the balance) and Continue. Continue sends an
+             ordinary message: the server continues the paused run because it is paused, not because of the word. -->
+        <div v-if="budgetPaused" class="pause-row" data-test="budget-pause-row">
+          <router-link v-if="message.stopReason === 'balance_empty'" to="/dashboard/billing" class="retry-btn"
+                       data-test="pause-topup">
+            Top up
+          </router-link>
+          <button type="button" class="retry-btn" data-test="pause-continue" :disabled="chat.isStreaming"
+                  @click="continuePausedRun">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 5l11 7-11 7V5z" stroke-linejoin="round" /></svg>
+            Continue
+          </button>
+        </div>
+
         <!-- Error + retry -->
         <div v-if="message.status === 'error'" class="error-row">
           <span class="error-text">⚠ {{ message.error || 'Something went wrong.' }}</span>
@@ -415,6 +430,18 @@ const preparingLabel = computed(() => {
   return (chat.liveStatus && chat.liveStatus.label) || (last && last.label) || 'Working…'
 })
 const stopBadge = computed(() => stopReasonBadge(props.message.stopReason, props.message.confidence))
+// Paused because the balance ran out or a budget was reached, on the latest reply (an older one was continued).
+const BUDGET_PAUSES = ['balance_empty', 'cost_budget_reached']
+const budgetPaused = computed(() => {
+  const m = props.message
+  if (m.role !== 'assistant' || m.status === 'streaming' || !BUDGET_PAUSES.includes(m.stopReason)) return false
+  const lastAssistant = [...(chat.messages || [])].reverse().find((x) => x.role === 'assistant')
+  return !!lastAssistant && lastAssistant.id === m.id
+})
+function continuePausedRun() {
+  if (chat.isStreaming) return
+  chat.sendMessage('Continue')
+}
 
 // Panel sources: prefer the answer_basis cited-or-top-4 set (provenance) when present; else the full list.
 const panelCitations = computed(() => {
@@ -697,7 +724,10 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .retry-btn:hover { border-color: #c7d2fe; color: var(--vm-link); }
+.retry-btn:focus-visible { outline: 2px solid var(--vm-link); outline-offset: 2px; }
+.retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .retry-btn svg { width: 14px; height: 14px; }
+.pause-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 
 .longanswer-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .longanswer-btn {

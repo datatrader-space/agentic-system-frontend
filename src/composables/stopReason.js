@@ -13,6 +13,9 @@ const LABELS = {
   token_budget_reached: 'Stopped — context limit',
   duplicate_loop_detected: 'Stopped — loop detected',
   stopped_by_user: 'Stopped by you',
+  // Out of money: the run is paused, and the next message continues it (backend agent/services/budget_pause.py).
+  balance_empty: 'Paused — balance ran out',
+  cost_budget_reached: 'Paused — budget reached',
 }
 
 // tone -> tailwind-ish classes (kept generic; the component applies them)
