@@ -376,3 +376,33 @@ describe('DefineBrainStep — the main model picker reads each model kind', () =
     expect(w.vm.chatModels.map(m => m.id)).toEqual([30, 31, 32, 33])
   })
 })
+
+describe('DefineBrainStep — the media pickers read the kind before a flag', () => {
+  const videoCap = { field: 'video_model', label: 'Video generation', capability: 'can_generate_video' }
+  const imageCap = { field: 'image_model', label: 'Image generation', capability: 'can_generate_images' }
+  const ROWS = [
+    // A chat model whose old row still carries a wrong flag: its kind says chat, so it is not a video model.
+    { id: 40, name: 'gpt-5', model_id: 'gpt-5', kind: 'chat', can_generate_video: true, can_generate_images: true },
+    { id: 41, name: 'Veo', model_id: 'google/veo-3.1', kind: 'video', can_generate_video: false },
+    // Unknown kind: the provider-stated flag answers.
+    { id: 42, name: 'Mystery', model_id: 'x/mystery', kind: 'unknown', can_generate_video: true },
+    { id: 43, name: 'Nano', model_id: 'x/nano', kind: 'image' },
+  ]
+  async function mountRows(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation(() => Promise.resolve({ data: ROWS }))
+    return mountExpanded(agent)
+  }
+
+  it('the video picker lists the video kind and unknown models whose provider stated video', async () => {
+    const w = await mountRows()
+    expect(w.vm.modelsFor(videoCap).map(m => m.id)).toEqual([41, 42])
+  })
+
+  it('the warning reads the kind: a chat model with a stale image flag is warned about, an image kind is not', async () => {
+    let w = await mountRows({ image_model: 40 })
+    expect(w.vm.capabilityWarning(imageCap)).toContain('gpt-5')
+    w = await mountRows({ image_model: 43 })
+    expect(w.vm.capabilityWarning(imageCap)).toBe('')
+  })
+})
