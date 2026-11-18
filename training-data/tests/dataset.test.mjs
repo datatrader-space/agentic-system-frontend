@@ -163,3 +163,9 @@ test('a new version is offered the next number of its purpose, never a second "V
   assert.ok(studio.includes('nextVersionTitle(state.value.versions,split.value)'));
   assert.ok(studio.includes('title:versionName.value.trim()||versionDefault.value'));
 });
+
+test('the NAS page does not say AADML has no GPU machines (it trains on rented GPUs and on your own machines)', async () => {
+  const studio = await readFile(new URL('../src/components/ProjectStudio.vue', import.meta.url), 'utf8');
+  assert.ok(!studio.includes('which this server does not have yet'));
+  assert.ok(studio.includes('to find the best balance of speed and accuracy is not built yet'));
+});
