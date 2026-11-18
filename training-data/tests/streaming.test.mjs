@@ -7,6 +7,7 @@ import {
   SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
+  notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
   streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT,
@@ -381,7 +382,7 @@ test('a connector camera is not played until its machine is sending it, and its 
 
 test('the live answer gives the playlist, the token and when to renew it', () => {
   assert.deepEqual(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 300, renew_after: 240 }),
-    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000, ready: true, job: null, said: '' });
+    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000, ready: true, job: null, said: '', video: '', videoNote: '' });
   // No renew_after: four fifths of the token's life; never at or past its end, never sooner than 5 seconds.
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 100 }).renewInMs, 80000);
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 60, renew_after: 600 }).renewInMs, 55000);
@@ -435,6 +436,26 @@ test('a camera that answered but whose video could not be played is not said to 
   assert.notEqual(LIVE_NOT_PLAYABLE, LIVE_NO_ANSWER);
   assert.match(LIVE_NOT_PLAYABLE, /answered/);
   assert.doesNotMatch(LIVE_NOT_PLAYABLE, /did not answer/);
+});
+
+test('"could not be played" is said only when AADML could not re-encode the camera', () => {
+  // 2026-11-18: a camera whose video the relay cannot carry as it is (H.264 with B-frames) is re-encoded for live view.
+  const base = { playlist: '/live/src4/index.m3u8', token: 't' };
+  const read = video => liveAnswer({ ...base, ...video });
+  assert.equal(notPlayableText(read({ video: 'reencoded' })), LIVE_STOPPED);
+  assert.equal(notPlayableText(read({ video: 'as_is' })), LIVE_STOPPED);
+  assert.equal(notPlayableText(read({ video: 'unknown' })), LIVE_CHECK_FIRST);
+  assert.match(LIVE_CHECK_FIRST, /Check the camera/);
+  const old = read({ video: 'not_reencoded', video_note: 'Gate PC runs agent 1.6.0: re-encoding this camera for live view needs 1.7.0 or later.' });
+  assert.equal(notPlayableText(old), `${LIVE_NOT_PLAYABLE} Gate PC runs agent 1.6.0: re-encoding this camera for live view needs 1.7.0 or later.`);
+  assert.equal(notPlayableText(read({})), LIVE_NOT_PLAYABLE);                     // a server that does not say
+  assert.equal(notPlayableText(read({ video: 'something else' })), LIVE_NOT_PLAYABLE);
+  assert.equal(notPlayableText(null), LIVE_NOT_PLAYABLE);
+  assert.match(LIVE_NOT_PLAYABLE, /could not re-encode/);
+  assert.doesNotMatch(LIVE_STOPPED, /re-encode/);
+  assert.equal(read({ video: 'reencoded' }).video, 'reencoded');
+  assert.equal(read({ video: 7 }).video, '');
+  assert.equal(read({ video_note: 'x'.repeat(400) }).videoNote.length, 300);
 });
 
 // ── camera management (CLOUD_STREAMING_PLAN.md §3.6) ─────────────────────────────────────────────────────────────

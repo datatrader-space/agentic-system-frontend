@@ -617,9 +617,15 @@ export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras o
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
 export const LIVE_GONE = 'This camera is not in this workspace any more.';
 export const LIVE_NO_ANSWER = 'The camera did not answer.';
-// The relay reached the camera and served its playlist, and the video still could not be played (live, 2026-11-17: an
-// RTSP feed with H.264 B-frames, which the relay's live muxer cannot carry yet). Not "did not answer": it did.
-export const LIVE_NOT_PLAYABLE = 'The camera answered, but its video could not be played live here: live view does not support its video encoding yet. Checks and streams still read it.';
+// The relay reached the camera and served its playlist, and the video still could not be played. A camera whose video
+// the relay cannot carry as it is (H.264 with B-frames; live, 2026-11-17) is re-encoded for live view since 2026-11-18
+// (the live answer's ``video``: reencoded, as_is, unknown, not_reencoded), so these words are only for a camera AADML
+// could not re-encode, with the server's reason (``video_note``). Not "did not answer": it did.
+export const LIVE_NOT_PLAYABLE = 'The camera answered, but its video could not be played live here, and AADML could not re-encode it for live view. Checks and streams still read it.';
+// Not checked since re-encoding came: a check finds whether its video needs it.
+export const LIVE_CHECK_FIRST = 'The camera answered, but its video could not be played live as it is. Check the camera: a check finds whether AADML must re-encode its video for live view, and it is then re-encoded.';
+// It plays as it is or AADML re-encodes it, and the player still stopped: the camera or the connection dropped.
+export const LIVE_STOPPED = 'The camera answered, but its live video stopped. Try again in a moment.';
 // The page's own words when a refusal carried none of the server's (client.js apiFetch).
 const GENERIC = ['AADML did not answer just now. Try again in a moment.', 'The request was refused.'];
 
@@ -637,7 +643,18 @@ export function liveAnswer(body) {
   // follow, ``said`` what is happening meanwhile. A camera address is always ready.
   const job = Number.isInteger(body.job) && body.job > 0 ? body.job : null;
   const said = typeof body.said === 'string' ? body.said.trim().slice(0, 300) : '';
-  return { playlist, token, renewInMs: Math.round(seconds * 1000), ready: body.ready !== false, job, said };
+  // What the server knows of the camera's video (CLOUD_STREAMING_PLAN.md §14); '' from a server before 2026-11-18.
+  const video = ['reencoded', 'as_is', 'unknown', 'not_reencoded'].includes(body.video) ? body.video : '';
+  const videoNote = typeof body.video_note === 'string' ? body.video_note.trim().slice(0, 300) : '';
+  return { playlist, token, renewInMs: Math.round(seconds * 1000), ready: body.ready !== false, job, said, video, videoNote };
+}
+
+// Why the player stopped after the relay served the playlist: LIVE_NOT_PLAYABLE only when AADML could not re-encode
+// the camera (with the server's reason) or the server does not say.
+export function notPlayableText(live) {
+  if (live?.video === 'reencoded' || live?.video === 'as_is') return LIVE_STOPPED;
+  if (live?.video === 'unknown') return LIVE_CHECK_FIRST;
+  return live?.videoNote ? `${LIVE_NOT_PLAYABLE} ${live.videoNote}` : LIVE_NOT_PLAYABLE;
 }
 
 // Why live view did not start, in words: the server's own sentence where it gave one.

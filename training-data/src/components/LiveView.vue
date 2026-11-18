@@ -9,7 +9,7 @@ import { onUnmounted, ref, watch } from 'vue';
 import { LoaderCircle, RefreshCw, VideoOff } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiDialog from './UiDialog.vue';
-import { videoSources, liveAnswer, liveErrorText, sourceShown, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE } from '../api/streaming.js';
+import { videoSources, liveAnswer, liveErrorText, notPlayableText, sourceShown, LIVE_NO_ANSWER } from '../api/streaming.js';
 
 const props = defineProps({ source: { type: Object, default: null }, inline: { type: Boolean, default: false } });
 const emit = defineEmits(['close', 'state']);
@@ -114,7 +114,7 @@ async function start() {
   hls = player;
   let parsed = false;                                     // the relay reached the camera and served its playlist
   player.on(Hls.Events.MANIFEST_PARSED, () => { parsed = true; if (hls === player) video.value?.play().catch(() => { /* the controls can start it */ }); });
-  player.on(Hls.Events.ERROR, (_event, data) => { if (data?.fatal && hls === player) fail('failed', parsed ? LIVE_NOT_PLAYABLE : LIVE_NO_ANSWER); });
+  player.on(Hls.Events.ERROR, (_event, data) => { if (data?.fatal && hls === player) fail('failed', parsed ? notPlayableText(live) : LIVE_NO_ANSWER); });
   player.loadSource(live.playlist);
   player.attachMedia(video.value);
   scheduleRenew(live.renewInMs, mine);
