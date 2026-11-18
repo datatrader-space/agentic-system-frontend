@@ -19,10 +19,14 @@ export const streamingApi = {
   // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
   // continuously (until it is stopped, the balance runs out or the camera stops answering). `readCodes`: read the
   // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
-  start: ({ project, model, fps, address, file, source, continuous, readCodes }) => {
+  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording }) => {
     const noModel = model === null || model === undefined || model === '';
     const extra = { ...(readCodes ? { read_codes: true } : {}) };
     const head = noModel ? { project } : { project, model };
+    // A kept recording ("Use in project", CLOUD_STREAMING_PLAN.md §3.5): read in place, never continuous.
+    if (recording !== undefined && recording !== null && recording !== '') {
+      return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { ...head, fps, recording, ...extra }, timeoutMs: SLOW });
+    }
     if (source !== undefined && source !== null && source !== '') {
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { ...head, fps, source, continuous: !!continuous, ...extra }, timeoutMs: SLOW });
     }
@@ -647,4 +651,91 @@ export function connectorRows(machines, sources) {
 export function connectorLine(row) {
   const n = Number(row?.cameras) || 0;
   return [`${n} camera${n === 1 ? '' : 's'}`, row?.agent ? `agent ${row.agent}` : ''].filter(Boolean).join(' · ');
+}
+
+// ── a camera's rules and events (stream_events_api.py; CLOUD_STREAMING_PLAN.md §3.5, phase 6) ─────────────────────
+// Rules are listed by anyone who may see the workspace's cameras and changed by its camera managers; only the
+// workspace's own cameras have them. Events are newest first, each with a 15-minute link to its snapshot.
+export const streamRules = {
+  list: source => apiFetch(`${SOURCES}${enc(source)}/rules/`),
+  add: (source, body) => apiFetch(`${SOURCES}${enc(source)}/rules/`, { method: 'POST', body, timeoutMs: SLOW }),
+  update: (source, rule, body) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
+  remove: (source, rule) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+};
+export const streamEvents = {
+  list: (source, { page = 1, limit = 20 } = {}) => {
+    const query = new URLSearchParams({ page: String(Math.max(1, Number(page) || 1)), limit: String(Math.max(1, Number(limit) || 20)) });
+    return apiFetch(`${SOURCES}${enc(source)}/events/?${query.toString()}`);
+  },
+};
+
+// The server's own limits, as it says them when it is not asked (stream_events.py).
+export const COOLDOWN_MIN = 10;
+export const COOLDOWN_DEFAULT = 60;
+export const RULE_CLASS_LIMIT = 64;
+
+// "person seen", "person at least 3": how a rule reads.
+export function ruleText(rule) {
+  const count = Math.max(1, Math.floor(Number(rule?.min_count) || 1));
+  const name = String(rule?.class_name || '').trim();
+  return count === 1 ? `${name} seen` : `${name} at least ${count}`;
+}
+
+// "1 minute", "45 seconds", "2 hours": a cooldown in words.
+export function cooldownText(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  const [n, unit] = s % 3600 === 0 && s >= 3600 ? [s / 3600, 'hour'] : s % 60 === 0 && s >= 60 ? [s / 60, 'minute'] : [s, 'second'];
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+// A new rule's form, and what is wrong with it before it is sent (the server decides; this only says it early).
+export function ruleForm(classes = []) {
+  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT };
+}
+export function ruleProblems(form, limits = {}) {
+  const problems = {};
+  const name = String(form?.class_name || '').trim();
+  if (!name) problems.class_name = 'Choose the class the rule looks for.';
+  else if (name.length > RULE_CLASS_LIMIT) problems.class_name = `A class name is at most ${RULE_CLASS_LIMIT} characters.`;
+  const count = Number(form?.min_count);
+  const most = Number(limits.count_max) || 1000;
+  if (!Number.isInteger(count) || count < 1 || count > most) problems.min_count = `The count is a whole number from 1 to ${most}.`;
+  const low = Number(limits.cooldown_min) || COOLDOWN_MIN;
+  const high = Number(limits.cooldown_max) || 86400;
+  const cooldown = Number(form?.cooldown_seconds);
+  if (!Number.isInteger(cooldown) || cooldown < low || cooldown > high) problems.cooldown_seconds = `The cooldown is ${low} to ${high} seconds.`;
+  return problems;
+}
+export function ruleBody(form) {
+  return { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+}
+
+// The classes a rule may look for: the ones the camera's stream showed, then the ones the server saw, each once.
+export function ruleClasses(stream, seen = []) {
+  const names = classNames(stream, 50);
+  for (const name of seen || []) if (name && !names.includes(name)) names.push(name);
+  return names;
+}
+
+// What an event found: "wall 2" (what made its rule match), and when, in UTC.
+export function matchedText(event) {
+  const found = Object.entries(event?.matched || {}).map(([name, count]) => `${name} ${count}`);
+  return found.join(', ');
+}
+export function eventTime(event) {
+  const iso = event?.frame_at || event?.at;
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 19)} UTC`;
+}
+
+// The Workflow Builder, opened with a camera-event trigger of this camera (and rule) already on the canvas
+// (WorkflowsList.vue reads these; src/utils/cameraWorkflow.js makes the canvas).
+export const CAMERA_TRIGGER = 'training.stream_event';
+export function workflowFromCamera(source, rule = null) {
+  const query = new URLSearchParams({ trigger: CAMERA_TRIGGER, source: String(source?.id ?? '') });
+  if (source?.name) query.set('camera', String(source.name).slice(0, 80));
+  if (rule?.id) query.set('rule', String(rule.id));
+  return `/dashboard/workflow-builder?${query.toString()}`;
 }

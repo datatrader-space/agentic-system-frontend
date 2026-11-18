@@ -595,3 +595,82 @@ test('the pairing calls use the contract\'s paths, with the workspace', async ()
   ]);
   for (const call of calls) assert.equal(call.init.headers['X-Workspace-ID'], '7');
 });
+
+// ── a camera's rules and events, and a recording used in a project (CLOUD_STREAMING_PLAN.md §3.5, phase 6) ──────────
+import {
+  streamRules, streamEvents, ruleText, cooldownText, ruleForm, ruleProblems, ruleBody, ruleClasses, matchedText, eventTime,
+  workflowFromCamera, CAMERA_TRIGGER, COOLDOWN_MIN, COOLDOWN_DEFAULT,
+} from '../src/api/streaming.js';
+
+async function asked(call) {
+  let seen;
+  const realFetch = globalThis.fetch;
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => ({ activeWorkspaceId: '7' })[key] ?? null } });
+  globalThis.fetch = async (url, init) => { seen = { url, init }; return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try { await call(); } finally {
+    globalThis.fetch = realFetch;
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage); else delete globalThis.localStorage;
+  }
+  return seen;
+}
+
+test('a rule reads as its class and count, and its cooldown in words', () => {
+  assert.equal(ruleText({ class_name: 'person', min_count: 1 }), 'person seen');
+  assert.equal(ruleText({ class_name: 'person', min_count: 3 }), 'person at least 3');
+  assert.equal(cooldownText(60), '1 minute');
+  assert.equal(cooldownText(45), '45 seconds');
+  assert.equal(cooldownText(7200), '2 hours');
+  assert.equal(cooldownText(90), '90 seconds');
+});
+
+test('a new rule is a class, a count of at least 1 and a cooldown of at least ten seconds', () => {
+  assert.deepEqual(ruleForm(['person', 'car']), { class_name: 'person', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT });
+  assert.equal(COOLDOWN_MIN, 10);
+  assert.deepEqual(ruleProblems({ class_name: 'person', min_count: 1, cooldown_seconds: 60 }), {});
+  const bad = ruleProblems({ class_name: ' ', min_count: 0, cooldown_seconds: 9 });
+  assert.deepEqual(Object.keys(bad).sort(), ['class_name', 'cooldown_seconds', 'min_count']);
+  assert.ok(ruleProblems({ class_name: 'x'.repeat(65), min_count: 1, cooldown_seconds: 60 }).class_name);
+  assert.ok(ruleProblems({ class_name: 'car', min_count: 1.5, cooldown_seconds: 60 }).min_count);
+  assert.deepEqual(ruleBody({ class_name: ' person ', min_count: '2', cooldown_seconds: '30' }), { class_name: 'person', min_count: 2, cooldown_seconds: 30 });
+});
+
+test('a rule offers the classes the camera\'s stream found, then the ones the server saw, each once', () => {
+  const stream = { recent: [{ classes: { person: 1 } }], last: { classes: { person: 2, car: 1 } } };
+  assert.deepEqual(ruleClasses(stream, ['car', 'dog']), ['person', 'car', 'dog']);
+  assert.deepEqual(ruleClasses(null, []), []);
+});
+
+test('an event says what matched and when, in UTC', () => {
+  const event = { matched: { person: 2 }, frame_at: '2026-11-18T09:05:07+00:00', at: '2026-11-18T09:05:08+00:00' };
+  assert.equal(matchedText(event), 'person 2');
+  assert.equal(eventTime(event), '2026-11-18 09:05:07 UTC');
+  assert.equal(eventTime({}), '');
+});
+
+test('Build a workflow opens the builder with this camera\'s event trigger', () => {
+  assert.equal(CAMERA_TRIGGER, 'training.stream_event');
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate camera' }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate+camera');
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate' }, { id: 3 }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate&rule=3');
+});
+
+test('rules and events are asked for on the camera\'s own paths, with the workspace', async () => {
+  let seen = await asked(() => streamRules.list(4));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/4/rules/');
+  assert.equal(seen.init.headers['X-Workspace-ID'], '7');
+  seen = await asked(() => streamRules.add(4, { class_name: 'person' }));
+  assert.equal(seen.init.method, 'POST');
+  seen = await asked(() => streamRules.update(4, 9, { enabled: false }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/4/rules/9/');
+  assert.equal(seen.init.method, 'PATCH');
+  seen = await asked(() => streamRules.remove(4, 9));
+  assert.equal(seen.init.method, 'DELETE');
+  seen = await asked(() => streamEvents.list(4, { page: 2 }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/4/events/?page=2&limit=20');
+});
+
+test('a recording used in a project is started by its id, never as a continuous stream', async () => {
+  const seen = await asked(() => streamingApi.start({ project: 'leads', model: 1, fps: 1, recording: 5, continuous: true }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/streams/');
+  assert.deepEqual(JSON.parse(seen.init.body), { project: 'leads', model: 1, fps: 1, recording: 5 });
+});

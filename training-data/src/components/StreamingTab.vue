@@ -21,7 +21,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
-  sourceShown, streamWhat, codesRead, frameCodesText,
+  sourceShown, streamWhat, codesRead, frameCodesText, windowText,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ const notifying = ref(false);
 
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
-const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false });
+const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null });
 const chosenSource = computed(() => savedSources.value.find(s => String(s.id) === String(form.value.saved)) || null);
 // A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
 // answered and read for barcodes is charged for each.
@@ -143,6 +143,7 @@ const atOnce = computed(() => (streamLimit.value ? ` At most ${streamLimit.value
 const sourceProblem = computed(() => {
   if (form.value.source === 'file') return fileProblem(file.value, { bytes: uploadLimit.value, extensions: options.value.upload?.extensions });
   if (form.value.source === 'saved') return chosenSource.value ? '' : 'Choose a saved camera.';
+  if (form.value.source === 'recording') return form.value.recording ? '' : 'Choose a recording.';
   return addressProblem(form.value.address);
 });
 const startWhy = computed(() => {
@@ -156,13 +157,15 @@ watch(() => form.value.project, () => {
   if (!models.value.some(m => String(m.number) === String(form.value.model))) form.value.model = models.value[0] ? String(models.value[0].number) : '';
   if (!models.value.length) form.value.useModel = false;          // a project without a model can still read barcodes
 });
-// Opened from the header (no source) or from a saved camera's "Start stream" (that camera, its default project first).
-function openCreate(saved = null) {
+// Opened from the header (no source), from a saved camera's "Start stream" (that camera, its default project first),
+// or from one of its recordings' "Use in project" (that recording, read in place: never continuous).
+function openCreate(saved = null, recording = null) {
   const own = saved?.project?.ref ? options.value.projects.find(p => p.ref === saved.project.ref && p.models.length) : null;
   const first = own || options.value.projects.find(p => p.models.length) || options.value.projects[0];
   form.value = {
     project: first?.ref || '', model: first?.models[0] ? String(first.models[0].number) : '',
-    source: saved ? 'saved' : 'file', address: '', fps: options.value.default_fps || 1, saved: saved ? String(saved.id) : '', continuous: false,
+    source: recording?.id ? 'recording' : saved ? 'saved' : 'file', address: '', fps: options.value.default_fps || 1,
+    saved: saved ? String(saved.id) : '', continuous: false, recording: recording?.id ? recording : null,
     useModel: !!first?.models?.length, readCodes: false,
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
@@ -190,7 +193,8 @@ async function startStream() {
       readCodes: form.value.readCodes,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
-          : { address: form.value.address.trim() }),
+          : form.value.source === 'recording' ? { recording: form.value.recording.id }
+            : { address: form.value.address.trim() }),
     });
     takePage(body);
     sourcesRef.value?.load();
@@ -400,7 +404,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 
         <fieldset class="st-field">
           <legend>Video</legend>
-          <div class="segmented" role="radiogroup" aria-label="Where the video comes from">
+          <p v-if="form.source==='recording'" class="st-help">The recording of {{ form.recording.source?.name || 'this camera' }}, {{ windowText(form.recording) }}. Its stored video is read as it is; nothing is copied.</p>
+          <div v-else class="segmented" role="radiogroup" aria-label="Where the video comes from">
             <button type="button" role="radio" :aria-checked="form.source==='file'" :class="{on:form.source==='file'}" @click="form.source='file'"><Upload :size="14" aria-hidden="true"/> Upload a video</button>
             <button type="button" role="radio" :aria-checked="form.source==='address'" :class="{on:form.source==='address'}" @click="form.source='address'"><Radio :size="14" aria-hidden="true"/> Stream address</button>
             <button v-if="savedSources.length" type="button" role="radio" :aria-checked="form.source==='saved'" :class="{on:form.source==='saved'}" @click="form.source='saved'"><Cctv :size="14" aria-hidden="true"/> Saved camera</button>
@@ -431,7 +436,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
                 <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ callsAFrame > 1 ? 'Each frame is charged for the model and for reading its barcodes' : 'Each frame is one photo call' }} from your balance: at {{ form.fps }} a second, {{ perHour.toLocaleString('en-US') }} photo calls an hour.</small></span>
             </label>
           </div>
-          <div v-else class="st-source">
+          <div v-else-if="form.source==='address'" class="st-source">
             <label for="st-address" class="sr-only">Stream address</label>
             <input id="st-address" v-model="form.address" class="text-input" type="url" inputmode="url" autocomplete="off" spellcheck="false"
                    placeholder="rtsp://camera.example.com/live" :aria-invalid="!!fieldErrors.address" aria-describedby="st-address-help st-address-error"

@@ -2,15 +2,18 @@
 // One saved camera's own page (the owner, 2026-11-17, with a reference screenshot): opened from a row of the Video
 // sources card, it takes the Cloud Streaming tab's place. Left, the source: its live view through AADML's media relay
 // (LiveView.vue, inline) or, for a source the relay does not play, its newest frame; under it, the model that runs on
-// it (a stream: "Run a model" starts one; workflows on cameras come later). Right, the results: the newest answers of
-// the stream on this camera, as the model's own classes, and its newest frames; with "Read barcodes", the barcodes and
-// QR codes it read, newest first, each with its type, its value (shown as text only) and its frame time. AADML's own
-// words throughout.
-// Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/.
+// it (a stream: "Run a model" starts one; "Build a workflow" opens the Workflow Builder with this camera's event as
+// its trigger). Right, the results: the newest answers of the stream on this camera, as the model's own classes, and
+// its newest frames; with "Read barcodes", the barcodes and QR codes it read, newest first, each with its type, its
+// value (shown as text only) and its frame time; its Events (what its rules matched, with a snapshot) and Rules
+// (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. AADML's own words
+// throughout.
+// Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/;
+// stream_events_api.py workspace/video-sources/<id>/rules/ and events/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowDown, ArrowLeft, ChartLine, Circle, CircleQuestionMark, Disc, Download, History, ImageOff, LoaderCircle, Maximize,
-  Pencil, Play, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
+  ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
+  ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import UiBadge from './UiBadge.vue';
@@ -21,6 +24,8 @@ import {
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText,
+  streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
+  workflowFromCamera, COOLDOWN_MIN,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -116,7 +121,7 @@ const recLine = computed(() => {
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
 
-const tab = ref('results');                                            // results | recordings
+const tab = ref('results');                                            // results | events | rules | recordings
 const today = new Date().toISOString().slice(0, 10);
 const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
@@ -142,6 +147,58 @@ async function removeRecording(row) {
   try { await recordingsApi.remove(row.id); if (playing.value?.id === row.id) playing.value = null; await loadRecordings(); emit('refresh'); }
   catch (e) { recListError.value = e.message; }
 }
+// "Use in project": a project's model runs over the recording, read in place (the tab's start dialog, as Run a model).
+const mayUse = computed(() => props.may.stream !== false && props.mayStart);
+
+// ── events and rules (CLOUD_STREAMING_PLAN.md §3.5): only the workspace's own cameras have them ──────────────────
+const own = computed(() => props.source.shared !== true && !isPublic(props.source));
+const workflowLink = computed(() => (own.value ? workflowFromCamera(props.source) : ''));
+const events = ref([]); const evPage = ref(1); const evPages = ref(1); const evCount = ref(0);
+const evLoading = ref(false); const evError = ref('');
+async function loadEvents(page = evPage.value) {
+  evLoading.value = true; evError.value = '';
+  try {
+    const answer = await streamEvents.list(props.source.id, { page, limit: 20 });
+    events.value = answer?.events || []; evPage.value = answer?.page || 1; evPages.value = answer?.pages || 1; evCount.value = answer?.count || 0;
+  } catch (e) { evError.value = e.message; }
+  finally { evLoading.value = false; }
+}
+const rulesPage = ref(null); const rulesLoading = ref(false); const rulesError = ref(''); const rulesSaid = ref('');
+const rules = computed(() => rulesPage.value?.rules || []);
+const ruleLimits = computed(() => rulesPage.value?.limits || {});
+const mayRule = computed(() => !!rulesPage.value?.may?.change);
+const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes));
+const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
+async function loadRules() {
+  rulesLoading.value = true; rulesError.value = '';
+  try { rulesPage.value = await streamRules.list(props.source.id); }
+  catch (e) { rulesError.value = e.message; }
+  finally { rulesLoading.value = false; }
+}
+function startRule() {
+  draft.value = { ...ruleForm(classChoices.value), cooldown_seconds: ruleLimits.value.cooldown_default || ruleForm().cooldown_seconds };
+  draftErrors.value = {}; rulesSaid.value = ''; adding.value = true;
+}
+async function ruleCall(call) {
+  ruleBusy.value = true; rulesError.value = '';
+  try { const answer = await call(); rulesPage.value = answer; rulesSaid.value = answer?.said || ''; return true; }
+  catch (e) {
+    if (e.field && ['class_name', 'min_count', 'cooldown_seconds'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    else rulesError.value = e.message;
+    return false;
+  } finally { ruleBusy.value = false; }
+}
+async function saveRule() {
+  draftErrors.value = ruleProblems(draft.value, ruleLimits.value);
+  if (Object.keys(draftErrors.value).length || ruleBusy.value) return;
+  if (await ruleCall(() => streamRules.add(props.source.id, ruleBody(draft.value)))) adding.value = false;
+}
+const toggleRule = rule => ruleCall(() => streamRules.update(props.source.id, rule.id, { enabled: !rule.enabled }));
+const removeRule = rule => ruleCall(() => streamRules.remove(props.source.id, rule.id));
+watch(tab, now => {
+  if (now === 'events') loadEvents(1);
+  if (now === 'rules') loadRules();
+});
 </script>
 
 <template>
@@ -242,7 +299,7 @@ async function removeRecording(row) {
           <div class="sp-model-foot">
             <UiButton v-if="running && stream.may && stream.may.stop" @click="emit('stop-stream', stream)"><Square :size="13" aria-hidden="true"/> Stop</UiButton>
             <UiButton v-else-if="may.stream !== false" variant="primary" :disabled="!mayStart" :title="mayStart ? undefined : startWhy" @click="emit('start')"><Play :size="14" aria-hidden="true"/> Run a model</UiButton>
-            <UiButton disabled title="Workflows on cameras are coming"><Workflow :size="14" aria-hidden="true"/> Build a workflow <UiBadge>Soon</UiBadge></UiButton>
+            <a v-if="workflowLink" class="button" :href="workflowLink" title="Opens the Workflow Builder with this camera's events as the trigger"><Workflow :size="14" aria-hidden="true"/> Build a workflow</a>
           </div>
         </section>
         <!-- This month and the state history -->
@@ -275,13 +332,86 @@ async function removeRecording(row) {
         <div class="sp-card-bar">
           <div class="sp-tabs" role="tablist" aria-label="What this camera gave">
             <button id="sp-results-h" type="button" role="tab" :aria-selected="tab === 'results'" :class="{ on: tab === 'results' }" @click="tab = 'results'">Results</button>
+            <button v-if="own" type="button" role="tab" :aria-selected="tab === 'events'" :class="{ on: tab === 'events' }" @click="tab = 'events'">Events</button>
+            <button v-if="own" type="button" role="tab" :aria-selected="tab === 'rules'" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">Rules</button>
             <button v-if="rec" type="button" role="tab" :aria-selected="tab === 'recordings'" :class="{ on: tab === 'recordings' }" @click="tab = 'recordings'">Recordings</button>
           </div>
           <UiButton v-if="tab === 'results' && stream && stream.has_results" class="small" @click="emit('download', stream)"><Download :size="14" aria-hidden="true"/> Download results</UiButton>
           <label v-if="tab === 'recordings'" class="sp-day">Day (UTC) <input v-model="recDay" type="date" class="text-input" :max="today"></label>
+          <UiButton v-if="tab === 'events'" class="small" :disabled="evLoading" @click="loadEvents()"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton>
+          <UiButton v-if="tab === 'rules' && mayRule && !adding" class="small" :disabled="rules.length >= (ruleLimits.rules || 20)" @click="startRule"><Plus :size="14" aria-hidden="true"/> Add a rule</UiButton>
+        </div>
+        <!-- Events -->
+        <div v-if="tab === 'events'" class="sp-recs">
+          <p v-if="evError" class="field-error" role="alert">{{ evError }}</p>
+          <p v-else-if="evLoading && !events.length" class="sp-muted" role="status">Loading the events…</p>
+          <div v-else-if="!events.length" class="sp-results-empty" role="status">
+            <span class="sp-empty-icon"><Bell :size="20" aria-hidden="true"/></span>
+            <h4>No events yet</h4>
+            <p>An event is kept when a rule matches what a model finds on this camera. Add a rule, then run a model.</p>
+          </div>
+          <template v-else>
+            <ul class="sp-ev-list" aria-label="Events, newest first">
+              <li v-for="e in events" :key="e.id">
+                <img v-if="e.snapshot_url" :src="e.snapshot_url" :alt="`Frame of ${source.name} when ${e.rule.text}`" referrerpolicy="no-referrer" loading="lazy">
+                <span v-else class="sp-ev-none"><ImageOff :size="18" aria-hidden="true"/></span>
+                <span class="sp-ev-text"><strong>{{ e.rule.text }}</strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
+                  <small v-if="e.model">{{ modelName(e.model) }}<template v-if="e.project"> · {{ e.project.name }}</template><template v-if="e.workflows_started"> · {{ e.workflows_started }} workflow{{ e.workflows_started === 1 ? '' : 's' }} started</template></small></span>
+              </li>
+            </ul>
+            <div v-if="evPages > 1" class="sp-pager">
+              <UiButton class="small" :disabled="evLoading || evPage <= 1" @click="loadEvents(evPage - 1)">Newer</UiButton>
+              <span class="sp-muted">Page {{ evPage }} of {{ evPages }} · {{ evCount }} events</span>
+              <UiButton class="small" :disabled="evLoading || evPage >= evPages" @click="loadEvents(evPage + 1)">Older</UiButton>
+            </div>
+          </template>
+        </div>
+        <!-- Rules -->
+        <div v-else-if="tab === 'rules'" class="sp-recs">
+          <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown. A workflow with this camera's events as its trigger starts on each event.</p>
+          <form v-if="adding" class="sp-rule-form" @submit.prevent="saveRule">
+            <div class="sp-rule-fields">
+              <label>Class
+                <input v-model="draft.class_name" class="text-input" list="sp-rule-classes" maxlength="64" autocomplete="off" :aria-invalid="!!draftErrors.class_name">
+                <datalist id="sp-rule-classes"><option v-for="c in classChoices" :key="c" :value="c"></option></datalist>
+                <small v-if="draftErrors.class_name" class="field-error">{{ draftErrors.class_name }}</small>
+              </label>
+              <label>At least
+                <input v-model.number="draft.min_count" class="text-input" type="number" min="1" :max="ruleLimits.count_max || 1000" step="1" :aria-invalid="!!draftErrors.min_count">
+                <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
+              </label>
+              <label>Cooldown (seconds)
+                <input v-model.number="draft.cooldown_seconds" class="text-input" type="number" :min="ruleLimits.cooldown_min || COOLDOWN_MIN" step="1" :aria-invalid="!!draftErrors.cooldown_seconds">
+                <small v-if="draftErrors.cooldown_seconds" class="field-error">{{ draftErrors.cooldown_seconds }}</small>
+              </label>
+            </div>
+            <p v-if="!classChoices.length" class="sp-muted">Run a model on this camera to choose from the classes it finds, or type a class name.</p>
+            <span class="sp-rec-acts">
+              <UiButton type="submit" variant="primary" class="small" :disabled="ruleBusy">Save rule</UiButton>
+              <UiButton type="button" class="small" :disabled="ruleBusy" @click="adding = false">Cancel</UiButton>
+            </span>
+          </form>
+          <p v-if="rulesError" class="field-error" role="alert">{{ rulesError }}</p>
+          <p v-else-if="rulesSaid" class="sp-muted" role="status">{{ rulesSaid }}</p>
+          <p v-if="rulesLoading && !rulesPage" class="sp-muted" role="status">Loading the rules…</p>
+          <div v-else-if="rulesPage && !rules.length && !adding" class="sp-results-empty" role="status">
+            <span class="sp-empty-icon"><ListChecks :size="20" aria-hidden="true"/></span>
+            <h4>No rules yet</h4>
+            <p>{{ mayRule ? 'Add a rule, for example "person seen", to keep an event when a model finds it.' : 'A camera manager of this workspace adds the rules.' }}</p>
+          </div>
+          <ul v-else-if="rules.length" class="sp-rec-list" aria-label="Rules">
+            <li v-for="r in rules" :key="r.id" :class="{ off: !r.enabled }">
+              <span><strong>{{ r.text }}</strong><small>At most once every {{ cooldownText(r.cooldown_seconds) }}<template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
+              <span class="sp-rec-acts">
+                <a v-if="r.enabled" class="button small" :href="workflowFromCamera(source, r)" :aria-label="`Build a workflow on the rule ${r.text}`"><Workflow :size="13" aria-hidden="true"/></a>
+                <UiButton v-if="mayRule" class="small" :disabled="ruleBusy" @click="toggleRule(r)">{{ r.enabled ? 'Turn off' : 'Turn on' }}</UiButton>
+                <UiButton v-if="mayRule" class="small sp-danger" :disabled="ruleBusy" :aria-label="`Remove the rule ${r.text}`" @click="removeRule(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+              </span>
+            </li>
+          </ul>
         </div>
         <!-- Recordings -->
-        <div v-if="tab === 'recordings'" class="sp-recs">
+        <div v-else-if="tab === 'recordings'" class="sp-recs">
           <video v-if="playing" :key="playing.id" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`"></video>
           <p v-if="recListError" class="field-error" role="alert">{{ recListError }}</p>
           <p v-else-if="recLoading" class="sp-muted" role="status">Loading the recordings…</p>
@@ -295,6 +425,7 @@ async function removeRecording(row) {
               <span><strong>{{ windowText(r) }}</strong><small>{{ sizeText(r.bytes) }}</small></span>
               <span class="sp-rec-acts">
                 <UiButton class="small" :disabled="!r.play_url" @click="playing = r"><Play :size="13" aria-hidden="true"/> Play</UiButton>
+                <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
                 <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
                 <UiButton v-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)}`" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
               </span>
@@ -448,6 +579,19 @@ async function removeRecording(row) {
 .sp-history time{font-size:12px;color:#64748b;white-space:nowrap}
 .sp-history-reason{font-size:12px;color:#33415a;line-height:1.5;overflow-wrap:anywhere}
 .sp-history small{font-size:11px;color:#64748b}
+.sp-rec-list li.off strong{color:#64748b}
+.sp-ev-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sp-ev-list li{display:flex;align-items:center;gap:12px;padding:8px;border:1px solid #eef1f5;border-radius:8px}
+.sp-ev-list img,.sp-ev-none{flex-shrink:0;width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:#0d1320}
+.sp-ev-none{display:grid;place-items:center;color:#9aa6b8}
+.sp-ev-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sp-ev-text strong{font-size:14px;color:#17243b;overflow-wrap:anywhere}
+.sp-ev-text small{color:#64748b;font-size:12px;overflow-wrap:anywhere}
+.sp-pager{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-rule-form{display:grid;gap:10px;padding:12px;border:1px solid #eef1f5;border-radius:10px;background:#f8fafc}
+.sp-rule-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.sp-rule-fields label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#33415a}
+.sp-rule-fields input{min-height:36px}
 .spin{animation:sp-spin 1.1s linear infinite}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}

@@ -114,15 +114,17 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Activity, LayoutTemplate, Plus, Upload, Workflow } from 'lucide-vue-next'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { saveBlob } from '../utils/saveBlob'
+import { cameraStarter, cameraWorkflow } from '../utils/cameraWorkflow'
 
 const router = useRouter()
+const route = useRoute()
 const graphs = ref([])
 const loading = ref(true)
 const PAGE_SIZE = 30
@@ -289,7 +291,27 @@ async function remove(g) {
   }
 }
 
-onMounted(load)
+// From a camera's page in Training Data ("Build a workflow"): a new workflow whose canvas holds that camera's event
+// trigger, opened at once (utils/cameraWorkflow.js). Any other visit lists the workflows.
+async function createFromCamera(starter) {
+  if (creating.value) return
+  creating.value = true
+  try {
+    const { data } = await api.createWorkflowGraph(cameraWorkflow(starter))
+    router.push(`/dashboard/workflow-builder/${data.id}`)
+  } catch (e) {
+    notify.error(e?.response?.data?.error || 'Could not create the workflow for this camera')
+    load()
+  } finally {
+    creating.value = false
+  }
+}
+
+onMounted(() => {
+  const starter = cameraStarter(route?.query)
+  if (starter) createFromCamera(starter)
+  else load()
+})
 </script>
 
 <style scoped>

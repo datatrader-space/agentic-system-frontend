@@ -407,7 +407,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
                    :streams-error="detailError" :may="detailMay" :may-start="mayStart" :start-why="startWhy"
                    :checking="checking === detail.id" :check-error="checkError" :consent="isPublic(detail) ? '' : consentLine(detail)"
                    @back="closeDetail" @check="check(detail)" @edit="openEdit(detail)" @remove="askRemove(detail)"
-                   @start="emit('start', detail)" @stop-stream="emit('stop-stream', $event)" @download="emit('download', $event)"
+                   @start="emit('start', detail, $event)" @stop-stream="emit('stop-stream', $event)" @download="emit('download', $event)"
                    @open-stream="openStream($event)" @refresh="refreshDetail(); load()"/>
   <div v-else class="vs-layout">
     <!-- Video sources -->

@@ -90,6 +90,21 @@ export const WF_NODE_DEFS = {
     ],
     customTail: 'connectorUrl',
   },
+  // A camera's event (Training Data's Cloud Streaming, ADM-1106): a rule on what a model finds on a camera matched.
+  // Usually made from the camera's page ("Build a workflow"), which fills the camera in. The ids name WHICH camera and
+  // rule; they are not authority: the server starts the workflow only for a camera of the workflow's own workspace,
+  // and only once the workflow is published.
+  'trigger.training.stream_event': {
+    category: 'trigger', icon: '📷', label: 'Camera event', sub: 'A camera rule matched',
+    defaults: { source: null, rule: null, source_name: '' },
+    fields: [
+      { type: 'note', text: 'Starts when a rule on this camera matches what a model finds, at most once in the rule\'s cooldown. Read the event as {{trigger.source.name}}, {{trigger.matched}}, {{trigger.frame_time}} and {{trigger.snapshot_link}}.' },
+      { key: 'source', type: 'number', min: 1, title: 'Camera id', placeholder: 'from the camera\'s page in Training Data' },
+      { key: 'rule', type: 'number', min: 1, title: 'Rule id (optional)', placeholder: 'any rule of the camera' },
+    ],
+    hint: 'Publish the workflow to have it start. It starts only for a camera of this workflow\'s workspace.',
+    outputSample: { event: 0, source: { id: 0, name: 'Camera' }, matched: { person: 1 }, frame_time: '2026-11-18T09:00:00+00:00', snapshot_link: '(link)' },
+  },
   'trigger.channel': {
     category: 'trigger', icon: '💬', label: 'Channel message', sub: 'Inbound slack/telegram/email',
     defaults: { platform: 'slack', channel: '', keyword: '' },
@@ -223,6 +238,7 @@ export const WF_NODE_DEFS = {
 export const WF_PALETTE_ORDER = [
   'media.generate',
   'trigger.manual', 'trigger.schedule', 'trigger.webhook', 'trigger.channel', 'trigger.connector',
+  'trigger.training.stream_event',
   'agent.run', 'llm.call', 'action.tool', 'action.script', 'action.channel', 'action.http',
   'logic.condition', 'logic.approval', 'logic.foreach', 'logic.delay', 'action.subworkflow',
 ]
