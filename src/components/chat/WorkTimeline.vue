@@ -234,7 +234,7 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
 .wt-dot.is-quiet { width: 6px; height: 6px; left: -18px; background: var(--vm-line-2); box-shadow: inset 0 0 0 1px var(--vm-ink-faint); }
 .wt-dot.is-steer { background: var(--vm-link); }
 .wt-dot.is-running { background: var(--vm-violet); animation: wt-pulse 1.4s ease-in-out infinite; }
-@keyframes wt-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@keyframes wt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
 .wt-body { min-width: 0; }
 .wt-plain { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
