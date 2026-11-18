@@ -41,8 +41,9 @@ describe('a video source page', () => {
     expect(w.find('h2').text()).toBe('Test stream (Mux)');
     expect(w.find('.sp-kind').text()).toContain('HLS stream');
     expect(w.findAll('.sp-card-title').map(h => h.text())).toEqual(['Source', 'Model']);
-    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results']);   // Recordings only where it can record
-    expect(w.text()).toContain('Choose a model to run on this camera.');
+    // Events and Rules on the camera's own page (phase 6); Recordings only where it can record
+    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results', 'Events', 'Rules']);
+    expect(w.text()).toContain('Choose a model to run on this camera, or read its barcodes.');
     expect(w.text()).toContain('Results appear here');
     expect(w.text()).not.toMatch(/Roboflow|Workflow to run/);
   });
@@ -61,8 +62,9 @@ describe('a video source page', () => {
     expect(w.emitted('start')).toHaveLength(1);
     await w.find('.sp-back').trigger('click');
     expect(w.emitted('back')).toHaveLength(1);
-    const workflow = w.findAll('button').find(b => b.text().includes('Build a workflow'));
-    expect(workflow.attributes('disabled')).toBeDefined();                // workflows on cameras come later
+    // Phase 6: it opens the Workflow Builder with this camera's events as the trigger (a link, not a disabled button)
+    const workflow = w.findAll('a').find(a => a.text().includes('Build a workflow'));
+    expect(workflow.attributes('href')).toContain('training.stream_event');
   });
 
   it('turns cloud recording on only with its consent, for an RTSP camera', async () => {
