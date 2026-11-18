@@ -34,6 +34,7 @@
         v-for="c in chips" :key="c.ref" type="button"
         class="mc-chip" :class="[`k-${c.kind}`, stateOf(c).phase, { open: openRef === c.ref, editable: editable(c) }]"
         :title="titleOf(c)" :aria-expanded="editable(c) ? String(openRef === c.ref) : undefined"
+        :aria-disabled="editable(c) ? undefined : 'true'"
         :data-ref="c.ref" @click="toggle(c)"
       >
         <span class="mc-kind">{{ kindLabel(c) }}</span>
@@ -49,7 +50,7 @@
       <p class="mc-full">{{ openChip.text }}</p>
       <template v-if="openChip.kind === 'hint'">
         <template v-if="stateOf(openChip).phase === 'retired'">
-          <span class="mc-note" role="status">Retired — the agent won't be given this practice again.</span>
+          <span class="mc-note" role="status">Retired — the agent won’t be given this practice again.</span>
           <button type="button" class="mc-btn" :disabled="busy" data-test="undo-retire" @click="unretire(openChip)">Undo</button>
         </template>
         <template v-else>
@@ -59,7 +60,7 @@
         </template>
       </template>
       <template v-else-if="stateOf(openChip).phase === 'outdated'">
-        <span class="mc-note" role="status">Marked outdated — the agent won't be given it again.</span>
+        <span class="mc-note" role="status">Marked outdated — the agent won’t be given it again.</span>
         <button type="button" class="mc-btn" :disabled="busy" data-test="undo" @click="restore(openChip)">Undo</button>
       </template>
       <span v-else-if="stateOf(openChip).phase === 'forgotten'" class="mc-note" role="status">Forgotten.</span>
@@ -69,7 +70,7 @@
         <button type="button" class="mc-btn plain" :disabled="busy" @click="confirmForget = ''">Keep it</button>
       </template>
       <template v-else>
-        <button type="button" class="mc-btn" :disabled="busy" data-test="outdated" @click="outdated(openChip)">It's outdated</button>
+        <button type="button" class="mc-btn" :disabled="busy" data-test="outdated" @click="outdated(openChip)">It’s outdated</button>
         <button type="button" class="mc-btn" :disabled="busy" data-test="forget" @click="confirmForget = openChip.ref">Forget</button>
         <button type="button" class="mc-btn plain" @click="openRef = ''">Close</button>
       </template>
@@ -138,8 +139,8 @@ function failure (c, err) {
   // 404 is both "already forgotten" (the chip is saved with the answer, so it outlives the memory) and
   // "not yours" (a shared agent's memory) — the server gives one answer to both on purpose.
   stateOf(c).error = status === 404
-    ? "This memory is no longer there, or isn't one you can change."
-    : "Couldn't update this memory. Try again."
+    ? 'This memory is no longer there, or isn’t one you can change.'
+    : 'Couldn’t update this memory. Try again.'
 }
 
 // `phase` is the state to show on success, or a function of the server's answer.
@@ -192,7 +193,7 @@ const unretire = (c) => act(c, () => api.undoLearnedNotHelpful(c.id), (data) => 
   transition: background .15s, border-color .15s;
 }
 .mc-chip.editable { cursor: pointer; }
-.mc-chip.editable:hover, .mc-chip.open { background: var(--vm-surface-soft); border-color: #c7d2fe; }
+.mc-chip.editable:hover, .mc-chip.open { background: var(--vm-blue-soft); border-color: #c7d2fe; }
 .mc-chip:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
 .mc-kind { font-weight: 600; color: var(--vm-link); flex: none; }
 .mc-chip.k-run .mc-kind { color: var(--vm-amber-ink); }
