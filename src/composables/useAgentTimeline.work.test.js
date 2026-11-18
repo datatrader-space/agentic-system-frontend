@@ -10,7 +10,7 @@ function runTurn(tl, { bigOutput = false } = {}) {
   tl.addText('I will read ', true)
   tl.addText('the file first.')
   tl.ingest({ type: 'agent_status', phase: 'generating', label: 'Generating response' })
-  tl.ingest({ type: 'tool_call', tool: 'CODE_READ_FILE', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } })
+  tl.ingest({ type: 'tool_call', tool: 'CODE_READ_FILE', title: 'Read', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } })
   tl.ingest({ type: 'agent_step_started', step_id: 'step_c1', tool_call_id: 'c1', phase: 'reading', label: 'Reading a file' })
   tl.ingest({ type: 'tool_result', tool: 'CODE_READ_FILE', tool_call_id: 'c1', success: true,
               output: bigOutput ? 'z'.repeat(INLINE_IO_CHARS + 10) : 'print(1)', result_ref: 'step:41' })
@@ -35,7 +35,7 @@ describe('useAgentTimeline — a Work turn', () => {
     tl.reset('work')
     runTurn(tl)
     const row = tl.steps.value.find((s) => s.toolCallId === 'c1')
-    expect(row).toMatchObject({ tool: 'CODE_READ_FILE', input: { path: 'src/app.py' }, output: 'print(1)',
+    expect(row).toMatchObject({ tool: 'CODE_READ_FILE', title: 'Read', input: { path: 'src/app.py' }, output: 'print(1)',
                                 ioRef: 'step:41', status: 'ok', durationMs: 1200 })
   })
 

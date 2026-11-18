@@ -25,7 +25,7 @@ function liveWorkTimeline() {
   const tl = useAgentTimeline()
   tl.reset('work')
   tl.addText('First I read **the file**.', true)
-  tl.ingest({ type: 'tool_call', tool: 'CODE_READ_FILE', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } })
+  tl.ingest({ type: 'tool_call', tool: 'CODE_READ_FILE', title: 'Read', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } })
   tl.ingest({ type: 'agent_step_started', step_id: 'step_c1', tool_call_id: 'c1', phase: 'reading', label: 'Reading a file' })
   tl.ingest({ type: 'tool_result', tool: 'CODE_READ_FILE', tool_call_id: 'c1', success: true, output: 'print(1)' })
   tl.ingest({ type: 'agent_step_completed', step_id: 'step_c1', tool_call_id: 'c1', status: 'ok' })
@@ -76,7 +76,7 @@ describe('ChatMessage — the turn\'s mode picks the rail or the card', () => {
     const frames = [
       { type: 'assistant_message_chunk', chunk: 'First I read **the file**.', replace: true },
       { type: 'agent_status', phase: 'generating', label: 'Generating response' },
-      { type: 'tool_call', tool: 'CODE_READ_FILE', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } },
+      { type: 'tool_call', tool: 'CODE_READ_FILE', title: 'Read', tool_call_id: 'c1', tool_input: { path: 'src/app.py' } },
       { type: 'agent_step_started', step_id: 'step_c1', tool_call_id: 'c1', phase: 'reading', label: 'Reading a file' },
       { type: 'tool_result', tool: 'CODE_READ_FILE', tool_call_id: 'c1', success: true, output: 'print(1)', result_ref: 'step:3' },
       { type: 'agent_step_completed', step_id: 'step_c1', tool_call_id: 'c1', status: 'ok' },
@@ -106,6 +106,8 @@ describe('ChatMessage — the turn\'s mode picks the rail or the card', () => {
     expect(savedRows.map(([k]) => k)).toEqual(['text', 'tool', 'answer'])
     expect(savedRows.map(([, t]) => t)).toEqual(liveRows.map(([, t]) => t))
     await wSaved.findAll('[data-test="wt-toggle"]')[0].trigger('click')
+    expect(wSaved.findAll('[data-test="wt-toggle"]')[0].text()).toContain('Read')
+    expect(wSaved.text()).not.toContain('CODE_READ_FILE')                // never the raw tool name
     expect(wSaved.get('[data-test="wt-in"]').text()).toContain('src/app.py')
     expect(wSaved.get('[data-test="wt-out"]').text()).toBe('print(1)')
   })

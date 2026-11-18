@@ -266,17 +266,21 @@ export function useAgentTimeline() {
     // A WORK TURN'S IN AND OUT (ADM-1302), from the raw frames of a call (never on the public tier: the server sends
     // them only to the person the run acts for). Not consumed: the host still handles them.
     if (mode.value === 'work' && evt && evt.type === 'tool_call' && evt.tool_call_id) {
+      // `title`: the call's short name ("Read", "Bash"), declared by the server beside the tool's label.
       const io = { tool: evt.tool || evt.tool_name || '' }
+      if (evt.title) io.title = String(evt.title)
       if (evt.tool_input !== undefined) io.input = evt.tool_input
       _applyIo(evt.tool_call_id, io)
     }
     if (mode.value === 'work' && evt && evt.type === 'tool_result' && evt.tool_call_id) {
       const io = { tool: evt.tool || evt.tool_name || '' }
+      if (evt.title) io.title = String(evt.title)
       if (evt.output !== undefined && evt.output !== null && evt.output !== '') {
         io.output = typeof evt.output === 'string' ? evt.output : JSON.stringify(evt.output, null, 2)
       }
       if (evt.success === false && evt.error) io.error = String(evt.error)
       if (evt.result_ref) io.ioRef = String(evt.result_ref)
+      if (Array.isArray(evt.used_titles)) io.usedTitles = evt.used_titles.map(String)
       _applyIo(evt.tool_call_id, io)
     }
     // WHAT A CALL PRODUCED, ON THE ROW FOR THAT CALL. A result names its call (`tool_call_id`), so the

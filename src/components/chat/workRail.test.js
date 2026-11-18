@@ -49,7 +49,9 @@ describe('workRows — every row in the order it happened', () => {
 
 describe('a tool row', () => {
   it('reads its name and the one line of what it did', () => {
-    expect(toolName(tool('c1'))).toBe('CODE_READ_FILE')
+    // The bold name is the server's short name (`title`), never the raw tool name.
+    expect(toolName(tool('c1', { title: 'Read' }))).toBe('Read')
+    expect(toolName(tool('c1'))).toBe('Tool')
     expect(toolDescription(tool('c1', { input: { path: 'src/app.py' } }))).toBe('src/app.py')
     expect(toolDescription(tool('c1', { input: { command: 'npm   test\n --watch' } }))).toBe('npm test --watch')
     expect(toolDescription(tool('c1', { input: null }))).toBe('Reading a file')
@@ -82,8 +84,11 @@ describe('a tool row', () => {
   })
 
   it('a subagent nests the tools it used', () => {
-    const row = tool('a', { tool: 'AGENT', output: JSON.stringify({ tools_used: ['CODE_GREP', { name: 'CODE_READ_FILE', ok: false }] }) })
-    expect(subagentChildren(row).map((c) => [c.name, c.failed])).toEqual([['CODE_GREP', false], ['CODE_READ_FILE', true]])
+    const row = tool('a', { tool: 'AGENT', usedTitles: ['Search', 'Read'],
+      output: JSON.stringify({ tools_used: ['CODE_GREP', { name: 'CODE_READ_FILE', ok: false }] }) })
+    expect(subagentChildren(row).map((c) => [c.name, c.failed])).toEqual([['Search', false], ['Read', true]])
+    // Without the server's names, never the raw ones.
+    expect(subagentChildren({ ...row, usedTitles: undefined }).map((c) => c.name)).toEqual(['Tool', 'Tool'])
     expect(subagentChildren(tool('b'))).toEqual([])
   })
 })

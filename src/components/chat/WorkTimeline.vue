@@ -33,7 +33,7 @@
         <div v-else-if="r.kind === 'tool' || r.kind === 'subagent'" class="wt-body">
           <button type="button" class="wt-head" :aria-expanded="isOpen(r) ? 'true' : 'false'"
                   :aria-controls="`wt-p-${uid}-${r.key}`" data-test="wt-toggle" @click="toggle(r)">
-            <span class="wt-name" translate="no">{{ r.kind === 'subagent' ? 'Subagent' : toolName(r.step) }}</span>
+            <span class="wt-name" translate="no">{{ toolName(r.step) }}</span>
             <span class="wt-desc" translate="no" :title="toolDescription(r.step)">{{ toolDescription(r.step) }}</span>
             <span v-if="r.step.durationMs != null && r.step.durationMs >= 1000" class="wt-dur">{{ fmtSeconds(r.step.durationMs) }}</span>
             <svg class="wt-chev" :class="{ open: isOpen(r) }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 1 1-1.4-1.4L10.6 10 7.3 6.7a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>

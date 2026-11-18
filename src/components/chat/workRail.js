@@ -77,10 +77,12 @@ export function toolDescription(row) {
   return oneLine(row.label || '')
 }
 
-// The name in bold: the tool the agent called, as Claude Code names its tools. A row whose call never reached this
-// page (an older snapshot, a status row) reads its own label.
+// The name in bold: a SHORT name like Claude Code's ("Read", "Edit", "Bash"), never the platform's raw tool name
+// (owner, 2026-11-18). The server declares it beside each tool's label (`streaming/labels.display_name`) and sends it
+// on the call's frames as `title`; a tool with no short name gets one from its declared label. A row without one
+// (its frames never reached this page) reads "Tool".
 export function toolName(row) {
-  return String((row && (row.tool || row.label)) || 'Step')
+  return String((row && row.title) || 'Tool')
 }
 
 // The rows a subagent's result names as the tools it used (`delegation_tools._delegate_one`: `tools_used`), nested
@@ -92,10 +94,12 @@ export function subagentChildren(row) {
     try { out = JSON.parse(out) } catch { return [] }
   }
   const used = out && Array.isArray(out.tools_used) ? out.tools_used : []
-  return used.map((t, i) => {
-    const name = typeof t === 'string' ? t : String((t && (t.name || t.tool)) || '')
-    return { key: `${row.stepId}_c${i}`, name, failed: !!(t && typeof t === 'object' && t.ok === false) }
-  }).filter((c) => c.name)
+  // Named by the short names the server sent with the result (`used_titles`), never the raw tool names.
+  const titles = Array.isArray(row.usedTitles) ? row.usedTitles : []
+  return used.map((t, i) => ({
+    key: `${row.stepId}_c${i}`, name: String(titles[i] || 'Tool'),
+    failed: !!(t && typeof t === 'object' && t.ok === false),
+  }))
 }
 
 // A file edit's diff, from the call's own input: CODE_PATCH_FILE's find/replace edits, CODE_APPLY_PATCH's patch.

@@ -14,11 +14,11 @@ const steps = () => [
   { stepId: 'r1', phase: 'reasoning', isPhase: true, reasoningText: 'Read **first**.', status: 'ok', durationMs: 3000 },
   { stepId: 't1', isText: true, text: 'Reading the file.', status: 'ok' },
   { stepId: 'p1', isPhase: true, phase: 'generating', label: 'Generating response', status: 'ok' },
-  { stepId: 'step_c1', toolCallId: 'c1', tool: 'CODE_READ_FILE', label: 'Reading a file', status: 'ok', durationMs: 1500,
+  { stepId: 'step_c1', toolCallId: 'c1', tool: 'CODE_READ_FILE', title: 'Read', label: 'Reading a file', status: 'ok', durationMs: 1500,
     input: { path: 'src/app.py' }, output: 'print(1)' },
-  { stepId: 'step_c2', toolCallId: 'c2', tool: 'CODE_PATCH_FILE', label: 'Editing a file', status: 'failed',
+  { stepId: 'step_c2', toolCallId: 'c2', tool: 'CODE_PATCH_FILE', title: 'Edit', label: 'Editing a file', status: 'failed',
     reason: 'the step could not be completed', input: { path: 'a.py', edits: [{ find: 'a', replace: 'b' }] }, error: 'no match' },
-  { stepId: 'step_a', toolCallId: 'a', tool: 'AGENT', label: 'Working', status: 'ok',
+  { stepId: 'step_a', toolCallId: 'a', tool: 'AGENT', title: 'Subagent', label: 'Working', status: 'ok', usedTitles: ['Search'],
     input: { subagent_type: 'Explore', prompt: 'find it' }, output: JSON.stringify({ tools_used: ['CODE_GREP'] }) },
 ]
 
@@ -46,7 +46,8 @@ describe('WorkTimeline', () => {
     const w = mountIt()
     const btn = w.findAll('[data-test="wt-toggle"]')[1]
     expect(btn.element.tagName).toBe('BUTTON')                         // Enter and Space open it, natively
-    expect(btn.text()).toContain('CODE_READ_FILE')
+    expect(btn.text()).toContain('Read')                              // the short name, never the raw one
+    expect(btn.text()).not.toContain('CODE_READ_FILE')
     expect(btn.text()).toContain('src/app.py')
     expect(btn.attributes('aria-expanded')).toBe('false')
     await btn.trigger('click')
@@ -74,7 +75,8 @@ describe('WorkTimeline', () => {
     const sub = w.findAll('[data-test="wt-row"]').find((r) => r.attributes('data-kind') === 'subagent')
     expect(sub.text()).toContain('Subagent')
     expect(sub.text()).toContain('Explore: find it')
-    expect(sub.get('[data-test="wt-children"]').text()).toContain('CODE_GREP')
+    expect(sub.get('[data-test="wt-children"]').text()).toContain('Search')
+    expect(sub.text()).not.toContain('CODE_GREP')
     w.unmount()
   })
 
