@@ -9,6 +9,7 @@ import {
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
+  streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
 
@@ -510,4 +511,87 @@ test('removing a camera keeps its recordings unless the person chose to delete t
   assert.deepEqual(calls.map(c => [c.init.method, c.url]), [
     ['DELETE', base], ['DELETE', base], ['DELETE', `${base}?recordings=delete`], ['DELETE', base],
   ]);
+});
+
+// ── barcodes (backend barcodes.py) and scan to add (camera_pairing.py) ────────────────────────────
+test('what runs on a stream is said: the model, the model and the barcode reader, or the reader alone', () => {
+  const model = { number: 1, name: 'walls', version: '1.0.0' };
+  assert.equal(streamWhat({ model, read_codes: false }), 'walls 1.0.0');
+  assert.equal(streamWhat({ model, read_codes: true }), 'walls 1.0.0 and the barcode reader');
+  assert.equal(streamWhat({ model: null, read_codes: true }), 'Barcode reader');
+});
+
+test('the codes read are listed newest first as the server gives them, as text, cut to their limit', () => {
+  const stream = { codes: [
+    { frame: 9, t: 9, type: 'QR Code', value: 'BOX-2' },
+    { frame: 3, t: 3.5, type: 'EAN-13', value: '4006381333931' },
+    { frame: 1, t: 1, type: 'QR Code', value: '' },
+    null,
+    { frame: 0, t: 0, type: 'QR Code', value: 'X'.repeat(CODE_VALUE_LIMIT + 50) },
+  ] };
+  const rows = codesRead(stream);
+  assert.deepEqual(rows.slice(0, 2).map(r => [r.type, r.value, r.frame, r.t]), [['QR Code', 'BOX-2', 9, 9], ['EAN-13', '4006381333931', 3, 3.5]]);
+  assert.equal(rows.length, 3);                                   // an empty value and a non-row are left out
+  assert.equal(rows[2].value.length, CODE_VALUE_LIMIT);
+  assert.deepEqual(codesRead({}), []);
+  assert.equal(codesRead(stream, 1).length, 1);
+});
+
+test('a frame\'s barcodes are read out with its answer, or alone for the reader alone', () => {
+  assert.equal(frameCodesText({ codes: [{ type: 'QR Code', value: 'A' }, { type: 'Code 128', value: 'B' }] }), 'QR Code A; Code 128 B');
+  assert.equal(frameCodesText({ codes: [] }), 'no code');
+  assert.equal(frameCodesText({ codes_error: 'This frame could not be read for barcodes.' }), 'Not read for barcodes: This frame could not be read for barcodes.');
+  assert.equal(frameCodesText({ classes: { wall: 1 } }), '');
+  assert.equal(countsSaid({ frame: 2, t: 2, codes: [{ type: 'QR Code', value: 'LOT-7' }] }), 'Frame 3 at 0:02: QR Code LOT-7.');
+  assert.equal(countsSaid({ frame: 0, t: 0, classes: { wall: 2 }, codes: [] }), 'Frame 1 at 0:00: wall 2; barcodes: no code.');
+  assert.equal(countsSaid({ frame: 0, t: 0, classes: { wall: 2 } }), 'Frame 1 at 0:00: wall 2.');
+});
+
+test('a start that reads barcodes says so, and one without a model sends none', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response('{"ok":true}', { status: 201, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, address: 'rtsp://cam.example.com/live', readCodes: true });
+    await streamingApi.start({ project: 'leads', model: 2, fps: 1, source: 4, continuous: true, readCodes: true });
+    const file = new File([new Uint8Array([0, 0, 0, 24])], 'walk.mp4', { type: 'video/mp4' });
+    await streamingApi.start({ project: 'leads', model: null, fps: 2, file, readCodes: true });
+    await streamingApi.start({ project: 'leads', model: 1, fps: 1, address: 'rtsp://cam.example.com/live', readCodes: false });
+  } finally { globalThis.fetch = realFetch; }
+  assert.deepEqual(JSON.parse(calls[0].init.body), { project: 'leads', fps: 1, address: 'rtsp://cam.example.com/live', read_codes: true });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { project: 'leads', model: 2, fps: 1, source: 4, continuous: true, read_codes: true });
+  const form = calls[2].init.body;
+  assert.equal(form.get('model'), null);
+  assert.equal(form.get('read_codes'), 'true');
+  assert.deepEqual(JSON.parse(calls[3].init.body), { project: 'leads', model: 1, fps: 1, address: 'rtsp://cam.example.com/live' });
+});
+
+test('what a phone scanned fills the add form: an address with its user and password apart, else the name', () => {
+  assert.deepEqual(formFromScan('rtsp://admin:p%40ss@192.168.1.20:554/stream1'),
+    { address: 'rtsp://192.168.1.20:554/stream1', username: 'admin', password: 'p@ss' });
+  assert.deepEqual(formFromScan('rtsps://cam.example.com/live'), { address: 'rtsps://cam.example.com/live' });
+  assert.deepEqual(formFromScan('  SN: AX-99812 '), { name: 'SN: AX-99812' });
+  assert.deepEqual(formFromScan('line\none'), { name: 'line one' });
+  assert.deepEqual(formFromScan('javascript:alert(1)'), { name: 'javascript:alert(1)' });     // never an address
+  assert.deepEqual(formFromScan(''), {});
+  assert.ok(formFromScan('S'.repeat(500)).name.length <= 120);
+});
+
+test('the pairing calls use the contract\'s paths, with the workspace', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => ({ activeWorkspaceId: '7' })[key] ?? null } });
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response('{"state":"waiting"}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await pairingApi.make();
+    await pairingApi.get(12);
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage); else delete globalThis.localStorage;
+  }
+  assert.deepEqual(calls.map(c => [c.init.method, c.url]), [
+    ['POST', '/api/training-data/app/workspace/camera-pairing/'], ['GET', '/api/training-data/app/workspace/camera-pairing/12/'],
+  ]);
+  for (const call of calls) assert.equal(call.init.headers['X-Workspace-ID'], '7');
 });

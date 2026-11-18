@@ -4,13 +4,15 @@
 // and the "Add video source" dialog (Camera URL works; a connector, Verkada and RTMP are said to be coming). From a
 // source's own page (VideoSourcePage.vue, in the list's place; `page` tells the tab): watch it live, check it, run a
 // model on it (the tab's own dialog, through the `start` event), see its results, edit or remove it. Public cameras
-// AADML publishes are read-only.
+// AADML publishes are read-only. "Scan from phone" (CLOUD_STREAMING_PLAN.md 3.2 item 5): a one-time pairing code shown
+// as a QR code; the phone scans the camera's label and what it read fills the Camera URL form here (backend
+// camera_pairing.py). Nothing is added until the person checks the form and presses Add camera.
 // Backend: streaming_api.py workspace/video-sources/ (list, add), <id>/ (one, change, remove), <id>/check/,
 // <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
   Activity, ArrowRight, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
-  LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
+  LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Smartphone, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import VideoSourcePage from './VideoSourcePage.vue';
@@ -25,7 +27,9 @@ import {
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
   thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
   connectorRows, connectorLine, sizeText,
+  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost,
 } from '../api/streaming.js';
+import { qrOf } from '../api/phone.js';
 
 const props = defineProps({
   // The projects a stream may be started in (the streams list's options), offered as a source's default project.
@@ -152,6 +156,7 @@ async function check(source) {
 const WAYS = [
   { id: 'connector', name: 'Connect a camera', icon: Webcam },
   { id: 'url', name: 'Camera URL', icon: Link },
+  { id: 'phone', name: 'Scan from phone', icon: Smartphone },
   { id: 'verkada', name: 'Verkada', icon: Cloud },
   { id: 'rtmp', name: 'RTMP stream', icon: RadioTower, chip: 'Pilot' },
 ];
@@ -172,8 +177,56 @@ function openAdd() {
   if (addWhy.value || !page.value) return;
   editing.value = null; way.value = 'url'; form.value = sourceForm();
   fieldErrors.value = {}; formError.value = ''; consentNote.value = ''; addedSaid.value = ''; said.value = '';
+  stopPairing(); pairing.value = null; scannedSaid.value = '';
   editorOpen.value = true;
 }
+
+// ── "Scan from phone": a pairing code, then the phone's value fills the Camera URL form ─────────────
+const pairing = ref(null); const pairState = ref(''); const pairError = ref(''); const pairBusy = ref(false);
+const scannedSaid = ref('');
+const pairQr = computed(() => qrOf(pairing.value?.url));
+const pairUntil = computed(() => (pairing.value?.pairing?.expires_at
+  ? new Date(pairing.value.pairing.expires_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''));
+let pairTimer = null;
+const parsedHost = text => { try { return new URL(text).hostname; } catch { return ''; } };
+function stopPairing() { clearTimeout(pairTimer); pairTimer = null; }
+async function showPairing() {
+  if (pairBusy.value) return;
+  pairBusy.value = true; pairError.value = ''; scannedSaid.value = '';
+  try {
+    pairing.value = await pairingApi.make(); pairState.value = 'waiting';
+    pollPairing();
+  } catch (e) { pairError.value = e.message; }
+  finally { pairBusy.value = false; }
+}
+async function pollPairing() {
+  stopPairing();
+  const id = pairing.value?.pairing?.id;
+  if (!id || gone || !editorOpen.value || way.value !== 'phone') return;
+  try {
+    const answer = await pairingApi.get(id);
+    if (pairing.value?.pairing?.id !== id) return;
+    if (answer?.state === 'scanned') {
+      const filled = formFromScan(answer.value);
+      form.value = { ...form.value, ...filled };
+      fieldErrors.value = {}; pairing.value = null; pairState.value = '';
+      // An address on the camera's own network (the usual CCTV case) is reached through one of your machines.
+      const local = !!filled.address && privateHost(parsedHost(filled.address));
+      scannedSaid.value = !filled.address
+        ? 'Your phone filled in the name from the label. Enter the camera address, tick the consent and press Add camera.'
+        : local ? 'Your phone filled in the camera address. It is an address on your own network, so choose the machine the camera is on, give it a name, tick the consent and press Add camera.'
+          : 'Your phone filled in the camera address. Check it, give the camera a name, tick the consent and press Add camera.';
+      way.value = local ? 'connector' : 'url';
+      tell(scannedSaid.value);
+      await nextTick(); document.getElementById(filled.address ? 'vs-name' : 'vs-address')?.focus();
+      return;
+    }
+    if (answer?.state === 'ended') { pairState.value = 'ended'; return; }
+    pairState.value = 'waiting';
+  } catch (e) { pairError.value = e.message; }
+  if (!gone && editorOpen.value && way.value === 'phone') pairTimer = setTimeout(pollPairing, PAIRING_POLL_MS);
+}
+watch(() => editorOpen.value && way.value === 'phone', on => { if (!on) stopPairing(); else if (pairing.value && pairState.value === 'waiting') pollPairing(); });
 function consentLine(source) {
   if (!source?.consent_at) return '';
   const who = typeof source.consent_by === 'string' ? source.consent_by : source.consent_by?.name || source.consent_by?.email || '';
@@ -345,7 +398,7 @@ function connectCamera() {
 }
 
 defineExpose({ load, openAdd, addWhy, ready, refreshDetail, closeDetail });
-onUnmounted(() => { gone = true; clearTimeout(timer); });
+onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 </script>
 
 <template>
@@ -518,6 +571,29 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
           </ol>
         </div>
 
+        <!-- Scan from phone: a pairing code; what the phone reads fills the Camera URL form -->
+        <div v-else-if="!editing && way==='phone'" class="vs-pair">
+          <p class="dialog-description">Scan the camera's label with your phone: its QR code or barcode (the camera's address, or its serial number) fills in the camera form here. Nothing is added until you check the form and press Add camera.</p>
+          <div v-if="pairing && pairState !== 'ended'" class="vs-pair-made">
+            <svg v-if="pairQr" class="vs-pair-qr" :viewBox="`0 0 ${pairQr.size} ${pairQr.size}`" shape-rendering="crispEdges" role="img" aria-label="Pairing QR code for your phone"><rect :width="pairQr.size" :height="pairQr.size" fill="#ffffff"/><path :d="pairQr.path" fill="#0f172a"/></svg>
+            <div>
+              <ol class="vs-pair-steps">
+                <li>Point your phone's camera at this code and open the link.</li>
+                <li>On the phone, scan the code on the camera's label, or type what it says.</li>
+                <li>Press Send. The form here fills in.</li>
+              </ol>
+              <p class="vs-help">The code works once, until {{ pairUntil }}. The phone's browser needs to be allowed to use its camera.</p>
+              <p class="vs-pair-wait" role="status"><LoaderCircle class="spin" :size="14" aria-hidden="true"/> Waiting for your phone…</p>
+              <UiButton class="small" :disabled="pairBusy" @click="showPairing">Show a new code</UiButton>
+            </div>
+          </div>
+          <div v-else class="vs-pair-start">
+            <p v-if="pairState === 'ended'" class="vs-help" role="status">That pairing code has ended: it was used, or its 15 minutes are over.</p>
+            <UiButton variant="primary" :disabled="pairBusy" @click="showPairing"><LoaderCircle v-if="pairBusy" class="spin" :size="15" aria-hidden="true"/><Smartphone v-else :size="15" aria-hidden="true"/> {{ pairState === 'ended' ? 'Show a new code' : 'Show a pairing code' }}</UiButton>
+          </div>
+          <p v-if="pairError" class="field-error" role="alert">{{ pairError }}</p>
+        </div>
+
         <!-- Verkada: the form it will have, switched off -->
         <div v-else-if="!editing && way==='verkada'">
           <p class="dialog-description">Add the cameras of a Verkada organisation, with no connector to install. <UiBadge>Coming soon</UiBadge></p>
@@ -571,6 +647,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
             </div>
           </div>
           <div v-if="addedSaid" class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
+          <div v-else-if="scannedSaid && !editing" class="notice vs-notice" role="status"><Smartphone :size="16" aria-hidden="true"/><span>{{ scannedSaid }}</span></div>
 
           <div class="vs-field">
             <label for="vs-name">Name</label>
@@ -657,6 +734,12 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 </template>
 
 <style scoped>
+.vs-pair-made{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start;margin:12px 0}
+.vs-pair-qr{width:200px;height:200px;border:1px solid #e2e8f0;border-radius:9px}
+.vs-pair-steps{margin:0 0 8px;padding-left:18px;font-size:13px;line-height:1.6;color:#33415a}
+.vs-pair-wait{display:flex;align-items:center;gap:6px;margin:8px 0!important;font-size:13px!important;color:#33415a!important}
+.vs-pair-start{margin:14px 0}
+@media(max-width:560px){.vs-pair-made{grid-template-columns:1fr}.vs-pair-qr{justify-self:center}}
 .vs-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start;margin:0 0 8px}
 .vs-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .vs-card{position:relative;min-width:0;border:1px solid #e3e8ef;border-radius:12px;background:#fff}

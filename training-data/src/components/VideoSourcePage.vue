@@ -3,7 +3,9 @@
 // sources card, it takes the Cloud Streaming tab's place. Left, the source: its live view through AADML's media relay
 // (LiveView.vue, inline) or, for a source the relay does not play, its newest frame; under it, the model that runs on
 // it (a stream: "Run a model" starts one; workflows on cameras come later). Right, the results: the newest answers of
-// the stream on this camera, as the model's own classes, and its newest frames. AADML's own words throughout.
+// the stream on this camera, as the model's own classes, and its newest frames; with "Read barcodes", the barcodes and
+// QR codes it read, newest first, each with its type, its value (shown as text only) and its frame time. AADML's own
+// words throughout.
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
@@ -13,11 +15,12 @@ import {
 import LiveView from './LiveView.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
-import { modelName, timeAgo } from '../api/workspace.js';
+import { timeAgo } from '../api/workspace.js';
 import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
+  streamWhat, codesRead, frameCodesText,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -86,6 +89,8 @@ const bars = computed(() => recentBars(stream.value?.recent, 56));
 const endless = s => !!s?.continuous || !Number(s?.max_frames);
 const started = s => timeAgo(s.started_at || s.created_at);
 const others = computed(() => props.streams.filter(s => s.id !== stream.value?.id).slice(0, 5));
+// The barcodes the stream read, newest first (its own read: the list's copy has none).
+const codes = computed(() => codesRead(stream.value, 50));
 
 // ── cloud recording (CLOUD_STREAMING_PLAN.md §9): the switch in the Source card, the Recordings tab ─────────────────
 const rec = computed(() => props.source.recording || null);           // null: a public camera seen from elsewhere
@@ -224,14 +229,14 @@ async function removeRecording(row) {
             <p v-if="streamsError" class="field-error" role="alert">{{ streamsError }}</p>
             <p v-else-if="!streamsLoaded" class="sp-muted">Loading what runs on this camera…</p>
             <template v-else-if="stream">
-              <p class="sp-model-name"><strong>{{ modelName(stream.model) }}</strong></p>
+              <p class="sp-model-name"><strong>{{ streamWhat(stream) }}</strong></p>
               <p class="sp-muted">{{ [stream.project?.name, `${stream.fps} frame${stream.fps === 1 ? '' : 's'} a second`, `started ${started(stream)}`].filter(Boolean).join(' · ') }}</p>
               <p class="sp-muted">{{ endless(stream) ? 'Runs until you stop it.' : `Reads at most ${stream.max_frames} frames.` }}</p>
               <ul v-if="others.length" class="sp-others" aria-label="Earlier streams on this camera">
-                <li v-for="s in others" :key="s.id"><span>{{ modelName(s.model) }}, {{ started(s) }}</span><UiBadge :tone="streamState(s)[0]">{{ streamState(s)[1] }}</UiBadge></li>
+                <li v-for="s in others" :key="s.id"><span>{{ streamWhat(s) }}, {{ started(s) }}</span><UiBadge :tone="streamState(s)[0]">{{ streamState(s)[1] }}</UiBadge></li>
               </ul>
             </template>
-            <p v-else class="sp-empty-text">Choose a model to run on this camera. Its answers appear alongside as it works.</p>
+            <p v-else class="sp-empty-text">Choose a model to run on this camera, or read its barcodes. What it finds appears alongside as it works.</p>
           </div>
           <p v-if="!mayStart && startWhy" class="sp-why">{{ startWhy }}</p>
           <div class="sp-model-foot">
@@ -299,21 +304,32 @@ async function removeRecording(row) {
         <div v-else-if="!stream" class="sp-results-empty" role="status">
           <span class="sp-empty-icon"><ChartLine :size="20" aria-hidden="true"/></span>
           <h4>Results appear here</h4>
-          <p>Run a model on this camera to see what it finds in each frame.</p>
+          <p>Run a model or read barcodes on this camera to see what it finds in each frame.</p>
         </div>
         <div v-else class="sp-results-body">
           <p class="sp-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="sp-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="stream.state === 'queued'">Waiting for a worker to read the camera</template>
-            <template v-else-if="stream.state === 'running'">Placing the model and reading the first frame</template>
+            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="sp-frame-error">This frame got no answer: {{ last.error }}</p>
-          <div class="sp-counts" :class="{ waiting: !answered }">
+          <div v-if="stream.model" class="sp-counts" :class="{ waiting: !answered }">
             <div v-for="name in names" :key="name" class="sp-count"><span class="sp-num">{{ answered ? countOf(last, name) : '–' }}</span><span class="sp-what">{{ name }}</span></div>
             <div v-if="!names.length" class="sp-count"><span class="sp-num">{{ answered ? 0 : '–' }}</span><span class="sp-what">found</span></div>
           </div>
-          <div v-if="bars.length" class="sp-strip" title="Everything found in each of the newest frames">
+          <section v-if="stream.read_codes" class="sp-codes" aria-labelledby="sp-codes-h">
+            <h4 id="sp-codes-h">Barcodes read <small>newest first</small></h4>
+            <p v-if="last && !last.error && frameCodesText(last)" class="sp-muted">This frame: {{ frameCodesText(last) }}</p>
+            <p v-if="!codes.length" class="sp-muted">{{ running ? 'No barcode or QR code read yet. Hold one in front of the camera.' : 'No barcode or QR code was read.' }}</p>
+            <table v-else class="sp-code-table">
+              <thead><tr><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Frame time</th></tr></thead>
+              <tbody>
+                <tr v-for="c in codes" :key="c.key"><td class="sp-code-type">{{ c.type }}</td><td class="sp-code-value">{{ c.value }}</td><td class="sp-code-at">{{ clockText(c.t) }} <small>frame {{ c.frame + 1 }}</small></td></tr>
+              </tbody>
+            </table>
+          </section>
+          <div v-if="stream.model && bars.length" class="sp-strip" title="Everything found in each of the newest frames">
             <span v-for="b in bars" :key="b.frame" :class="{ failed: b.failed }" :style="{ height: `${b.h}px` }"></span>
           </div>
           <p class="sp-muted">{{ stream.frames }} frame{{ stream.frames === 1 ? '' : 's' }} read<template v-if="stream.frames_failed">, {{ stream.frames_failed }} without an answer</template><template v-if="!endless(stream)"> of at most {{ stream.max_frames }}</template>.</p>
@@ -381,6 +397,17 @@ async function removeRecording(row) {
 .sp-strip span{flex:1;min-width:2px;max-width:10px;border-radius:2px 2px 0 0;background:var(--aadml-primary);opacity:.75}
 .sp-strip span.failed{background:#f04438}
 .sp-ended{margin:0;font-size:13px;color:#475569}
+.sp-codes{display:grid;gap:8px}
+.sp-codes h4{margin:0;font-size:14px;color:#17243b}
+.sp-codes h4 small{font-weight:400;color:#64748b}
+.sp-code-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.sp-code-table th{text-align:left;font-size:12px;font-weight:600;color:#64748b;padding:6px 8px;border-bottom:1px solid #eef1f5}
+.sp-code-table th:first-child{width:110px}.sp-code-table th:last-child{width:120px}
+.sp-code-table td{padding:8px;border-bottom:1px solid #f1f4f8;vertical-align:top}
+.sp-code-type{font-size:12px;font-weight:600;color:#475569}
+.sp-code-value{color:#17243b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.sp-code-at{color:#475569;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sp-code-at small{display:block;color:#94a3b8;font-size:11px}
 .sp-ended.failed{color:#b42318}
 .sp-link{align-self:flex-start;border:0;background:none;padding:0;min-height:32px;color:var(--aadml-primary);text-decoration:underline;font:inherit;font-size:13px;cursor:pointer}
 .sp-rec{display:grid;gap:8px;padding:12px 14px;border-top:1px solid #eef1f5}

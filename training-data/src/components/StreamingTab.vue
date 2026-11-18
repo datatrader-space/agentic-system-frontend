@@ -5,6 +5,8 @@
 // camera may run continuously, until it is stopped (CLOUD_STREAMING_PLAN.md section 7).
 // Backend: streaming_api.py workspace/streams/ (list, start), workspace/streams/<id>/ (one), …/stop/, …/results/.
 // Every frame the model answers is charged as one photo call, from the balance of the person who started the stream.
+// "Read barcodes" (backend barcodes.py) reads the barcodes and QR codes of each frame, alone or after the model; each
+// frame read is charged like a photo call too, and the codes read show newest first.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   Bell, Cctv, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
@@ -19,7 +21,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
-  sourceShown,
+  sourceShown, streamWhat, codesRead, frameCodesText,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -28,7 +30,7 @@ const said = ref(''); const announce = ref('');
 const streams = computed(() => page.value?.streams || []);
 const listQuery = ref(''); const listStatus = ref('');
 const listStates = computed(() => [...new Map(streams.value.map(s => [s.state, { value: s.state, label: streamState(s)[1] }])).values()]);
-const visibleStreams = computed(() => streams.value.filter(s => (!listStatus.value || s.state === listStatus.value) && [s.source, s.project.name, modelName(s.model)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
+const visibleStreams = computed(() => streams.value.filter(s => (!listStatus.value || s.state === listStatus.value) && [s.source, s.project.name, streamWhat(s)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
 const options = computed(() => page.value?.options || { projects: [], fps: [1, 2], default_fps: 1, cap: null, upload: {} });
 const may = computed(() => page.value?.may || {});
 let gone = false; let listTimer = null; let viewTimer = null;
@@ -36,7 +38,7 @@ let gone = false; let listTimer = null; let viewTimer = null;
 function noteChanges(before, after) {
   const was = new Map((before || []).map(s => [s.id, s.state]));
   const changed = (after || []).filter(s => was.has(s.id) && was.get(s.id) !== s.state);
-  if (changed.length) announce.value = changed.map(s => `The stream of ${modelName(s.model)} is ${streamState(s)[1].toLowerCase()}.`).join(' ');
+  if (changed.length) announce.value = changed.map(s => `The stream of ${streamWhat(s)} is ${streamState(s)[1].toLowerCase()}.`).join(' ');
 }
 function takePage(body) {
   if (!body) return;
@@ -68,6 +70,8 @@ const answered = computed(() => !!last.value && !last.value.error);
 const names = computed(() => classNames(viewing.value, 8));
 const bars = computed(() => recentBars(viewing.value?.recent, 40));
 const endless = stream => !!stream?.continuous || !Number(stream?.max_frames);
+// The codes the open stream read, newest first.
+const codes = computed(() => codesRead(viewing.value, 20));
 function mergeRow(row) {
   if (!page.value || !row) return;
   page.value = { ...page.value, streams: page.value.streams.map(s => (s.id === row.id ? { ...s, ...row } : s)) };
@@ -118,10 +122,13 @@ const notifying = ref(false);
 
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
-const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false });
+const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false });
 const chosenSource = computed(() => savedSources.value.find(s => String(s.id) === String(form.value.saved)) || null);
-// A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is.
-const perHour = computed(() => (Number(form.value.fps) || 1) * 3600);
+// A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
+// answered and read for barcodes is charged for each.
+const codesOption = computed(() => options.value.codes || null);
+const callsAFrame = computed(() => (form.value.useModel ? 1 : 0) + (form.value.readCodes ? Number(codesOption.value?.photo_calls_a_read) || 1 : 0));
+const perHour = computed(() => Math.round((Number(form.value.fps) || 1) * 3600 * (callsAFrame.value || 1)));
 const capMinutes = computed(() => Math.round((Number(options.value.cap?.seconds) || 600) / 60));
 const file = ref(null); const fileInput = ref(null);
 const fieldErrors = ref({}); const formError = ref(''); const addressTouched = ref(false);
@@ -140,11 +147,14 @@ const sourceProblem = computed(() => {
 });
 const startWhy = computed(() => {
   if (!may.value.start) return may.value.reason || (options.value.projects.length ? 'You may not start a stream.' : 'You need the Train right in a photo project to start a stream.');
-  if (!models.value.length) return 'Choose a project with a trained model.';
+  if (!form.value.useModel && !form.value.readCodes) return 'Choose what runs on each frame: the model, Read barcodes, or both.';
+  if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or read barcodes only.';
+  if (form.value.readCodes && codesOption.value && codesOption.value.available === false) return 'Barcodes cannot be read on AADML right now. Run the model on its own, or try again later.';
   return '';
 });
 watch(() => form.value.project, () => {
   if (!models.value.some(m => String(m.number) === String(form.value.model))) form.value.model = models.value[0] ? String(models.value[0].number) : '';
+  if (!models.value.length) form.value.useModel = false;          // a project without a model can still read barcodes
 });
 // Opened from the header (no source) or from a saved camera's "Start stream" (that camera, its default project first).
 function openCreate(saved = null) {
@@ -153,6 +163,7 @@ function openCreate(saved = null) {
   form.value = {
     project: first?.ref || '', model: first?.models[0] ? String(first.models[0].number) : '',
     source: saved ? 'saved' : 'file', address: '', fps: options.value.default_fps || 1, saved: saved ? String(saved.id) : '', continuous: false,
+    useModel: !!first?.models?.length, readCodes: false,
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
   creating.value = true;
@@ -175,7 +186,8 @@ async function startStream() {
   starting.value = true;
   try {
     const body = await streamingApi.start({
-      project: form.value.project, model: Number(form.value.model), fps: Number(form.value.fps),
+      project: form.value.project, model: form.value.useModel ? Number(form.value.model) : null, fps: Number(form.value.fps),
+      readCodes: form.value.readCodes,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
           : { address: form.value.address.trim() }),
@@ -189,7 +201,7 @@ async function startStream() {
     else if (body?.stream) openStream(body.stream);
   } catch (e) {
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -255,7 +267,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     <section v-if="viewing" id="st-view" class="st-view" tabindex="-1" aria-labelledby="st-view-title">
       <header class="st-view-head">
         <div>
-          <h3 id="st-view-title">{{ modelName(viewing.model) }} <span class="st-on">on</span> {{ viewing.source }}</h3>
+          <h3 id="st-view-title">{{ streamWhat(viewing) }} <span class="st-on">on</span> {{ viewing.source }}</h3>
           <p>{{ viewing.project.name }}, {{ viewing.fps }} frame{{ viewing.fps === 1 ? '' : 's' }} a second</p>
         </div>
         <div class="st-view-acts">
@@ -265,7 +277,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </header>
 
       <div class="st-readout">
-        <div class="st-counts" :class="{ waiting: !answered }">
+        <div v-if="viewing.model" class="st-counts" :class="{ waiting: !answered }">
           <div v-for="name in names" :key="name" class="st-count"><span class="st-num">{{ answered ? countOf(last, name) : '–' }}</span><span class="st-what">{{ name }}</span></div>
           <div v-if="!names.length" class="st-count"><span class="st-num">{{ answered ? 0 : '–' }}</span><span class="st-what">found</span></div>
         </div>
@@ -273,10 +285,11 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <p class="st-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="st-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="viewing.state === 'queued'">Waiting for a worker to read the video</template>
-            <template v-else-if="viewing.state === 'running'">Placing the model and reading the first frame</template>
+            <template v-else-if="viewing.state === 'running'">{{ viewing.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="st-frame-error">This frame got no answer: {{ last.error }}</p>
+          <p v-else-if="last && viewing.read_codes" class="st-frame-codes">Barcodes in this frame: {{ frameCodesText(last) }}</p>
           <div v-if="!endless(viewing)" class="st-bar" role="progressbar" aria-label="Frames read of the most a stream reads" :aria-valuenow="viewing.frames" aria-valuemin="0" :aria-valuemax="viewing.max_frames">
             <span :style="{ transform: `scaleX(${progressOf(viewing)})` }"></span>
           </div>
@@ -285,7 +298,14 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
         </div>
       </div>
 
-      <div v-if="bars.length" class="st-strip" aria-hidden="true" title="Everything found in each of the newest frames">
+      <section v-if="viewing.read_codes" class="st-codes" aria-labelledby="st-codes-h">
+        <h4 id="st-codes-h">Barcodes read <small>newest first</small></h4>
+        <p v-if="!codes.length" class="st-meta">No barcode or QR code read yet.</p>
+        <ol v-else class="st-code-list">
+          <li v-for="c in codes" :key="c.key"><span class="st-code-type">{{ c.type }}</span><span class="st-code-value">{{ c.value }}</span><span class="st-code-at">frame {{ c.frame + 1 }}, {{ clockText(c.t) }}</span></li>
+        </ol>
+      </section>
+      <div v-if="viewing.model && bars.length" class="st-strip" aria-hidden="true" title="Everything found in each of the newest frames">
         <span v-for="b in bars" :key="b.frame" :class="{ failed: b.failed }" :style="{ height: `${b.h}px` }"></span>
       </div>
       <p v-if="!live && endedText(viewing)" class="st-ended" :class="{ failed: viewing.state === 'failed' }">{{ endedText(viewing) }}</p>
@@ -318,16 +338,17 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <tr v-for="s in visibleStreams" :key="s.id" :class="{ open: viewing && viewing.id === s.id }">
             <td data-label="Video"><span class="st-src"><FileVideo v-if="s.source_kind === 'file'" :size="15" aria-hidden="true"/><Radio v-else :size="15" aria-hidden="true"/><strong>{{ s.source }}</strong></span>
               <small>{{ s.source_kind_label }}, {{ s.fps }} a second</small></td>
-            <td data-label="Project and model">{{ s.project.name }}<small>{{ modelName(s.model) }}</small></td>
+            <td data-label="Project and model">{{ s.project.name }}<small>{{ streamWhat(s) }}</small></td>
             <td data-label="State">
               <UiBadge :tone="streamState(s)[0]"><LoaderCircle v-if="isActive(s)" class="spin" :size="12" aria-hidden="true"/>{{ streamState(s)[1] }}</UiBadge>
               <small v-if="!isActive(s) && endedText(s)" :class="{ 'failed-why': s.state === 'failed' }">{{ endedText(s) }}</small>
             </td>
             <td data-label="Frames">{{ s.frames }} <small v-if="endless(s)">runs until stopped, {{ clockText(s.video_seconds) }} of video</small><small v-else>of at most {{ s.max_frames }}, {{ clockText(s.video_seconds) }} of video</small>
-              <small v-if="s.last && !s.last.error" class="st-found">Newest: {{ classesText(s.last) }}</small></td>
+              <small v-if="s.last && !s.last.error && s.model" class="st-found">Newest: {{ classesText(s.last) }}</small>
+              <small v-if="s.last && !s.last.error && s.read_codes" class="st-found">Barcodes: {{ frameCodesText(s.last) }}</small></td>
             <td data-label="Started">{{ started(s) }}</td>
             <td class="row-actions"><div class="st-acts">
-              <UiButton class="small" :aria-label="`Open the stream of ${modelName(s.model)} on ${s.source}`" @click="openStream(s)">Open</UiButton>
+              <UiButton class="small" :aria-label="`Open the stream of ${streamWhat(s)} on ${s.source}`" @click="openStream(s)">Open</UiButton>
               <UiButton v-if="s.has_results" class="small" :disabled="downloading === s.id" :aria-label="`Download the results of the stream on ${s.source}`" @click="download(s)"><Download :size="14" aria-hidden="true"/> Results</UiButton>
               <UiButton v-if="s.may && s.may.stop" class="small" :aria-label="`Stop the stream on ${s.source}`" @click="askStop(s)"><Square :size="13" aria-hidden="true"/> Stop</UiButton>
             </div></td>
@@ -340,7 +361,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 
     <UiDialog class="st-dialog" :open="creating" title="New stream" @close="creating=false">
       <form class="st-form" novalidate @submit.prevent="startStream">
-        <p class="dialog-description">Choose a model and a video for it. Nothing starts until you press Start stream.</p>
+        <p class="dialog-description">Choose what runs on each frame and a video for it. Nothing starts until you press Start stream.</p>
         <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
 
         <div class="st-row">
@@ -354,13 +375,28 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           </div>
           <div class="st-field">
             <label for="st-model">Model</label>
-            <select id="st-model" v-model="form.model" class="text-input" :disabled="!models.length" :aria-invalid="!!fieldErrors.model" aria-describedby="st-model-error">
+            <select id="st-model" v-model="form.model" class="text-input" :disabled="!models.length || !form.useModel" :aria-invalid="!!fieldErrors.model" aria-describedby="st-model-error">
               <option v-if="!models.length" value="">No trained model</option>
               <option v-for="m in models" :key="m.number" :value="String(m.number)">{{ modelName(m) }}</option>
             </select>
             <p id="st-model-error" class="field-error" aria-live="polite">{{ fieldErrors.model }}</p>
           </div>
         </div>
+
+        <fieldset class="st-field">
+          <legend>On each frame</legend>
+          <div class="st-cards">
+            <label class="st-card" :class="{ chosen: form.useModel }">
+              <input v-model="form.useModel" type="checkbox" :disabled="!models.length" aria-describedby="st-use-model-help">
+              <span><strong>Run the model</strong><small id="st-use-model-help">{{ models.length ? 'The model answers each frame with what it finds.' : 'This project has no trained model yet.' }}</small></span>
+            </label>
+            <label class="st-card" :class="{ chosen: form.readCodes }">
+              <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">
+              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel ? ', after the model' : ', on its own' }}. Each frame read is charged like a photo call.</small></span>
+            </label>
+          </div>
+          <p v-if="fieldErrors.read_codes" class="field-error" role="alert">{{ fieldErrors.read_codes }}</p>
+        </fieldset>
 
         <fieldset class="st-field">
           <legend>Video</legend>
@@ -392,7 +428,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             <label class="st-card st-continuous" :class="{ chosen: form.continuous }">
               <input v-model="form.continuous" type="checkbox" aria-describedby="st-continuous-help">
               <span><strong>Run continuously until I stop it</strong>
-                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. Each answered frame is one photo call from your balance: at {{ form.fps }} a second, {{ perHour.toLocaleString('en-US') }} photo calls an hour.</small></span>
+                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ callsAFrame > 1 ? 'Each frame is charged for the model and for reading its barcodes' : 'Each frame is one photo call' }} from your balance: at {{ form.fps }} a second, {{ perHour.toLocaleString('en-US') }} photo calls an hour.</small></span>
             </label>
           </div>
           <div v-else class="st-source">
@@ -548,6 +584,15 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-card small{font-size:12px;line-height:1.5;color:#4c5d74}
 .st-continuous{margin-top:12px}
 .st-found{color:#33415a!important;overflow-wrap:anywhere}
+.st-frame-codes{margin:4px 0 0!important;font-size:12px!important;color:#33415a!important;overflow-wrap:anywhere}
+.st-codes{margin-top:16px;padding-top:12px;border-top:1px solid #dfe5ee}
+.st-codes h4{margin:0 0 8px;font-size:13px;color:#162139}
+.st-codes h4 small{font-weight:400;color:#5f6d82}
+.st-code-list{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:260px;overflow:auto}
+.st-code-list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 10px;border:1px solid #dfe5ee;border-radius:8px;background:#fff;font-size:13px}
+.st-code-type{font-size:11px;font-weight:600;color:#4c5d74;white-space:nowrap}
+.st-code-value{color:#162139;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.st-code-at{font-size:11px;color:#5f6d82;white-space:nowrap;font-variant-numeric:tabular-nums}
 .st-cap{margin:20px 0 0!important;padding:10px 14px;border-radius:9px;background:#f4f6fa;color:#22304a!important;font-size:13px}
 .st-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap}
 .st-actions .button{min-height:44px}

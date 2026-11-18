@@ -17,18 +17,23 @@ export const streamingApi = {
   list: () => apiFetch(`${APP}/workspace/streams/`, { timeoutMs: SLOW }),
   get: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/`),
   // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
-  // continuously (until it is stopped, the balance runs out or the camera stops answering).
-  start: ({ project, model, fps, address, file, source, continuous }) => {
+  // continuously (until it is stopped, the balance runs out or the camera stops answering). `readCodes`: read the
+  // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
+  start: ({ project, model, fps, address, file, source, continuous, readCodes }) => {
+    const noModel = model === null || model === undefined || model === '';
+    const extra = { ...(readCodes ? { read_codes: true } : {}) };
+    const head = noModel ? { project } : { project, model };
     if (source !== undefined && source !== null && source !== '') {
-      return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { project, model, fps, source, continuous: !!continuous }, timeoutMs: SLOW });
+      return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { ...head, fps, source, continuous: !!continuous, ...extra }, timeoutMs: SLOW });
     }
     if (file) {
       const body = new FormData();
-      body.append('project', project); body.append('model', String(model)); body.append('fps', String(fps));
+      body.append('project', project); if (!noModel) body.append('model', String(model)); body.append('fps', String(fps));
+      if (readCodes) body.append('read_codes', 'true');
       body.append('file', file, file.name);
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body, timeoutMs: UPLOAD_MS });
     }
-    return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { project, model, fps, address }, timeoutMs: SLOW });
+    return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { ...head, fps, address, ...extra }, timeoutMs: SLOW });
   },
   stop: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/stop/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
 };
@@ -58,6 +63,35 @@ export const videoSources = {
   // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
   recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
+
+// "Scan from phone" in the Add video source dialog (backend camera_pairing.py): a one-time pairing code an Admin shows
+// as a QR code; the phone sends what it scanned, and the dialog is given it once (state waiting | scanned | ended).
+const PAIRING = `${APP}/workspace/camera-pairing/`;
+export const pairingApi = {
+  make: () => apiFetch(PAIRING, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  get: id => apiFetch(`${PAIRING}${enc(id)}/`),
+};
+// How often the dialog asks whether the phone has sent.
+export const PAIRING_POLL_MS = 2000;
+
+// What a phone scanned from a camera's label, as the Add form's fields. A camera address fills the address, its user
+// name and password (taken out of the address: the form sends them on their own, and the server seals them); anything
+// else (a serial, a model number) becomes the name, to change if needed. The value is untrusted text: one line, cut.
+export function formFromScan(raw) {
+  // eslint-disable-next-line no-control-regex
+  const text = String(raw ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, ADDRESS_LIMIT);
+  if (!text) return {};
+  if (/^(rtsps?|https):\/\//i.test(text)) {
+    const url = parse(text);
+    if (url && url.hostname) {
+      const username = decodeURIComponent(url.username || ''); const password = decodeURIComponent(url.password || '');
+      url.username = ''; url.password = '';
+      return { address: url.toString(), ...(username ? { username: username.slice(0, CREDENTIAL_LIMIT) } : {}),
+        ...(password ? { password: password.slice(0, CREDENTIAL_LIMIT) } : {}) };
+    }
+  }
+  return { name: text.slice(0, SOURCE_NAME_LIMIT) };
+}
 
 // The workspace's kept recordings, newest first, each with signed links to play and download it (15 minutes).
 const RECORDINGS = `${APP}/workspace/recordings/`;
@@ -270,7 +304,37 @@ export function countsSaid(last) {
   if (!last) return '';
   const where = `Frame ${Number(last.frame) + 1} at ${clockText(last.t)}`;
   if (last.error) return `${where}: no answer. ${last.error}`;
-  return `${where}: ${classesText(last)}.`;
+  // A frame read for barcodes says what it read; a frame of the barcode reader alone has no classes.
+  const codes = frameCodesText(last);
+  if (codes && !last.classes && !last.counts) return `${where}: ${codes}.`;
+  return `${where}: ${classesText(last)}${codes ? `; barcodes: ${codes}` : ''}.`;
+}
+
+// ── barcodes (backend barcodes.py) ───────────────────────────────────────────────────────────────
+// What runs on each frame of a stream: "walls 1.0.0", "walls 1.0.0 and the barcode reader", or "Barcode reader".
+export function streamWhat(stream) {
+  const model = stream?.model ? `${stream.model.name} ${stream.model.version}` : '';
+  if (!stream?.read_codes) return model;
+  return model ? `${model} and the barcode reader` : 'Barcode reader';
+}
+
+// The codes a stream read, newest first, as the page lists them: [{ key, type, value, frame, t }]. The server gives
+// them newest first (`codes`); a value is untrusted text, shown as text only and cut to its limit.
+export const CODE_VALUE_LIMIT = 512;
+export function codesRead(stream, most = 50) {
+  const rows = Array.isArray(stream?.codes) ? stream.codes : [];
+  return rows.filter(c => c && typeof c.value === 'string' && c.value)
+    .slice(0, most)
+    .map((c, i) => ({ key: `${c.frame}-${i}`, type: String(c.type || 'Barcode').slice(0, 40), value: c.value.slice(0, CODE_VALUE_LIMIT),
+      frame: Number(c.frame) || 0, t: Number(c.t) || 0 }));
+}
+
+// One frame's codes in words: "QR Code SN-1; EAN-13 4006381333931", "no code", or why it was not read.
+export function frameCodesText(answer) {
+  if (!answer) return '';
+  if (answer.codes_error) return `Not read for barcodes: ${answer.codes_error}`;
+  if (!Array.isArray(answer.codes)) return '';
+  return answer.codes.length ? answer.codes.map(c => `${c.type} ${c.value}`).join('; ') : 'no code';
 }
 
 // Why a stream that ended, ended.
