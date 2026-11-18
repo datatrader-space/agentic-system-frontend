@@ -35,6 +35,10 @@
               </span>
             </div>
             <p class="ss-wait-summary" data-test="approval-summary">{{ a.summary }}</p>
+            <!-- A Let's Code step (ADM-1283): the copy of the project it changes, and its risk, as its chat card shows. -->
+            <p v-if="a.request && a.request.working_copy != null" class="ss-wait-coding" data-test="approval-coding" translate="no">
+              {{ a.request.working_copy ? `This chat's branch ${a.request.working_copy}` : "The project's shared copy" }}<template v-if="a.request.risk"> · {{ a.request.risk }} risk</template>
+            </p>
             <p v-if="a.timeout_at" class="ss-wait-clock" data-test="approval-time-left">
               <Clock :size="14" aria-hidden="true" />{{ timeLeft(a.timeout_at) }}
             </p>
@@ -335,6 +339,7 @@ onBeforeUnmount(() => {
 .ss-wait-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 650 16px/1.3 var(--vm-font-sans); color: var(--vm-ink); }
 .ss-wait-title svg { color: var(--vm-amber-ink); }
 .ss-wait-summary { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--vm-ink); overflow-wrap: anywhere; }
+.ss-wait-coding { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
 .ss-wait-clock { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 12.5px; color: var(--vm-amber-ink); font-variant-numeric: tabular-nums; }
 .ss-wait-error { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 10px; border-radius: var(--vm-r);
   background: var(--vm-red-soft); color: var(--vm-red-ink); font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }

@@ -190,6 +190,19 @@ describe('SessionsPage: waiting for you', () => {
     w.unmount()
   })
 
+  it("names a Let's Code step's working copy and risk, from the card the server sends (ADM-1283)", async () => {
+    api.getPendingApprovals.mockResolvedValue({ data: { approvals: [
+      ap('c1', { request: { request_id: 'c1', waiting: true, working_copy: 'chat/9', risk: 'high' } }),
+      ap('c2', { request: { request_id: 'c2', waiting: true, working_copy: '', risk: 'high' } }),
+      ap('o1', { request: { request_id: 'o1', waiting: true, working_copy: null, risk: null } }),
+    ] } })
+    const { w } = await mountPage()
+    expect(w.find('[data-test="approval-c1"] [data-test="approval-coding"]').text()).toBe("This chat's branch chat/9 · high risk")
+    expect(w.find('[data-test="approval-c2"] [data-test="approval-coding"]').text()).toBe("The project's shared copy · high risk")
+    expect(w.find('[data-test="approval-o1"] [data-test="approval-coding"]').exists()).toBe(false)
+    w.unmount()
+  })
+
   it('shows a countdown only for an approval with timeout_at', async () => {
     api.getPendingApprovals.mockResolvedValue({ data: { approvals: [
       ap('n1'), ap('t1', { timeout_at: new Date(Date.now() + 10 * 60000).toISOString() }),

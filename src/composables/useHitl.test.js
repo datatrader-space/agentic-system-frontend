@@ -59,14 +59,38 @@ describe('useHitl', () => {
     expect(send).toHaveBeenCalledWith({ type: 'hitl_response', request_id: 'r1', response_value: false, feedback: '' })
   })
 
-  it('dismiss and skip remove from the queue without sending', () => {
+  // ADM-1283: Skip and Dismiss used to drop a live card without telling the server, so its run waited on nothing.
+  it('skip moves a card to the back and keeps it; dismiss only drops a card with nothing to answer', () => {
     const send = vi.fn()
     const { hitlRequests, handleHitlEvent, dismissHitl, skipHitl } = useHitl(send)
     handleHitlEvent(makeReq('r1'))
     handleHitlEvent(makeReq('r2'))
-    dismissHitl('r1')
-    skipHitl('r2')
-    expect(hitlRequests.value).toHaveLength(0)
+    handleHitlEvent(makeReq('n1', { response_type: 'none' }))
+    skipHitl('r1')
+    expect(hitlRequests.value.map((r) => r.request_id)).toEqual(['r2', 'n1', 'r1'])
+    dismissHitl('r2')
+    expect(hitlRequests.value.map((r) => r.request_id)).toEqual(['r2', 'n1', 'r1'])
+    dismissHitl('n1')
+    expect(hitlRequests.value.map((r) => r.request_id)).toEqual(['r2', 'r1'])
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it('a replaced card reads so, then goes; an answered one comes back to say so', () => {
+    vi.useFakeTimers()
+    try {
+      const send = vi.fn()
+      const { hitlRequests, handleHitlEvent, respondHitl } = useHitl(send)
+      handleHitlEvent(makeReq('r1'))
+      handleHitlEvent(makeReq('r2'))
+      handleHitlEvent({ type: 'hitl_resolved', request_id: 'r1', status: 'superseded' })
+      expect(hitlRequests.value.find((r) => r.request_id === 'r1').state).toBe('superseded')
+      respondHitl({ request_id: 'r2', response_value: true })
+      handleHitlEvent({ type: 'hitl_resolved', request_id: 'r2', status: 'superseded' })
+      expect(hitlRequests.value.map((r) => [r.request_id, r.state])).toEqual([['r1', 'superseded'], ['r2', 'superseded']])
+      vi.advanceTimersByTime(8000)
+      expect(hitlRequests.value).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

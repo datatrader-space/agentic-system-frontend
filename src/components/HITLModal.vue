@@ -19,11 +19,14 @@
               </div>
             </div>
             <div class="header-right">
-              <span v-if="inline || isToolApproval" class="urgency-badge studio-wait" data-test="hitl-waiting">Waiting for you</span>
+              <span v-if="isSuperseded" class="urgency-badge studio-wait" data-test="hitl-replaced-badge">Replaced</span>
+              <span v-else-if="inline || isToolApproval" class="urgency-badge studio-wait" data-test="hitl-waiting">Waiting for you</span>
               <span v-else class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
-              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup' || isExpired" @click="dismiss" class="close-btn" aria-label="Close">&times;</button>
+              <!-- Close only a card with nothing to answer (a notification, an expired card): a card that waits is answered,
+                   skipped or cancelled, never dropped without telling the server (ADM-1283). -->
+              <button v-if="!isSuperseded && (currentRequest.response_type === 'none' || isExpired)" @click="dismiss" class="close-btn" aria-label="Close" data-test="hitl-close">&times;</button>
             </div>
           </div>
 
@@ -52,6 +55,18 @@
               <pre class="action-preview__cmd">{{ actionPreview }}</pre>
             </div>
 
+            <!-- A Let's Code step (ADM-1283): which copy of the project it changes, and how risky it is. -->
+            <dl v-if="isCodingStep" class="coding-facts" data-test="hitl-coding">
+              <div class="coding-facts__row">
+                <dt>Working copy</dt>
+                <dd data-test="hitl-working-copy" translate="no">{{ workingCopyLabel }}</dd>
+              </div>
+              <div v-if="currentRequest.risk" class="coding-facts__row">
+                <dt>Risk</dt>
+                <dd><span class="risk-badge" :class="`risk-${currentRequest.risk}`" data-test="hitl-risk">{{ currentRequest.risk }} risk</span></dd>
+              </div>
+            </dl>
+
             <!-- Payload Preview (collapsible) -->
             <details v-if="hasPayloadContent" class="payload-details">
               <summary>View raw details</summary>
@@ -62,7 +77,13 @@
                  The agent needs an account the user hasn't authorized. One click opens the provider's
                  consent screen; the backend's OAuth callback resolves this card and resumes the run, so
                  there is nothing to confirm here afterwards — the card closes itself. -->
-            <div v-if="isOAuthConnect" class="response-section oauth-connect">
+            <!-- REPLACED (ADM-1281): the run restarted and asked again, or ended. Nothing waits on this card, so it has no
+                 buttons; it goes on its own. -->
+            <p v-if="isSuperseded" class="replaced-note" role="status" aria-live="polite" data-test="hitl-replaced">
+              Replaced: the run restarted and asked again.
+            </p>
+
+            <div v-else-if="isOAuthConnect" class="response-section oauth-connect">
               <p v-if="currentRequest.payload?.reason" class="oauth-reason">
                 {{ currentRequest.payload.reason }}
               </p>
@@ -315,7 +336,7 @@
             </div>
 
             <!-- Optional Feedback (not shown for credential_setup or compact-ask cards) -->
-            <div v-if="currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isDocked" class="feedback-section">
+            <div v-if="!isSuperseded && currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isDocked" class="feedback-section">
               <label for="feedback">Optional Comment:</label>
               <textarea
                 id="feedback"
@@ -342,8 +363,14 @@
               </span>
             </div>
             <div class="footer-right">
-              <button v-if="currentRequest.response_type !== 'none' && pendingRequests.length > 1" @click="skip" class="btn-link">
-                Skip to next ({{ pendingRequests.length - 1 }} more)
+              <!-- A deny with the reason "cancelled by you", through the same answer as Decline (ADM-1283). -->
+              <button v-if="canCancelStep" type="button" @click="cancelStep" class="btn-link" data-test="hitl-cancel-step"
+                      title="Don't run this step; the agent is told you cancelled it">
+                Cancel this step
+              </button>
+              <!-- Skip: the next card first; this one stays in the queue and still waits for you. -->
+              <button v-if="!isSuperseded && currentRequest.response_type !== 'none' && pendingRequests.length > 1" type="button" @click="skip" class="btn-link" data-test="hitl-skip">
+                Skip for now ({{ pendingRequests.length - 1 }} more)
               </button>
             </div>
           </div>
@@ -359,6 +386,7 @@ import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { notify } from '@/composables/useNotify'
 import PlanModeCard from '@/components/chat/PlanModeCard.vue'
+import { CANCEL_STEP_FEEDBACK } from '@/utils/hitlQueue'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
 const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
@@ -386,9 +414,9 @@ const feedback = ref('');
 const instruction = ref('');
 const currentTime = ref(Date.now());
 
-// Current request (first in queue)
-const currentRequest = computed(() => props.requests[0] || null);
-const pendingRequests = computed(() => props.requests);
+// Current request: the first that still waits (a replaced card, ADM-1281, shows only when nothing else waits).
+const pendingRequests = computed(() => props.requests.filter((r) => r.state !== 'superseded'));
+const currentRequest = computed(() => pendingRequests.value[0] || props.requests[0] || null);
 
 // Compact "ask the user" style card (Claude/ChatGPT AskUserQuestion): short question + option
 // buttons + optional free text. No payload dump, no separate comment box.
@@ -401,6 +429,16 @@ const isParked = computed(() => currentRequest.value?.payload?.parked === true |
 
 // A tool-approval card ("Approve SSH_EXEC?") — the command is shown in the action preview.
 const isToolApproval = computed(() => currentRequest.value?.payload?.kind === 'tool_approval');
+
+// The run replaced this card (it restarted and asked again, or ended; backend `superseded`, ADM-1281).
+const isSuperseded = computed(() => currentRequest.value?.state === 'superseded');
+
+// A Let's Code step: the server names its working copy ("" = the project's shared copy) and its risk.
+const isCodingStep = computed(() => currentRequest.value?.working_copy != null);
+const workingCopyLabel = computed(() => {
+  const branch = currentRequest.value?.working_copy;
+  return branch ? `This chat's branch ${branch}` : "The project's shared copy";
+});
 
 // An in-chat OAuth connect card (CONNECT_SERVICE): one link out to the provider's consent screen.
 // Unlike every other card this one is usually resolved by the BACKEND (the OAuth callback completes
@@ -576,6 +614,15 @@ const dismiss = () => {
   emit('dismiss', currentRequest.value.request_id);
 };
 
+// "Cancel this step": a card that waits for an answer can be turned down with a reason, never dropped. Not for a plan
+// (its own card), a sign-in (it has "Not now"), a notification, or a card that expired or was replaced.
+const canCancelStep = computed(() => {
+  const r = currentRequest.value;
+  if (!r || isSuperseded.value || isExpired.value || isOAuthConnect.value || isPlanApproval.value) return false;
+  return ['binary', 'choice', 'text'].includes(r.response_type);
+});
+const cancelStep = () => respond(false, CANCEL_STEP_FEEDBACK);
+
 const skip = () => {
   if (pendingRequests.value.length <= 1) return;
   emit('skip', currentRequest.value.request_id);
@@ -584,7 +631,7 @@ const skip = () => {
 const handleOverlayClick = () => {
   // Don't close on overlay click for important requests
   if (currentRequest.value?.urgency === 'critical') return;
-  if (currentRequest.value?.response_type === 'none' || currentRequest.value?.interaction_type === 'credential_setup') { dismiss(); }
+  if (currentRequest.value?.response_type === 'none') { dismiss(); }
 };
 
 // Timer for countdown
@@ -681,13 +728,6 @@ const useExistingCred = (serviceName, credName) => {
   credState.value = { ...credState.value, [serviceName]: 'connected' };
   if (credName) selectedCreds.value[serviceName] = credName; // separate from raw keys
   console.log('[useExistingCred]', serviceName, credName);
-};
-
-const saveManualKey = (name) => {
-  const val = (credKeys.value[name] || '').trim();
-  if (!val) return;
-  credState.value = { ...credState.value, [name]: 'connected' };
-  manualInputService.value = null;
 };
 
 const confirmConnected = (name) => {
@@ -827,6 +867,11 @@ watch(currentRequest, () => {
 .hitl-modal--approval .modal-body { padding: 4px 16px 12px; }
 .hitl-modal--approval .summary { font-size: 14px; font-weight: 500; color: var(--vm-ink); margin-bottom: 8px; }
 .held-because { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--vm-ink); overflow-wrap: anywhere; }
+.replaced-note { margin: 0 0 4px; padding: 10px 12px; border-radius: 8px; font-size: 14px; line-height: 1.5; color: var(--vm-ink-soft); background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2); overflow-wrap: anywhere; }
+.coding-facts { display: grid; gap: 4px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; }
+.coding-facts__row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.coding-facts dt { flex-shrink: 0; color: var(--vm-ink-faint); }
+.coding-facts dd { margin: 0; min-width: 0; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
 .parked-note { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
 .parked-note__icon { flex-shrink: 0; margin-top: 3px; color: var(--vm-ink-faint); }
 .timeout-icon { vertical-align: -1px; margin-right: 2px; }
@@ -1399,10 +1444,18 @@ watch(currentRequest, () => {
   font-weight: 500;
   cursor: pointer;
   padding: 4px 8px;
+  min-height: 32px;
+  border-radius: 6px;
+  touch-action: manipulation;
 }
 
 .btn-link:hover {
   text-decoration: underline;
+}
+
+.btn-link:focus-visible {
+  outline: 2px solid var(--vm-link);
+  outline-offset: 2px;
 }
 
 /* Transitions */

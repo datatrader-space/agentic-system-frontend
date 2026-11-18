@@ -18,6 +18,8 @@ import { ensureNotifyPermission, notifyRunFinished, pageIsFocused } from '../com
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
 import { resumeStatusLine } from '../utils/resumeStatus'
 import { voiceReplyOf, voiceReplyFromFrame } from '../utils/voiceNotes'
+import { hasLiveHitlCard as _hasLiveCard, hitlNothingToAnswer, skipHitlCard, supersedeHitlCard,
+  SUPERSEDED_CARD_MS } from '../utils/hitlQueue'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
@@ -25,6 +27,8 @@ import { voiceReplyOf, voiceReplyFromFrame } from '../utils/voiceNotes'
 const _tl = useAgentTimeline()
 // The page's focus / visibility listeners for `chat_presence` are added once (`_watchPresence`).
 let _presenceListening = false
+// Cards this page answered, until the server acknowledges: one the run replaced meanwhile comes back as "Replaced".
+const _answeredHitl = new Map()
 const _think = new ThinkStreamFilter()
 
 let _seq = 0
@@ -1253,9 +1257,11 @@ export const useChatStore = defineStore('chat', {
     respondHitl({ request_id, response_value, feedback }) {
       const _answered = this.hitlRequests.find((r) => r.request_id === request_id)
       this._conn?.sendHitlResponse(request_id, response_value, feedback)
-      // Optimistically clear; the hitl_response_ack will also clear it.
+      // Optimistically clear; the hitl_response_ack will also clear it. Kept aside until then: a card the run replaced
+      // meanwhile comes back reading "Replaced" (`hitl_resolved` with `superseded`, ADM-1281).
+      if (_answered) _answeredHitl.set(request_id, _answered)
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== request_id)
-      if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
+      if (!_hasLiveCard(this.hitlRequests)) this.awaitingApproval = false
       // A PARKED card's answer continues its run as a NEW turn on the run host (phase 2b), which no `chat_message`
       // of this page started: open its bubble now, so the frames it sends over the user group have a place to land
       // and never overwrite the previous answer. Only for the conversation on screen, only when nothing streams.
@@ -1267,9 +1273,13 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Dismiss only a card with nothing to answer (a notification, one that expired or was replaced). A card that waits
+    // for an answer is answered, skipped or cancelled, never dropped without telling the server (ADM-1283).
     dismissHitl(requestId) {
+      const card = this.hitlRequests.find((r) => r.request_id === requestId)
+      if (!card || !hitlNothingToAnswer(card)) return
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
-      if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
+      if (!_hasLiveCard(this.hitlRequests)) this.awaitingApproval = false
     },
 
     // ── Manual Mode plan approval (v3 Layer 2) ──
@@ -1321,9 +1331,9 @@ export const useChatStore = defineStore('chat', {
       this._conn?.sendMessage(text, this.selectedAgentId)
     },
 
+    // Skip: the next card comes first and this one waits at the back of the queue (ADM-1283). Nothing is sent.
     skipHitl(requestId) {
-      this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
-      if (this.hitlRequests.length === 0) this.awaitingApproval = false
+      this.hitlRequests = skipHitlCard(this.hitlRequests, requestId)
     },
 
     // ── Full-document cost gate resolution ──
@@ -2102,7 +2112,7 @@ export const useChatStore = defineStore('chat', {
       // The REAL completion (after the human responds, once hitlRequests is empty) ends the turn.
       // A PARKED card (phase 2b) does not hold the turn: its run has already ended its turn and continues as a new
       // one when the person answers, so a turn on screen that ends next to it ends.
-      if (this.hitlRequests.some((r) => !r.parked)) return
+      if (_hasLiveCard(this.hitlRequests)) return
       this.runHostRestarting = false
       this._stopProgressPolling()
       const m = this._cur()
@@ -2819,6 +2829,10 @@ export const useChatStore = defineStore('chat', {
               options: msg.options || [],
               urgency: msg.urgency || 'medium',
               timeout_at: msg.timeout_at || null,
+              // Whether it is live, and a Let's Code step's working copy and risk (backend `hitl.frames`, ADM-1281).
+              state: msg.state || 'pending',
+              working_copy: msg.working_copy ?? null,
+              risk: msg.risk || null,
             })
           }
           // Nothing is running for a parked card: its run waits for the answer, so the chat does not claim a turn
@@ -2845,9 +2859,18 @@ export const useChatStore = defineStore('chat', {
         case 'hitl_response_ack':
         case 'hitl_resolved':
           // hitl_response_ack = THIS socket answered; hitl_resolved = broadcast so EVERY window clears the
-          // card once it's answered anywhere (no stale card lingering on another window/surface).
-          this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
-          if (!this.hitlRequests.some((r) => !r.parked)) this.awaitingApproval = false
+          // card once it's answered anywhere (no stale card lingering on another window/surface). A card the run
+          // REPLACED (it restarted and asked again, or ended) reads so for a moment instead of vanishing (ADM-1281).
+          if (msg.type === 'hitl_resolved' && msg.status === 'superseded') {
+            this.hitlRequests = supersedeHitlCard(this.hitlRequests, msg.request_id, _answeredHitl.get(msg.request_id))
+            setTimeout(() => {
+              this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
+            }, SUPERSEDED_CARD_MS)
+          } else {
+            this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
+          }
+          _answeredHitl.delete(msg.request_id)
+          if (!_hasLiveCard(this.hitlRequests)) this.awaitingApproval = false
           break
         // ── Mid-run steering: a message the user sent while the agent was working ──
         case 'message_queued': {
