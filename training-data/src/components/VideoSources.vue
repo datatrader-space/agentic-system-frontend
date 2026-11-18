@@ -214,6 +214,11 @@ async function pollPairing() {
     if (pairing.value?.pairing?.id !== id) return;
     if (answer?.state === 'scanned') {
       const filled = formFromScan(answer.value);
+      if (filled.refused) {
+        pairing.value = null; pairState.value = '';
+        scannedSaid.value = filled.refused; tell(filled.refused);
+        return;
+      }
       form.value = { ...form.value, ...filled };
       fieldErrors.value = {}; pairing.value = null; pairState.value = '';
       // An address on the camera's own network (the usual CCTV case) is reached through one of your machines.
@@ -585,6 +590,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <!-- Scan from phone: a pairing code; what the phone reads fills the Camera URL form -->
         <div v-else-if="!editing && way==='phone'" class="vs-pair">
           <p class="dialog-description">Scan the camera's label with your phone: its QR code or barcode (the camera's address, or its serial number) fills in the camera form here. Nothing is added until you check the form and press Add camera.</p>
+          <p class="vs-help">This reads an IP camera's label; it does not send your phone's own camera. To use your phone as a camera, add an <button type="button" class="link-button" @click="way = 'rtmp'">RTMP stream</button> and send it from a streaming app on the phone that can send RTMPS (for example Larix Broadcaster).</p>
           <div v-if="pairing && pairState !== 'ended'" class="vs-pair-made">
             <svg v-if="pairQr" class="vs-pair-qr" :viewBox="`0 0 ${pairQr.size} ${pairQr.size}`" shape-rendering="crispEdges" role="img" aria-label="Pairing QR code for your phone"><rect :width="pairQr.size" :height="pairQr.size" fill="#ffffff"/><path :d="pairQr.path" fill="#0f172a"/></svg>
             <div>
@@ -915,4 +921,5 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
   .vs-grid{padding:12px}
 }
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}
+.link-button{background:none;border:0;padding:0;color:var(--aadml-primary);font:inherit;text-decoration:underline;cursor:pointer}
 </style>

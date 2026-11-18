@@ -10,7 +10,7 @@ import {
   notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
-  streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT,
+  streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT, isPairingLink, PAIRING_SCANNED,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
 
@@ -585,6 +585,15 @@ test('a start that reads barcodes says so, and one without a model sends none', 
   assert.equal(form.get('model'), null);
   assert.equal(form.get('read_codes'), 'true');
   assert.deepEqual(JSON.parse(calls[3].init.body), { project: 'leads', model: 1, fps: 1, address: 'rtsp://cam.example.com/live' });
+});
+
+test('a scan of AADML\'s own pairing code is never taken as a camera (live, 2026-11-18)', () => {
+  const link = 'https://aadml.com/dashboard/training-data/?camera=cZ2XojgjTncEckFNzB_GAaFnG0Dne9qGJvkS';
+  assert.equal(isPairingLink(link), true);
+  assert.deepEqual(formFromScan(link), { refused: PAIRING_SCANNED });
+  assert.equal(isPairingLink('rtsp://192.168.1.20:554/stream1'), false);
+  assert.equal(isPairingLink('https://cam.example.com/live.m3u8'), false);
+  assert.equal(isPairingLink('https://evil.aadml.com.example.org/?camera=x'), false);
 });
 
 test('what a phone scanned fills the add form: an address with its user and password apart, else the name', () => {

@@ -85,10 +85,23 @@ export const PAIRING_POLL_MS = 2000;
 // What a phone scanned from a camera's label, as the Add form's fields. A camera address fills the address, its user
 // name and password (taken out of the address: the form sends them on their own, and the server seals them); anything
 // else (a serial, a model number) becomes the name, to change if needed. The value is untrusted text: one line, cut.
+// AADML's own pairing link (the QR the Add dialog shows): never a camera. Live, 2026-11-18: the owner's phone read the
+// pairing QR still on the computer's screen and its link was put in as the camera address.
+export const PAIRING_SCANNED = 'That is the pairing code on your computer\'s screen, not a camera. Point the phone at the QR code or barcode on the camera\'s own label.';
+export function isPairingLink(raw) {
+  const text = String(raw ?? '').trim();
+  if (!/^https?:\/\//i.test(text)) return false;
+  const url = parse(text);
+  if (!url) return false;
+  const ours = /(^|\.)aadml\.com$/i.test(url.hostname) || (typeof location !== 'undefined' && url.host === location.host);
+  return ours && (url.searchParams.has('camera') || /\/dashboard\//.test(url.pathname));
+}
+
 export function formFromScan(raw) {
   // eslint-disable-next-line no-control-regex
   const text = String(raw ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, ADDRESS_LIMIT);
   if (!text) return {};
+  if (isPairingLink(text)) return { refused: PAIRING_SCANNED };
   if (/^(rtsps?|https):\/\//i.test(text)) {
     const url = parse(text);
     if (url && url.hostname) {
