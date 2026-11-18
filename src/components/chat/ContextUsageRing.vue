@@ -1,19 +1,29 @@
 <template>
   <!-- How full the model's context window is, like Claude Code's ring. It shows the last measurement the run sent
        (`context_usage` frame, or the conversation's saved one) and nothing before there is one. Hover or focus shows
-       the words; colour is never the only signal (the words say "summarizes soon" too). -->
-  <span v-if="usage" class="cur" :class="'is-' + level" tabindex="0" role="meter"
-        :aria-valuenow="usage.percent" aria-valuemin="0" aria-valuemax="100"
-        :aria-valuetext="summary" :aria-label="'Context window: ' + summary"
-        data-test="context-usage-ring">
-    <svg viewBox="0 0 20 20" class="cur-svg" aria-hidden="true">
-      <circle cx="10" cy="10" r="7.5" class="cur-track" />
-      <circle cx="10" cy="10" r="7.5" class="cur-arc" :stroke-dasharray="dash" transform="rotate(-90 10 10)" />
-    </svg>
-    <span class="cur-tip" role="presentation">
+       the words; colour is never the only signal (the words say "summarizes soon" too). The panel also carries
+       "Compact now" (Claude Code's /compact): it stays open while that runs and says what came of it. -->
+  <span v-if="usage" class="cur" :class="['is-' + level, { 'is-open': running }]">
+    <span class="cur-meter" :class="'is-' + level" tabindex="0" role="meter"
+          :aria-valuenow="usage.percent" aria-valuemin="0" aria-valuemax="100"
+          :aria-valuetext="summary" :aria-label="'Context window: ' + summary"
+          data-test="context-usage-ring">
+      <svg viewBox="0 0 20 20" class="cur-svg" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.5" class="cur-track" />
+        <circle cx="10" cy="10" r="7.5" class="cur-arc" :stroke-dasharray="dash" transform="rotate(-90 10 10)" />
+      </svg>
+    </span>
+    <span class="cur-tip">
       <span class="cur-tip-head">{{ usage.percent }}% of context used</span>
       <span class="cur-tip-line">{{ fmtTokens(usage.used) }} of {{ fmtTokens(usage.window) }} tokens</span>
       <span v-if="usage.compactAt" class="cur-tip-line">{{ compactLine }}</span>
+      <button type="button" class="cur-act" data-test="compact-now"
+              :disabled="!canCompact" @click="chat.compactNow()">
+        {{ running ? 'Compacting…' : 'Compact Now' }}
+      </button>
+      <span v-if="chat.isStreaming && !running" class="cur-tip-note">Available when the reply has finished.</span>
+      <span class="cur-tip-note" :class="{ 'is-err': failed }" role="status" aria-live="polite"
+            data-test="compact-status">{{ statusLine }}</span>
     </span>
   </span>
 </template>
@@ -55,14 +65,28 @@ const summary = computed(() => {
   return `${u.percent}% used, ${fmtTokens(u.used)} of ${fmtTokens(u.window)} tokens`
     + (u.compactAt ? `. ${compactLine.value}` : '')
 })
+
+// "Compact now": the server decides every refusal (a reply being written, too little to compact) and says it in words.
+const running = computed(() => chat.compaction.status === 'running')
+const failed = computed(() => chat.compaction.status === 'failed')
+const canCompact = computed(() => !running.value && !chat.isStreaming && !!chat.conversationId)
+const statusLine = computed(() => {
+  const c = chat.compaction
+  if (c.status === 'running') return 'Summarizing the earlier conversation…'
+  return c.message || ''
+})
 </script>
 
 <style scoped>
 .cur {
   position: relative; display: inline-grid; place-items: center; flex: 0 0 auto;
-  width: 28px; height: 28px; border-radius: 50%; cursor: default; outline: none;
+  width: 28px; height: 28px;
 }
-.cur:focus-visible { box-shadow: 0 0 0 2px var(--vm-focus); }
+.cur-meter {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  cursor: default; outline: none;
+}
+.cur-meter:focus-visible { box-shadow: 0 0 0 2px var(--vm-focus); }
 .cur-svg { width: 18px; height: 18px; }
 .cur-track { fill: none; stroke: var(--vm-line-2); stroke-width: 2.5; }
 .cur-arc { fill: none; stroke: var(--vm-ink-faint); stroke-width: 2.5; stroke-linecap: round;
@@ -78,10 +102,25 @@ const summary = computed(() => {
   box-shadow: 0 6px 20px rgba(15, 23, 42, .14); font-size: 0.75rem; line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
-.cur:hover .cur-tip, .cur:focus-visible .cur-tip { display: flex; }
+/* The 8px between the ring and the panel is part of the hover, so the pointer can reach the button. */
+.cur-tip::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px; }
+.cur:hover .cur-tip, .cur:focus-within .cur-tip, .cur.is-open .cur-tip { display: flex; }
 .cur-tip-head { color: var(--vm-ink); font-weight: 600; }
 .cur.is-near .cur-tip-head { color: var(--vm-amber-ink); }
 .cur.is-full .cur-tip-head { color: var(--vm-red-ink); }
+.cur-tip-note { color: var(--vm-ink-soft); overflow-wrap: anywhere; }
+.cur-tip-note:empty { display: none; }
+.cur-tip-note.is-err { color: var(--vm-red-ink); }
 
-@media (prefers-reduced-motion: reduce) { .cur-arc { transition: none; } }
+.cur-act {
+  margin-top: 6px; align-self: flex-start; min-height: 28px; padding: 4px 10px; border-radius: 8px;
+  border: 1px solid var(--vm-line-2); background: var(--vm-surface); color: var(--vm-ink);
+  font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.cur-act:hover:not(:disabled) { background: var(--vm-line-2); }
+.cur-act:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--vm-focus); }
+.cur-act:disabled { cursor: not-allowed; opacity: .6; }
+
+@media (prefers-reduced-motion: reduce) { .cur-arc, .cur-act { transition: none; } }
 </style>

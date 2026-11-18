@@ -327,3 +327,38 @@ describe('LLMSettings: the model sync runs in the background and the page polls 
     }
   })
 })
+
+describe('LLMSettings: an admin sets what a model is (its kind)', () => {
+  it("shows each row's kind and who set it, and saves a change as the admin's", async () => {
+    api.getLlmModels.mockImplementation((params = {}) => Promise.resolve({ data: params.page ? {
+      count: 2, next: null, previous: null, results: [
+        row(301, 5, 'gpt-image-1', { kind: 'unknown', kind_source: '' }),
+        row(302, 7, 'Speech-1', { kind: 'speech', kind_source: 'provider' })] } : [] }))
+    api.updateLlmModel.mockResolvedValue({ data: { kind: 'image', kind_source: 'admin' } })
+    await mountPage()
+    await openTab('Models')
+    const kinds = wrapper.findAll('[data-test="model-kind"]')
+    expect(kinds).toHaveLength(2)
+    expect(kinds[0].find('select').element.value).toBe('unknown')
+    expect(kinds[0].text()).toContain('Not stated by the provider')
+    expect(kinds[1].find('select').element.value).toBe('speech')
+    expect(kinds[1].text()).toContain('From the provider')
+    await kinds[0].find('select').setValue('image')
+    await flushPromises()
+    expect(api.updateLlmModel).toHaveBeenCalledWith(301, expect.objectContaining({ id: 301, kind: 'image' }))
+    expect(wrapper.findAll('[data-test="model-kind"]')[0].text()).toContain('Set by an admin')
+  })
+
+  it('a kind that could not be saved goes back to the saved one', async () => {
+    api.getLlmModels.mockImplementation((params = {}) => Promise.resolve({ data: params.page ? {
+      count: 1, next: null, previous: null, results: [row(301, 5, 'gpt-image-1', { kind: 'chat', kind_source: '' })],
+    } : [] }))
+    api.updateLlmModel.mockRejectedValue({ response: { status: 400, data: { kind: ['bad'] } } })
+    await mountPage()
+    await openTab('Models')
+    const sel = wrapper.find('[data-test="model-kind"] select')
+    await sel.setValue('image')
+    await flushPromises()
+    expect(sel.element.value).toBe('chat')
+  })
+})

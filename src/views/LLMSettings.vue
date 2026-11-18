@@ -444,6 +444,18 @@
                     <span class="w-1 h-1 rounded-full bg-slate-300"></span>
                     {{ model.model_id }}
                   </p>
+                  <!-- What the model is: the chat model picker offers chat and unknown models only. The sync sets it
+                       where the provider's listing says what the model outputs; an admin sets or corrects it here, and
+                       the sync never overwrites that. -->
+                  <label class="mt-1 flex items-center gap-2 text-[12px] text-slate-600" data-test="model-kind">
+                    <span class="font-semibold">Kind</span>
+                    <select :value="model.kind || 'unknown'" :disabled="savingKind[model.id]"
+                            class="bg-white text-slate-700 border border-slate-200 rounded-[6px] px-2 py-1 text-[12px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:border-indigo-500 disabled:opacity-60"
+                            :aria-label="`Kind of ${model.name}`" @change="setModelKind(model, $event.target.value, $event.target)">
+                      <option v-for="k in MODEL_KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
+                    </select>
+                    <span class="text-[11px] text-slate-500">{{ kindSourceLabel(model) }}</span>
+                  </label>
                   <p v-if="modelResults[model.id]" class="text-[11px] font-medium mt-0.5 break-words"
                      :class="modelResults[model.id].success ? 'text-emerald-600' : 'text-red-600'">
                     {{ modelResults[model.id].success ? '✓ ' : '✗ ' }}{{ modelResults[model.id].message }}
@@ -1311,6 +1323,37 @@ const toggleProvider = async (provider) => {
     is_active: provider.is_active
   })
   notify('Provider updated', 'success')
+}
+
+// A model's kind (backend agent/services/model_kind.py): chat and unknown are offered in the chat model picker.
+const MODEL_KINDS = [
+  { value: 'chat', label: 'Chat' }, { value: 'unknown', label: 'Unknown (listed for chat)' },
+  { value: 'speech', label: 'Speech' }, { value: 'transcription', label: 'Transcription' },
+  { value: 'image', label: 'Image' }, { value: 'video', label: 'Video' }, { value: 'embedding', label: 'Embedding' },
+  { value: 'rerank', label: 'Rerank' }, { value: 'decision', label: 'Decision' }, { value: 'other', label: 'Other output' },
+]
+const savingKind = ref({})
+const kindSourceLabel = (model) => (model.kind_source === 'admin' ? 'Set by an admin'
+  : model.kind_source === 'provider' ? 'From the provider' : 'Not stated by the provider')
+
+const setModelKind = async (model, kind, el = null) => {
+  if (!kind || kind === model.kind) return
+  const before = { kind: model.kind, kind_source: model.kind_source }
+  savingKind.value = { ...savingKind.value, [model.id]: true }
+  try {
+    const { data } = await api.updateLlmModel(model.id, { ...model, kind })
+    model.kind = data?.kind || kind
+    model.kind_source = data?.kind_source || 'admin'
+    notify('Model kind saved', 'success')
+    // The chat picker lists chat and unknown models only, so a list already fetched for this provider is out of date.
+    if (modelsByProvider.value[model.provider]) loadProviderModels(model.provider, true).catch(() => {})
+  } catch (e) {
+    Object.assign(model, before)
+    if (el) el.value = before.kind || 'unknown'          // the select shows the kind that is saved
+    notify(apiError(e, 'Failed to save the model kind'), 'error')
+  } finally {
+    savingKind.value = { ...savingKind.value, [model.id]: false }
+  }
 }
 
 const toggleModel = async (model) => {

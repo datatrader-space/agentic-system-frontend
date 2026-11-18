@@ -69,11 +69,14 @@ export function compactionStep(frame, stepId, startedAt = null) {
   const before = Number(f.tokens_before) || 0
   const after = Number(f.tokens_after) || 0
   const room = before && after ? ` (${fmtTokens(before)} → ${fmtTokens(after)} tokens)` : ''
+  // `scope: 'manual'` is the person's own "Compact now" (Claude Code's /compact), made after the answer it is saved on.
+  const manual = f.scope === 'manual'
   return {
     stepId, toolCallId: '', phase: 'compaction', tool: '', argsPreview: '',
-    label: `Earlier conversation summarized to fit the context window${room}`,
+    label: manual ? `Conversation compacted on request${room}`
+      : `Earlier conversation summarized to fit the context window${room}`,
     status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
-    coalescedCount: 0, isCompaction: true, startedAt,
+    coalescedCount: 0, isCompaction: true, isManualCompaction: manual, startedAt,
     tokensBefore: before, tokensAfter: after,
   }
 }

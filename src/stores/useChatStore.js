@@ -45,8 +45,9 @@ const WORK_FORWARDED_TYPES = new Set([
   // The activity timeline (useAgentTimeline's RICH_EVENT_TYPES) plus the live token counter.
   'agent_status', 'agent_step_started', 'agent_step_completed', 'agent_step_failed',
   'source_citation', 'agent_turn_summary', 'token_usage',
-  // The composer's context ring and the "earlier work summarized" row (agent/runtime/run_compaction.py).
-  'context_usage', 'run_compacted',
+  // The composer's context ring and the "earlier work summarized" row (agent/runtime/run_compaction.py), and a
+  // "Compact now" the server could not do (said in words).
+  'context_usage', 'run_compacted', 'compaction_failed',
 ])
 
 // Frames only a turn that is STILL RUNNING sends. One of these arriving is proof the turn is alive,
@@ -131,6 +132,7 @@ function _bubbleAttachment(a) {
  * `agent.runtime.run_compaction`). The page's own snapshot normally holds them already; one that lacks them (it
  * was not saved, or was written before the row existed) gets the missing ones at the top of its steps, and an answer
  * with no snapshot gets a finished timeline holding only them. So the row stays after a reload, whatever the snapshot.
+ * A "Compact now" (`scope: 'manual'`) was made AFTER the answer it is saved on, so its row goes at the end.
  */
 export function timelineWithCompactions(timeline, saved) {
   const rows = Array.isArray(saved) ? saved.filter((c) => c && typeof c === 'object') : []
@@ -139,10 +141,15 @@ export function timelineWithCompactions(timeline, saved) {
     statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, hasFailures: false, interrupted: false,
   }
   const steps = Array.isArray(base.steps) ? base.steps.slice() : []
-  const have = steps.filter((st) => st && st.isCompaction).length
-  const missing = rows.slice(have).map((c, i) => compactionStep(c, `compact_saved_${have + i}`))
-  if (!missing.length) return base
-  return { ...base, steps: [...missing, ...steps] }
+  const runRows = rows.filter((c) => c.scope !== 'manual')
+  const manualRows = rows.filter((c) => c.scope === 'manual')
+  const have = steps.filter((st) => st && st.isCompaction && !st.isManualCompaction).length
+  const haveManual = steps.filter((st) => st && st.isManualCompaction).length
+  const missing = runRows.slice(have).map((c, i) => compactionStep(c, `compact_saved_${have + i}`))
+  const missingManual = manualRows.slice(haveManual)
+    .map((c, i) => compactionStep(c, `compact_manual_saved_${haveManual + i}`))
+  if (!missing.length && !missingManual.length) return base
+  return { ...base, steps: [...missing, ...steps, ...missingManual] }
 }
 
 /**
@@ -204,6 +211,9 @@ export const useChatStore = defineStore('chat', {
     // percent, compactAt }` from the run's `context_usage` frames, and from the conversation when it opens (its last
     // measurement). null = not measured yet (a new chat, or a model whose window is unknown): the ring is not shown.
     contextUsage: null,
+    // The person's own "Compact now" of the open chat (the ring's menu): status '' | 'running' | 'done' | 'failed', and
+    // the words the server answered (a refusal or a failure) or the row's own line when it is done.
+    compaction: { status: '', message: '' },
     // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
@@ -671,6 +681,7 @@ export const useChatStore = defineStore('chat', {
       // A new chat starts on its default mode: Work for a Coding Agent project chat (Let's Code), Chat elsewhere.
       this.turnMode = this.newChatRepoId ? 'work' : 'chat'
       this.contextUsage = null
+      this.compaction = { status: '', message: '' }
       this.error = ''
       this.messagesHasMore = false
       this.messagesTotal = 0
@@ -875,6 +886,7 @@ export const useChatStore = defineStore('chat', {
         // project chat, Chat elsewhere) — the server answers both in `turn_mode`.
         this.turnMode = TURN_MODES.includes(data.turn_mode) ? data.turn_mode : 'chat'
         this.contextUsage = normalizeContextUsage(data.context_usage)
+        this.compaction = { status: '', message: '' }
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
@@ -2193,6 +2205,36 @@ export const useChatStore = defineStore('chat', {
       if (msg.has_more && !msg.live && last > before) this._askRunEvents(last)
     },
 
+    // "Compact now" (Claude Code's /compact): the server checks every refusal and queues the summary; the chat is
+    // told when it is done (`run_compacted`, scope manual) or why not (`compaction_failed`). A refusal comes back here.
+    async compactNow() {
+      const id = this.conversationId
+      if (!id || this.isStreaming || this.compaction.status === 'running') return
+      this.compaction = { status: 'running', message: '' }
+      try {
+        await api.compactConversation(id)
+      } catch (e) {
+        if (String(this.conversationId) !== String(id)) return
+        const data = e?.response?.data || {}
+        this.compaction = { status: 'failed',
+          message: String(data.error || 'The conversation could not be compacted. Try again in a moment.') }
+      }
+    },
+
+    // The row of a "Compact now" at the END of the last answer's timeline (it happened after that answer).
+    _addManualCompaction(frame) {
+      const last = [...this.messages].reverse().find((m) => m && m.role === 'assistant')
+      const step = compactionStep(frame, `compact_manual_${Date.now()}`, Date.now())
+      if (last) {
+        const tl = last.timeline && typeof last.timeline === 'object' ? last.timeline : {
+          statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, hasFailures: false,
+          interrupted: false,
+        }
+        last.timeline = { ...tl, steps: [...(Array.isArray(tl.steps) ? tl.steps : []), step] }
+      }
+      this.compaction = { status: 'done', message: step.label }
+    },
+
     _onEvent(msg) {
       this._lastFrameAt = Date.now()
       const t = msg?.type
@@ -2755,12 +2797,24 @@ export const useChatStore = defineStore('chat', {
         }
         case 'run_compacted': {
           // The earlier conversation was summarized to stay within the window: a row in the run's timeline where
-          // it happened, and the ring drops to what is left.
+          // it happened, and the ring drops to what is left. The person's own "Compact now" (`scope: 'manual'`)
+          // ran with no turn: its row goes at the end of the last answer's timeline, where the server saved it.
           if (msg.conversation_id != null && this.conversationId != null &&
               String(msg.conversation_id) !== String(this.conversationId)) break
-          _tl.addCompaction(msg)
+          if (msg.scope === 'manual') {
+            this._addManualCompaction(msg)
+          } else {
+            _tl.addCompaction(msg)
+          }
           const usage = normalizeContextUsage({ ...msg, used_tokens: msg.tokens_after })
           if (usage) this.contextUsage = usage
+          break
+        }
+        case 'compaction_failed': {
+          // A "Compact now" the server refused or could not finish, in its own words (the ring's menu shows them).
+          if (msg.conversation_id != null && this.conversationId != null &&
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          this.compaction = { status: 'failed', message: String(msg.message || 'The conversation was not compacted.') }
           break
         }
         case 'steering_applied': {
