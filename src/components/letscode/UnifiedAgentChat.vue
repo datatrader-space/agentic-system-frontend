@@ -71,12 +71,18 @@
             </div>
           </div>
         </template>
+        <!-- A WORK turn's approvals, questions and permission asks go on its rail, under its last row (ADM-1302). -->
+        <template v-if="chat.latestTurnIsWork && (chat.hitlRequests.length || permissionRequests.length)" #rail-pending>
+          <HITLModal v-if="chat.hitlRequests.length" inline :requests="chat.hitlRequests" show-stop
+                     @respond="chat.respondHitl" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
+          <PermissionCard :requests="permissionRequests" @respond="onPermissionRespond" />
+        </template>
       </ChatMessageList>
-      <HITLModal v-if="chat.hitlRequests.length" inline :requests="chat.hitlRequests" show-stop
+      <HITLModal v-if="chat.hitlRequests.length && !onRail" inline :requests="chat.hitlRequests" show-stop
                  @respond="chat.respondHitl" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
     </div>
 
-    <PermissionCard :requests="permissionRequests" @respond="onPermissionRespond" />
+    <PermissionCard v-if="!onRail" :requests="permissionRequests" @respond="onPermissionRespond" />
 
     <!-- The agent's task list for this chat, the same list the main chat shows (the shared store's `todos`). -->
     <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" compact /></div>
@@ -213,6 +219,8 @@ let previous = null
 
 const { permissionRequests, handlePermissionEvent, respondPermission, expirePermissions } =
   usePermission((obj) => chat.sendRaw(obj))
+// The approvals and permission asks are on the newest turn's rail when it is a Work turn (ADM-1302), and here otherwise.
+const onRail = computed(() => !!chat.latestTurnIsWork && chat.messages.length > 0)
 
 function lastAssistant() {
   for (let i = chat.messages.length - 1; i >= 0; i--) if (chat.messages[i].role === 'assistant') return chat.messages[i]

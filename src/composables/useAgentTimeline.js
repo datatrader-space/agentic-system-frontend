@@ -16,6 +16,7 @@
 
 import { ref, computed } from 'vue'
 import { fmtTokens, shownCost } from './tokens'
+import { compactIo } from '../components/chat/workRail'
 
 const RICH_EVENT_TYPES = new Set([
   'agent_status',
@@ -92,6 +93,16 @@ export function useAgentTimeline() {
   // the latest running snapshot { total, prompt, completion, cached, cost, estimated }. null until the
   // first tick. Powers the live session token/cost footer while streaming.
   const tokens = ref(null)
+  // WORK MODE (ADM-1302): the turn is drawn on the Work timeline's rail, so its rows also keep what the rail shows:
+  // the model's narration (`addText`), each call's tool name, its whole IN (the raw `tool_call`'s `tool_input`) and
+  // OUT (the raw `tool_result`'s `output`), and the ref they were recorded under. '' for a Chat or Plan turn, whose
+  // card keeps today's shape. Set per turn by `reset(mode)`.
+  const mode = ref('')
+  // When this turn began here (the live status line's elapsed time).
+  const startedAt = ref(null)
+  // A call's IN/OUT that arrived before its row opened (the raw frame goes out before the activity line derived from
+  // it), keyed by tool_call_id, applied when the row opens.
+  let _pendingIo = {}
 
   // step status vocabulary: 'running' | 'ok' | 'failed'
   const activeStep = computed(() => {
@@ -110,7 +121,10 @@ export function useAgentTimeline() {
     return steps.value.some((st) => st.status === 'failed')
   })
 
-  function reset() {
+  function reset(turnMode = '') {
+    mode.value = turnMode === 'work' ? 'work' : ''
+    startedAt.value = Date.now()
+    _pendingIo = {}
     currentStatus.value = null
     steps.value = []
     sources.value = []
@@ -126,6 +140,25 @@ export function useAgentTimeline() {
   }
 
   const _now = () => Date.now()
+
+  // The row of a call, by its tool_call_id.
+  function _rowOfCall(callId) {
+    if (!callId) return null
+    return steps.value.find((x) => x.toolCallId && String(x.toolCallId) === String(callId)) || null
+  }
+
+  // Put what a raw frame said about a call onto its row (Work turns only), or hold it until the row opens.
+  function _applyIo(callId, io) {
+    const row = _rowOfCall(callId)
+    if (!row) { _pendingIo[callId] = { ...(_pendingIo[callId] || {}), ...io }; return }
+    Object.assign(row, io)
+  }
+  function _takePendingIo(row) {
+    const io = row && row.toolCallId && _pendingIo[row.toolCallId]
+    if (!io) return
+    delete _pendingIo[row.toolCallId]
+    Object.assign(row, io)
+  }
 
   // A "phase row" is a non-tool timeline row for a status phase (Thinking / Searching the knowledge
   // base / Generating response). It renders identically to a tool step so the timeline reads as one
@@ -230,6 +263,22 @@ export function useAgentTimeline() {
       }
       // fall through: not a rich event, returns false below so the host still processes it normally
     }
+    // A WORK TURN'S IN AND OUT (ADM-1302), from the raw frames of a call (never on the public tier: the server sends
+    // them only to the person the run acts for). Not consumed: the host still handles them.
+    if (mode.value === 'work' && evt && evt.type === 'tool_call' && evt.tool_call_id) {
+      const io = { tool: evt.tool || evt.tool_name || '' }
+      if (evt.tool_input !== undefined) io.input = evt.tool_input
+      _applyIo(evt.tool_call_id, io)
+    }
+    if (mode.value === 'work' && evt && evt.type === 'tool_result' && evt.tool_call_id) {
+      const io = { tool: evt.tool || evt.tool_name || '' }
+      if (evt.output !== undefined && evt.output !== null && evt.output !== '') {
+        io.output = typeof evt.output === 'string' ? evt.output : JSON.stringify(evt.output, null, 2)
+      }
+      if (evt.success === false && evt.error) io.error = String(evt.error)
+      if (evt.result_ref) io.ioRef = String(evt.result_ref)
+      _applyIo(evt.tool_call_id, io)
+    }
     // WHAT A CALL PRODUCED, ON THE ROW FOR THAT CALL. A result names its call (`tool_call_id`), so the
     // image a parallel generation returned lands under the step it served the moment it exists, instead of
     // every image appearing together at the end (prod conv 1588). Not consumed: the host still handles it.
@@ -319,6 +368,7 @@ export function useAgentTimeline() {
           lastRow.label = evt.label || lastRow.label
           lastRow.isPhase = false
           if (evt.coalesced_count) lastRow.coalescedCount = evt.coalesced_count
+          _takePendingIo(lastRow)
         } else {
           _closeOpenPhases()
           steps.value.push({
@@ -340,6 +390,7 @@ export function useAgentTimeline() {
             nextAction: '',
             coalescedCount: evt.coalesced_count || 0,
           })
+          _takePendingIo(steps.value[steps.value.length - 1])
         }
         return true
       }
@@ -520,12 +571,51 @@ export function useAgentTimeline() {
     steps.value.push(compactionStep(frame, `compact_${steps.value.length}_${_now()}`, _now()))
   }
 
+  // WORK MODE: what the model wrote in a round, as its own row between the rows of its tool calls, in the order it
+  // happened (Claude Code's narration). The first chunk of each model round (`replace`) opens a new row; the rest of
+  // the round is added to it. A status phase in between ("Generating response") does not end it: phases are not rows
+  // on the rail. A Chat or Plan turn keeps none (its card shows the answer once, under it).
+  function addText(text, replace = false) {
+    if (mode.value !== 'work') return
+    const t = String(text || '')
+    if (!t) return
+    let open = null
+    if (!replace) {
+      for (let i = steps.value.length - 1; i >= 0; i--) {
+        const s = steps.value[i]
+        if (s.isText) { open = s; break }
+        if (!s.isPhase || s.phase === 'reasoning') break
+      }
+    }
+    if (open) { open.text += t; return }
+    steps.value.push({
+      stepId: `text_${steps.value.length}_${_now()}`, toolCallId: '', phase: 'text', tool: '', argsPreview: '',
+      label: '', status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '', coalescedCount: 0,
+      isText: true, text: t, startedAt: _now(),
+    })
+  }
+
+  // WORK MODE: the run's plan card goes on the rail where the plan was given. Once per plan.
+  function addPlan(planId, runId = '') {
+    if (mode.value !== 'work' || !planId) return
+    if (steps.value.some((s) => s.isPlan && (s.planId === planId || (runId && s.runId === runId)))) return
+    steps.value.push({
+      stepId: `plan_${planId}`, toolCallId: '', phase: 'plan', tool: '', argsPreview: '', label: '', status: 'ok',
+      summary: '', durationMs: null, reason: '', nextAction: '', coalescedCount: 0, isPlan: true, planId,
+      runId: runId || '', startedAt: _now(),
+    })
+  }
+
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message
   // (so it persists after the live refs are reset for the next turn).
   function snapshot() {
+    const work = mode.value === 'work'
     return {
       statusLabel: '',
-      steps: steps.value.map((s) => ({ ...s })),
+      // A Work turn's snapshot says so (the rail reads its rows), and a long IN or OUT the server holds under the row's
+      // ref is kept as that ref (`compactIo`): loaded whole again on expand, never cut.
+      ...(work ? { mode: 'work' } : {}),
+      steps: steps.value.map((s) => (work ? compactIo({ ...s }) : { ...s })),
       sources: sources.value.map((s) => ({ ...s })),
       summary: summary.value ? { ...summary.value } : null,
       isComplete: true,
@@ -556,9 +646,13 @@ export function useAgentTimeline() {
     fail,
     tokens,
     reasoning,
+    mode,
+    startedAt,
     ingest,
     addSteer,
     addCompaction,
+    addText,
+    addPlan,
     reset,
     finalize,
     interrupt,

@@ -95,7 +95,13 @@
     <!-- Body -->
     <div class="chat-body" :class="{ 'welcome-scroll': showWelcome }">
       <ChatWelcome v-if="showWelcome" ref="welcomeRef" @submit="onSend" @voice-note="onVoiceNote" />
-      <ChatMessageList v-else />
+      <ChatMessageList v-else>
+        <!-- A WORK turn's approvals and questions go on its rail, under its last row (ADM-1302). -->
+        <template v-if="chat.latestTurnIsWork && chat.hitlRequests.length" #rail-pending>
+          <HITLModal inline :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl"
+                     @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
+        </template>
+      </ChatMessageList>
     </div>
 
     <!-- Composer (thread mode; welcome screen has its own) -->
@@ -145,6 +151,7 @@
     <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval, AND for the
          max-steps pause-and-ask (Stop / Continue / Continue-for-chat) — same hitl_request mechanism. -->
     <HITLModal
+      v-if="!(chat.latestTurnIsWork && !showWelcome)"
       :requests="chat.hitlRequests"
       :show-stop="true"
       @respond="chat.respondHitl"

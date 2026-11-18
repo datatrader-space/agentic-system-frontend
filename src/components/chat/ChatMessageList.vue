@@ -25,11 +25,23 @@
         <ChatMessage
           v-else-if="!isRunScaffolding(m)"
           :message="presentMessage ? presentMessage(m) : m"
+          :work-box="workUserIds.has(m.id)"
           @retry="chat.retryLast()"
           @regenerate="chat.regenerate(m.id)"
           @edit="chat.editAndResend(m.id, prepareEdit ? prepareEdit(m, $event) : $event)"
           @feedback="(value, detail) => chat.setFeedback(m.id, value, detail)"
-        />
+        >
+          <!-- A WORK turn's plan card and its approvals go on its rail (ADM-1302): the plan where it was given, the
+               approvals and questions of the newest turn under its last row. -->
+          <template v-if="isWorkTurn(m) && firstPlans(m).length" #rail-plan>
+            <div v-for="a in firstPlans(m)" :key="a.plan_id" class="msg-plan-rail">
+              <InlinePlanArtifact :run-id="a.run_id" :plan-id="a.plan_id" />
+            </div>
+          </template>
+          <template v-if="isWorkTurn(m) && m.id === latestAssistantId && $slots['rail-pending']" #rail-pending>
+            <slot name="rail-pending" />
+          </template>
+        </ChatMessage>
         <!-- A surface's own cards for this message (Let's Code: the proposed diff, the running app's preview). -->
         <slot name="after-message" :message="m" />
         <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
@@ -39,7 +51,7 @@
              plan twice, but a snapshot hydrated from the server carries whatever anchors the server
              wrote, and a plan drawn twice is the most confusing thing on the page -- two cards with the
              same steps, updating together. Deciding it here means neither source can produce it. -->
-        <template v-if="m.planArtifacts && m.planArtifacts.length">
+        <template v-if="m.planArtifacts && m.planArtifacts.length && !isWorkTurn(m)">
           <div v-for="a in m.planArtifacts" :key="a.plan_id" class="msg-plan">
             <InlinePlanArtifact v-if="isFirstAnchor(m.id, a.plan_id, a.run_id)"
                                 :run-id="a.run_id" :plan-id="a.plan_id" />
@@ -98,6 +110,30 @@ const firstAnchorByRun = computed(() => {
 function isFirstAnchor(messageId, planId, runId) {
   return firstAnchorByRun.value[runId || planId] === `${messageId}|${planId}`
 }
+// A Work turn (ADM-1302): its plan card and approvals are drawn on its rail, not after it.
+const isWorkTurn = (m) => !!m && m.role === 'assistant' && m.turnMode === 'work'
+function firstPlans(m) {
+  return (m.planArtifacts || []).filter((a) => a && isFirstAnchor(m.id, a.plan_id, a.run_id))
+}
+// The person's messages that a Work turn answers: drawn as a box, as Claude Code draws them (ADM-1302). A message
+// with no answer yet takes the mode it was sent in (the conversation's).
+const workUserIds = computed(() => {
+  const ids = new Set()
+  const list = chat.messages || []
+  let nextMode = chat.turnMode
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i]
+    if (!m) continue
+    if (m.role === 'assistant') nextMode = m.turnMode || ''
+    else if (nextMode === 'work') ids.add(m.id)
+  }
+  return ids
+})
+const latestAssistantId = computed(() => {
+  const list = chat.messages || []
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].role === 'assistant') return list[i].id
+  return null
+})
 const scrollEl = ref(null)
 const innerEl = ref(null)
 
@@ -298,6 +334,7 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 /* Plan card aligned to the same centered content column as the message bubbles. It flows with the
    conversation (in chronological order) — no sticky/pinned behaviour. */
 .msg-plan { max-width: 760px; margin: 0 auto 22px; }
+.msg-plan-rail + .msg-plan-rail { margin-top: 8px; }
 
 /* "Load earlier messages" — top of the thread, same centered column as the bubbles. */
 .load-earlier { max-width: 760px; margin: 0 auto 18px; display: flex; justify-content: center; }

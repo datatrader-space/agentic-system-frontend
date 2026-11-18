@@ -429,6 +429,18 @@ export const useChatStore = defineStore('chat', {
     liveComplete: () => _tl.isComplete.value,
     liveHasFailures: () => _tl.hasFailures.value,
     liveReasoning: () => _tl.reasoning.value,
+    // The live turn's running token count and when it began here: the Work timeline's status line (ADM-1302).
+    liveTokens: () => _tl.tokens.value,
+    liveStartedAt: () => _tl.startedAt.value,
+    //: Is the newest turn a WORK turn? Its approvals and questions go onto its rail (ADM-1302); the surfaces keep them
+    //: where they were for a Chat or Plan turn.
+    latestTurnIsWork: (s) => {
+      for (let i = s.messages.length - 1; i >= 0; i--) {
+        const m = s.messages[i]
+        if (m && m.role === 'assistant') return m.turnMode === 'work'
+      }
+      return false
+    },
   },
   actions: {
     // ---- Agents + history ----
@@ -823,6 +835,9 @@ export const useChatStore = defineStore('chat', {
         memories: pickArray(info.memories),
         // The memories this turn really saved ("Saved to memory"), kept on the answer by the server.
         memoriesSaved: pickArray(info.memories_saved),
+        // The mode the turn ran in, stamped on the saved answer (backend `turn_metadata`): a Work answer is drawn on
+        // the rail again, as it was live (ADM-1302). An answer saved before the stamp existed has none: the card.
+        turnMode: info.turn_mode || '',
         conversationId: String(conversationId),
       }
     },
@@ -1846,6 +1861,8 @@ export const useChatStore = defineStore('chat', {
             m.model_info && m.model_info.compactions),
           // Same durable run link as the main loader — a reconnect must not lose it.
           runId: (m.model_info && m.model_info.run_id) || (_prev && _prev.runId) || '',
+          // Same turn mode as the main loader (ADM-1302); the live one until the saved answer says it.
+          turnMode: (m.model_info && m.model_info.turn_mode) || (_prev && _prev.turnMode) || '',
           // Same continuation marker as the main loader — a reconnect must not resurrect the
           // machine-authored prompts as user bubbles.
           authoredBy: (m.model_info && m.model_info.authored_by) || 'user',
@@ -1991,13 +2008,16 @@ export const useChatStore = defineStore('chat', {
         chatActions: [], // connector buttons offered by CONNECT_SERVICE (live `chat_action` frames)
         memories: [], // memories this answer drew on (live `memories_used` frame, after the save)
         memoriesSaved: [], // memories this turn really saved (live `memory_saved` frames) — "Saved to memory"
+        // The mode this turn runs in (the one sent with the message, the conversation's). A Work turn is drawn on the
+        // Work timeline's rail (ADM-1302); the saved answer says it again (`model_info.turn_mode`) for a reload.
+        turnMode: this.turnMode,
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
       this._startDeafWatchdog()
       _think.reset()
-      _tl.reset()   // fresh live activity timeline for this turn
+      _tl.reset(this.turnMode)   // fresh live activity timeline for this turn (a Work turn's keeps its narration and IN/OUT)
     },
 
     // STAMP THE PLAN STEP THAT OWNS A LIVE ACTIVITY, at the only moment it is knowable.
@@ -2204,7 +2224,7 @@ export const useChatStore = defineStore('chat', {
       if (!msg.live && before === 0 && onScreen && events.some((e) => replayedFrame(e, cid) && Number(e.seq) > 0)) {
         const m = this._cur()
         if (m) { m.content = ''; _think.reset() }
-        _tl.reset()
+        _tl.reset(_tl.mode.value)
       }
       let last = before
       for (const e of events) {
@@ -2360,6 +2380,8 @@ export const useChatStore = defineStore('chat', {
                   && m.planArtifacts.some((a) => a.plan_id === pid || (rid && String(a.run_id) === String(rid))))
               if (!anchoredAlready) {
                 cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
+                // A Work turn draws its plan card on its rail, at the point the plan was given (ADM-1302).
+                if (cur.turnMode === 'work' && cur.id === this._assistantId) _tl.addPlan(pid, rid)
               }
             }
             // ── Bridge a human plan DECISION to the run's resume plumbing ──────────────────────────
@@ -2637,8 +2659,18 @@ export const useChatStore = defineStore('chat', {
           if (m && msg.replace) {
             m.content = ''
             _think.reset()
+            m._newRound = true
           }
-          if (m) m.content += _think.feed(msg.chunk || '')
+          if (m) {
+            const piece = _think.feed(msg.chunk || '')
+            m.content += piece
+            // A WORK turn keeps each round's text as its own row on the rail, in order with its tool calls (ADM-1302).
+            // A round whose first chunks the think filter held back still opens its own row with its first text.
+            if (piece && m.turnMode === 'work') {
+              _tl.addText(piece, !!m._newRound)
+              m._newRound = false
+            }
+          }
           break
         case 'assistant_message_complete': {
           // The backend sends the CLEANED prose here (tool-call JSON stripped). Always

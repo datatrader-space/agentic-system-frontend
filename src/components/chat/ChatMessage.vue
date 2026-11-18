@@ -12,13 +12,35 @@
         <!-- WHILE A TURN IS ONLY PREPARING, ONE LINE. "Analyzing your request / Loading tools / Finding
              the right tools / Gathering context…" arrive before anything is decided. The line becomes the card
              the moment real work or reasoning starts, with every row intact. -->
-        <div v-if="preparingOnly" class="prep-status" data-test="preparing-line"
+        <!-- A WORK turn (ADM-1302): one rail with every row in order — narration, thoughts, tool calls with their IN
+             and OUT, the plan, approvals, steers, compactions — and the answer last, drawn here with this message's own
+             markdown, code copy and media (the `text` slot). Chat and Plan turns keep the card below. -->
+        <div v-if="isWorkTurn" ref="workEl" class="work-host" @click="onCodeCopy">
+          <WorkTimeline
+            :steps="workSteps"
+            :finished="!isStreaming"
+            :has-answer="!!displayContent"
+            :running="isStreaming && !pausedLabel"
+            :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
+            :tokens="isStreaming && chat.liveTokens ? chat.liveTokens.total : null"
+            :started-at="isStreaming ? chat.liveStartedAt : null"
+            :conversation-id="message.conversationId || chat.conversationId || ''"
+            :plan-first="!!$slots['rail-plan'] && !workSteps.some((s) => s && s.isPlan)">
+            <template #text="{ text, answer }">
+              <div v-if="answer" ref="bubbleEl" class="bubble assistant" data-test="work-answer" v-html="rendered"></div>
+              <div v-else class="bubble assistant work-narration" data-test="work-narration" v-html="renderAnswerHtml(text)"></div>
+            </template>
+            <template v-if="$slots['rail-plan']" #plan><slot name="rail-plan" /></template>
+            <template v-if="$slots['rail-pending']" #pending><slot name="rail-pending" /></template>
+          </WorkTimeline>
+        </div>
+        <div v-if="preparingOnly && !isWorkTurn" class="prep-status" data-test="preparing-line"
              role="status" aria-live="polite">
           <span class="prep-orb" aria-hidden="true"></span>
           <span class="prep-label">{{ preparingLabel }}</span>
         </div>
         <AgentActivityTimeline
-          v-if="!preparingOnly && (isStreaming ? chat.richActive : !!message.timeline)"
+          v-if="!isWorkTurn && !preparingOnly && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -42,7 +64,7 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub). Generated images are
              embedded as /media/... markdown in the answer text by the backend and rendered by
              enhanceChatMedia — a single, refresh-stable mechanism (no separate media list). -->
-        <div v-if="displayContent" ref="bubbleEl" class="bubble assistant" v-html="rendered"
+        <div v-if="displayContent && !isWorkTurn" ref="bubbleEl" class="bubble assistant" v-html="rendered"
              @click="onCodeCopy"></div>
 
         <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md): recording, then playable, or why not. -->
@@ -175,7 +197,8 @@
         </div>
 
         <!-- Normal bubble -->
-        <div v-else class="bubble user" :class="{ collapsed: isLong && !expanded }">
+        <div v-else class="bubble user" :class="{ collapsed: isLong && !expanded, 'work-box': workBox }"
+             :data-test="workBox ? 'work-user-box' : undefined">
           <div v-if="message.attachments && message.attachments.length" class="user-attach">
             <template v-for="(a, i) in message.attachments" :key="i">
               <VoiceNotePlayer v-if="a.isVoiceNote" :src="a.url" tone="brand" label="your voice note" />
@@ -242,6 +265,7 @@ import { ensureMath, mathVersion } from '../../utils/mathRenderer'
 import { highlightCodeIn } from '../../utils/codeHighlight'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
+import WorkTimeline from './WorkTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
 import MemoryChips from './MemoryChips.vue'
 import SourcesList from './SourcesList.vue'
@@ -257,6 +281,8 @@ const chat = useChatStore()
 
 const props = defineProps({
   message: { type: Object, required: true },
+  // The person's message a WORK turn answers: a box with its attachment chips, as Claude Code draws it (ADM-1302).
+  workBox: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
@@ -463,20 +489,31 @@ const displayContent = computed(() => stripThinkBlocks(fullContent.value || prop
 // strict: the backend embeds media as markdown `![](url)` (tool_media.pending_markdown), never as
 // HTML, and enhanceChatMedia unfurls bare URLs from marked's OUTPUT, so images and video still
 // render. Same rule ChatGPT and Claude apply to assistant markdown.
-const rendered = computed(() => {
+// ONE rendering for everything a turn says: the answer, and on a Work turn's rail each round's narration too.
+function renderAnswerHtml(text) {
   // Read so the message renders again once KaTeX has loaded; until then a formula shows as its source.
   void mathVersion.value
-  return addCodeCopyButtons(enhanceChatMedia(renderUntrustedMarkdown(displayContent.value)))
-})
+  return addCodeCopyButtons(enhanceChatMedia(renderUntrustedMarkdown(stripThinkBlocks(text || ''))))
+}
+const rendered = computed(() => renderAnswerHtml(displayContent.value))
+
+// A WORK turn (the mode it ran in, ADM-1302) is drawn on the rail; a Chat or Plan turn on the card.
+const isWorkTurn = computed(() => props.message.role === 'assistant' && props.message.turnMode === 'work')
+// The rail's rows: live from the store while the turn streams, the saved snapshot after.
+const workSteps = computed(() => (isStreaming.value ? (chat.liveSteps || [])
+  : ((props.message.timeline && props.message.timeline.steps) || [])))
 watch(displayContent, (text) => { if (hasMath(text)) ensureMath() }, { immediate: true })
 
 // Code is highlighted once the answer has finished streaming: doing it on every streamed chunk would
 // re-highlight the whole block each time. highlight.js loads on demand (utils/codeHighlight).
 const bubbleEl = ref(null)
+const workEl = ref(null)
 watch([rendered, isStreaming], async ([, streaming]) => {
   if (streaming) return
   await nextTick()
-  if (bubbleEl.value) highlightCodeIn(bubbleEl.value)
+  // A Work turn's narration has code blocks too: the whole rail is highlighted once the turn has ended.
+  const el = workEl.value || bubbleEl.value
+  if (el) highlightCodeIn(el)
 }, { immediate: true, flush: 'post' })
 
 // Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
@@ -571,6 +608,22 @@ const copy = async () => {
 </script>
 
 <style scoped>
+/* The person's message a Work turn answers: a box, not the brand bubble; its files as chips. */
+.bubble.user.work-box { color: var(--vm-ink); background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2);
+  border-radius: 10px; box-shadow: none; }
+.bubble.user.work-box .user-attach-file { color: var(--vm-ink-soft); padding: 3px 8px; border: 1px solid var(--vm-line-2);
+  border-radius: 999px; background: var(--vm-surface); opacity: 1; }
+.bubble.user.work-box a.user-attach-file { border-bottom: 1px solid var(--vm-line-2); }
+.bubble.user.work-box a.user-attach-file:hover { color: var(--vm-ink); border-color: var(--vm-ink-faint); }
+.bubble.user.work-box .user-attach-thumb { border-color: var(--vm-line-2); }
+.bubble.user.work-box .user-queued, .bubble.user.work-box .user-voice-error { color: var(--vm-ink-soft); }
+.bubble.user.work-box .user-voice-error { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+
+/* A Work turn's rail: its narration and answer are this message's own bubbles, set flush on the rail. */
+.work-host { min-width: 0; }
+.work-host .bubble.assistant { margin-top: 0; }
+.work-host .bubble.work-narration { color: var(--vm-ink); font-size: 0.9375rem; }
+
 /* Rendered chat images are clickable → open the preview lightbox. */
 :deep(.chat-media-img) { cursor: zoom-in; }
 
