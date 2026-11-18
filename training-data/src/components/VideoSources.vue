@@ -18,7 +18,8 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { modelName, timeAgo } from '../api/workspace.js';
-import { machinesApi } from '../api/machines.js';
+import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT } from '../api/machines.js';
+import { Search } from 'lucide-vue-next';
 import {
   videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
@@ -210,6 +211,61 @@ async function loadMachines() {
 }
 watch(() => editorOpen.value && way.value === 'connector' && !editing.value, open => { if (open && machineRows.value === null) loadMachines(); });
 const machineLine = m => `${m.name} (${m.state === 'online' ? 'online' : 'offline'}${m.agent_version ? `, agent ${m.agent_version}` : ''})`;
+
+// "Find cameras" (CLOUD_STREAMING_PLAN.md §11, discovery): the chosen machine looks for ONVIF cameras on its network
+// (machinesApi.discover, agent 1.6.0) and the page asks for its answer every few seconds. Picking one fills the address
+// with its host; the person completes its stream path and credentials. The server decides who may and which machine.
+const FIND_POLL_MS = 3000; const FIND_POLLS = 60;      // three minutes: a machine's first search downloads the image
+const finding = ref(null); const findError = ref(''); const foundPicked = ref('');
+let findTimer = null; let findPolls = 0; let findRun = 0;
+const chosenMachine = computed(() => usableMachines.value.find(m => String(m.id) === String(form.value.machine)) || null);
+const findWhy = computed(() => discoverWhy(chosenMachine.value));
+function resetFinding() {
+  clearTimeout(findTimer); findTimer = null; findRun += 1;
+  finding.value = null; findError.value = ''; foundPicked.value = '';
+}
+async function findCameras() {
+  const machine = chosenMachine.value;
+  if (!machine || findWhy.value || finding.value?.state === 'looking') return;
+  resetFinding();
+  const run = findRun;
+  try {
+    const answer = await machinesApi.discover(machine.id);
+    if (run !== findRun) return;
+    finding.value = answer?.discovery || null; findPolls = 0;
+    if (finding.value?.state === 'looking') findTimer = setTimeout(() => pollFinding(machine.id, finding.value.id, run), FIND_POLL_MS);
+  } catch (e) { if (run === findRun) findError.value = e.message; }
+}
+async function pollFinding(machineId, jobId, run) {
+  if (run !== findRun || gone) return;
+  findPolls += 1;
+  try {
+    const answer = await machinesApi.discovery(machineId, jobId);
+    if (run !== findRun) return;
+    finding.value = answer?.discovery || finding.value;
+  } catch (e) {
+    if (run === findRun) findError.value = e.message;
+    return;
+  }
+  if (finding.value?.state !== 'looking') return;
+  if (findPolls >= FIND_POLLS) {
+    finding.value = { ...finding.value, state: 'waiting',
+      said: `${finding.value.machine?.name || 'The machine'} has not answered yet. Press Find cameras again in a minute to see its answer.` };
+    return;
+  }
+  findTimer = setTimeout(() => pollFinding(machineId, jobId, run), FIND_POLL_MS);
+}
+function pickFound(camera) {
+  const address = foundAddress(camera);
+  if (!address) return;
+  form.value.address = address;
+  if (!String(form.value.name || '').trim() && camera?.name) form.value.name = String(camera.name).slice(0, SOURCE_NAME_LIMIT);
+  fieldErrors.value = { ...fieldErrors.value, address: '' };
+  foundPicked.value = `${foundLine(camera)}: ${FOUND_NEXT}`;
+  nextTick(() => document.getElementById('vs-address')?.focus());
+}
+watch(() => [form.value.machine, editorOpen.value, way.value], resetFinding);
+onUnmounted(() => clearTimeout(findTimer));
 
 async function save() {
   formError.value = ''; addedSaid.value = '';
@@ -467,6 +523,25 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
               <option v-for="m in usableMachines" :key="m.id" :value="String(m.id)">{{ machineLine(m) }}</option>
             </select>
             <p v-if="fieldErrors.machine" id="vs-machine-error" class="field-error" role="alert">{{ fieldErrors.machine }}</p>
+            <div v-if="chosenMachine" class="vs-find">
+              <UiButton :disabled="!!findWhy || finding?.state === 'looking'" aria-describedby="vs-find-help" @click="findCameras">
+                <LoaderCircle v-if="finding?.state === 'looking'" class="spin" :size="14" aria-hidden="true"/><Search v-else :size="14" aria-hidden="true"/>
+                {{ finding?.state === 'looking' ? 'Looking for cameras…' : 'Find cameras' }}
+              </UiButton>
+              <p id="vs-find-help" class="vs-help">{{ findWhy || `${chosenMachine.name} looks for ONVIF cameras on its network for a few seconds. A camera it does not find can still be added by its address.` }}</p>
+              <p v-if="findError" class="field-error" role="alert">{{ findError }}</p>
+              <div v-if="finding" class="vs-found" aria-live="polite">
+                <p class="vs-help">{{ finding.said }}</p>
+                <ul v-if="finding.cameras?.length" class="vs-found-list" aria-label="Cameras found">
+                  <li v-for="c in finding.cameras" :key="c.host">
+                    <button type="button" class="vs-found-item" :disabled="!foundAddress(c)" @click="pickFound(c)">
+                      <Cctv :size="14" aria-hidden="true"/><span>{{ foundLine(c) }}</span><small>Use this camera</small>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+              <p v-if="foundPicked" class="notice vs-found-picked" role="status">{{ foundPicked }}</p>
+            </div>
           </div>
           <div v-if="addedSaid" class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
 
@@ -669,6 +744,16 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 .vs-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
 .vs-help{margin:6px 0 0!important;font-size:12px!important;line-height:1.5!important;color:#5f6d82!important;overflow-wrap:anywhere}
 .vs-help-top{margin:0 0 8px!important}
+.vs-find{margin:10px 0 0}
+.vs-find .button{display:inline-flex;align-items:center;gap:6px;min-height:44px}
+.vs-found-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.vs-found-item{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:8px 12px;border:1px solid #dce0e8;border-radius:9px;background:#fbfcfe;color:#22304a;font-size:13px;text-align:left;cursor:pointer}
+.vs-found-item span{flex:1;min-width:0;overflow-wrap:anywhere}
+.vs-found-item small{font-size:12px;color:var(--aadml-primary);white-space:nowrap}
+.vs-found-item:hover:not(:disabled){border-color:var(--aadml-primary)}
+.vs-found-item:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.vs-found-item:disabled{opacity:.6;cursor:not-allowed}
+.vs-found-picked{margin:8px 0 0!important;font-size:12px!important;line-height:1.5!important}
 .vs-lock{display:flex;align-items:flex-start;gap:6px}
 .vs-lock svg{margin-top:2px}
 .vs-field > label.vs-consent,.vs-consent{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #dce0e8;border-radius:9px;background:#fbfcfe;font-size:13px!important;font-weight:400!important;line-height:1.5;color:#22304a!important;cursor:pointer}
