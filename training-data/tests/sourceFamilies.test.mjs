@@ -108,3 +108,19 @@ test('where it runs and its price are said with the machine, a vision model keep
   assert.equal(detailAt(ON_MACHINE[2], place), "OpenAI's GPT-6.1 Terra at an outside AI provider, charged per photo at its token price, then SAM 3 on garage box (NVIDIA GeForce RTX 3070 (8.0 GB)): $0.10 an hour, on your machine, charged by the second from your balance");
   assert.equal(detailAt(ON_MACHINE[0], null), ON_MACHINE[0].detail);
 });
+
+// Live, 2026-11-17: the Label Batch dialog said "Each photo is charged to you:" followed by where a published model came
+// from, and Find Objects read "...the model drew.As AADML published it".
+test('only a price follows "charged to you"; a model\'s words and its detail read as two sentences', async () => {
+  const { costAt, aboutAt } = await import('../src/sourceFamilies.js');
+  const published = { id: 'psegformer-b0-tidy', name: 'Aadml-Vision-seg-A0 + tidy-up', platform: false, what: 'The walls it finds, tidied by the rules a person uses on what the model drew.', detail: 'As AADML published it, before any training here, made ready here Nov 1, 2026' };
+  const sam3 = { id: 'sam3', name: 'SAM 3 (Polygons)', platform: true, what: 'SAM 3 finds every object of each class by its name and draws its outline.', detail: "Meta's SAM 3 on AADML's GPU server ($0.50 an hour, charged by the second a call takes), started when it is needed", where: [] };
+  assert.equal(costAt(published, null), '');
+  assert.equal(costAt(sam3, null), sam3.detail);
+  const place = { id: 'machine:4', name: 'garage box', gpu: 'RTX 3070', price: '$0.10 an hour, on your machine' };
+  assert.equal(costAt(published, place), 'SAM 3 on garage box (RTX 3070): $0.10 an hour, on your machine, charged by the second from your balance');
+  assert.equal(aboutAt(published, null), 'The walls it finds, tidied by the rules a person uses on what the model drew. As AADML published it, before any training here, made ready here Nov 1, 2026.');
+  assert.equal(aboutAt({ detail: 'Trained in this project' }, null), 'Trained in this project.');
+  assert.equal(aboutAt({ what: 'Finds walls' }, null), 'Finds walls.');
+  assert.equal(aboutAt(null, null), '');
+});

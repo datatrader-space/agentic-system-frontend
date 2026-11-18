@@ -30,7 +30,7 @@ const neverStarted = () => expect([...api.post.mock.calls, ...api.prepareMediaJo
 beforeEach(() => {
   vi.clearAllMocks()
   chat.value = reactive({ conversationId: 'c1', ensureConversation: vi.fn(async () => 'c1') })
-  video.value = reactive({ project: null })
+  video.value = reactive({ loadIngredientSchema: async () => null, project: null })
   api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 7, name: 'Proven', ready: true, provider: 'elevenlabs', model: 'm' }, { route_id: 8, name: 'Unproven', ready: false, provider: 'x', model: 'n' }] } })
   api.getMediaVoices.mockResolvedValue({ data: { listed: true, voices: [{ voice_id: 'v1', name: 'Ava' }], next_page_token: '' } })
   api.prepareMediaJob.mockResolvedValue({ data: job })
@@ -134,7 +134,7 @@ describe('Image edit', () => {
     expect(api.uploadConversationFile).not.toHaveBeenCalled(); neverStarted(); w.unmount()
   })
   it('"Edit" on a picture opens with it in "Image to edit" (the store’s edit_source)', async () => {
-    video.value = reactive({ project: null, refs: [{ key: 'pic1edit_source', role: 'edit_source', name: 'beach.png', url: '/beach.png', attachment_id: 'pic1', isVideo: false, thumbnail_url: '/beach-small.png' }] })
+    video.value = reactive({ loadIngredientSchema: async () => null, project: null, refs: [{ key: 'pic1edit_source', role: 'edit_source', name: 'beach.png', url: '/beach.png', attachment_id: 'pic1', isVideo: false, thumbnail_url: '/beach-small.png' }] })
     const w = mountIt(CreativeImageEdit); await flushPromises()
     const slot = w.findAllComponents(MediaSlot).find(s => s.props('label') === 'Image to edit')
     expect(slot.props('modelValue')).toEqual([{ attachment_id: 'pic1', name: 'beach.png', media_type: 'image', url: '/beach.png', thumbnail_url: '/beach-small.png' }])
@@ -144,7 +144,7 @@ describe('Image edit', () => {
     w.unmount()
   })
   it('a queued video is not taken as the image to edit', async () => {
-    video.value = reactive({ project: null, refs: [{ role: 'edit_source', name: 'clip.mp4', url: '/clip.mp4', attachment_id: 'v1', isVideo: true }] })
+    video.value = reactive({ loadIngredientSchema: async () => null, project: null, refs: [{ role: 'edit_source', name: 'clip.mp4', url: '/clip.mp4', attachment_id: 'v1', isVideo: true }] })
     const w = mountIt(CreativeImageEdit); await flushPromises()
     expect(w.findAllComponents(MediaSlot).find(s => s.props('label') === 'Image to edit').props('modelValue')).toEqual([]); w.unmount()
   })

@@ -1,29 +1,39 @@
 <template>
-  <div class="code-browser">
-    <!-- Left Sidebar: File Tree -->
-    <div class="cb-sidebar" :style="{ width: sidebarWidth + 'px' }">
+  <div class="code-browser" :class="narrow ? ['narrow', `pane-${pane}`] : []">
+    <!-- Left Sidebar: File Tree. On a narrow screen (640 px and less) its tab row is the switch between the editor and
+         one sidebar view, one at a time (ADM-1128, 2026-11-17). -->
+    <div class="cb-sidebar" :style="narrow ? null : { width: sidebarWidth + 'px' }">
       <div class="sidebar-header">
         <div class="sidebar-tabs" role="tablist" aria-label="Browser views">
           <button
-            type="button" role="tab" :aria-selected="sidebarTab === 'files' ? 'true' : 'false'"
-            @click="sidebarTab = 'files'"
-            :class="{ active: sidebarTab === 'files' }"
-            class="sidebar-tab">
-            <Icon icon="lucide:folder" aria-hidden="true" />
-            Files
+            v-if="narrow"
+            type="button" role="tab" :aria-selected="pane === 'editor' ? 'true' : 'false'"
+            @click="pane = 'editor'"
+            :class="{ active: pane === 'editor' }"
+            class="sidebar-tab" title="Editor" data-test="cb-pane-editor">
+            <Icon icon="lucide:file-code-2" aria-hidden="true" />
+            <span class="sidebar-tab-label">Editor</span>
           </button>
           <button
-            type="button" role="tab" :aria-selected="sidebarTab === 'search' ? 'true' : 'false'"
+            type="button" role="tab" :aria-selected="sideSelected('files') ? 'true' : 'false'"
+            @click="showSide('files')"
+            :class="{ active: sideSelected('files') }"
+            class="sidebar-tab" title="Files">
+            <Icon icon="lucide:folder" aria-hidden="true" />
+            <span class="sidebar-tab-label">Files</span>
+          </button>
+          <button
+            type="button" role="tab" :aria-selected="sideSelected('search') ? 'true' : 'false'"
             @click="openSearch"
-            :class="{ active: sidebarTab === 'search' }"
+            :class="{ active: sideSelected('search') }"
             class="sidebar-tab" title="Search in files">
             <Icon icon="lucide:search" aria-hidden="true" />
             <span class="sidebar-tab-label">Search</span>
           </button>
           <button
-            type="button" role="tab" :aria-selected="sidebarTab === 'scm' ? 'true' : 'false'"
-            @click="sidebarTab = 'scm'"
-            :class="{ active: sidebarTab === 'scm' }"
+            type="button" role="tab" :aria-selected="sideSelected('scm') ? 'true' : 'false'"
+            @click="showSide('scm')"
+            :class="{ active: sideSelected('scm') }"
             class="sidebar-tab" title="Source control">
             <Icon icon="lucide:git-branch" aria-hidden="true" />
             <span class="sidebar-tab-label">Source control</span>
@@ -31,9 +41,9 @@
           </button>
           <button
             v-if="debuggerStore && editable"
-            type="button" role="tab" :aria-selected="sidebarTab === 'debug' ? 'true' : 'false'"
-            @click="sidebarTab = 'debug'"
-            :class="{ active: sidebarTab === 'debug' }"
+            type="button" role="tab" :aria-selected="sideSelected('debug') ? 'true' : 'false'"
+            @click="showSide('debug')"
+            :class="{ active: sideSelected('debug') }"
             class="sidebar-tab" title="Run and Debug">
             <Icon icon="lucide:bug-play" aria-hidden="true" />
             <span class="sidebar-tab-label">Run and Debug</span>
@@ -422,9 +432,24 @@ const chatTabs = inject(CODING_CHAT_TABS, null)
 const chatOn = computed(() => !!(chatTabs && chatTabs.bound))
 const chatFront = computed(() => chatOn.value && chatTabs.front)
 function chatTabFront(ct) { return chatFront.value && chatTabs.isActive(ct) }
-function showFilesInFront() { if (chatTabs) chatTabs.showFiles() }
+function showFilesInFront() { if (chatTabs) chatTabs.showFiles(); pane.value = 'editor' }
 // Source control read the chats' branches: the chat tabs show theirs.
 function onChatBranches(list) { if (chatTabs && chatTabs.setBranches) chatTabs.setBranches(list) }
+
+// A NARROW SCREEN (640 px and less) shows one pane at a time: the editor (its file and chat tabs) or one sidebar view,
+// chosen in the sidebar's tab row, which gains an Editor tab (ADM-1128, 2026-11-17). Side by side at 375 px the file
+// list got 162 px and the editor 198 px. Opening a file, a diff or a search result, or bringing a chat to the front,
+// shows the editor; a sidebar tab shows its view. Wider screens are unchanged.
+const NARROW = '(max-width: 640px)'
+const narrowQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(NARROW) : null
+const narrow = ref(!!narrowQuery?.matches)
+const pane = ref('editor')
+function onNarrowChange(e) { narrow.value = !!e.matches }
+narrowQuery?.addEventListener?.('change', onNarrowChange)
+onBeforeUnmount(() => narrowQuery?.removeEventListener?.('change', onNarrowChange))
+function showSide(tab) { sidebarTab.value = tab; pane.value = 'side' }
+function sideSelected(tab) { return sidebarTab.value === tab && !(narrow.value && pane.value === 'editor') }
+watch(chatFront, (front) => { if (front) pane.value = 'editor' })
 // A file tab, or a file opened from the tree, search or Source control, comes in front of the chat.
 function showFile(id) { showFilesInFront(); activeTabId.value = id }
 // A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
@@ -916,7 +941,7 @@ onBeforeUnmount(() => clearTimeout(_changeTimer))
 
 // "View changes" from the chat: the Source control list, as VS Code's Source Control view.
 function showSourceControl() {
-  sidebarTab.value = 'scm'
+  showSide('scm')
   try { scmPanel.value?.refresh?.() } catch { /* the panel mounts with fresh state */ }
 }
 // How many open files have edits that are not saved: the IDE asks before leaving the project or the page (ADM-1200).
@@ -1209,7 +1234,7 @@ function onMenuSelect(item) {
 const pending = ref(null)          // { mode: 'file' | 'directory' | 'rename', parent, node?, value, error, busy }
 async function startNew(mode, parent) {
   if (!props.editable) return
-  sidebarTab.value = 'files'
+  showSide('files')
   fileSearch.value = ''
   await openFolder(parent)
   pending.value = { mode, parent, value: '', error: '', busy: false }
@@ -1355,8 +1380,12 @@ async function uploadInto(dir, files) {
   try {
     for (let i = 0; i < parts.length; i++) {
       uploading.value = `Uploading ${files.length} ${files.length === 1 ? 'file' : 'files'}… (${done} done)`
+      // A file larger than a part goes in pieces (ADM-1269): how far it is, in the same line.
+      const onPiece = (sent, total) => {
+        uploading.value = `Uploading ${parts[i][0].path}… ${Math.round((100 * sent) / total)}% (${done} done)`
+      }
       try {
-        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite, onPiece })
       } catch (e) {
         const there = e?.response?.status === 409 ? e.response.data?.exists : null
         if (!there || overwrite) throw e
@@ -1367,7 +1396,7 @@ async function uploadInto(dir, files) {
         })
         if (!ok) { notify.info(done ? `Uploaded ${done} ${done === 1 ? 'file' : 'files'}; the rest was not uploaded.` : 'Upload cancelled.'); return }
         overwrite = true
-        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite })
+        await api.uploadRepositoryFiles(props.systemId, props.repositoryId, dir, parts[i], { overwrite, onPiece })
       }
       done += parts[i].length
     }
@@ -1450,7 +1479,7 @@ async function onDrop(e, dir) {
 // The Search tab, and a result opening its file at the line.
 const contentSearch = ref(null)
 function openSearch() {
-  sidebarTab.value = 'search'
+  showSide('search')
   nextTick(() => contentSearch.value?.focus())
 }
 let pendingReveal = null
@@ -2012,6 +2041,18 @@ const FileTreeNode = {
 
 @media (max-width: 640px) {
   .sidebar-tab { min-height: 44px; font-size: 12px; }
+  /* One pane at a time (ADM-1128): the tab row on top, then the editor or one sidebar view, the full width. */
+  .code-browser.narrow { flex-direction: column; }
+  .code-browser.narrow .cb-sidebar { width: 100%; max-width: none; border-right: 0; flex: 0 0 auto; }
+  .code-browser.narrow.pane-side .cb-sidebar { flex: 1 1 auto; min-height: 0; }
+  .code-browser.narrow.pane-editor .sidebar-content,
+  .code-browser.narrow .resize-handle,
+  .code-browser.narrow.pane-side .editor-panel { display: none; }
+  .code-browser.narrow .sidebar-tab { justify-content: center; }
+  .code-browser.narrow .sidebar-tab-label {   /* icons only; the name stays for screen readers and in the title */
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap; border: 0;
+  }
   .tab { min-height: 44px; }
   .tab-close { width: 36px; height: 36px; }
   .save-btn { min-height: 36px; }

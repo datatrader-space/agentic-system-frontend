@@ -1,7 +1,7 @@
 <template>
   <!-- Video Studio help (owner, 2026-10-19/20): what people can make, how a video gets made, which model fits which
        video (computed from the models this person can use now, so it never goes stale), recipes that open Create
-       ready to go, the Library, prompts, costs, and what to do when something goes wrong. Every claim here matches
+       ready to go, the Library, prompts, costs, refunds, how long files are kept, and what to do when something goes wrong. Every claim here matches
        the product: change the page when the product changes. -->
   <section class="help" aria-labelledby="help-title" data-test="video-studio-help">
     <header class="help-head">
@@ -187,6 +187,37 @@
           </ul>
         </section>
 
+        <!-- Refunds (ADM-1260, owner's decision 2026-11-17): the written policy. billing/services/render_credits.py enforces it. -->
+        <section id="refunds" class="doc-section" aria-labelledby="h-refunds">
+          <h2 id="h-refunds">Refunds</h2>
+          <ul class="plain">
+            <li><strong>A failed render is never charged.</strong> Its hold is released at once and nothing is taken from
+              your balance.</li>
+            <li><strong>A render that came out wrong can be refunded.</strong> If a render finished but did not turn out as
+              it should, for example a broken face or a cut-off frame, <RouterLink to="/contact">contact us</RouterLink>
+              and say which render. Our team looks at it and can give back up to what that render cost.</li>
+            <li><strong>Once per render, never more than it cost.</strong> The money goes back to your balance, not to
+              your card, and every refund is recorded with its reason.</li>
+            <li><strong>You are told.</strong> You get a notification when a refund is added to your balance, and it
+              shows in Billing.</li>
+          </ul>
+        </section>
+
+        <!-- How long files are kept (ADM-1259, owner's decision 2026-11-17): video_studio/services/retention.py. -->
+        <section id="keeping" class="doc-section" aria-labelledby="h-keeping">
+          <h2 id="h-keeping">How long your files are kept</h2>
+          <ul class="plain">
+            <li><strong>What you keep stays until you delete it:</strong> finished results, the files you uploaded,
+              your Elements, and every project you rendered.</li>
+            <li><strong>Drafts go after 180 days.</strong> A project that was never rendered and has not changed for 180
+              days is deleted. Opening it and changing it starts the 180 days again.</li>
+            <li><strong>Failed and cancelled jobs go after 180 days</strong>, with the files they left behind. A file that
+              is still used, in a project, a scene, an Element or a chat, is kept.</li>
+            <li><strong>You are told a week before.</strong> A notification lists everything that will be deleted and
+              the date, so you can keep a draft by changing it or rendering it.</li>
+          </ul>
+        </section>
+
         <!-- When something goes wrong -->
         <section id="trouble" class="doc-section" aria-labelledby="h-trouble">
           <h2 id="h-trouble">When something goes wrong</h2>
@@ -228,7 +259,8 @@ const sections = [
   { id: 'kinds', title: 'What you can make' }, { id: 'process', title: 'How a video gets made' },
   { id: 'models', title: 'Which model for which video' }, { id: 'recipes', title: 'Recipes' },
   { id: 'library', title: 'Library and ingredients' }, { id: 'prompts', title: 'Writing a good prompt' },
-  { id: 'costs', title: 'What it costs' }, { id: 'trouble', title: 'When something goes wrong' },
+  { id: 'costs', title: 'What it costs' }, { id: 'refunds', title: 'Refunds' },
+  { id: 'keeping', title: 'How long files are kept' }, { id: 'trouble', title: 'When something goes wrong' },
 ]
 function go(id) {
   const el = document.getElementById(id)
@@ -360,7 +392,8 @@ const trouble = [
   { q: 'A file I added is flagged', a: 'The chosen model cannot use it in that role. Press the model suggested under the file to switch, change the file\'s role, or remove it.' },
   { q: 'Get estimate is greyed out', a: 'Write a prompt first. If a model change is waiting, press Switch and apply or keep the current model. A flagged file also has to be fixed or removed.' },
   { q: 'The estimate expired', a: 'Check the expiry on the estimate card. Press Get a new estimate to see the current price.' },
-  { q: 'The render failed', a: 'Check the job card for its status and charging outcome. Ask the agent to review the failure before trying again.' },
+  { q: 'The render failed', a: 'Check the job card for its status. A failed render is never charged. Ask the agent to review the failure before trying again.' },
+  { q: 'The render finished but came out wrong', a: 'Contact us and say which render. Our team can give back up to what it cost to your balance, once per render.' },
   { q: 'The render did not start: over the limit', a: 'Your organization\'s spending limit would be passed. Nothing was spent. Ask your organization admin to raise it, or wait for the next period.' },
   { q: 'No model does what I need', a: 'Change the task or the settings, or pick another model: every model the platform offers for the task is in the list.' },
   { q: 'Words in the video are misspelled', a: 'Video models draw letters badly. Remove the words from the prompt and add them as a caption instead.' },

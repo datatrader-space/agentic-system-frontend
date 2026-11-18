@@ -82,3 +82,15 @@ test('the pages ask the backend at its own addresses, and workflows at AADML\'s'
     ['POST', '/api/training-data/app/published/segformer-b0/start/'],
   ]);
 });
+
+// Live, 2026-11-17: a project's Deploy page said Cloud Streaming was "Coming soon" while the workspace's Deployments page
+// ran it. The project page now opens Deployments on that tab, once.
+test('a page opens the workspace Deployments on a named tab once, and only on a tab it has', async () => {
+  const { focusDeploymentsTab, takeDeploymentsTab } = await import('../src/api/workspace.js');
+  const tabs = ['overview', 'dedicated', 'streaming'];
+  focusDeploymentsTab('streaming');
+  assert.equal(takeDeploymentsTab(tabs), 'streaming');
+  assert.equal(takeDeploymentsTab(tabs), '');                         // once
+  focusDeploymentsTab('nope');
+  assert.equal(takeDeploymentsTab(tabs), '');
+});

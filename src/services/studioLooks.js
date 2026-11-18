@@ -1632,6 +1632,129 @@ export const studioLooks = [
     "referenceLabel": "Source image or video"
   },
   {
+    "id": "effects-look-outpaint",
+    "feature": "effects",
+    "title": "Room to breathe",
+    "purpose": "Extend a photo past its edges to a new shape.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your photo",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Extend my photo beyond its edges into a {Shape} frame, filled with {Fill}. Keep everything already in the picture exactly as it is, with no visible seam.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "shape",
+        "label": "Shape",
+        "default": "9:16 vertical"
+      },
+      {
+        "id": "fill",
+        "label": "Fill",
+        "default": "the scene as it continues"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Your photo",
+    "recipe": "outpaint",
+    "recipeOptions": {
+      "shape": "9:16",
+      "fill": "the scene as it continues"
+    }
+  },
+  {
+    "id": "effects-look-skin",
+    "feature": "effects",
+    "title": "Natural skin",
+    "purpose": "A gentle retouch that keeps the person exactly who they are.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Portrait",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Retouch the skin in my portrait with {Finish}. Keep real skin texture, the same face, features and skin tone.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "finish",
+        "label": "Finish",
+        "default": "a light touch"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Portrait",
+    "recipe": "skin",
+    "recipeOptions": {
+      "finish": "light touch"
+    }
+  },
+  {
+    "id": "effects-look-shots",
+    "feature": "effects",
+    "title": "Close, medium, wide",
+    "purpose": "The same subject as a set of three framings.",
+    "category": "Effects",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your photo",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Reframe my photo as {Framing}, keeping the same subject, setting and light; only the camera distance changes.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "framing",
+        "label": "Framing",
+        "default": "a close-up, a medium shot and a wide shot"
+      }
+    ],
+    "durationLabel": "3 images",
+    "referenceLabel": "Your photo",
+    "recipe": "shots",
+    "recipeOptions": {
+      "shot": "close-up"
+    }
+  },
+  {
     "id": "avatar-look-1",
     "feature": "avatar",
     "title": "A warm introduction",
@@ -2202,6 +2325,31 @@ export const studioLooks = [
     "referenceLabel": "Reference optional"
   },
   {
+    "id": "explainer-look-faceless",
+    "feature": "explainer",
+    "title": "Faceless short",
+    "purpose": "A vertical voice-over video with no one on screen.",
+    "category": "Explainers",
+    "slots": [],
+    "settings": {},
+    "promptTemplate": "Make a faceless vertical short about {Topic}: a calm voice over stock-like pictures, captions and soft music.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "topic",
+        "label": "Topic",
+        "default": "Why honey never spoils"
+      }
+    ],
+    "durationLabel": "60 s",
+    "referenceLabel": "No reference needed",
+    "faceless": true
+  },
+  {
     "id": "storyboard-look-1",
     "feature": "storyboard",
     "title": "The brand journey",
@@ -2470,6 +2618,61 @@ export const studioLooks = [
     ],
     "durationLabel": "8 s",
     "referenceLabel": "Reference optional"
+  },
+  {
+    "id": "cinema-look-noir",
+    "feature": "cinema",
+    "title": "Rain-soaked noir",
+    "purpose": "A 1970s noir shot that slows into its last moment.",
+    "category": "Cinema",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference image",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Direct a cinematic shot of {Subject}. Genre: {Genre}. Era: {Era}. Speed: {Ramp}.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "A detective under a flickering streetlight"
+      },
+      {
+        "id": "genre",
+        "label": "Genre",
+        "default": "Film noir"
+      },
+      {
+        "id": "era",
+        "label": "Era",
+        "default": "1970s film"
+      },
+      {
+        "id": "ramp",
+        "label": "Ramp",
+        "default": "normal speed easing into slow motion at the end"
+      }
+    ],
+    "durationLabel": "5 s",
+    "referenceLabel": "Reference optional",
+    "cinema": {
+      "genre": "noir",
+      "era": "1970s-film",
+      "speed_ramp": "slow-out"
+    }
   },
   {
     "id": "editor-look-1",
@@ -2879,8 +3082,8 @@ export const studioLooks = [
   {
     "id": "ad-remix-look-1",
     "feature": "ad-remix",
-    "title": "A better opening",
-    "purpose": "Keep the structure. Give the hook a fresh angle.",
+    "title": "Swap the product",
+    "purpose": "Put your product in place of the one in a reference ad.",
     "category": "Product ads",
     "slots": [
       {
@@ -2905,117 +3108,7 @@ export const studioLooks = [
       }
     ],
     "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
-    "variants": [
-      "Keep the prepared direction.",
-      "Use a subtle variation while keeping the subject consistent."
-    ],
-    "clientOnly": true,
-    "variables": [
-      {
-        "id": "product",
-        "label": "Product",
-        "default": "Our artisan pizza"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "Your new favourite Friday ritual"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Discover the menu"
-      }
-    ],
-    "durationLabel": "8 s",
-    "referenceLabel": "Reference ad + Your product image"
-  },
-  {
-    "id": "ad-remix-look-2",
-    "feature": "ad-remix",
-    "title": "A new call to action",
-    "purpose": "Rework the ending for a different campaign goal.",
-    "category": "Product ads",
-    "slots": [
-      {
-        "id": "reference-0",
-        "label": "Reference ad",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "video"
-        ]
-      },
-      {
-        "id": "reference-1",
-        "label": "Your product image",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "image"
-        ]
-      }
-    ],
-    "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
-    "variants": [
-      "Keep the prepared direction.",
-      "Use a subtle variation while keeping the subject consistent."
-    ],
-    "clientOnly": true,
-    "variables": [
-      {
-        "id": "product",
-        "label": "Product",
-        "default": "Our signature fragrance"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "A moment that stays with you"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Explore the collection"
-      }
-    ],
-    "durationLabel": "8 s",
-    "referenceLabel": "Reference ad + Your product image"
-  },
-  {
-    "id": "ad-remix-look-3",
-    "feature": "ad-remix",
-    "title": "A new product, same rhythm",
-    "purpose": "Recast a reference ad around your product.",
-    "category": "Product ads",
-    "slots": [
-      {
-        "id": "reference-0",
-        "label": "Reference ad",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "video"
-        ]
-      },
-      {
-        "id": "reference-1",
-        "label": "Your product image",
-        "role": "subject",
-        "required": true,
-        "limit": 1,
-        "kinds": [
-          "image"
-        ]
-      }
-    ],
-    "settings": {},
-    "promptTemplate": "Remix the reference ad around {Product}. Opening hook: \"{Hook}\". Call to action: \"{CTA}\". Preserve effective structure while developing a distinct treatment.",
+    "promptTemplate": "Replace the main product in the whole reference ad with {Product}, shown in my product image. Keep the camera movement, the people, the timing and the setting the same.",
     "variants": [
       "Keep the prepared direction.",
       "Use a subtle variation while keeping the subject consistent."
@@ -3026,20 +3119,80 @@ export const studioLooks = [
         "id": "product",
         "label": "Product",
         "default": "Our cold-pressed oil"
-      },
-      {
-        "id": "hook",
-        "label": "Hook",
-        "default": "More flavour, less effort"
-      },
-      {
-        "id": "cta",
-        "label": "CTA",
-        "default": "Taste the difference"
       }
     ],
     "durationLabel": "8 s",
     "referenceLabel": "Reference ad + Your product image"
+  },
+  {
+    "id": "ad-remix-look-2",
+    "feature": "ad-remix",
+    "title": "A new look",
+    "purpose": "Restyle a whole reference ad. Its motion and timing stay.",
+    "category": "Product ads",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference ad",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "video"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Restyle the whole reference ad as {Style}. Keep the motion, the timing and every product exactly as they are.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "style",
+        "label": "Style",
+        "default": "a retro film look"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Reference ad"
+  },
+  {
+    "id": "ad-remix-look-3",
+    "feature": "ad-remix",
+    "title": "A new setting",
+    "purpose": "Move a whole reference ad to a new place.",
+    "category": "Product ads",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference ad",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "video"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Move the whole reference ad to {Setting}. Keep the people, the product, the motion and the timing the same.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "setting",
+        "label": "Setting",
+        "default": "a beach at sunset"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Reference ad"
   },
   {
     "id": "canvas-look-1",

@@ -98,3 +98,19 @@ describe('Where it runs: the kind first, then the machine', () => {
     expect(last(wrapper)).toEqual(['gpu:a']);
   });
 });
+
+// Live, 2026-11-17: the Train dialog's GPU picker said "Your machine: none connected for this model" under a "Where it
+// trains" that offered the machine. A page that offers the machines in a choice of its own says where, here.
+describe('Your machine offered elsewhere on the page', () => {
+  it('says where to choose it instead of "none connected"', async () => {
+    const wrapper = mount(MachinePicker, { props: { load: async () => ({ machines: [GPU], note: '' }), modelValue: '', ownElsewhere: 'Your machine: choose it in “Where it trains”' } });
+    await flushPromises();
+    expect(kind(wrapper, 'own_machine').text()).toBe('Your machine: choose it in “Where it trains”');
+    expect(kind(wrapper, 'own_machine').attributes('disabled')).toBeDefined();
+  });
+
+  it('without it, a list with none of the person\'s machines still says none is connected', async () => {
+    const wrapper = await picker([GPU]);
+    expect(kind(wrapper, 'own_machine').text()).toBe('Your machine: none connected for this model');
+  });
+});

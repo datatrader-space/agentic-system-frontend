@@ -96,6 +96,26 @@ function tidy(points) {
 
 function far(a, b) { return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1])); }
 
+/* True when two edges of the outline that are not neighbours cross: the shape is a bow-tie, which the backend
+   refuses ("wall 3 crosses itself"). The same rule as labels.self_crossing: edges that only touch at an end do not
+   cross. */
+function crossesItself(points) {
+  function side(p, q, r) {
+    var value = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    return Math.abs(value) < 1e-9 ? 0 : value > 0 ? 1 : -1;
+  }
+  var n = points.length;
+  for (var i = 0; i < n; i += 1) {
+    for (var j = i + 1; j < n; j += 1) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;          // neighbours share a corner
+      var a = points[i], b = points[(i + 1) % n], c = points[j], d = points[(j + 1) % n];
+      var s1 = side(a, b, c), s2 = side(a, b, d), s3 = side(c, d, a), s4 = side(c, d, b);
+      if (s1 !== s2 && s3 !== s4 && s1 && s2 && s3 && s4) return true;
+    }
+  }
+  return false;
+}
+
 /* The two polygons a straight line through ``from`` and ``to`` cuts the polygon into, or null when the line does
    not cross its outline in exactly two places. Both polygons hold the two points of the cut, as the very same
    numbers.
@@ -213,20 +233,37 @@ function roomCut(points) {
       for the person.
    3. A window or a door that reaches a little outside its wall is brought inside it.
 
+   No step may leave a shape that crosses itself (live, 2026-11-17: a cut made "wall 3 crosses itself" and the label
+   could not be sent to review). A cut, a straightening or a move that would is not made: the shape stays as the model
+   drew it. A shape the model itself drew crossing itself is redrawn round its outline (``repaired``).
+
    It is a head start still: the person checks every corner and presses Done, and Undo shows what the model drew. */
 var GROWS = 1.5, REACH = 0.2;
 function tidyUp(shapes) {
-  var out = [], walls = [], report = { cut: 0, straightened: 0, moved: 0 };
+  var out = [], walls = [], report = { cut: 0, straightened: 0, moved: 0, repaired: 0 };
   function tenth(p) { return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }
+  // A shape that still crosses itself is redrawn round its outline (its convex hull, brought to its corners), which
+  // never crosses itself. A shape with no area (its points on one line) does not cross itself and is left.
+  function untangled(made) {
+    if (!crossesItself(made.points)) return made;
+    var outline = whole(made.points).map(tenth);
+    if (outline.length < 3 || crossesItself(outline)) outline = hull(made.points).map(tenth);
+    if (outline.length < 3 || crossesItself(outline)) return made;
+    report.repaired += 1;
+    return { kind: made.kind, points: outline };
+  }
   shapes.forEach(function (shape) {
-    if (shape.kind !== 'wall') { out.push({ kind: shape.kind, points: shape.points.map(tenth) }); return; }
+    if (shape.kind !== 'wall') { out.push(untangled({ kind: shape.kind, points: shape.points.map(tenth) })); return; }
     var pieces = [shape.points], again = true, rounds = 0;
     while (again && rounds < 6) {
       again = false; rounds += 1;
       var next = [];
       pieces.forEach(function (piece) {
         var halves = roomCut(piece);
-        if (halves) { again = true; next.push(halves[0], halves[1]); } else next.push(piece);
+        // A cut whose line runs out of the shape between the places it was checked at leaves a half that crosses
+        // itself: that cut is not made.
+        if (halves && !crossesItself(halves[0]) && !crossesItself(halves[1])) { again = true; next.push(halves[0], halves[1]); }
+        else next.push(piece);
       });
       pieces = next;
     }
@@ -234,12 +271,14 @@ function tidyUp(shapes) {
     pieces.forEach(function (piece) {
       var kept = whole(piece).map(tenth);
       var made = { kind: 'wall', points: piece.map(tenth) };
-      if (kept.length >= 3 && kept.length < piece.length && !dentedAbove(piece) && area(hull(piece)) <= area(piece) * GROWS) {
+      if (kept.length >= 3 && kept.length < piece.length && !dentedAbove(piece) && area(hull(piece)) <= area(piece) * GROWS
+          && !crossesItself(kept)) {
         made.points = kept;
         report.straightened += 1;
       } else if (pieces.length === 1 && shape.corner_types) {
         made.corner_types = shape.corner_types.slice();                            // untouched: its corners keep their names
       }
+      made = untangled(made);
       out.push(made);
       walls.push(made);
     });
@@ -271,6 +310,7 @@ function tidyUp(shapes) {
       return tenth(spot);
     });
     if (tooFar || !changed) return;                                               // far outside: the person decides
+    if (crossesItself(moved)) return;                                            // brought in, it would cross itself
     shape.points = moved;
     report.moved += 1;
   });
@@ -278,7 +318,7 @@ function tidyUp(shapes) {
   return report;
 }
 
-export { area, corners, contains, split, hull, whole, nearest, roomCut, tidyUp };
+export { area, corners, contains, crossesItself, split, hull, whole, nearest, roomCut, tidyUp };
 
 // Whether the segment from `from` to `to` touches the shape: a click inside it, or the segment crossing its outline.
 // A cut is made only through a shape it touches (the line through two clicks far away from a shape does not cut it).

@@ -1,5 +1,6 @@
 // Your machines: machines the person owns, managed by AADML (backend: training_models_data/machines.py and machines_api.py —
-// workspace/machines/, workspace/machines/<id>/remove/, .../projects/, .../serve/, workspace/machine-jobs/<id>/stop/).
+// workspace/machines/, workspace/machines/<id>/remove/, .../projects/, .../serve/, .../discover/,
+// workspace/machine-jobs/<id>/stop/).
 // Every rule is the backend's: who may add or remove a machine, the join code (shown once, 10 minutes), which jobs a
 // machine is given. These helpers only pick what to show and put it in words.
 import { apiFetch } from './client.js';
@@ -12,7 +13,50 @@ export const machinesApi = {
   add: ({ projects = [] } = {}) => apiFetch(`${APP}/workspace/machines/`, { method: 'POST', body: { projects } }),
   remove: id => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/remove/`, { method: 'POST', body: {} }),
   setProjects: (id, projects) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/projects/`, { method: 'POST', body: { projects } }),
+  // Look for cameras on the machine's network (an Admin; agent 1.6.0): one search a machine at a time, then its answer.
+  discover: id => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/discover/`, { method: 'POST', body: {} }),
+  discovery: (id, job) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/discover/${encodeURIComponent(job)}/`),
 };
+
+// ── finding cameras on a machine's network (backend: machines.camera_discover, discovery_row) ───────────────────────
+// The agent that looks for cameras (machines.CAMERA_DISCOVER_AGENT).
+export const DISCOVER_AGENT = '1.6.0';
+const versionParts = v => String(v || '').split('.').slice(0, 3).map(n => (/^\d+$/.test(n) ? Number(n) : NaN));
+export function agentAtLeast(have, wanted) {
+  const a = versionParts(have); const b = versionParts(wanted);
+  if (a.length < 3 || a.some(Number.isNaN)) return false;
+  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] > b[i];
+  return true;
+}
+// Why the machine cannot look for cameras now, in words ('' when it can). The server decides again on every search.
+export function discoverWhy(machine) {
+  if (!machine) return '';
+  if (machine.state !== 'online') return `${machine.name} is offline: start it, then look for cameras.`;
+  if (!agentAtLeast(machine.agent_version, DISCOVER_AGENT)) {
+    return `${machine.name} runs agent ${machine.agent_version || 'of an older release'}: looking for cameras needs ${DISCOVER_AGENT} or later. It updates itself when it is idle; meanwhile, type the camera's address.`;
+  }
+  return '';
+}
+const HOSTNAME = /^(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const plainHost = host => {
+  const text = String(host || '').trim();
+  if (IPV4.test(text)) return text;
+  return HOSTNAME.test(text) && !/^[\d.]+$/.test(text) ? text.toLowerCase() : '';
+};
+// The address a found camera is added with: its host on RTSP's port. The person completes its stream path and
+// credentials (a camera's ONVIF answer does not say them); '' for a host that is not one.
+export function foundAddress(camera) {
+  const host = plainHost(camera?.host);
+  return host ? `rtsp://${host}:554/` : '';
+}
+// A found camera in one line: its name and model when it gave them, and its address on the network.
+export function foundLine(camera) {
+  const host = plainHost(camera?.host);
+  const parts = [camera?.name, camera?.hardware].map(v => String(v || '').trim()).filter(Boolean);
+  return parts.length ? `${parts.join(' · ')} (${host})` : host;
+}
+export const FOUND_NEXT = "Complete the camera's stream path (as its settings or recorder show it, for example /stream1) and its user name and password.";
 
 // A machine's state as a badge: [tone, words].
 export function machineState(machine) {

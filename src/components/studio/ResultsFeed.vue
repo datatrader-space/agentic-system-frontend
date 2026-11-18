@@ -25,6 +25,7 @@ import { useChatStore } from '../../stores/useChatStore'
 import { useVideoStore } from '../../stores/useVideoStore'
 import HITLModal from '../HITLModal.vue'
 import VideoJobCard from '../video/VideoJobCard.vue'
+import { jobOutputKind } from '../../utils/mediaThumb'
 import MediaViewer from '../video/MediaViewer.vue'
 import UseInMenu from './UseInMenu.vue'
 const props = defineProps({ kind: { type: String, required: true }, conversationId: [String,Number], showApprovals: { type: Boolean, default: true } })
@@ -47,8 +48,8 @@ function generationOf(job) {
 }
 // A job's result, then the other pictures of the same request (extra_outputs) beside it.
 function jobItems(job) {
-  const kind = job.modality || (job.operation === 'frame' ? 'image' : 'video'), title = job.effective_config?.prompt || (kind === 'video' ? 'Edited video' : 'Result')
-  return [job.output, ...(job.extra_outputs || [])].filter(x => x?.attachment_id && x?.url).map(x => ({ ...x, title, media_type: kind, job, generation: x.generation || generationOf(job), created_at: job.created_at }))
+  const kind = jobOutputKind(job), title = job.effective_config?.prompt || (kind === 'video' ? 'Edited video' : 'Result')
+  return [job.output, ...(job.extra_outputs || [])].filter(x => x?.attachment_id && x?.url).map(x => ({ ...x, title, media_type: jobOutputKind(job, x), job, generation: x.generation || generationOf(job), created_at: job.created_at }))
 }
 const items = computed(() => props.kind === 'image' ? [...video.sessionImages].sort((a,b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)) : jobs.value.filter(job => job.state === 'ready' && job.output?.attachment_id && job.output?.url).slice().reverse().flatMap(jobItems))
 const router = useRouter()

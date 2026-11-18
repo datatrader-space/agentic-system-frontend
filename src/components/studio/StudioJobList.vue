@@ -11,11 +11,12 @@ import api from '../../services/api'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { usePoller } from '../../composables/usePoller'
 import VideoJobCard from '../video/VideoJobCard.vue'
+import { jobOutputKind } from '../../utils/mediaThumb'
 import { lazyComponent } from '../../utils/lazyComponent'
 const MediaViewer = lazyComponent(() => import('../video/MediaViewer.vue'))
 const previewJob = ref(null), previewIndex = ref(0)
 // A job's result and the other pictures of the same request (extra_outputs), in that order.
-const previewItems = computed(() => { const job = previewJob.value; if (!job) return []; const kind = job.modality || (job.operation === 'frame' ? 'image' : 'video'); return [job.output, ...(job.extra_outputs || [])].filter(x => x?.url).map(x => ({ ...x, media_type: kind })) })
+const previewItems = computed(() => { const job = previewJob.value; if (!job) return []; return [job.output, ...(job.extra_outputs || [])].filter(x => x?.url).map(x => ({ ...x, media_type: jobOutputKind(job, x) })) })
 function open(job, index) { previewJob.value = job; previewIndex.value = Number.isInteger(index) ? index : 0 }
 const props = defineProps({ ids: { type: Array, default: () => [] } })
 watch(() => props.ids, () => { previewJob.value = null })

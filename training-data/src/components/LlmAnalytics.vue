@@ -271,6 +271,7 @@ onUnmounted(() => clearTimeout(timer));
         <p v-if="opened.progress" class="field-help" aria-live="polite">Answering: {{ opened.progress.steps_done }} of {{ opened.progress.steps }} questions.</p>
         <p v-if="opened.state === 'waiting_people'" class="field-help" aria-live="polite">Waiting for people: {{ opened.results?.people?.given - opened.results?.people?.unmarked }} of {{ opened.results?.people?.given }} pairs are marked. {{ page.can_manage ? 'You may close the marking now; the marked pairs then count.' : '' }}</p>
         <p v-if="opened.state === 'judging'" class="field-help" aria-live="polite">The AI judge marks the answers, a few minutes at a time.</p>
+        <p v-if="['queued', 'starting', 'running'].includes(opened.state) && opened.machine?.label" class="field-help" aria-live="polite">{{ opened.machine.label }}</p>
         <div v-if="opened.verdict" class="llm-verdict"><UiBadge :tone="verdictTone(opened.verdict)">{{ verdictLabel(opened.verdict) }}</UiBadge><ul><li v-for="(r, i) in opened.verdict_reasons" :key="i">{{ r }}</li></ul></div>
         <dl class="llm-facts">
           <dt>Marked by</dt><dd>{{ opened.marking_label }}{{ opened.reviewers?.length ? `: ${opened.reviewers.map(r => r.name).join(', ')}` : '' }}</dd>
@@ -279,7 +280,7 @@ onUnmounted(() => clearTimeout(timer));
           <template v-if="opened.criteria"><dt>Criteria</dt><dd>Version {{ opened.criteria.version }}</dd></template>
           <dt>Started</dt><dd>{{ ago(opened.created_at) }} by {{ opened.created_by || 'someone' }}</dd>
         </dl>
-        <RunProvenance :used="opened.used" :cost="opened.cost" what="evaluation"/>
+        <RunProvenance :used="opened.used" :cost="opened.cost" :machine="opened.machine" what="evaluation"/>
         <h3>Attempts</h3>
         <AttemptsTable :attempts="opened.attempts || []" :caption="`The attempts of evaluation ${opened.number}`" empty="No attempt yet: the evaluation waits for a machine."/>
       </section>

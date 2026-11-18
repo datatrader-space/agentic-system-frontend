@@ -10,11 +10,13 @@ const props = defineProps({
   used: { type: Object, default: null },
   cost: { type: Object, default: null },
   what: { type: String, default: 'run' },           // 'run' or 'evaluation'
+  // A run or an evaluation on the person's own machine: its ``machine`` row (name, price_text), for the Cost line.
+  machine: { type: Object, default: null },
 });
 
 const groups = computed(() => usedGroups(props.used, props.what));
 const config = computed(() => configPart(props.used));
-const costLine = computed(() => costText(props.cost, props.used?.own_machines));
+const costLine = computed(() => costText(props.cost, props.used?.own_machines, props.machine));
 const title = computed(() => (props.what === 'run' ? 'What this run used' : 'What this evaluation used'));
 const uid = `used-${Math.random().toString(36).slice(2, 9)}`;
 

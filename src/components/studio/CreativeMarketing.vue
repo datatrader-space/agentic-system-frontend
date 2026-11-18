@@ -4,20 +4,24 @@
     <template v-if="kind !== 'ads'">
       <label class="st-field" data-field="recipe_id">Recipe<select v-model="recipeId" class="st-input" @change="resetRecipe"><option value="">Choose recipe</option><option v-for="r in recipes" :key="r.id" :value="r.id" :disabled="!r.ready">{{ r.title }}{{ r.ready ? '' : ' — Not yet proven' }}</option></select></label>
       <template v-if="recipe">
-        <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" />
+        <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" :only="recipe.needs ? recipe.route_ids || [] : null" :only-note="needsNote" />
         <template v-else>
           <label class="st-field" data-field="route_id">Model<select v-model="videoRouteId" class="st-input" data-test="recipe-video-route" :disabled="videoLoading || !videoRoutes.length"><option v-if="videoLoading" value="">Loading models…</option><option v-else-if="!videoRoutes.length" value="">No model you can use does this yet</option><option v-for="r in videoRoutes" :key="r.route_id" :value="String(r.route_id)">{{ routeOptionLabel(r) }}</option></select></label>
           <label v-if="resolutions.length" class="st-field">Resolution<select v-model="resolution" class="st-input" data-test="recipe-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label>
         </template>
         <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="words(slot.name)" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
-        <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video.</p>
+        <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video. The recipe changes the whole video, start to end.</p>
         <label v-for="(values,name) in recipe.options" :key="name" class="st-field">{{ words(name) }}<select v-model="options[name]" class="st-input"><option v-for="value in values" :key="value">{{ value }}</option></select></label>
-        <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe ? !recipeRoute : !videoRouteId)" @click="prepareRecipe">Review recipe estimate</button>
+        <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe ? !recipeRoute : !videoRouteId)" @click="prepareRecipe()">Review recipe estimate</button>
+        <template v-if="recipeSet">
+          <button class="st-button" data-test="recipe-set" :disabled="busy || !recipe.ready || !recipeRoute" @click="prepareSet">Review estimates for the set ({{ recipeSet.values.length }})</button>
+          <p class="st-muted" role="note">The set is {{ recipeSet.values.join(', ') }}: one picture each, each with its own estimate to approve in Results.</p>
+        </template>
       </template>
       <Teleport v-if="monitor" defer :to="`#${monitor}`"><MediaMonitor :items="monitorItems" :empty="recipe ? 'Add the files this recipe needs to see them here.' : 'Choose a recipe, then add the files it needs.'" /></Teleport>
     </template>
     <template v-else>
-      <label class="st-field" data-field="brand_id">Brand<select v-model="brandId" class="st-input"><option value="">Choose brand</option><option v-for="brand in brands" :key="brand.brand_id || brand.id" :value="brand.brand_id || brand.id">{{ brand.name }}</option></select></label>
+      <label class="st-field" data-field="brand_id">Brand<select v-model="brandId" class="st-input"><option value="">Choose brand</option><option v-for="brand in brands" :key="brand.brand_id || brand.id" :value="brand.brand_id || brand.id">{{ brand.name }}{{ brand.usable === false ? ' (not approved yet)' : '' }}</option></select></label>
       <label class="st-field" data-field="url">Brand website<input v-model="website" class="st-input" type="url" /></label><button class="st-button" :disabled="busy || !website" @click="readBrand">Read website</button>
       <p v-if="draft" class="st-muted">Review this draft before saving it.</p>
       <template v-if="draft">
@@ -25,8 +29,10 @@
         <label class="st-field">Colors (comma separated)<input v-model="colors" class="st-input" /></label>
         <InputSlot label="Brand images (logo first)" required :kinds="['image']" :limit="8" :allow-upload="false" :items="draft.images || []" @pick="addBrandImages" @remove="draft.images.splice(draft.images.indexOf($event),1)" />
         <div v-for="(image,i) in draft.images || []" :key="image.attachment_id" class="creative-card"><span>{{ image.source_url }}</span><button class="st-button" :disabled="i === 0" @click="draft.images.unshift(...draft.images.splice(i,1))">Use as logo (first)</button><button class="st-button" @click="draft.images.splice(i,1)">Remove image</button></div>
-        <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length" @click="saveBrand">Save reviewed brand</button>
+        <ElementRightsFields v-model="brandRights" kind="brand" :name="draft.name" :schema="elementSchema" />
+        <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length || !rightsComplete('brand', brandRights)" @click="saveBrand">Save reviewed brand</button>
         <p v-if="!draft.name || !draft.images?.length" class="st-muted" role="status" data-test="brand-save-needs">{{ !draft.name ? 'Give the brand a name' : 'Add at least one brand image, the logo first' }} to save it.</p>
+        <p v-else-if="!rightsComplete('brand', brandRights)" class="st-muted" role="status" data-test="brand-save-rights">Confirm your rights to the brand to save it.</p>
       </template>
       <button v-if="!draft" class="st-button" @click="draft = { name:'', description:'', website:'', tagline:'', voice:'', audience:'', images:[] }">New brand</button>
       <label class="st-field" data-field="platform">Platform<select v-model="platform" class="st-input"><option v-for="p in adOptions.platforms" :key="p.id" :value="p.id">{{ p.label }} · {{ p.aspect_ratio }} · up to {{ p.max_seconds }} seconds</option></select></label>
@@ -48,6 +54,9 @@ import InputSlot from './InputSlot.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import CreativeError from './CreativeError.vue'
+import ElementRightsFields from '../video/ElementRightsFields.vue'
+import { emptyRights, rightsComplete, rightsPayload } from '../video/elementKinds'
+import { useVideoStore } from '../../stores/useVideoStore'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { modelAliases, studioError, useStudioChat } from './studioForm'
 const props = defineProps({ kind:String }), emit = defineEmits(['job']), router = useRouter(), { busy,error,run } = useCreativeForm()
@@ -67,6 +76,9 @@ const shownError = computed(() => {
 const monitor = inject('studioMonitor', '')
 const monitorItems = computed(() => (recipe.value?.slots || []).filter(s => slots.value[s.name]).map(s => ({ ...slots.value[s.name], media_type: slots.value[s.name].media_type || s.media_type, url: slots.value[s.name].url || slots.value[s.name].thumbnail_url, name: slots.value[s.name].title || slots.value[s.name].filename || s.name, role: s.name })))
 const recipeRoute = ref(''), mediaRecipe = computed(() => !!recipe.value && !['video','change'].includes(recipe.value.operation))
+// A brand kit is approved by the person's own Save with their rights statement (ELEMENTS_V2_PLAN.md).
+const brandRights = ref(emptyRights()), elementSchema = ref(null)
+useVideoStore().loadIngredientSchema().then(s => { elementSchema.value = s })
 const brands = ref([]), brandId = ref(''), website = ref(''), draft = ref(null), colors = ref(''), adOptions = ref({}), platform = ref(''), goal = ref('awareness'), productId = ref(''), products = ref([]), notes = ref(''), count = ref(3), drafts = ref([])
 onMounted(() => run(async alive => {
   if (props.kind !== 'ads') { const {data} = await api.getStudioRecipes(props.kind); if (alive()) recipes.value = data.recipes || []; return }
@@ -98,7 +110,20 @@ async function loadVideoRoutes() {
   } catch { if (mine === videoSeq) error.value = { message: 'Could not load the models.' } }
   finally { if (mine === videoSeq) videoLoading.value = false }
 }
-function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:options.value, ...await chatFields() }); if (alive()) emit('job',data) }) }
+function recipeBody(chosen) { return { ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:chosen } }
+function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody(options.value), ...await chatFields() }); if (alive()) emit('job',data) }) }
+// A recipe's set (Zooms and shots: close-up, medium, wide): one job per value, in order, each its own estimate card.
+// A refusal stops the rest; the ones already made stay in Results.
+const recipeSet = computed(() => { const [name, values] = Object.entries(recipe.value?.sets || {})[0] || []; return name && values?.length ? { name, values } : null })
+function prepareSet() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const set = recipeSet.value; for (const value of set.values) { const { data } = await api.runStudioRecipe(recipeId.value,{ ...recipeBody({ ...options.value, [set.name]:value }), ...await chatFields() }); if (!alive()) return; emit('job',data) } }) }
+// Why no model is offered for a recipe that needs more than its task.
+const needsNote = computed(() => (recipe.value?.needs || []).includes('reshape') ? 'None of the models you can use can change the shape of a picture yet.' : 'None of the models you can use can do this yet.')
+// A look that names a recipe (the Effects looks) chooses it, with the look's options, once the recipes are listed.
+function chooseLookRecipe(value) {
+  if (!value?.recipe || !recipes.value.some(r => r.id === value.recipe)) return
+  recipeId.value = value.recipe; resetRecipe()
+  for (const [k, v] of Object.entries(value.recipeOptions || {})) if (recipe.value.options?.[k]?.includes(v)) options.value[k] = v
+}
 function readBrand() { run(async alive => { const {data} = await api.post('/video/brands/read/',{ url:website.value, ...await chatFields() }); if (alive()) { draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
 function addBrandImages(items) {
   if (!draft.value) return
@@ -108,9 +133,10 @@ function addBrandImages(items) {
     if (item.attachment_id && !images.some(image => image.attachment_id === item.attachment_id)) images.push({ attachment_id: item.attachment_id })
   }
 }
-function saveBrand() { run(async alive => { const d = draft.value; const {data} = await api.post('/video/brands/',{ name:d.name, description:d.description, traits:{ colors:colors.value.split(',').map(v => v.trim()).filter(Boolean), website:d.website, tagline:d.tagline, voice:d.voice, audience:d.audience }, attachment_ids:(d.images || []).map(i => i.attachment_id) }); if (alive()) { brands.value.push(data); brandId.value = data.brand_id || data.id; draft.value = null } }) }
+function saveBrand() { run(async alive => { const d = draft.value; const {data} = await api.post('/video/brands/',{ name:d.name, description:d.description, traits:{ colors:colors.value.split(',').map(v => v.trim()).filter(Boolean), website:d.website, tagline:d.tagline, voice:d.voice, audience:d.audience }, attachment_ids:(d.images || []).map(i => i.attachment_id), ...rightsPayload('brand', brandRights.value) }); if (alive()) { brands.value.push(data); brandId.value = data.brand_id || data.id; draft.value = null; brandRights.value = emptyRights() } }) }
 const brief = () => ({ brand_id:brandId.value, platform:platform.value, ...(productId.value ? { product_id:productId.value } : {}) })
 function concepts() { run(async alive => { const {data} = await api.post('/video/ads/concepts/',{ ...brief(), goal:goal.value, notes:notes.value, n:count.value, ...await chatFields() }); if (alive()) drafts.value = data.concepts || [] }) }
 function makeProject(concept) { run(async alive => { const normalized = { ...concept, scenes:concept.scenes.map(s => ({ ...s, planned_ms:Number(s.planned_ms) })) }; normalized.total_ms = normalized.scenes.reduce((sum,s) => sum+s.planned_ms,0); const {data} = await api.post('/video/ads/projects/',{ ...brief(), concept:normalized, ...await chatFields() }); if (alive()) router.push({ path:'/video-studio/storyboard', query:{ project_id:data.project_id } }) }) }
-useStudioPreparedBrief(notes)
+const preparedLook = useStudioPreparedBrief(notes)
+watch([preparedLook, recipes], ([value]) => chooseLookRecipe(value))
 </script>

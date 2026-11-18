@@ -13,6 +13,15 @@ export function query(params) {
   return new URLSearchParams(Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)).toString();
 }
 
+// The workspace Deployments page opened from another page at one of its tabs (a project's Deploy page links its
+// Cloud Streaming there, where it works): the linking page names the tab, and Deployments opens on it once.
+let deploymentsTab = '';
+export function focusDeploymentsTab(tab) { deploymentsTab = String(tab || ''); }
+export function takeDeploymentsTab(tabs = []) {
+  const tab = deploymentsTab; deploymentsTab = '';
+  return tabs.includes(tab) ? tab : '';
+}
+
 export const workspaceApi = {
   models: () => apiFetch(`${APP}/workspace/models/`, { timeoutMs: SLOW }),
   // range: 1w, 2w, 1m (the backend's default) or all: the overview's successful calls, day by day.

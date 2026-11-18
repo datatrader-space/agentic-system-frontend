@@ -13,6 +13,8 @@ import RunProvenance from './RunProvenance.vue';
 import AttemptsTable from './AttemptsTable.vue';
 import { llmApi, trainingOverrides, configSummary } from '../api/llm.js';
 import { ago } from '../api/training.js';
+import { readyText, startKeys, NO_ANSWER_START } from '../api/train.js';
+import { unanswered } from '../api/models.js';
 import './llm.css';
 
 const props = defineProps({ project: Object });
@@ -22,7 +24,11 @@ const form = ref({ version: '', method: 'sft', config: '', runtime: 3600, parent
 // The GPU and location the run trains on (MachinePicker; training is GPU only), offered for the version chosen.
 const compute = ref('');
 const picker = ref(null);
-const loadMachines = computed(() => { const ref_ = props.project.ref, version = form.value.version; return () => llmApi.trainingMachines(ref_, version); });
+// The settings the run's memory follows go with it: another configuration, method or start model asks again.
+const loadMachines = computed(() => {
+  const ref_ = props.project.ref, { version, config, method, parent } = form.value;
+  return () => llmApi.trainingMachines(ref_, version, { config, method, parent });
+});
 let timer = null;
 
 const version = computed(() => page.value?.versions.find(v => v.number === Number(form.value.version)));
@@ -50,20 +56,27 @@ watch(() => form.value.method, m => {
   else if (!form.value.parent && parents.value.length) form.value.parent = parents.value[0].version;
 });
 
+// One key per start (api/train.js startKeys): pressing Start again after no answer came back sends the same key, so the
+// server answers with the run it already made, never a second paid one. The GPU Auto finds at Start is left out of it.
+const runKeys = startKeys();
 async function start() {
   busy.value = true; error.value = ''; told.value = '';
+  const chosen = {
+    dataset_version: Number(form.value.version), method: form.value.method, config: form.value.config,
+    max_runtime_seconds: Number(form.value.runtime), parent: form.value.parent ? Number(form.value.parent) : undefined,
+    overrides: trainingOverrides(form.value),
+  };
   try {
     const run = await llmApi.startTraining(props.project.ref, {
-      dataset_version: Number(form.value.version), method: form.value.method, config: form.value.config,
-      max_runtime_seconds: Number(form.value.runtime), parent: form.value.parent ? Number(form.value.parent) : undefined,
-      overrides: trainingOverrides(form.value), idempotency_key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-      ...(compute.value ? { compute: compute.value } : {}),
+      ...chosen, idempotency_key: runKeys.keyFor(chosen), ...(compute.value ? { compute: compute.value } : {}),
     });
+    runKeys.started();
     told.value = `Run ${run.number} is started. Its state and progress are in the list below.`;   // not a state that goes stale
     Object.assign(form.value, { epochs: '', max_steps: '', learning_rate: '', rank: '' });   // a change was for that run only
     await load();
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+  } catch (e) {
+    if (unanswered(e)) { error.value = NO_ANSWER_START; await load(); } else error.value = e.message;
+  } finally { busy.value = false; }
 }
 async function open(run) {
   try { opened.value = await llmApi.trainingRun(props.project.ref, run.number); } catch (e) { error.value = e.message; }
@@ -79,8 +92,8 @@ const cancelling = ref(false);
 async function confirmCancel() { await move('cancel'); cancelling.value = false; }
 const unfinished = run =>['queued', 'starting', 'running', 'finalizing'].includes(run?.state);
 // A job says its steps once it trains; before that it loads the model and the data (found 2026-10-21: "0 of 0 steps").
-const progressText = p => (!p ? '—' : p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
-  : p.phase === 'preparing' ? 'loading the model and the data' : p.phase);
+const progressText = p => (!p ? '—' : readyText(p) || (p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
+  : p.phase === 'preparing' ? 'loading the model and the data' : p.phase));
 // Green for a model, purple while it runs; an ended run without a model stays neutral (its word says which).
 const stateTone = state => (state === 'succeeded' ? 'green' : unfinished({ state }) ? 'purple' : 'neutral');
 onMounted(load);
@@ -117,6 +130,7 @@ onUnmounted(() => clearTimeout(timer));
         </details>
         <MachinePicker v-if="form.version" ref="picker" v-model="compute" :load="loadMachines" legend="GPU it trains on"/>
         <div class="dialog-actions"><UiButton variant="primary" :disabled="busy || !form.version || !form.config || !compute" @click="picker ? picker.confirm(start) : start()"><Play :size="15" /> {{ busy ? 'Starting…' : 'Start training' }}</UiButton></div>
+        <p v-if="busy" class="field-help" role="status">Starting the run. Getting a machine for it can take up to a minute or two; keep this page open.</p>
       </section>
       <section v-else-if="page" class="panel"><p>Only the project's Owner starts a training run. Every run is listed below.</p></section>
 
@@ -159,16 +173,17 @@ onUnmounted(() => clearTimeout(timer));
       <section class="panel">
         <h2>Run {{ opened.number }} · {{ opened.method_label }} <UiBadge :tone="stateTone(opened.state)">{{ opened.state_label }}</UiBadge></h2>
         <p v-if="opened.cancel_requested && unfinished(opened)" class="field-help" role="status">Cancelling: the job is asked to stop and ends within about two minutes.</p>
+        <p v-else-if="unfinished(opened) && opened.machine?.label" class="field-help" role="status">{{ opened.machine.label }}</p>
         <p v-if="opened.failure" class="field-error">{{ opened.failure }}</p>
         <dl class="llm-facts">
           <dt>Dataset</dt><dd>{{ opened.dataset_version }}</dd>
           <dt>Base model</dt><dd>{{ opened.base_model }}{{ opened.parent ? `, starting from ${opened.parent}` : '' }}</dd>
           <dt>Configuration</dt><dd>{{ opened.config_name }}: {{ configSummary(opened.config_given) }}</dd>
-          <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
+          <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress?.training_rows != null ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
           <dt>Loss</dt><dd>{{ opened.metrics?.train_loss != null ? `training ${opened.metrics.train_loss.toFixed(3)}` : '—' }}{{ opened.metrics?.eval_loss != null ? `, validation ${opened.metrics.eval_loss.toFixed(3)}` : '' }}</dd>
           <dt>Model</dt><dd>{{ opened.model || 'none yet' }}</dd>
         </dl>
-        <RunProvenance :used="opened.used" :cost="opened.cost" what="run"/>
+        <RunProvenance :used="opened.used" :cost="opened.cost" :machine="opened.machine" what="run"/>
         <h3>Attempts</h3>
         <AttemptsTable :attempts="opened.attempts || []" :caption="`The attempts of run ${opened.number}`" empty="No attempt yet: the run waits for a machine."/>
         <h3>Log</h3>

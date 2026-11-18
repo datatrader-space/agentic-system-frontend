@@ -12,6 +12,8 @@ const CONFIGURED = {
   // A connector binding is only useful once it knows WHICH provider and WHICH account;
   // filters are genuinely optional (no filters = every event of this type).
   'trigger.connector': (d) => !!(d.provider && d.connection),
+  // A camera event knows which camera; a rule is optional (no rule = any rule of the camera).
+  'trigger.training.stream_event': (d) => Number(d.source) > 0,
   'agent.run': (d) => !!(d.agent_id && (d.prompt || '').trim()),
   'action.tool': (d) => !!d.tool,
   'action.mcp_tool': (d) => !!(d.agent_id && d.server_id && d.tool_name),
@@ -52,6 +54,9 @@ export function nodeConfigPreview(type, data) {
     if (type === 'trigger.schedule') return d.cron ? `cron ${d.cron}` : ''
     if (type === 'trigger.channel') return [d.platform, d.channel].filter(Boolean).join(' · ')
     if (type === 'trigger.webhook') return 'inbound HTTP'
+    if (type === 'trigger.training.stream_event') {
+      return [d.source_name || (d.source ? `camera ${d.source}` : ''), d.rule ? `rule ${d.rule}` : ''].filter(Boolean).join(' · ')
+    }
     if (type === 'trigger.connector') {
       const n = Object.keys(d.filters || {}).length
       return [d.provider, d.event_type, n ? `${n} filter${n > 1 ? 's' : ''}` : '']

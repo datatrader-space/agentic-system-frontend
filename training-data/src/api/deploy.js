@@ -6,10 +6,12 @@ import { apiFetch } from './client.js';
 const enc = encodeURIComponent;
 const base = ref => `/training-data/app/projects/${enc(ref)}/deploy`;
 const SLOW = 60000;   // these answers look at endpoints and the serving runtime
+export const DEPLOY_MS = 120000;
 
 export const deployApi = {
   load: ref => apiFetch(`${base(ref)}/`, { timeoutMs: SLOW }),
-  act: (ref, environment, action, body = {}) => apiFetch(`${base(ref)}/${enc(environment)}/${action}/`, { method: 'POST', body, timeoutMs: SLOW }),
+  // A deploy starts the endpoint before it answers (20 to 30 s on a GPU host, live 2026-11-17): it is given longer.
+  act: (ref, environment, action, body = {}) => apiFetch(`${base(ref)}/${enc(environment)}/${action}/`, { method: 'POST', body, timeoutMs: ['deploy', 'rollback'].includes(action) ? DEPLOY_MS : SLOW }),
   addApp: (ref, name) => apiFetch(`${base(ref)}/apps/`, { method: 'POST', body: { name }, timeoutMs: SLOW }),
   app: (ref, id, action, body = {}, item = null) =>
     apiFetch(`${base(ref)}/apps/${enc(id)}/${action}/${item === null ? '' : `${enc(item)}/`}`, { method: 'POST', body, timeoutMs: SLOW }),

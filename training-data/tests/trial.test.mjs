@@ -25,3 +25,14 @@ test('a label sits in the middle of its points, and confidence reads as a percen
   assert.equal(percent(null), '—');
   assert.deepEqual(Object.keys(VERDICTS), ['success', 'low_confidence', 'no_detection']);
 });
+
+// Live, 2026-11-17: the slider went down to 0% while the server sends nothing under the model's floor (60%).
+test('the slider starts at the least confidence the model sends back', async () => {
+  const { confidenceFloor, START_MS } = await import('../src/api/trial.js');
+  assert.equal(confidenceFloor({ detection_floor: 0.6 }), 0.6);
+  assert.equal(confidenceFloor({ detection_floor: null }), 0);
+  assert.equal(confidenceFloor({ detection_floor: 'x' }), 0);
+  assert.equal(confidenceFloor({ detection_floor: 1.5 }), 0);
+  assert.equal(confidenceFloor(null), 0);
+  assert.ok(START_MS >= 120000);                                      // a test server's start rents its machine first
+});

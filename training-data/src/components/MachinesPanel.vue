@@ -89,7 +89,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(checkTime
     <div v-else-if="data && !machines.length" class="empty-state machines-empty">
       <Server :size="28" aria-hidden="true"/>
       <h2>No machines yet</h2>
-      <p v-if="data.available">Add a machine to train models or run them on your own hardware. No AADML machine is paid for while it works.</p>
+      <p v-if="data.available">Add a machine to train models or run them on your own hardware. AADML charges its platform fee, by the second, while it works for you.</p>
       <p v-else>Your machines will train models and run them on your own hardware. You can add one once the images they run are published.</p>
     </div>
     <ul v-else class="machine-list">

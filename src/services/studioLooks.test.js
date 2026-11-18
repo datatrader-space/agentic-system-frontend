@@ -8,9 +8,9 @@ import { composePreset, presetsFor } from './studioPresets'
 import { getStudioFeature } from './studioFeatures'
 
 describe('Approved Studio look presentation', () => {
-  it('covers all 23 creative tools with 69 unique looks that carry no media of their own', () => {
-    expect(studioLooks).toHaveLength(69)
-    expect(new Set(studioLooks.map(look => look.id)).size).toBe(69)
+  it('covers all 23 creative tools with 74 unique looks that carry no media of their own', () => {
+    expect(studioLooks).toHaveLength(74)
+    expect(new Set(studioLooks.map(look => look.id)).size).toBe(74)
     expect(new Set(studioLooks.map(look => look.feature)).size).toBe(23)
     for (const look of studioLooks) {
       expect(getStudioFeature(look.feature)).toBeTruthy()
@@ -22,6 +22,14 @@ describe('Approved Studio look presentation', () => {
       expect(composePreset(look)).not.toMatch(/\{[^}]+\}/)
       expect(presetsFor(look.feature).some(preset => preset.id === look.id)).toBe(true)
     }
+  })
+  it('the ADM-1265 looks open their recipe, set the Cinema v2 controls, or make the video faceless', () => {
+    const byId = Object.fromEntries(studioLooks.map(look => [look.id, look]))
+    expect(['effects-look-outpaint', 'effects-look-skin', 'effects-look-shots'].map(id => [byId[id].feature, byId[id].recipe])).toEqual([['effects', 'outpaint'], ['effects', 'skin'], ['effects', 'shots']])
+    expect(byId['effects-look-outpaint'].recipeOptions).toEqual({ shape: '9:16', fill: 'the scene as it continues' })
+    expect(byId['cinema-look-noir'].cinema).toEqual({ genre: 'noir', era: '1970s-film', speed_ramp: 'slow-out' })
+    expect([byId['explainer-look-faceless'].feature, byId['explainer-look-faceless'].faceless]).toEqual(['explainer', true])
+    expect(studioLooks.filter(look => look.recipe).every(look => look.feature === 'effects')).toBe(true)
   })
   it('retains existing server-recognized preset identifiers separately from client-only looks', () => {
     expect(presetsFor('image').find(preset => preset.id === 'tabletop-product')?.clientOnly).toBeUndefined()

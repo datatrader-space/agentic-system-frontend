@@ -73,3 +73,17 @@ it('places inputs before output below 1024 px and focuses the first required emp
   expect(document.activeElement).toBe(w.get('[data-studio-required-empty="true"]').element)
   w.unmount()
 })
+
+it('fits the agent tool row on a phone with nothing cut: two rows at 480 px and narrower (live 2026-11-17)', () => {
+  // At 375 px "Manual" was cut to "Manu" and the preset select showed "Your own i" in a larger font.
+  const phone = source.slice(source.indexOf('@media(max-width:480px){'))
+  expect(phone).toMatch(/:deep\(\.st-tool-options\)\{grid-template-columns:minmax\(0,1fr\)\}/)
+  expect(phone).toMatch(/:deep\(\.st-tool-options\)\{padding-right:0\}/)
+  expect(phone).toMatch(/:deep\(\.st-tool-options \.sm-switch\)\{width:calc\(100% - 96px\)\}/)
+  // Up to 1023 px: the switch at its own width, the select takes the rest, both 44 px, the select in the row's type
+  // size except on a touch screen (16 px, so iOS does not zoom).
+  expect(source).toContain('.st-page-agent :deep(.st-tool-options){display:grid;grid-template-columns:auto minmax(0,1fr);')
+  expect(source).toContain('.st-page-agent :deep(.st-tool-options .sps select){min-height:44px;font-size:12px;')
+  expect(source).toContain('@media(pointer:coarse){.st-page-agent :deep(.st-tool-options .sps select){font-size:16px}}')
+  expect(source).toMatch(/\.st-tool-options \.sm-switch button\)\{[^}]*white-space:nowrap/)
+})

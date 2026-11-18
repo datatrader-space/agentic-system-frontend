@@ -25,7 +25,7 @@ export const studioFeatures = shallowRef([
   entry('editor', 'Story', 'Editor', 'editor', 'live', 'P3', 'Arrange video, sound and captions on a multitrack timeline.', 'edit'),
   entry('ads', 'Marketing', 'Ads Studio', 'ads', 'live', 'P4', 'Turn a brand brief into concepts you can review and develop.', 'marketing'),
   entry('marketing', 'Marketing', 'Product videos', 'marketing', 'live', 'P4', 'Build a product story around a showcase, demonstration or unboxing.', 'marketing'),
-  entry('ad-remix', 'Marketing', 'Ad remix', 'ad-remix', 'live', 'P4', 'Explore a different opening or call to action for a reference ad.', 'swap'),
+  entry('ad-remix', 'Marketing', 'Ad remix', 'ad-remix', 'live', 'P4', 'Restyle a whole reference ad, move it to a new setting or swap in your product.', 'swap'),
   entry('avatar', 'Avatars & shorts', 'Talking avatar', 'avatar', 'live', 'P5', 'Bring a consenting presenter or fictional character to a script.', 'person'),
   entry('lipsync', 'Avatars & shorts', 'Lip-sync', 'lipsync', 'live', 'P5', 'Match a consenting subject in footage to a supplied voice track.', 'audio'),
   entry('shorts', 'Avatars & shorts', 'Shorts from footage', 'shorts', 'live', 'P5', 'Choose useful moments from longer footage and assemble short clips.', 'video'),

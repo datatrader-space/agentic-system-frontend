@@ -56,3 +56,11 @@ it('keeps title, description and category hierarchy at desktop and phone sizes',
   expect(source).toContain('.pg-title{font-size:15px}.pg-description{font-size:13px}')
   w.unmount()
 })
+it('a card is named by what it shows, title first (label in name, plan section 3 item 7)', () => {
+  const w = mount(PresetGallery, { props: { presets, selected: 'a' } })
+  const card = w.get('.pg-card')
+  expect(card.attributes('aria-label')).toBe('A quiet object: A product study')
+  expect(card.text()).toContain('A quiet object')
+  expect(card.attributes('aria-pressed')).toBe('true')
+  w.unmount()
+})

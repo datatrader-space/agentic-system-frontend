@@ -114,8 +114,8 @@
                   <input v-model="cloneBranch" class="lc-byurl-in br" type="text" spellcheck="false" autocomplete="off"
                          placeholder="Branch (optional)" aria-label="Branch (optional)" :disabled="!!cloningUrl" />
                   <button type="submit" class="lc-btn" :disabled="!!cloningUrl || !cloneUrl.trim()">
-                    <Icon :icon="cloningUrl === cloneUrl.trim() ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningUrl === cloneUrl.trim() }" />
-                    {{ cloningUrl === cloneUrl.trim() ? 'Cloning' : 'Clone' }}
+                    <Icon :icon="cloningByAddress ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningByAddress }" />
+                    {{ cloningByAddress ? 'Cloning' : 'Clone' }}
                   </button>
                 </div>
                 <p v-if="cloneUrlError" class="lc-byurl-err" role="alert">{{ cloneUrlError }}</p>
@@ -158,7 +158,7 @@
     <!-- ============================ WORKSPACE ============================ -->
     <div v-else class="lc-ide" :data-theme="ideTheme">
       <div class="ide-bar">
-        <button type="button" class="ide-back" @click="onBackToProjects"><Icon icon="lucide:chevron-left" /> Projects</button>
+        <button type="button" class="ide-back" title="Projects" @click="onBackToProjects"><Icon icon="lucide:chevron-left" aria-hidden="true" /> <span class="ide-back-t">Projects</span></button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
         <span v-if="active.is_new" class="ide-branch off" title="Branches come with GitHub: publish the project from Source control">
           <Icon icon="lucide:git-branch" aria-hidden="true" /> {{ active.branch || 'main' }}
@@ -230,6 +230,8 @@ import { confirm } from '@/composables/useConfirm'
 import { connectGithubService, disconnectGithubService } from '@/composables/useGithubConnect'
 import { usePoller } from '@/composables/usePoller'
 import { reconnectingSocket } from '@/utils/reconnectingSocket'
+import { notifyProjectJob, isFollowed } from '@/services/projectJobs'
+import { saveBlob, filenameFrom } from '@/utils/saveBlob'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { useIdeTheme } from '@/composables/useIdeTheme'
 import { cloneRequest } from '@/utils/cloneByUrl'
@@ -441,12 +443,16 @@ async function disconnectGithub() {
 const cloneUrl = ref('')
 const cloneBranch = ref('')
 const cloneUrlError = ref('')
+// The address form's own clone is running. Its button compared `cloningUrl` with the typed address, and idle with
+// the box empty both are '', so it said "Cloning" with a spinner while nothing ran (ADM-1128, 2026-11-17).
+const cloningByAddress = ref(false)
 async function cloneByUrl() {
   cloneUrlError.value = ''
   const req = cloneRequest(cloneUrl.value, cloneBranch.value)
   if (req.error) { cloneUrlError.value = req.error; return }
   if (cloningUrl.value) return
   cloningUrl.value = req.body.github_url
+  cloningByAddress.value = true
   try {
     const { data } = await api.createProject(req.body)
     cloneUrl.value = ''
@@ -457,7 +463,7 @@ async function cloneByUrl() {
     const d = e?.response?.data || {}
     if (d.github_not_connected) { ghNotConnected.value = true; cloneUrlError.value = 'Connect GitHub first.' }
     else cloneUrlError.value = d.error || 'The repository could not be cloned.'
-  } finally { cloningUrl.value = '' }
+  } finally { cloningUrl.value = ''; cloningByAddress.value = false }
 }
 
 async function cloneRepo(r) {
@@ -508,6 +514,7 @@ const ws = reconnectingSocket({
       else if (msg.event === 'fs_changed' && msg.data) codeBrowser.value?.onFilesChanged?.(msg.data)
       else if (msg.event === 'watch' && msg.data) onWatchState(msg.data)
       else if (msg.event === 'agent_command' && msg.data) agentCommands.value = [...agentCommands.value, msg.data]
+      else if (msg.event === 'job' && msg.data) notifyProjectJob(msg.data)
     } catch { /* ignore malformed frames */ }
   },
 })
@@ -554,6 +561,37 @@ function connectWs() {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = import.meta.env.VITE_WS_HOST || window.location.host
   ws.connect(() => `${proto}//${host}/ws/lets-code/${repoId}/`)
+  resumeProjectJobs()
+}
+
+// THE LONG BUTTONS KEEP RUNNING (ADM-1269). Check project, commit, push, pull, publish, a pull request, a download
+// and a backup run as background jobs. A page opened again while one runs follows it: the person is told it is still
+// running and when it ends; Check project's problems reach the Problems tab and a download is saved.
+const JOB_LABELS = { check: 'Check project', commit: 'The commit', push: 'The push', pull: 'The pull',
+  publish: 'Publishing', pull_request: 'The pull request', download: 'The download', backup: 'The backup' }
+async function resumeProjectJobs() {
+  const a = active.value
+  if (!a?.repo_id || !a.system_id) return
+  let jobs = []
+  try { jobs = (await api.getRunningProjectJobs(a.system_id, a.repo_id)).data?.jobs || [] } catch { return }
+  for (const job of jobs) if (!isFollowed(job.id)) followResumedJob(a, job)
+}
+async function followResumedJob(a, job) {
+  const label = JOB_LABELS[job.kind] || 'A job'
+  if (job.kind === 'check') { languages.check(job); return }
+  notify.info(`${label} is still running. You will be told when it ends.`)
+  const stillHere = () => active.value?.repo_id === a.repo_id
+  try {
+    const { data } = await api.waitForProjectJob(a.system_id, a.repo_id, job, { isCancelled: () => !stillHere() })
+    if (job.kind === 'download' || job.kind === 'backup') {
+      const file = await api.getProjectJobFile(a.system_id, a.repo_id, job.id)
+      saveBlob(file.data, filenameFrom(file.headers, data?.name || 'download'))
+    }
+    notify.success(`${label} finished.`)
+    if (stillHere()) codeBrowser.value?.refresh?.()
+  } catch (e) {
+    if (e?.name !== 'AbortError') notify.error(e?.response?.data?.error || `${label} did not finish.`)
+  }
 }
 function closeWs() { ws.close() }
 
@@ -893,6 +931,9 @@ onBeforeUnmount(() => {
   .lc-ide { height: auto; min-height: 100%; }
   .ide-main { flex-direction: column; }
   .ide-left { min-height: 70vh; }
+  /* The editor fills its area. Here the area's height comes from flex, so the editor's own `height: 100%` resolved to
+     its content: at 375 px, one pane at a time, the editor was 63 px tall in a 354 px area (ADM-1128, 2026-11-17). */
+  .ide-editor > :deep(.code-browser) { position: absolute; inset: 0; height: auto; }
   .ide-gh { margin-left: 0; }
 }
 @media (max-width: 640px) {
@@ -909,6 +950,22 @@ onBeforeUnmount(() => {
   .proj-del { margin-left: auto; }
   .ide-gh-t { display: none; }
   .ide-proj { max-width: 100%; }
+  /* The header in two rows, not three (ADM-1267, 2026-11-17: 165 px of an 812 px screen at 375 px). Row one: back,
+     the project, its status, the editor theme. Row two: the branch, then GitHub, Commands, Variables, Deploy. The
+     zero-height item is the break between them; wider screens keep one bar. */
+  .ide-bar { gap: 6px; padding: 6px 8px; }
+  .ide-bar::after { content: ''; order: 5; flex: 0 0 100%; height: 0; }
+  .ide-back { order: 1; min-width: 44px; justify-content: center; padding: 0 6px; }
+  .ide-back-t { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .ide-proj { order: 2; flex: 1 1 0; }
+  .ide-bar > .lc-pill { order: 3; }
+  .ide-theme { order: 4; }
+  .ide-branch { order: 6; flex: 1 1 0; min-width: 0; }
+  .ide-branch select { min-width: 0; width: 100%; }
+  .ide-gh { order: 7; }
+  .ide-bar > .pc { order: 8; }
+  .ide-bar > .pe { order: 9; }
+  .ide-bar > .dp { order: 10; }
 }
 @media (prefers-reduced-motion: reduce) {
   .spin, .lc-skel::after { animation: none; }

@@ -3,6 +3,9 @@
     <header><h2>Keep the version you like.</h2><p class="st-muted">Earlier {{ kind === 'image' ? 'pictures' : 'video takes' }} stay in this conversation, newest first. Choosing one makes it the active {{ kind }}: it is free and makes nothing new.</p></header>
     <button v-if="kind === 'video' && playable.length" type="button" class="st-button" @click="openPreview">{{ playable.length > 1 ? 'Preview and compare takes' : 'Preview this take' }}</button>
     <div v-if="kind === 'video' && showPreview && versions.length"><button type="button" class="st-button" @click="showPreview = false">Close preview</button><VideoPanel bare /></div>
+    <!-- Pictures compare side by side in the Studio's media viewer; the arrows step through the versions in pairs. -->
+    <button v-if="kind === 'image' && playable.length" type="button" class="st-button" data-test="versions-compare-pictures" @click="pictureIndex = 0">{{ playable.length > 1 ? 'Preview and compare pictures' : 'Preview this picture' }}</button>
+    <MediaViewer v-if="kind === 'image' && pictureIndex >= 0 && pictures[pictureIndex]" :items="pictures" v-model:index="pictureIndex" :compare="pictures.length > 1" @close="pictureIndex = -1" @leave="pictureIndex = -1" />
     <p v-if="loading && !versions.length" class="st-status" role="status">Loading versions…</p>
     <p v-else-if="meta.error && !versions.length" class="st-error" role="alert" data-test="versions-error">{{ meta.error }} <button type="button" class="st-button" @click="load()">Try again</button></p>
     <p v-else-if="!versions.length" class="st-empty"><strong>{{ kind === 'image' ? 'No image versions yet.' : 'No video takes yet.' }}</strong>Your completed media stays in My results and Library. Every {{ kind === 'image' ? 'picture' : 'take' }} made in this conversation is listed here.</p>
@@ -19,6 +22,7 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { lazyComponent } from '../../utils/lazyComponent'
 import MediaThumb from '../common/MediaThumb.vue'
 const VideoPanel = lazyComponent(() => import('../video/VideoPanel.vue'))
+const MediaViewer = lazyComponent(() => import('../video/MediaViewer.vue'))
 // type: 'video' | 'image'. Without one, the Image page (…/image) lists pictures and every other page video takes.
 const props = defineProps({ type: { type: String, default: '' } })
 const route = useRoute()
@@ -29,7 +33,11 @@ const versions = computed(() => owned.value ? ((kind.value === 'image' ? video.i
 const meta = computed(() => (owned.value && video.versionsMeta?.[kind.value]) || {})
 const loading = computed(() => !!meta.value.loading)
 const showPreview = ref(false), playable = computed(() => versions.value.filter(version => version.url))
-watch(() => chat.conversationId, () => { showPreview.value = false })
+// The picture versions as the media viewer shows them, newest first, each named by its version.
+const pictureIndex = ref(-1)
+const pictures = computed(() => playable.value.map(version => ({ ...version, media_type: 'image', source: 'generated',
+  title: `${version.title || 'Picture'}, version ${version.version || 1}${version.is_active ? ' (active)' : ''}` })))
+watch(() => chat.conversationId, () => { showPreview.value = false; pictureIndex.value = -1 })
 function openPreview() { if (!playable.value.length) return; video.previewAttachmentId = playable.value[0].attachment_id; video.compareAttachmentId = playable.value[1]?.attachment_id || null; video.panelTab = 'preview'; showPreview.value = true }
 function load(more = false) { if (owned.value) return video.loadVersions({ type: kind.value, more }) }
 watch(() => [chat.conversationId, kind.value], () => load(), { immediate: true })

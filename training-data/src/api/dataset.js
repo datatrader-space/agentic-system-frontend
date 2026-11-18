@@ -38,6 +38,26 @@ export async function loadVersions(store) {
   return body;
 }
 
+// What a version is for, in the words the new-version form's "Version purpose" shows.
+export const PURPOSES = { train_val: 'Training / validation', test: 'Test evaluation only', golden: 'Golden evaluation only', smoke: 'Smoke check' };
+const EVALUATION_ONLY = ['test', 'golden'];
+
+// Whether a version can be trained on, so its card offers "Use for training": never a test or golden version (they are
+// for evaluation only; live, 2026-11-17: a test version still offered it), else as the server's kinds say.
+export function forTraining(version, kinds) {
+  if (!version || EVALUATION_ONLY.includes(version.kind)) return false;
+  return !!(kinds || []).find(k => k.value === version.kind)?.training;
+}
+
+// The Source step's line: how many photos can go into a version of THIS purpose (the preview is asked per purpose;
+// live, 2026-11-17: it said 9 for a test version that held 3). null while the count for this purpose is not in.
+export function sourceLine(preview, purpose) {
+  if (!preview || (preview.kind && preview.kind !== purpose)) return null;
+  const words = PURPOSES[purpose] || purpose;
+  const n = Number(preview.photos) || 0;
+  return `${n} photo${n === 1 ? '' : 's'} with an approved label can go into a ${words} version (${Number(preview.new) || 0} new since ${preview.latest || 'the start'}).`;
+}
+
 export const datasetApi = {
   tag: (ref, photos, body) => post(`${base(ref)}/photos/tags/`, { photos, ...body }),
   golden: (ref, photo, golden) => post(`${base(ref)}/photos/${enc(photo)}/golden/`, { golden }),

@@ -14,6 +14,7 @@ vi.mock('../../composables/useNotify', () => ({
 
 import api from '../../services/api'
 import VideoJobCard from './VideoJobCard.vue'
+import cardSource from './VideoJobCard.vue?raw'
 
 const base = {
   job_id: 'j1', operation: 'generate', model: 'kwaivgi/kling-v3.0-pro', conversation_id: 'c1',
@@ -201,6 +202,48 @@ describe('VideoJobCard', () => {
     // Outside the Studio a picture offers no "Open in Video Studio": only a video does.
     const outside = mount(VideoJobCard, { props: { job: picture } })
     expect(outside.findAll('button').some((b) => b.text() === 'Open in Video Studio')).toBe(false)
+  })
+
+  it("shows a result by the file's own media type, never by the operation name (live 2026-11-17)", () => {
+    // A frame saved from a video (the job's modality is video) is a PNG: a picture with alt text, not a player at 0:00.
+    const frame = { ...base, operation: 'frame', modality: 'video', state: 'ready', conversation_id: null,
+                    origin: { label: 'From MCP: Claude' }, references: [], effective_config: {},
+                    output: { attachment_id: 'f1', url: '/media/f1', media_type: 'image', mime_type: 'image/png' } }
+    const w = mount(VideoJobCard, { props: { job: frame, inStudio: true } })
+    expect(w.find('video').exists()).toBe(false)
+    expect(w.find('img').attributes('alt')).toBe('Saved frame')
+    // A video stays a video even when the job's modality says otherwise.
+    const clip = mount(VideoJobCard, { props: { job: { ...frame, operation: 'trim', modality: 'image',
+                                                       output: { attachment_id: 'v1', url: '/media/v1', media_type: 'video' } } } })
+    expect(clip.find('video').exists()).toBe(true)
+    expect(clip.find('img').exists()).toBe(false)
+  })
+
+  it('never asks for a thumbnail of a caption file or a sound; it shows a type icon (live 2026-11-17)', () => {
+    // A captions job: the video, then its WebVTT file as an extra result (the API sends extras with no media type).
+    const captions = { ...base, operation: 'caption', modality: 'video', state: 'ready', references: [],
+                       output: { attachment_id: 'v', url: '/media/v.mp4', media_type: 'video', thumbnail_url: '/api/library/v/thumbnail/' },
+                       extra_outputs: [{ attachment_id: 'cap', url: '/media/v.vtt', version: 1, thumbnail_url: null }] }
+    const w = mount(VideoJobCard, { props: { job: captions, inStudio: true } })
+    expect(w.html()).not.toContain('/api/library/cap/thumbnail/')
+    expect(w.find('.vjc-extras [data-test="media-thumb-file"]').exists()).toBe(true)
+    // A caption job whose output itself is the caption file is a link, with no thumbnail request.
+    const vtt = mount(VideoJobCard, { props: { job: { ...captions, extra_outputs: [],
+                                                     output: { attachment_id: 'c2', url: '/media/c2.vtt', media_type: 'other', mime_type: 'text/vtt' } } } })
+    expect(vtt.find('video').exists()).toBe(false)
+    expect(vtt.find('a[href="/media/c2.vtt"]').text()).toBe('Open the captions')
+    expect(vtt.html()).not.toContain('/thumbnail/')
+    // A sound plays in an audio player sized to the card, with no thumbnail.
+    const music = mount(VideoJobCard, { props: { job: { ...captions, operation: 'music', modality: 'audio', extra_outputs: [],
+                                                       output: { attachment_id: 's', url: '/media/s.mp3', media_type: 'audio' } } } })
+    expect(music.find('audio.vjc-audio').exists()).toBe(true)
+    expect(music.html()).not.toContain('/thumbnail/')
+  })
+
+  it('no player widens the card past the Jobs tray at phone width (live 2026-11-17, 375 px)', () => {
+    // An <audio> is 300 px wide by default; it widened the card's column and the tray scrolled sideways.
+    expect(cardSource).toMatch(/\.vjc \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
+    expect(cardSource).toMatch(/\.vjc-audio \{ width: 100%/)
   })
 
   it('a job with no chat says where it came from, in the server\'s words (ADM-1247)', () => {

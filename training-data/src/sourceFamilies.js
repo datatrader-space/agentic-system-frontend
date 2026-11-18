@@ -91,6 +91,22 @@ export function detailAt(source, place) {
   return vision ? `${vision}, then ${onMachine}` : onMachine;
 }
 
+// What asking a source about one photo costs, in words; '' when its words say nothing of a price. A foundation model
+// (``platform``) and SAM 3 on a machine say their price; a model of this project or one AADML runs as published says
+// where it comes from instead (editor.detect_sources: "As AADML published it, ..."), which is not a price (live,
+// 2026-11-17: "Each photo is charged to you:" was followed by those words).
+export function costAt(source, place) {
+  if (!source) return '';
+  return place || source.platform ? detailAt(source, place) : '';
+}
+
+// What a source does and where it runs, as sentences: its ``what``, then ``detailAt``, each ending in a full stop and
+// with a space between them (live, 2026-11-17: "...the model drew.As AADML published it").
+export function aboutAt(source, place) {
+  return [source?.what, detailAt(source, place)].map(text => String(text || '').trim()).filter(Boolean)
+    .map(text => (/[.!?]$/.test(text) ? text : `${text}.`)).join(' ');
+}
+
 // The SAM License was accepted for the workspace: every machine waiting for it is ready, in every source.
 export function licenceAccepted(sources) {
   for (const source of sources || []) {

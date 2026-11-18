@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts, settingsUnsaved } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts, settingsUnsaved, trainingMachinesQuery } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -200,4 +200,23 @@ test('preparation settings shown but never saved, or changed since, are saved be
   assert.equal(settingsUnsaved({ base_model: 'qwen2.5-0.5b-instruct', max_length: 1024, version: 1 }, shown), false);
   assert.equal(settingsUnsaved({ base_model: 'smollm2-135m-instruct', max_length: 1024, version: 1 }, shown), true);
   assert.equal(settingsUnsaved({ base_model: 'qwen2.5-0.5b-instruct', max_length: 512, version: 2 }, shown), true);
+});
+
+test('the GPUs a chat run is offered are asked for with the settings its memory follows', () => {
+  // ADM-1172: the backend holds a GPU to what THIS run takes (its configuration's batch and length, its method).
+  const asked = new URLSearchParams(trainingMachinesQuery(3, { config: 'baseline-gpu', method: 'dpo', parent: 2 }).replace(/^\?/, ''));
+  assert.equal(asked.get('dataset_version'), '3');
+  assert.equal(asked.get('config'), 'baseline-gpu');
+  assert.equal(asked.get('method'), 'dpo');
+  assert.equal(asked.get('parent'), '2');
+  assert.equal(new URLSearchParams(trainingMachinesQuery(3, { config: 'smoke-gpu', method: 'sft', parent: '' }).replace(/^\?/, '')).has('parent'), false);
+});
+
+test('a machine getting a training job ready says what comes down and how far', async () => {
+  const { readyText, progressLine } = await import('../src/api/train.js');
+  assert.equal(readyText({ phase: 'downloading', part: 'image', done_bytes: 1.2e9, total_bytes: 8.6e9 }), 'Downloading the training image: 1.2 of 8.6 GB');
+  assert.equal(readyText({ phase: 'downloading', part: 'files', done_bytes: 0, total_bytes: 0 }), 'Downloading the base model and data');
+  assert.equal(readyText({ phase: 'starting' }), 'Starting the training on your machine');
+  assert.equal(readyText({ phase: 'training', steps: 3, steps_done: 1 }), null);
+  assert.equal(progressLine({ phase: 'downloading', part: 'image', done_bytes: 5, total_bytes: 10 }).share, 0.5);
 });

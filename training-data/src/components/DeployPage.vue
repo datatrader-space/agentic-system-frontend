@@ -15,15 +15,16 @@ import UiDialog from './UiDialog.vue';
 import ApprovalDialog from './ApprovalDialog.vue';
 import { deployApi, snippet, liveTag } from '../api/deploy.js';
 import { modelsApi, unanswered } from '../api/models.js';
-import { workspaceApi, AADML_CHAT } from '../api/workspace.js';
+import { workspaceApi, AADML_CHAT, focusDeploymentsTab } from '../api/workspace.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
-// The Developer Quick Start's deploy options, laid out as Roboflow's (owner, 2026-10-21). Only the Cloud API is
-// AADML's today; every other option is shown and says Coming soon.
+// The Developer Quick Start's deploy options, laid out as Roboflow's (owner, 2026-10-21). The Cloud API is here; Cloud
+// Streaming works on the workspace's Deployments page (``elsewhere``: linked there, live 2026-11-17 it said Coming soon
+// here while it worked there); every other option is shown and says Coming soon.
 const OPTIONS = [
   { id: 'cloud', name: 'Cloud API', icon: Cloud },
-  { id: 'streaming', name: 'Cloud Streaming', icon: Radio, soon: 'Point the model at a live video stream and receive its answers while the video plays.' },
+  { id: 'streaming', name: 'Cloud Streaming', icon: Radio, tab: 'streaming', elsewhere: 'Point a model at a video file or a live stream and download what it finds in its frames. It is set up for the whole workspace, on the Deployments page.' },
   { id: 'mcp', name: 'MCP', icon: Plug, soon: 'Let an AI assistant, such as an AADML agent or Claude, call the model as a tool.' },
   { id: 'batch', name: 'Batch Processing', icon: Layers, soon: 'Run the model over a whole folder of photos at once and download what it found.', group: 2 },
   { id: 'dedicated', name: 'Dedicated Deployment', icon: Server, soon: 'The model on servers of its own, kept for your apps only and sized for steady traffic.', group: 2 },
@@ -62,7 +63,13 @@ async function run(call, after) {
     return false;
   } finally { busy.value = false; }
 }
-const deploy = env => run(() => deployApi.act(props.projectRef, env.key, 'deploy', { model: chosen.value[env.key] }));
+// Deploying starts its endpoint before AADML answers (20 to 30 s, live 2026-11-17): the button says so meanwhile.
+const deploying = ref('');
+async function deploy(env) {
+  deploying.value = env.key;
+  try { await run(() => deployApi.act(props.projectRef, env.key, 'deploy', { model: chosen.value[env.key] })); } finally { deploying.value = ''; }
+}
+function openWorkspaceTab(o) { focusDeploymentsTab(o.tab); emit('navigate', 'deployments'); }
 const cancel = env => run(() => deployApi.act(props.projectRef, env.key, 'cancel'));
 const goingBack = ref(null); const backTo = ref(null); const stopping = ref(null);
 async function stopEnv() { const env = stopping.value; if (await run(() => deployApi.act(props.projectRef, env.key, 'stop'))) stopping.value = null; }
@@ -161,6 +168,12 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
                 <pre class="code-block">{{ code }}</pre>
                 <p class="deploy-meta">The file is a JPEG, PNG or WebP room photo of at most {{ data.max_mb }} MB; the photo is not kept. The answer is an fmw-predict.v1 document that names the model version and revision that made it. An app needs a key and access to the environment (Apps, below).</p>
               </template>
+              <div v-else-if="chosenOption.elsewhere" class="option-soon">
+                <span class="soon-icon"><component :is="chosenOption.icon" :size="24"/></span>
+                <h3>{{ chosenOption.name }}</h3>
+                <p>{{ chosenOption.elsewhere }}</p>
+                <UiButton variant="primary" @click="openWorkspaceTab(chosenOption)"><component :is="chosenOption.icon" :size="15"/> Open {{ chosenOption.name }}</UiButton>
+              </div>
               <div v-else class="option-soon">
                 <span class="soon-icon"><component :is="chosenOption.icon" :size="24"/></span>
                 <h3>{{ chosenOption.name }} <UiBadge tone="purple">Coming soon</UiBadge></h3>
@@ -205,7 +218,8 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
                 <template v-else>
                   <template v-if="env.deployable.length">
                     <select v-model.number="chosen[env.key]" class="text-input compact" :aria-label="`Model to deploy to ${env.label.toLowerCase()}`"><option v-for="m in env.deployable" :key="m.number" :value="m.number">{{ m.name }} {{ m.version }}{{ m.smoke ? ' (smoke)' : '' }}</option></select>
-                    <UiButton variant="primary" :disabled="busy||!!data.serving_refused" @click="deploy(env)"><Upload :size="14"/> Deploy to {{ env.label.toLowerCase() }}</UiButton>
+                    <UiButton variant="primary" :disabled="busy||!!data.serving_refused" @click="deploy(env)"><Upload :size="14"/> {{ deploying===env.key ? 'Deploying…' : `Deploy to ${env.label.toLowerCase()}` }}</UiButton>
+                    <span v-if="deploying===env.key" class="deploy-meta" role="status">Starting its endpoint: this can take 20 to 30 seconds.</span>
                   </template>
                   <span v-else class="deploy-meta">No model has an approval for {{ env.label.toLowerCase() }}.{{ env.key==='production' ? ' Production needs a release approval.' : '' }}</span>
                   <UiButton v-if="env.earlier.length" :disabled="busy" @click="askBack(env)"><RotateCcw :size="14"/> Go back to an earlier version…</UiButton>

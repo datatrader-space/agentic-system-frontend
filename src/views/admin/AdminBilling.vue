@@ -109,6 +109,11 @@
                     <div><dt>Tokens</dt><dd>{{ c.prompt_tokens }} in · {{ c.completion_tokens }} out</dd></div>
                     <div><dt>Money</dt><dd>cost ${{ c.provider_cost_usd ?? '—' }} × markup {{ c.markup ?? '—' }} = {{ c.amount_usd }}</dd></div>
                     <div v-if="c.reason"><dt>Reason</dt><dd>{{ c.reason }}<template v-if="c.actor_id"> (by user {{ c.actor_id }})</template></dd></div>
+                    <div v-if="c.kind === 'charge' && c.video_job_id" data-test="render-refund"><dt>Render refund</dt><dd>
+                      <template v-if="c.render_credit">${{ c.render_credit.amount_usd }} refunded to the balance by user {{ c.render_credit.actor_id }} on {{ when(c.render_credit.created_at) }}: {{ c.render_credit.reason }}</template>
+                      <template v-else>Video job <code>{{ c.video_job_id }}</code>
+                        <button class="btn sm refund-open" type="button" data-test="render-refund-open" @click.stop="openRefund(c)">Refund to balance…</button></template>
+                    </dd></div>
                   </dl>
                 </td>
               </tr>
@@ -120,6 +125,36 @@
       <button v-if="chargesNext" class="btn ghost more" type="button" :disabled="chargesMoreLoading" @click="moreCharges">{{ chargesMoreLoading ? 'Loading…' : 'Show older' }}</button>
       </div>
     </section>
+
+    <!-- Refund a poor render (ADM-1260): at most what the job charged, once per job, with a written reason. -->
+    <div v-if="refund" class="refund-overlay admin-overlay" @click.self="closeRefund" @keydown.esc.stop.prevent="closeRefund">
+      <form role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="refund-title" aria-describedby="refund-desc"
+            class="refund-dialog admin-dialog" data-test="render-refund-dialog" @submit.prevent="submitRefund">
+        <h2 id="refund-title" class="admin-section-title">Refund this render to the balance</h2>
+        <p id="refund-desc" class="refund-lead">{{ refund.row.username }} was charged ${{ refund.charged }} for video job
+          <code>{{ refund.row.video_job_id }}</code>. A render is refunded once, up to what it charged. The person gets a notification.</p>
+        <label class="field">
+          <span>Amount ($)</span>
+          <input ref="refundAmountEl" v-model="refund.amount" inputmode="decimal" autocomplete="off" data-test="render-refund-amount"
+                 :aria-invalid="refundErrors.amount ? 'true' : 'false'" aria-describedby="refund-amount-help" />
+          <small id="refund-amount-help">At most ${{ refund.charged }}.</small>
+          <em v-if="refundErrors.amount" role="alert">{{ refundErrors.amount }}</em>
+        </label>
+        <label class="field">
+          <span>Reason</span>
+          <textarea v-model="refund.reason" rows="4" maxlength="2000" data-test="render-refund-reason"
+                    :aria-invalid="refundErrors.reason ? 'true' : 'false'" aria-describedby="refund-reason-help"></textarea>
+          <small id="refund-reason-help">What was wrong with the render. Kept with the refund for the audit; at least 10 characters.</small>
+          <em v-if="refundErrors.reason" role="alert">{{ refundErrors.reason }}</em>
+        </label>
+        <p v-if="refund.error" class="refund-error" role="alert" data-test="render-refund-error">{{ refund.error }}</p>
+        <div class="refund-actions">
+          <button class="btn" type="button" @click="closeRefund">Cancel</button>
+          <button class="btn primary" type="submit" data-test="render-refund-submit" :disabled="refund.saving">
+            {{ refund.saving ? 'Refunding…' : `Refund $${refund.amount || '0'}` }}</button>
+        </div>
+      </form>
+    </div>
 
     <!-- Settings -->
     <section v-if="tab === 'settings'" id="panel-settings" class="card admin-surface" role="tabpanel" aria-labelledby="tab-settings">
@@ -357,7 +392,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, ArrowLeft, AlertTriangle, CheckCircle2, WalletCards, CircleDollarSign, Info, ReceiptText, Layers, TrendingUp, Download, ArrowUpRight, SlidersHorizontal, ChevronDown, Percent, Wallet, Save, CalendarDays, Settings2, ChartNoAxesCombined } from 'lucide-vue-next'
 import api from '../../services/api'
@@ -602,6 +637,50 @@ async function adjust() {
     if (selected.value?.user.id === userId) await openWallet(userId)
   } catch (e) { notify.error(apiError(e, 'Could not adjust the balance')) } finally { adjusting.value = false }
 }
+// ── Refund a poor render (ADM-1260). The server enforces every rule; the form checks first so a mistake is shown here. ──
+const refund = ref(null)
+const refundAmountEl = ref(null)
+const REFUND_MIN_REASON = 10
+function chargedOf(row) { return String(row.amount_usd || '0').replace(/^-/, '') }
+function refundCheck() {
+  const r = refund.value
+  if (!r) return {}
+  const out = {}
+  const n = Number(r.amount)
+  if (String(r.amount).trim() === '' || !Number.isFinite(n) || n <= 0) out.amount = 'Enter an amount more than $0.'
+  else if (n > Number(r.charged)) out.amount = `At most $${r.charged}, what this render charged.`
+  if (r.reason.trim().length < REFUND_MIN_REASON) out.reason = `Write at least ${REFUND_MIN_REASON} characters.`
+  return out
+}
+const refundErrors = computed(() => (refund.value?.touched ? refundCheck() : {}))
+async function openRefund(row) {
+  const charged = chargedOf(row)
+  refund.value = { row, charged, amount: charged, reason: '', saving: false, error: '', touched: false }
+  await nextTick()
+  refundAmountEl.value?.focus()
+}
+function closeRefund() { if (!refund.value?.saving) refund.value = null }
+async function submitRefund() {
+  const r = refund.value
+  if (!r || r.saving) return
+  r.touched = true
+  if (Object.keys(refundCheck()).length) return
+  r.saving = true
+  r.error = ''
+  try {
+    const { data } = await api.billingAdminCreditRender(r.row.video_job_id, String(r.amount).trim(), r.reason.trim())
+    const e = data.entry || {}
+    charges.value = charges.value.map(c => c.video_job_id === r.row.video_job_id
+      ? { ...c, render_credit: { entry_id: e.id, amount_usd: data.credited_usd, reason: e.reason, actor_id: e.actor_id, created_at: e.created_at } }
+      : c)
+    notify.success(`Refunded $${data.credited_usd} to the balance`)
+    refund.value = null
+  } catch (err) {
+    r.error = apiError(err, 'The refund was not made. Try again.')
+    r.saving = false
+  }
+}
+
 async function releaseHold(h) {
   try {
     await api.billingAdminReleaseHold(h.id)
@@ -700,6 +779,22 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(searchTimer) })
 .who { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 4px; }
 .big { font-size: 2rem; font-weight: 800; color: var(--vm-ink); font-variant-numeric: tabular-nums; }
 .adjust-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.refund-open { margin-left: 8px; }
+.refund-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(15,23,42,.5); }
+.refund-dialog { width: min(100%, 480px); max-height: calc(100dvh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
+  padding: 22px; border-radius: 14px; background: var(--vm-surface); border: 1px solid var(--vm-border); color: var(--vm-ink);
+  box-shadow: 0 24px 48px rgba(15,23,42,.24); }
+.refund-dialog h2 { margin: 0; font-size: 1.05rem; }
+.refund-lead { margin: 0; font-size: .88rem; line-height: 1.5; color: var(--vm-ink-soft); overflow-wrap: anywhere; }
+.refund-dialog textarea { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--vm-border); background: var(--vm-surface);
+  color: var(--vm-ink); font: inherit; font-size: .95rem; resize: vertical; min-height: 96px; }
+.refund-dialog textarea:focus { outline: none; border-color: var(--vm-focus); box-shadow: 0 0 0 3px rgba(46,144,250,.18); }
+.refund-dialog textarea[aria-invalid="true"] { border-color: var(--vm-danger); }
+.refund-error { margin: 0; color: var(--vm-danger); font-size: .85rem; }
+.refund-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 480px) { .refund-overlay { align-items: flex-end; padding: 0; } .refund-dialog { border-radius: 14px 14px 0 0; max-height: 100dvh; }
+  .refund-actions .btn { flex: 1 1 100%; } }
 .holds ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .holds li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--vm-border);
   border-radius: 10px; font-size: .88rem; color: var(--vm-ink); }

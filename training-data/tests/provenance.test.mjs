@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { shortSha, usedGroups, configPart, runtimeRows, costText, attemptCost, attemptRow, attemptWhen, providerText, usd } from '../src/api/provenance.js';
+import { shortSha, usedGroups, configPart, runtimeRows, costText, attemptCost, attemptRow, attemptWhen, providerText, usd, personCost, attemptTime } from '../src/api/provenance.js';
 
 const SHA = 'a'.repeat(52) + '0123456789ab';
 const COMMIT = '0123456789abcdef0123456789abcdef01234567';
@@ -114,10 +114,10 @@ test('the machine names the person\'s own machine, and a provider by its own nam
   assert.equal(providerText('something-new'), 'something-new', 'an unknown provider is shown as the backend names it');
 });
 
-test('the Cost line: no AADML machine cost when unpaid, else the total and the part still held', () => {
-  assert.equal(costText({ paid: false, settled: '0.00', held: '0.00', total: '0.00' }), 'No AADML machine cost.');
+test('the Cost line: nothing on AADML\'s own computer, the platform fee on your machine, else the total and the part still held', () => {
+  assert.equal(costText({ paid: false, settled: '0.00', held: '0.00', total: '0.00' }), "Nothing is charged for the machine: it ran on AADML's own computer.");
   assert.equal(costText({ paid: false, settled: '0.00', held: '0.00', total: '0.00' }, ['Office PC']),
-    'No AADML machine cost: it ran on your machine Office PC.');
+    'On your machine Office PC: the platform fee for your machine, charged by the second.');
   assert.equal(costText({ paid: true, settled: '0.84', held: '0.00', total: '0.84' }), '$0.84 charged.');
   assert.equal(costText({ paid: true, settled: '0.00', held: '0.00', total: '0.00' }), '$0.00 charged.');
   assert.equal(costText({ paid: true, settled: '0.30', held: '1.20', total: '1.50' }),
@@ -129,7 +129,7 @@ test('an attempt\'s cells: machine time, its cost or a dash, its own machine, it
   assert.deepEqual(attemptCost({ cost: { settled: '0.20', held: '0.00', total: '0.20' } }), { text: '$0.20', note: '' });
   assert.deepEqual(attemptCost({ cost: { settled: '0.00', held: '0.50', total: '0.50' } }), { text: '$0.50', note: '$0.50 of it held while it runs' });
   assert.deepEqual(attemptCost({ cost: null }), { text: '—', note: '' });
-  assert.deepEqual(attemptCost({ cost: null, own_machine: 'Office PC' }), { text: 'No AADML cost', note: 'Ran on Office PC' });
+  assert.deepEqual(attemptCost({ cost: null, own_machine: 'Office PC' }), { text: '—', note: 'Ran on Office PC' });
   const vision = attemptRow({ number: 2, state: 'failed', reason: 'no GPU in time', retry_of: 1, on_demand: true, billable_seconds: 725,
     job_name: 'aadml-run-41-2', log: '/log/2', cost: null, own_machine: '' });
   assert.equal(vision.what, 'no GPU in time');
@@ -185,4 +185,43 @@ test("the Runtime part leaves out what only repeats the Machine's instance type,
   assert.deepEqual(runtime(usedGroups(used, 'run')), ['python']);
   const moved = { instance_type: card, runtime: { gpu: 'NVIDIA A40', instance_type: card, python: '3.12.3' } };
   assert.deepEqual(runtime(usedGroups(moved, 'run')), ['gpu', 'python']);
+});
+
+// 2026-11-17: the backend sends what the PERSON is held and charged (``price``, markup included) beside AADML's own
+// cost, and a machine run's fee (``price_text``). The page shows the person's figures, and never "No AADML machine cost"
+// for a run on the person's machine, which is charged the platform fee.
+test('the person\'s own figures are shown: cost.price, else the old fields', () => {
+  const cost = { paid: true, settled: '0.40', held: '0.00', total: '0.40', price: { settled: '0.48', held: '0.12', total: '0.60' } };
+  assert.deepEqual(personCost(cost), { settled: '0.48', held: '0.12', total: '0.60' });
+  assert.deepEqual(personCost({ settled: '0.40', held: '0.00', total: '0.40' }), { settled: '0.40', held: '0.00', total: '0.40' });
+  assert.equal(personCost(null), null);
+  assert.equal(costText(cost), '$0.60 at most: $0.48 charged and $0.12 held while it runs, the most the rest can cost.');
+  assert.deepEqual(attemptCost({ cost: { total: '0.30', price: { settled: '0.36', held: '0', total: '0.36' } } }), { text: '$0.36', note: '' });
+});
+
+test('a run on the person\'s machine says the platform fee and what was held for it', () => {
+  const machine = { id: 4, name: '235e1456c44f', label: 'Waiting for your machine 235e1456c44f', price_text: '$0.10 an hour, on your machine' };
+  const cost = { paid: false, settled: '0', held: '0', total: '0', price_text: '$0.10 an hour, on your machine', price: { settled: '0', held: '0.0625', total: '0.0625' } };
+  const line = costText(cost, [], machine);
+  assert.equal(line, 'On your machine 235e1456c44f: the platform fee, $0.10 an hour, on your machine, charged by the second. $0.0625 at most: $0.00 charged and $0.0625 held while it runs, the most the rest can cost.');
+  assert.doesNotMatch(line, /No AADML/);
+  assert.equal(costText({ paid: false, total: '0' }, ['Office PC'], machine).startsWith('On your machine Office PC, 235e1456c44f: the platform fee, $0.10 an hour'), true);
+  assert.deepEqual(attemptCost({ own_machine: 'Office PC', cost: { price: { settled: '0.02', held: '0', total: '0.02' } } }), { text: '$0.02', note: 'Ran on Office PC' });
+});
+
+test('an attempt still going shows the time since it started, never "0 s"; one that ended its billable time', () => {
+  const now = Date.parse('2026-11-17T10:05:30Z');
+  assert.equal(attemptTime({ state: 'running', billable_seconds: 0, started_at: '2026-11-17T10:00:00Z' }, now), '5 min 30 s so far');
+  assert.equal(attemptTime({ state: 'starting', billable_seconds: 0, started_at: null }, now), '—');
+  assert.equal(attemptTime({ state: 'queued', billable_seconds: null }, now), '—');
+  assert.equal(attemptTime({ state: 'succeeded', billable_seconds: 725 }, now), '12 min 5 s');
+  assert.equal(attemptRow({ number: 1, state: 'running', billable_seconds: 0, started_at: '2026-11-17T10:05:00Z' }, now).machineTime, '30 s so far');
+});
+
+test('an active attempt says the server\'s words for its job, a failed one its reason', async () => {
+  const { attemptText } = await import('../src/api/models.js');
+  assert.equal(attemptText({ state: 'starting', label: 'Waiting for your machine X: it is running another job.' }), 'Waiting for your machine X: it is running another job.');
+  assert.equal(attemptText({ state: 'failed', reason: 'out of memory', label: 'Running' }), 'out of memory');
+  assert.equal(attemptText({ state: 'running' }), 'Running');
+  assert.equal(attemptRow({ number: 1, state: 'starting', label: 'Downloading the base model' }).what, 'Downloading the base model');
 });

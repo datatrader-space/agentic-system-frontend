@@ -28,7 +28,7 @@ import {
   workspaceApi, projectLink, environmentState, modelName, timeAgo, RUN_RANGES, API_REFERENCE, runsChart, runsDay,
   DEDICATED_NAME_RULE, dedicatedNameProblem, machineCost, dedicatedCostSummary, dedicatedModels, missingApproval,
   dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels, dedicatedMachinesFor, machineKind, machineLabel,
-  openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall, useSnippet,
+  openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall, useSnippet, takeDeploymentsTab,
 } from '../api/workspace.js';
 
 const emit = defineEmits(['navigate', 'create']);
@@ -41,7 +41,7 @@ const TABS = [
   { id: 'streaming', name: 'Cloud Streaming', icon: Video },
   { id: 'cost', name: 'Cost Benchmark', icon: ChartColumn },
 ];
-const tab = ref('overview');
+const tab = ref(takeDeploymentsTab(TABS.map(t => t.id)) || 'overview');
 const current = computed(() => TABS.find(t => t.id === tab.value));
 
 // The page's data: the projects and their deployments, and the successful calls over the chosen range.

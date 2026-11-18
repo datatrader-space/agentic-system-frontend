@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MediaThumb from './MediaThumb.vue'
-import { mediaKind, thumbnailFor, thumbnailPath } from '../../utils/mediaThumb'
+import { jobOutputKind, kindFromUrl, mediaKind, thumbnailFor, thumbnailPath } from '../../utils/mediaThumb'
 
 describe('thumbnailFor', () => {
   it('uses the thumbnail the server gave, else builds it from the file id of an image or a video', () => {
@@ -21,6 +21,35 @@ describe('thumbnailFor', () => {
     expect(thumbnailFor({ media_type: 'image', url: 'blob:local' })).toBe(null)
     expect(thumbnailFor(null)).toBe(null)
     expect(mediaKind({ type: 'IMAGE' })).toBe('image')
+  })
+})
+
+describe('a caption, a sound or a document never asks for a thumbnail (live 2026-11-17: a .vtt file got a 404)', () => {
+  it('thumbnailFor has none for a declared non-picture, even when something forced a thumbnail address on it', () => {
+    expect(thumbnailFor({ attachment_id: 'cap', media_type: 'other', mime_type: 'text/vtt' })).toBe(null)
+    expect(thumbnailFor({ attachment_id: 'cap', mime_type: 'text/vtt', thumbnail_url: '/api/library/cap/thumbnail/' })).toBe(null)
+    expect(thumbnailFor({ attachment_id: 's', media_type: 'audio', thumbnail_url: '/api/library/s/thumbnail/' })).toBe(null)
+  })
+
+  it('a job output takes its kind from the file, then its address, then the job; never from the operation', () => {
+    const job = { operation: 'caption', modality: 'video', output: { url: '/m/v.mp4', media_type: 'video' } }
+    expect(jobOutputKind(job)).toBe('video')
+    expect(jobOutputKind(job, { attachment_id: 'cap', url: '/m/v.vtt' })).toBe('other')
+    expect(jobOutputKind(job, { attachment_id: 'x', url: '/m/x' })).toBe('video')
+    expect(jobOutputKind({ operation: 'frame', modality: 'video', output: { media_type: 'image' } })).toBe('image')
+    expect(jobOutputKind({ operation: 'frame', modality: 'video', output: { url: '/m/f' } })).toBe('video')
+    expect(kindFromUrl('/m/a.MP3?x=1')).toBe('audio')
+    expect(kindFromUrl('/m/noext')).toBe('')
+  })
+
+  it('MediaThumb shows a type icon for a caption file or a sound and requests no picture', () => {
+    const cap = mount(MediaThumb, { props: { item: { attachment_id: 'cap', media_type: 'other' }, src: '/m/v.vtt', alt: 'Captions' } })
+    expect(cap.find('img').exists()).toBe(false)
+    expect(cap.find('video').exists()).toBe(false)
+    expect(cap.get('[data-test="media-thumb-file"]').attributes('aria-label')).toBe('Captions')
+    const sound = mount(MediaThumb, { props: { item: { attachment_id: 's', media_type: 'audio' }, src: '/m/s.mp3' } })
+    expect(sound.html()).not.toContain('/thumbnail/')
+    expect(sound.get('[data-test="media-thumb-file"]').attributes('aria-label')).toBe('Sound file')
   })
 })
 

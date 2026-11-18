@@ -82,6 +82,7 @@ const ICONS = {
   'trigger.webhook': 'lucide:webhook',
   'trigger.channel': 'lucide:message-square',
   'trigger.connector': 'lucide:plug',
+  'trigger.training.stream_event': 'lucide:cctv',
   'agent.run': 'lucide:bot',
   'llm.call': 'lucide:sparkles',
   'action.channel': 'lucide:send',
@@ -116,6 +117,7 @@ const subtitle = computed(() => {
   if (props.type === 'trigger.connector') return props.data?.provider
     ? `${props.data.provider}${props.data?.event_type ? ' · ' + props.data.event_type : ''}`
     : 'Connector event'
+  if (props.type === 'trigger.training.stream_event') return props.data?.source_name || 'A camera rule matched'
   if (props.type === 'trigger.manual') return 'Runs on demand'
   if (props.type === 'action.http') return props.data?.url ? `${props.data?.method || 'GET'} ${props.data.url}` : 'GET/POST a URL'
   if (props.type === 'action.script') return props.data?.notes || 'Run a saved script'

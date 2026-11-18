@@ -759,6 +759,7 @@ const WF_ICON_MAP = {
   'trigger.webhook': 'lucide:webhook',
   'trigger.schedule': 'lucide:clock-3',
   'trigger.channel': 'lucide:message-square',
+  'trigger.training.stream_event': 'lucide:cctv',
   'trigger.manual': 'lucide:square-play',
   'agent.run': 'lucide:bot',
   'action.channel': 'lucide:send',

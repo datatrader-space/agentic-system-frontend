@@ -33,15 +33,38 @@ beforeEach(() => {
 })
 
 describe('VideoStudioHelp', () => {
-  it('covers what you can make, the process, models, recipes, library, prompts, costs and trouble', async () => {
+  it('covers what you can make, the process, models, recipes, library, prompts, costs, refunds, keeping and trouble', async () => {
     const w = mount(VideoStudioHelp, { global: { stubs } })
-    for (const id of ['kinds', 'process', 'models', 'recipes', 'library', 'prompts', 'costs', 'trouble']) {
+    for (const id of ['kinds', 'process', 'models', 'recipes', 'library', 'prompts', 'costs', 'refunds', 'keeping', 'trouble']) {
       expect(w.find('#' + id).exists()).toBe(true)
     }
-    expect(w.findAll('.toc-link')).toHaveLength(8)
+    expect(w.findAll('.toc-link')).toHaveLength(10)
     expect(w.findAll('.strip-step')).toHaveLength(6)
     expect(w.text()).toContain('The estimate card shows its expiry.')
     expect(w.get('.doc').text()).not.toMatch(/[→·]/)
+  })
+
+  it('states the refund policy in plain words: never charged for a failure, once per render, up to its cost, to the balance', () => {
+    const w = mount(VideoStudioHelp, { global: { stubs } })
+    const text = w.get('#refunds').text()
+    expect(text).toContain('A failed render is never charged.')
+    expect(text).toContain('Once per render, never more than it cost.')
+    expect(text).toContain('goes back to your balance, not to your card')
+    expect(text).toContain('You get a notification when a refund is added to your balance')
+    expect(w.get('#refunds a').attributes('href')).toBe('/contact')
+    for (const id of ['#refunds', '#keeping']) {
+      expect(w.get(id).text()).not.toMatch(/credits?\b/i)
+      expect(w.get(id).text()).not.toMatch(/\bnotice\b/i)
+    }
+  })
+
+  it('says how long files are kept: what you keep stays, drafts and failed jobs go after 180 days, told a week before', () => {
+    const w = mount(VideoStudioHelp, { global: { stubs } })
+    const text = w.get('#keeping').text()
+    expect(text).toContain('What you keep stays until you delete it')
+    expect(text).toContain('Drafts go after 180 days.')
+    expect(text).toContain('Failed and cancelled jobs go after 180 days')
+    expect(text).toContain('You are told a week before.')
   })
 
   it('lists the models that fit each goal from the person\'s own list, with the reason, and says when none does', async () => {

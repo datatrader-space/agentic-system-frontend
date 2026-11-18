@@ -8,7 +8,8 @@ const base = ref => `/training-data/app/projects/${enc(ref)}`;
 export const trialApi = {
   models: ref => apiFetch(`${base(ref)}/test/`, { timeoutMs: 60000 }),
   state: (ref, number) => apiFetch(`${base(ref)}/models/${enc(number)}/try/`, { timeoutMs: 60000 }),
-  act: (ref, number, action, machine = '') => apiFetch(`${base(ref)}/models/${enc(number)}/try/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: 60000 }),
+  // Start rents the GPU machine before it answers (RunPod: 20 to 30 s, live 2026-11-17), so it may take longer.
+  act: (ref, number, action, machine = '') => apiFetch(`${base(ref)}/models/${enc(number)}/try/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: action === 'start' ? START_MS : 60000 }),
   machines: (ref, number) => apiFetch(`${base(ref)}/models/${enc(number)}/try/machines/`, { timeoutMs: 60000 }),
   // A model on a CPU can take a while on a large photo.
   predict: (ref, number, file) => {
@@ -18,7 +19,17 @@ export const trialApi = {
   },
 };
 
+export const START_MS = 120000;
+
 export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+// The least confidence the model sends anything back at (its card's ``detection_floor``): below it the server keeps
+// nothing, so the slider starts there instead of offering values that can never show more (live, 2026-11-17: the
+// slider went to 0% while nothing under 60% ever came back). 0 when the model does not say.
+export function confidenceFloor(state) {
+  const floor = Number(state?.detection_floor);
+  return Number.isFinite(floor) && floor > 0 && floor < 1 ? floor : 0;
+}
 
 // What the model said about the photo as a whole, as the old Try page words it.
 export const VERDICTS = {

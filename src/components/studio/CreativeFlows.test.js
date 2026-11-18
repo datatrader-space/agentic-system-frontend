@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
+import { studioLooks } from '../../services/studioLooks'
 import { createPinia, setActivePinia } from 'pinia'
 import { useVideoStore } from '../../stores/useVideoStore'
 import Board from './CreativeBoard.vue'
@@ -122,10 +124,15 @@ describe('Creative flow boundaries',()=>{
     const images = w.findComponent(InputSlot)
     expect(images.props()).toMatchObject({ kinds: ['image'], limit: 8, allowUpload: false })
     images.vm.$emit('pick', [{ attachment_id: 'logo' }]); await flushPromises()
-    expect(save.attributes('disabled')).toBeUndefined()
     expect(w.find('[data-test="brand-save-needs"]').exists()).toBe(false)
+    // The person states their rights to the brand (ELEMENTS_V2_PLAN.md): Save waits for it and says so.
+    expect(save.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="brand-save-rights"]').text()).toBe('Confirm your rights to the brand to save it.')
+    await w.get('[data-test="ea-basis-owned"]').setValue(true)
+    await w.get('[data-test="ea-rights-confirm"]').setValue(true)
+    expect(save.attributes('disabled')).toBeUndefined()
     await click(w, 'Save reviewed brand')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/', { name: 'New brand', description: '', traits: { colors: [], website: '', tagline: '', voice: '', audience: '' }, attachment_ids: ['logo'] })
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/', { name: 'New brand', description: '', traits: { colors: [], website: '', tagline: '', voice: '', audience: '' }, attachment_ids: ['logo'], rights: { basis: 'owned', confirmed: true } })
     w.unmount()
   })
   it('numbers explainer scenes from one', async () => {
@@ -317,5 +324,93 @@ describe('Manual Storyboard, Marketing and Explainer keep their chat', () => {
       expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { operation: 'generate', route_id: 89, prompt: 'A bottle', cinema: {}, params: {}, accept: ['duration'], conversation_id: 'c1', studio_context: { page: 'cinema', preset: '', preset_title: '' } })
       w.unmount()
     } finally { vi.useRealTimers() }
+  })
+})
+
+// ADM-1265: the new Effects recipes, Cinema v2 controls and the faceless video, on the pages that run them.
+describe('Studio recipes and Cinema controls v2', () => {
+  const mountIn = (component, kind, provide = {}) => { const pinia = createPinia(); setActivePinia(pinia); useChatStore(pinia).conversationId = 'c1'; return mount(component, { props: { kind }, global: { plugins: [pinia], provide, stubs: { InputSlot: true, RouterLink: true } } }) }
+  const image = { name: 'image', role: 'edit_source', media_type: 'image', required: true }
+  const recipes = [
+    { id: 'outpaint', title: 'Extend the picture', operation: 'edit_image', task: 'image_edit', ready: true, slots: [image], options: { shape: ['16:9', '9:16'], fill: ['the scene as it continues', 'a clean backdrop that matches'] }, needs: ['reshape'], route_ids: [7] },
+    { id: 'shots', title: 'Zooms and shots', operation: 'edit_image', task: 'image_edit', ready: true, slots: [image], options: { shot: ['close-up', 'medium shot', 'wide shot', 'extreme close-up', 'full length'] }, sets: { shot: ['close-up', 'medium shot', 'wide shot'] } },
+  ]
+  beforeEach(() => {
+    vi.clearAllMocks(); delete routeQuery.project_id
+    api.getStudioRecipes.mockResolvedValue({ data: { recipes } })
+    api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 8, name: 'Words only', ready: true }, { route_id: 7, name: 'Ideogram', ready: true }] } })
+    api.runStudioRecipe.mockImplementation(async (id, body) => ({ data: { job_id: `${id}-${body.options.shot || body.options.shape}` } }))
+    api.get.mockImplementation(async path => ({ data: path === '/video/projects/' ? { projects: [] } : path === '/video/routes/' ? { routes: [{ route_id: 89, name: 'Kling', ready: true }] } : path === '/video/explainers/p/' ? { scenes: [] } : {} }))
+  })
+  afterEach(() => { routeQuery.project_id = 'p' })
+
+  it('the Extend look opens its recipe, offers only a model that can change the shape, and sends the shape chosen', async () => {
+    const look = ref(studioLooks.find(l => l.id === 'effects-look-outpaint'))
+    const w = mountIn(Marketing, 'effects', { studioPreparedLook: look }); await flushPromises()
+    expect(w.get('[data-field="recipe_id"] select').element.value).toBe('outpaint')
+    expect(w.findAll('[data-test="media-route"] option').map(o => o.element.value)).toEqual(['7'])
+    w.findComponent(InputSlot).vm.$emit('pick', [{ attachment_id: 'photo' }]); await flushPromises()
+    await click(w, 'Review recipe estimate')
+    // The look's own options are taken.
+    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('outpaint', { route_id: '7', slots: { image: 'photo' }, options: { shape: '9:16', fill: 'the scene as it continues' }, conversation_id: 'c1', studio_context: { page: 'effects', preset: 'effects-look-outpaint', preset_title: 'Room to breathe' } })
+    w.unmount()
+  })
+
+  it('says why no model is offered when none can change the shape', async () => {
+    api.getStudioRecipes.mockResolvedValue({ data: { recipes: [{ ...recipes[0], route_ids: [] }] } })
+    const w = mountIn(Marketing, 'effects'); await flushPromises()
+    await w.get('[data-field="recipe_id"] select').setValue('outpaint'); await flushPromises()
+    expect(w.get('[data-test="media-route-none-fits"]').text()).toBe('None of the models you can use can change the shape of a picture yet.')
+    expect(w.findAll('button').find(b => b.text() === 'Review recipe estimate').attributes('disabled')).toBeDefined()
+    w.unmount()
+  })
+
+  it('Zooms and shots asks one estimate per framing of its set', async () => {
+    const w = mountIn(Marketing, 'effects'); await flushPromises()
+    await w.get('[data-field="recipe_id"] select').setValue('shots'); await flushPromises()
+    w.findComponent(InputSlot).vm.$emit('pick', [{ attachment_id: 'photo' }]); await flushPromises()
+    expect(w.findAll('[data-test="media-route"] option').map(o => o.element.value)).toEqual(['8', '7'])   // no need: every edit model
+    await click(w, 'Review estimates for the set (3)')
+    expect(api.runStudioRecipe.mock.calls.map(([id, body]) => [id, body.options.shot, body.route_id])).toEqual([['shots', 'close-up', '8'], ['shots', 'medium shot', '8'], ['shots', 'wide shot', '8']])
+    expect(w.emitted('job').map(([job]) => job.job_id)).toEqual(['shots-close-up', 'shots-medium shot', 'shots-wide shot'])
+    w.unmount()
+  })
+
+  it('Cinema menus show each value in words, and a look sets the genre, era and ramp the table has', async () => {
+    api.getCinemaControls.mockResolvedValue({ data: { controls: [
+      { control: 'genre', label: 'Genre', values: [{ value: 'noir', label: 'Noir', phrase: 'film noir style' }, { value: 'horror', label: 'Horror', phrase: 'horror film style' }] },
+      { control: 'era', label: 'Era', values: [{ value: '1970s-film', label: '1970s film', phrase: 'the look of a 1970s film' }] },
+      { control: 'speed_ramp', label: 'Speed ramp', values: [{ value: 'none', label: 'None', phrase: '' }, { value: 'slow-out', label: 'Slow out', phrase: 'a speed ramp into slow motion' }] },
+    ] } })
+    const look = ref(studioLooks.find(l => l.id === 'cinema-look-noir'))
+    const w = mountIn(Board, 'cinema', { studioPreparedLook: look }); await flushPromises()
+    const genre = w.findAll('select').find(s => s.findAll('option').some(o => o.text() === 'Noir'))
+    expect(genre.findAll('option').map(o => o.text())).toEqual(['Default', 'Noir', 'Horror'])
+    expect(genre.element.value).toBe('noir')
+    expect(w.text()).toContain('film noir style, the look of a 1970s film, a speed ramp into slow motion')
+    // A value the backend's table does not have is never set.
+    look.value = { ...look.value, cinema: { genre: 'horror', era: '2050s-hologram' } }; await flushPromises()
+    expect(genre.element.value).toBe('horror')
+    expect(w.text()).toContain('horror film style, the look of a 1970s film, a speed ramp into slow motion')
+    w.unmount()
+  })
+
+  it('a faceless video plans vertical with no person on screen, then asks its pictures and music', async () => {
+    api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 'r', name: 'Model', ready: true }] } })
+    api.post.mockImplementation(async path => ({ data: path === '/video/explainers/' ? { project_id: 'p' } : path.endsWith('/music/') ? { job_id: 'm1' } : { jobs: [{ job_id: 'k1' }, { job_id: 'k2' }] } }))
+    const look = ref(studioLooks.find(l => l.id === 'explainer-look-faceless'))
+    const ctx = { conversation_id: 'c1', studio_context: { page: 'explainer', preset: 'explainer-look-faceless', preset_title: 'Faceless short' } }
+    const w = mountIn(Narrative, 'explainer', { studioPreparedLook: look }); await flushPromises()
+    expect(w.get('[data-test="explainer-faceless"]').element.checked).toBe(true)
+    expect(w.findAll('[data-field="aspect_ratio"] option').map(o => o.text())).toEqual(['9:16', '1:1', '4:5'])
+    await click(w, 'Plan faceless video')
+    expect(api.post).toHaveBeenCalledWith('/video/explainers/', { topic: 'Why honey never spoils', title: '', audience: '', max_seconds: 60, aspect_ratio: '9:16', faceless: true, ...ctx })
+    await click(w, 'Review picture estimates')
+    expect(api.post).toHaveBeenLastCalledWith('/video/explainers/p/visuals/', { route_id: 'r', kind: 'image', ...ctx })
+    await w.get('[data-field="prompt"] input').setValue('Soft piano')
+    await click(w, 'Review music estimate')
+    expect(api.post).toHaveBeenLastCalledWith('/video/explainers/p/music/', { route_id: 'r', prompt: 'Soft piano', ...ctx })
+    expect(w.emitted('job').map(([job]) => job.job_id)).toEqual(['k1', 'k2', 'm1'])
+    w.unmount()
   })
 })

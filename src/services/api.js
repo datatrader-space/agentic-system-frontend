@@ -5,6 +5,8 @@
 
 import axios from 'axios'
 import { projectCache } from './projectCache'
+import { runProjectJob } from './projectJobs'
+import { MAX_BYTES_PER_PART } from '@/utils/droppedFiles'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
@@ -266,6 +268,42 @@ async function getBlob(url, config = {}) {
   }
 }
 
+// The Let's Code editor's long buttons (ADM-1269): the press starts a background job and this waits for its answer
+// (src/services/projectJobs.js), so the caller reads it as the request's own answer.
+const _projectBase = (systemId, repoId) => `/systems/${systemId}/repositories/${repoId}`
+function projectJob(systemId, repoId, start, opts) {
+  return runProjectJob(start, (id) => api.get(`${_projectBase(systemId, repoId)}/jobs/${id}/`, { noCache: true }), opts)
+}
+// A packed download or backup: the job packs it in the sandbox, then the file streams from there.
+async function packedDownload(systemId, repoId, start, opts) {
+  const { job } = await projectJob(systemId, repoId, start, opts)
+  return getBlob(`${_projectBase(systemId, repoId)}/jobs/${job.id}/download/`)
+}
+// A piece the server or the network dropped (a deploy restarting the server, a blip: live on 2026-11-17 piece 88 of
+// 100 got a 502 while another release was deploying) is sent again, the same piece under the same id, so nothing is
+// duplicated. A refusal (4xx) is the answer and is never sent again.
+const PIECE_RETRY_WAIT_S = [2, 4, 8, 16, 30]
+function _retryable(e) {
+  const s = e?.response?.status
+  return !e?.response || s === 502 || s === 503 || s === 504
+}
+async function _sendPiece(send) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send()
+    } catch (e) {
+      if (attempt >= PIECE_RETRY_WAIT_S.length || !_retryable(e) || isAbortError(e)) throw e
+      await new Promise((resolve) => setTimeout(resolve, PIECE_RETRY_WAIT_S[attempt] * 1000))
+    }
+  }
+}
+function _uploadId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replace(/-/g, '')
+  const b = new Uint8Array(16)
+  globalThis.crypto.getRandomValues(b)
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
+}
+
 // API methods
 export default {
   getStudioFeatures: () => api.get('/video/features/'),
@@ -504,27 +542,58 @@ export default {
   // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top). Sent as multipart, said
   // explicitly: the instance's JSON default otherwise went out with the form and the server read no files (live,
   // 2026-11-11: "Choose files to upload.").
-  uploadRepositoryFiles: (systemId, repoId, folder, files, { overwrite = false } = {}) => {
-    const form = new FormData()
-    form.append('folder', folder || '')
-    if (overwrite) form.append('overwrite', '1')
-    for (const f of files) {
-      form.append('files', f.file, f.file.name)
-      form.append('paths', f.path)
+  // One file larger than an upload part (2 MB, ADM-1269) goes in 2 MB pieces the sandbox joins after the last one;
+  // `onPiece(sent, total)` hears each. A file that is there is refused (409) on the first piece, before any is kept.
+  uploadRepositoryFiles: async (systemId, repoId, folder, files, { overwrite = false, onPiece } = {}) => {
+    const url = `/systems/${systemId}/repositories/${repoId}/files/upload/`
+    const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+    const formFor = (extra = {}) => {
+      const form = new FormData()
+      form.append('folder', folder || '')
+      if (overwrite) form.append('overwrite', '1')
+      for (const [k, v] of Object.entries(extra)) form.append(k, v)
+      return form
     }
-    return api.post(`/systems/${systemId}/repositories/${repoId}/files/upload/`, form,
-      { headers: { 'Content-Type': 'multipart/form-data' } })
+    const big = files.length === 1 && (files[0].file?.size || 0) > MAX_BYTES_PER_PART ? files[0] : null
+    if (!big) {
+      const form = formFor()
+      for (const f of files) {
+        form.append('files', f.file, f.file.name)
+        form.append('paths', f.path)
+      }
+      return api.post(url, form, config)
+    }
+    const total = Math.ceil(big.file.size / MAX_BYTES_PER_PART)
+    const id = _uploadId()
+    let res
+    for (let i = 0; i < total; i++) {
+      const form = formFor({ chunk_upload: id, chunk: String(i), chunks: String(total) })
+      form.append('files', big.file.slice(i * MAX_BYTES_PER_PART, (i + 1) * MAX_BYTES_PER_PART), big.file.name)
+      form.append('paths', big.path)
+      res = await _sendPiece(() => api.post(url, form, config))
+      onPiece?.(i + 1, total)
+    }
+    return res
   },
-  // A file as itself, or a folder ('' = the whole project) as .tar.gz, as a Blob to save.
-  downloadRepositoryEntry: (systemId, repoId, path) =>
-    getBlob(`/systems/${systemId}/repositories/${repoId}/files/download/`, { params: { path: path || '' } }),
+  // A file as itself, or a folder ('' = the whole project) as .tar.gz, as a Blob to save (a background job packs it).
+  downloadRepositoryEntry: (systemId, repoId, path, opts) => packedDownload(systemId, repoId,
+    () => api.get(`${_projectBase(systemId, repoId)}/files/download/`, { params: { path: path || '' }, noCache: true }),
+    opts),
   // The project's backup before its sandbox is deleted (ADM-1205 phase F, item 18): a .tar.gz with a git bundle,
   // the files git does not ignore and RESTORE.txt. Its file name is in Content-Disposition.
-  downloadProjectBackup: (systemId, repoId) => getBlob(`/systems/${systemId}/repositories/${repoId}/backup/`),
+  downloadProjectBackup: (systemId, repoId, opts) => packedDownload(systemId, repoId,
+    () => api.get(`${_projectBase(systemId, repoId)}/backup/`, { noCache: true }), opts),
   // Check project (ADM-1205 phase F item 16): the whole project checked by its own tsc, for the Problems tab.
   // -> { ran, problems: [{ path, line, column, severity, code, message, source }], count, error? }
-  checkProjectProblems: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/problems/check/`, { noCache: true, timeout: 660000 }),
+  checkProjectProblems: (systemId, repoId, opts) => projectJob(systemId, repoId,
+    () => api.get(`${_projectBase(systemId, repoId)}/problems/check/`, { noCache: true }), opts),
+  // The person's jobs on a project still running, for a page opened again while they run (ADM-1269).
+  getRunningProjectJobs: (systemId, repoId) =>
+    api.get(`${_projectBase(systemId, repoId)}/jobs/`, { noCache: true }),
+  // Follow a job found running after a reload to its answer; a finished download's file as a Blob.
+  waitForProjectJob: (systemId, repoId, job, opts) => projectJob(systemId, repoId,
+    async () => ({ status: 202, data: { job } }), opts),
+  getProjectJobFile: (systemId, repoId, jobId) => getBlob(`${_projectBase(systemId, repoId)}/jobs/${jobId}/download/`),
   // Search inside the files: { q, case, word, regex, ignored } -> { matches: [{ path, line, column, text | redacted }] }
   searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored } = {}) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/files/search/`, {
@@ -555,8 +624,8 @@ export default {
   discardChatWorktree: (systemId, repoId, chatId) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/worktrees/discard/`, { chat_id: chatId }),
   // More of Source control (ADM-1205, phase C): pull, a merge's conflicts, discard all, a branch, history.
-  pullSourceControl: (systemId, repoId) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull/`, {}),
+  pullSourceControl: (systemId, repoId, opts) => projectJob(systemId, repoId,
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/pull/`, {}), opts),
   abortMerge: (systemId, repoId) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/merge-abort/`, {}),
   // side: '' (the person edited it), 'mine' or 'theirs' (keep that side whole).
@@ -573,15 +642,16 @@ export default {
   // The person's own git actions (owner, 2026-11-09): the agent never commits, pushes or opens a pull request.
   discardSourceControlFile: (systemId, repoId, path) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard/`, { path }),
-  commitSourceControl: (systemId, repoId, body) =>   // { message, branch (on the default branch) }
-    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/commit/`, body),
-  pushSourceControl: (systemId, repoId) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/push/`, {}),
-  openPullRequest: (systemId, repoId, body) =>       // { title, body }
-    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull-request/`, body),
+  // Commit, push, a pull request and publish are background jobs (ADM-1269); each resolves with its own answer.
+  commitSourceControl: (systemId, repoId, body, opts) => projectJob(systemId, repoId,   // { message, branch }
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/commit/`, body), opts),
+  pushSourceControl: (systemId, repoId, opts) => projectJob(systemId, repoId,
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/push/`, {}), opts),
+  openPullRequest: (systemId, repoId, body, opts) => projectJob(systemId, repoId,       // { title, body }
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/pull-request/`, body), opts),
   // A new project: create a repository on the person's GitHub and push the committed history (ADM-1183).
-  publishProject: (systemId, repoId, body) =>        // { name, private }
-    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/publish/`, body),
+  publishProject: (systemId, repoId, body, opts) => projectJob(systemId, repoId,        // { name, private }
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/publish/`, body), opts),
 
   // LLM
   getLlmStats: (params) => api.get('/llm/stats/', { params }),
@@ -888,6 +958,9 @@ export default {
   billingAdminAdjust: (userId, amountUsd, reason) =>
     api.post(`/billing/admin/wallets/${userId}/adjust/`, { amount_usd: amountUsd, reason }),
   billingAdminReleaseHold: (reservationId) => api.post(`/billing/admin/reservations/${reservationId}/release/`),
+  // ADM-1260: give back what a poor render charged (staff only; at most that charge, once per job, a reason required).
+  billingAdminCreditRender: (jobId, amountUsd, reason) =>
+    api.post(`/billing/admin/video-jobs/${jobId}/credit/`, { amount_usd: amountUsd, reason }),
   billingAdminPricingCoverage: () => api.get('/billing/admin/pricing-coverage/', { noCache: true }),
   billingAdminRevenue: (days = 30) => api.get('/billing/admin/revenue/', { params: { days }, noCache: true }),
   // Every cent traced: filtered charges across all people, totals grouped by who/what/where, and a CSV export.

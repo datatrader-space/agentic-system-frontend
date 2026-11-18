@@ -27,12 +27,12 @@
       <div v-if="lengths.length || resolutions.length" class="creative-pair"><label v-if="lengths.length" class="st-field" data-field="duration">Length<select v-model.number="duration" class="st-input" data-test="board-duration"><option v-for="s in lengths" :key="s" :value="s">{{ s }} seconds</option></select></label><label v-if="resolutions.length" class="st-field" data-field="resolution">Resolution<select v-model="resolution" class="st-input" data-test="board-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label></div>
       <template v-if="kind === 'cinema' && !projectId">
         <label class="st-field" data-field="prompt">Shot description<textarea v-model="prompt" class="st-input" /></label>
-        <label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value">{{ v.phrase }}</option></select></label>
+        <label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value" :title="v.phrase || undefined">{{ v.label || v.phrase }}</option></select></label>
         <p>{{ cinemaPhrase }}</p><LivePrice v-bind="shotPrice" v-model:accepted="shotQuote.accepted.value" empty="Choose the model and describe the shot to see the price." /><button class="st-button" :disabled="busy || !routeId || !prompt.trim() || shotQuote.blocked.value" @click="prepareShot">Review shot estimate</button>
       </template>
       <div v-for="scene in board?.scenes || []" :key="scene.scene_id" class="creative-card">
         <h2>{{ scene.order + 1 }}. {{ scene.title }}</h2><p>{{ scene.intent }}</p><p>{{ scene.cinema_phrase }}</p>
-        <template v-if="kind === 'cinema'"><label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="scene.cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value">{{ v.phrase }}</option></select></label><button class="st-button" :disabled="busy" @click="saveCinema(scene)">Save camera choices</button></template>
+        <template v-if="kind === 'cinema'"><label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="scene.cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value" :title="v.phrase || undefined">{{ v.label || v.phrase }}</option></select></label><button class="st-button" :disabled="busy" @click="saveCinema(scene)">Save camera choices</button></template>
         <label class="st-field">Scene description<textarea v-model="scene.intent" class="st-input" /></label><button class="st-button" :disabled="busy || !project" @click="saveScene(scene)">Save description</button>
         <div class="creative-thumbnails"><button v-for="frame in scene.keyframes" :key="frame.attachment_id" class="st-button" :aria-pressed="scene.keyframe_attachment_id === frame.attachment_id" :disabled="busy" @click="chooseFrame(scene,frame)"><MediaThumb :item="{ ...frame, media_type: frame.media_type || 'image' }" :src="frame.url" alt="Choose keyframe" /></button></div>
         <p v-if="scene.keyframe_jobs_pending?.length">Keyframes pending. Review their approval cards in Results.</p>
@@ -126,7 +126,7 @@ async function loadRoutes(alive) {
 }
 const unset = () => Object.fromEntries(controls.value.map(c => [c.control, '']))
 const chosenCinema = value => Object.fromEntries(Object.entries(value || {}).filter(([,v]) => v))
-const cinemaPhrase = computed(() => controls.value.flatMap(c => c.values.filter(v => cinema.value[c.control] === v.value).map(v => v.phrase)).join(', '))
+const cinemaPhrase = computed(() => controls.value.flatMap(c => c.values.filter(v => cinema.value[c.control] === v.value).map(v => v.phrase)).filter(Boolean).join(', '))
 async function loadProject(alive) {
   if (!projectId.value) { board.value = null; project.value = null; return }
   const id = projectId.value
@@ -206,7 +206,13 @@ function createProject() { run(async alive => { const {data} = await api.post('/
 function addScene() { if (!project.value) return; run(async alive => { await patchScenes([...(project.value.scenes || []), { title:`Scene ${(project.value.scenes || []).length+1}`, intent:newIntent.value, planned_ms:5000 }], alive); if (alive()) { newIntent.value = ''; await loadProject(alive) } }) }
 function chooseTake(scene,take) { run(async alive => { await api.post('/video/selection/',{ project_id:projectId.value, scene_id:scene.scene_id, attachment_id:take.attachment_id, expected_revision:board.value.revision }); if (alive()) await loadProject(alive) }) }
 useStudioPreparedBrief(newIntent)
-useStudioPreparedBrief(prompt)
+const preparedLook = useStudioPreparedBrief(prompt)
+// A Cinema look that names its controls (genre, era, speed ramp...) sets them on the standalone shot, each value checked
+// against the backend's own table; anything the table does not have is left alone.
+watch([preparedLook, controls], ([look]) => {
+  if (props.kind !== 'cinema' || !look?.cinema) return
+  for (const [key, value] of Object.entries(look.cinema)) if (controls.value.some(c => c.control === key && c.values.some(v => v.value === value))) cinema.value[key] = value
+}, { immediate: true })
 </script>
 
 <style scoped>.ce-timeline{border:1px solid var(--vm-line);border-radius:10px;background:var(--vm-bg);padding:18px;overflow:hidden}.ce-timeline header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.ce-timeline h2{font-size:18px;font-weight:500}.ce-timeline header span,.ce-ruler{font-size:10px;color:var(--vm-ink-faint)}.ce-ruler{display:flex;justify-content:space-between;padding:16px 0 9px;margin-left:48px;border-bottom:1px solid var(--vm-line);margin-bottom:12px}.ce-lane{display:flex;gap:6px;align-items:stretch;min-height:62px;margin:8px 0;overflow:auto}.ce-lane>span{width:42px;flex-shrink:0;font-size:9px;color:var(--vm-ink-faint);align-self:center;letter-spacing:.08em}.ce-lane>div{min-width:90px;background:#2e4c65;border:1px solid #5f819d;border-radius:6px;padding:10px;font-size:11px;flex:1}.ce-lane small{display:block;font-size:9px;margin-top:6px;color:#a9c6de}.ce-lane p{font-size:11px;align-self:center;color:var(--vm-ink-faint)}.ce-audio>div{background:#343c60;border-color:#626e9a}.ce-lane b{font-weight:500}@media(max-width:680px){.ce-timeline{padding:13px}.ce-timeline header span{font-size:11px}}</style>

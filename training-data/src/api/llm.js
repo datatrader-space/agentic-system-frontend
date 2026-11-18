@@ -8,6 +8,11 @@ const enc = encodeURIComponent;
 const llm = ref => `${BASE}/projects/${enc(ref)}/llm`;
 const post = (path, body, opts) => apiFetch(path, { ...opts, method: 'POST', body });
 
+// The question a chat run's GPU list asks: its version and the settings its memory follows; empty ones left out.
+export function trainingMachinesQuery(version, settings = {}) {
+  return query({ dataset_version: version, ...settings });
+}
+
 export function query(params) {
   const parts = Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
     .map(([k, v]) => `${enc(k)}=${enc(v)}`);
@@ -44,9 +49,11 @@ export const llmApi = {
   datasets: ref => apiFetch(`${llm(ref)}/datasets/`),
   publish: (ref, body) => post(`${llm(ref)}/datasets/`, body),
   training: ref => apiFetch(`${llm(ref)}/training/`),
-  startTraining: (ref, body) => post(`${llm(ref)}/training/`, body),
-  // The GPUs and locations a run of this dataset version can train on now (its base model's size decides).
-  trainingMachines: (ref, version) => apiFetch(`${llm(ref)}/training/machines/${query({ dataset_version: version })}`),
+  // A start rents the GPU machine before it answers (live, 2026-11-17: more than 15 s), so it is given longer.
+  startTraining: (ref, body) => post(`${llm(ref)}/training/`, body, { timeoutMs: 120000 }),
+  // The GPUs and locations a run of this dataset version can train on now, with ``settings`` ({ config, method, parent }):
+  // its base model's size, its configuration's batch and length and its method decide the memory (measured, server side).
+  trainingMachines: (ref, version, settings = {}) => apiFetch(`${llm(ref)}/training/machines/${trainingMachinesQuery(version, settings)}`),
   trainingRun: (ref, number) => apiFetch(`${llm(ref)}/training/runs/${number}/`),
   trainingMove: (ref, number, move) => post(`${llm(ref)}/training/runs/${number}/${move}/`, {}),
   models: ref => apiFetch(`${llm(ref)}/models/`),

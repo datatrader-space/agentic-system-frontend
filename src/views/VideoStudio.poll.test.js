@@ -16,7 +16,7 @@ vi.mock('../composables/useNotify', () => ({ notify: { error: vi.fn() } }))
 import VideoStudio from './VideoStudio.vue'
 
 const stubs = {
-  HomeFeatures: true, VideoComposerPanel: { template: '<div><slot /><slot name="actions" /></div>' },
+  VideoComposerPanel: { template: '<div><slot /><slot name="actions" /></div>' },
   VideoJobsTray: true, VideoPanel: true, ChatMessageList: true, HITLModal: true, VideoLibrary: true,
   FullDocCostCard: true,
 }

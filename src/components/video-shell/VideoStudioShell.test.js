@@ -63,6 +63,26 @@ describe('VideoStudioShell', () => {
     expect(document.body.classList.contains('vs-theme')).toBe(false)
   })
 
+  it('sets a dark color-scheme and theme-color while open, restores the light page after (plan section 3 item 7)', async () => {
+    const meta = document.createElement('meta'); meta.name = 'theme-color'; meta.content = '#ffffff'; document.head.appendChild(meta)
+    document.documentElement.style.colorScheme = ''
+    const { w } = await mountAt('/video-studio')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(meta.getAttribute('content')).toBe('#101216')
+    w.unmount()
+    expect(document.documentElement.style.colorScheme).toBe('')
+    expect(meta.getAttribute('content')).toBe('#ffffff')
+    meta.remove()
+  })
+
+  it('gives every reachable control in the Studio a visible keyboard focus ring (plan section 3 item 7)', async () => {
+    const src = (await import('./VideoStudioShell.vue?raw')).default
+    const rule = src.match(/body\.vs-theme :where\(([^)]*(?:\([^)]*\)[^)]*)*)\):focus-visible\{([^}]*)\}/)
+    expect(rule).toBeTruthy()
+    for (const target of ['button', 'a[href]', 'select', '[role="tab"]', '[role="switch"]', '[tabindex]:not([tabindex="-1"])']) expect(rule[1]).toContain(target)
+    expect(rule[2]).toContain('outline:2px solid var(--vs-accent-ink)')
+  })
+
   it('shows the signed-in account without arrows or taglines in its chrome', async () => {
     const { w } = await mountAt('/video-studio')
     expect(w.find('.vs-workspace-switch').exists()).toBe(true)

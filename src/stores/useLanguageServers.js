@@ -466,11 +466,14 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   }
 
   // ── the bottom panel ──
-  async function check() {
+  // `running`: a Check project job found still running when the page opened again (ADM-1269); its answer lands here.
+  async function check(running = null) {
     checking.value = true
     checkError.value = ''
     try {
-      const { data } = await api.checkProjectProblems(val(systemId), val(repoId))
+      const { data } = running
+        ? await api.waitForProjectJob(val(systemId), val(repoId), running)
+        : await api.checkProjectProblems(val(systemId), val(repoId))
       checked.value = (data.problems || []).map((p) => ({ ...p, severity: p.severity === 'message' ? 'info' : p.severity }))
       if (!data.ran) checkError.value = data.error || 'The project could not be checked.'
     } catch (e) {

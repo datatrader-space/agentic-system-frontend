@@ -34,18 +34,27 @@ export function phoneSecret(search = globalThis.location?.search || '') {
   return /^[A-Za-z0-9_-]{30,64}$/.test(raw) ? raw : '';
 }
 
-// The phone's calls: the secret is sent as the Bearer credential, never in the address.
-async function phoneFetch(path, secret, { method = 'GET', body, fetchImpl = fetch, timeoutMs = 120000 } = {}) {
+// The secret of a camera pairing code in this page's address (``?camera=``, "Scan from phone" in the Add video source
+// dialog), when it looks like one.
+export function cameraSecret(search = globalThis.location?.search || '') {
+  const raw = new URLSearchParams(search).get('camera') || '';
+  return /^[A-Za-z0-9_-]{30,64}$/.test(raw) ? raw : '';
+}
+
+// The phone's calls: the secret is sent as the Bearer credential, never in the address. A `json` body goes as JSON.
+async function phoneFetch(path, secret, { method = 'GET', body, json, fetchImpl = fetch, timeoutMs = 120000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = { Accept: 'application/json', Authorization: `Bearer ${secret}` };
+  if (json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
   let response;
   try {
     response = await fetchImpl(`/api/training-data/v1/${path}`, {
-      method, body, headers: { Accept: 'application/json', Authorization: `Bearer ${secret}` },
+      method, body, headers,
       credentials: 'omit', redirect: 'error', cache: 'no-store', signal: controller.signal,
     });
   } catch {
-    throw controller.signal.aborted ? new ApiError(0, 'timeout', 'Sending took too long. Try fewer photos at a time.')
+    throw controller.signal.aborted ? new ApiError(0, 'timeout', json !== undefined ? 'Sending took too long. Try again.' : 'Sending took too long. Try fewer photos at a time.')
       : new ApiError(0, 'network', 'Could not reach AADML. Check the connection and try again.');
   } finally { clearTimeout(timer); }
   let data = null;
@@ -62,6 +71,24 @@ export const phoneApi = {
     return phoneFetch('phone/photos/', secret, { ...opts, method: 'POST', body: form });
   },
 };
+
+// A phone pairing with the Add video source dialog (backend camera_pairing.py): what it pairs with, and the one value
+// it sends (what it scanned from the camera's label, or what the person typed).
+export const cameraPhoneApi = {
+  info: (secret, opts) => phoneFetch('camera-pairing/', secret, opts),
+  send: (secret, value, opts) => phoneFetch('camera-pairing/', secret, { ...opts, method: 'POST', json: { value }, timeoutMs: 30000 }),
+};
+
+// The codes the browser's own reader (BarcodeDetector) is asked for, of those it says it reads; [] when it reads none
+// or has no reader at all (the phone then says so, and the person types what the label says).
+export const SCAN_FORMATS = ['qr_code', 'data_matrix', 'aztec', 'pdf417', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar'];
+export async function scanFormats(Detector = globalThis.BarcodeDetector) {
+  if (typeof Detector !== 'function') return [];
+  try {
+    const supported = typeof Detector.getSupportedFormats === 'function' ? await Detector.getSupportedFormats() : SCAN_FORMATS;
+    return SCAN_FORMATS.filter(f => supported.includes(f));
+  } catch { return []; }
+}
 
 // The photos in parts the server takes at once (at most 20 a request).
 export function inBatches(files, size = 10) {

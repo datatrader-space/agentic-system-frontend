@@ -60,3 +60,28 @@ it('the jobs button names no count when there are no jobs (ADM-1170: "0 jobs")',
   expect(button.attributes('aria-label')).toBe('Jobs')
   w.unmount()
 })
+
+it('the tray shows a picture result as a picture and never scrolls sideways at phone width (live 2026-11-17)', async () => {
+  // Live at 375 px: a "Save frame" job from an MCP client showed a video player at 0:00, and a Music card's <audio>
+  // (300 px wide by default) made the list scroll sideways.
+  const frame = { job_id: 'frame', conversation_id: null, operation: 'frame', modality: 'video', state: 'ready', references: [],
+                  origin: { label: 'From MCP: Claude' }, effective_config: {},
+                  output: { attachment_id: 'f1', url: '/media/f1.png', media_type: 'image', mime_type: 'image/png' } }
+  const music = { job_id: 'music', conversation_id: null, operation: 'music', modality: 'audio', state: 'ready', references: [],
+                  output: { attachment_id: 's1', url: '/media/s1.mp3', media_type: 'audio', mime_type: 'audio/mpeg' } }
+  api.get.mockResolvedValue({ data: { jobs: [frame, music], page: 1, has_more: false } })
+  const w = mount(Bar, { props: { title: 'Video', user: { id: 'one', username: 'Maker' } }, global: { stubs: { RouterLink: stubs.RouterLink } } })
+  for (const dialog of w.findAll('dialog')) { dialog.element.showModal = vi.fn(); dialog.element.close = vi.fn() }
+  await w.get('[data-test="swb-jobs"]').trigger('click'); await flushPromises()
+  const cards = w.get('[data-test="swb-recent"]').findAll('article')
+  expect(cards).toHaveLength(2)
+  expect(cards[0].find('video').exists()).toBe(false)
+  expect(cards[0].get('img').attributes('alt')).toBe('Saved frame')
+  expect(cards[0].text()).toContain('From MCP: Claude')
+  expect(cards[1].find('audio.vjc-audio').exists()).toBe(true)
+  // The list and its recent section are one shrinkable column, so no card content can be wider than the list.
+  const src = (await import('./StudioWorkspaceBar.vue?raw')).default
+  expect(src).toMatch(/\.swb-job-list\{[^}]*grid-template-columns:minmax\(0,1fr\)/)
+  expect(src).toMatch(/\.swb-recent\{[^}]*grid-template-columns:minmax\(0,1fr\)/)
+  w.unmount()
+})

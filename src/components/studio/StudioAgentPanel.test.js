@@ -144,3 +144,26 @@ it('shows the agent task list above the composer, the same list every agent keep
   expect(w.find('.sap-tasks chat-task-list-stub').exists()).toBe(true)
   expect(w.find('.sap-scroll .sap-tasks').exists()).toBe(false)
 })
+
+it('announces a streamed answer once, when it is complete, and never re-reads history (plan section 3 item 7)', async () => {
+  // A live log re-read the streamed answer on every chunk; the log is silent and a status line says the answer once.
+  state.chat.messages = [{ id: 'old', role: 'assistant', content: 'From history', status: 'done' }]
+  w = mount(StudioAgentPanel, { props: { modelValue: '', label: 'Image', ready: true }, global: { stubs } })
+  await flushPromises()
+  const log = w.get('[role="log"]'), announce = w.get('[data-test="studio-agent-announce"]')
+  expect(log.attributes('aria-live')).toBe('off')
+  expect(log.attributes('aria-relevant')).toBeUndefined()
+  expect(announce.attributes('role')).toBe('status')
+  expect(announce.text()).toBe('')
+  state.chat.messages.push({ id: 'new', role: 'assistant', content: 'Here is', status: 'streaming' })
+  await flushPromises()
+  state.chat.messages[1].content = 'Here is **your** [shot list](https://example.test/x).'
+  await flushPromises()
+  expect(announce.text()).toBe('')
+  state.chat.messages[1].status = 'done'
+  await flushPromises()
+  expect(announce.text()).toBe('Here is your shot list.')
+  state.chat.messages[1].content = 'Here is your shot list, edited.'
+  await flushPromises()
+  expect(announce.text()).toBe('Here is your shot list.')
+})
