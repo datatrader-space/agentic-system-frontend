@@ -128,11 +128,9 @@
   <section class="panel sandbox-panel" aria-label="Sandbox usage">
     <div class="panel-head">
       <h2>Sandbox Time</h2>
-      <span class="sandbox-capacity" :title="'Weighted capacity in use'">
-        <template v-if="!sandboxUsage.capacity?.unlimited">
-          {{ sandboxUsage.capacity?.used_weight ?? 0 }} / {{ sandboxUsage.capacity?.limit_weight ?? 0 }} capacity
-        </template>
-        <template v-else>Unlimited capacity</template>
+      <!-- No per-person limit (ADM-1307): only what your running sandboxes hold. -->
+      <span class="sandbox-capacity" :title="'Weighted capacity your running sandboxes hold'">
+        {{ sandboxUsage.capacity?.used_weight ?? 0 }} in use
       </span>
     </div>
 
@@ -178,9 +176,10 @@
       </div>
       <p class="limit-source">
         <Icon icon="lucide:shield" />
-        {{ sandboxBudget.source === 'default'
-          ? 'Platform default limit — create an organization budget to set your own.'
-          : `From your ${String(sandboxBudget.source).split(':')[1]} budget.` }}
+        <template v-if="!sandboxBudget.source || sandboxBudget.source === 'none'">
+          No organization budget: sandbox time is paid from your balance.
+        </template>
+        <template v-else>From your {{ String(sandboxBudget.source).split(':')[1] }} budget.</template>
         Managed in {{ sandboxBudget.managed_in }}.
       </p>
     </div>
