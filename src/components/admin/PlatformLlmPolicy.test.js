@@ -114,6 +114,12 @@ describe('PlatformLlmPolicy', () => {
     expect(input.attributes('max')).toBe('40')
   })
 
+  it('has no per-conversation step limit (removed with the backend key, owner 2026-11-18)', () => {
+    const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
+    expect(w.find('[data-test="plp-durable_steps_max_per_conversation"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Max steps per conversation')
+  })
+
   it('disables all inputs when disabled (non-admin)', () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE, disabled: true } })
     expect(w.findAll('input').every((i) => i.element.disabled)).toBe(true)

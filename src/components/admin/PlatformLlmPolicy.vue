@@ -213,16 +213,6 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
         <small class="plp-hint"><span v-if="!(modelValue.durable_step_max_bytes)">Blank = default 32,768 bytes</span></small>
         <small v-if="errors.durable_step_max_bytes" class="plp-err">{{ errors.durable_step_max_bytes }}</small>
       </label>
-
-      <label class="plp-field" data-test="plp-durable_steps_max_per_conversation">
-        <span class="plp-lbl">Max steps per conversation</span>
-        <small class="plp-desc">Keep at most this many step rows per conversation (oldest pruned) so storing every result can’t grow without limit. Default 1,000; set a large value for effectively unlimited.</small>
-        <input type="number" min="1" :step="100" :disabled="disabled || !durableSteps"
-               :value="modelValue.durable_steps_max_per_conversation ?? ''"
-               @input="setNum('durable_steps_max_per_conversation', $event)" placeholder="1000" />
-        <small class="plp-hint"><span v-if="!(modelValue.durable_steps_max_per_conversation)">Blank = default 1,000</span></small>
-        <small v-if="errors.durable_steps_max_per_conversation" class="plp-err">{{ errors.durable_steps_max_per_conversation }}</small>
-      </label>
     </div>
   </div>
 </template>
