@@ -39,6 +39,14 @@ export function refusalRows(rows, key, nameOf = id => id) {
 export const SEARCH_CHARS = 200;
 export const RECORD_FILTERS = { q: '', annotated: '', has_file: '', assigned: '', from: '', to: '' };
 
+// A record's status in the list: annotated by its own annotations, or by an accepted label of its photo (the server's
+// ``label_accepted``; found 2026-11-18: photos with accepted labels read "Not annotated").
+export function recordStatus(record) {
+  if (record?.annotated_at) return 'Annotated';
+  if (record?.label_accepted) return 'Label accepted';
+  return record?.annotated ? 'Annotated' : 'Not annotated';
+}
+
 // A search as the server reads it: its runs of spaces made one.
 export const searchText = q => String(q ?? '').split(/\s+/).filter(Boolean).join(' ');
 

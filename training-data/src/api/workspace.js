@@ -90,14 +90,22 @@ export function dedicatedCostSummary(machine, kind, idleMinutes = 60) {
   return `${machineLabel(machine)} costs ${hour} an hour, about ${usdText(monthly(machine), true)} a month, billed by the second from your balance until you stop it.`;
 }
 
-// The models of a project that may run as a deployment of this kind: those with the approval the kind needs.
-export const dedicatedModels = (project, kind) => (project?.models || []).filter(model => model?.approved?.[kind]);
+// The models of a project that may run as a deployment of this kind: those with the approval the kind needs (and, for a
+// chat project's version, whose base model is ready to serve it: ``why_not`` empty).
+export const dedicatedModels = (project, kind) => (project?.models || []).filter(model => model?.approved?.[kind] && !model?.why_not);
 
 // Why no model of the project can be chosen for this kind.
 export function missingApproval(project, kind) {
   if (!project) return 'Choose a project first.';
   if (!project.models?.length) return `${project.name} has no trained model yet.`;
   const needs = kind === 'production' ? 'production' : 'staging';
+  const blocked = (project.models || []).find(model => model?.approved?.[kind] && model?.why_not);
+  if (blocked) return blocked.why_not;
+  // A chat project's versions are approved on its Deploy page: a demo approval reaches staging, a release approval
+  // production (backend llm/approvals.py).
+  if (project.family === 'llm') {
+    return `No chat model of ${project.name} is approved for ${needs}, which a ${kind === 'production' ? 'Production deployment needs: a release approval' : 'Development deployment needs: a demo approval is enough'}. Approve one in Approvals on the project's Deploy page.`;
+  }
   return `No model of ${project.name} is approved for ${needs}, which a ${kind === 'production' ? 'Production' : 'Development'} deployment needs. Approve one on the project's Models page.`;
 }
 
@@ -134,9 +142,14 @@ export function projectStartProblem(options, ref) {
 // The open models that can be deployed as is (the backend says which, and why not for the others).
 export const deployableOpenModels = models => (models || []).filter(model => model?.deployable);
 
-// The machines the start form offers: a trained model's, or those of the open machines that hold the chosen open model.
-export function dedicatedMachinesFor(options, source, openModel) {
-  if (source !== 'open_model') return options?.machines || [];
+// The machines the start form offers: a trained photo model's; for a chat project's version, those of them that hold it
+// (its ``machines``: GPUs only); or those of the open machines that hold the chosen open model.
+export function dedicatedMachinesFor(options, source, openModel, trainedModel = null) {
+  if (source !== 'open_model') {
+    if (!Array.isArray(trainedModel?.machines)) return options?.machines || [];
+    const holds = new Set(trainedModel.machines);
+    return (options?.machines || []).filter(machine => holds.has(machine.instance_type));
+  }
   const fits = new Set(openModel?.machines || []);
   return (options?.open_machines || []).filter(machine => fits.has(machine.instance_type));
 }
@@ -175,7 +188,8 @@ export function dedicatedSource(deployment) {
     return { label: 'Open model', title: deployment.open_model.name || deployment.open_model.repo, detail: deployment.open_model.repo };
   }
   const model = deployment?.model;
-  return { label: 'Trained model', title: deployment?.project?.name || '', detail: model ? modelName(model) : '' };
+  const detail = model ? (model.base_model ? `${modelName(model)} on ${model.base_model}` : modelName(model)) : '';
+  return { label: deployment?.call === 'chat' ? 'Trained chat model' : 'Trained model', title: deployment?.project?.name || '', detail };
 }
 
 // How an app calls an open chat model: OpenAI's own client, with the deployment's address as its base URL.
@@ -349,7 +363,7 @@ export function environmentState(environment) {
   return ['neutral', 'Not deployed'];
 }
 
-export const modelName = model => (model ? `${model.name} ${model.version}${model.smoke ? ' (smoke test)' : ''}` : '');
+export const modelName = model => (model ? `${[model.name, model.version].filter(Boolean).join(' ')}${model.smoke ? ' (smoke test)' : ''}` : '');
 
 // How long ago a moment was, as a person says it; a date once it is more than a week ago.
 export function timeAgo(iso, now = Date.now()) {

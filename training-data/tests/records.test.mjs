@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   MOST_AT_ONCE, tooMany, toggled, refusalRows, RECORD_FILTERS, searchText, searchRefusal, recordsQuery, filtered,
   payloadPreview, pretty, sizeText, deletedWords, pathName, fieldsBody, fieldsRefusal, placedWords, focusSettings,
-  takeSettingsFocus, recordsApi, exportUrl,
+  takeSettingsFocus, recordsApi, exportUrl, recordStatus,
 } from '../src/api/records.js';
 
 // A fake fetch that records every request and answers ``reply`` (JSON) with ``status``.
@@ -182,4 +182,11 @@ test('no new screen uses a native dialog', () => {
   for (const file of ['ProjectRecords.vue', 'DeletedOnRequest.vue', 'ProjectStudio.vue', 'AnnotationEditor.vue', 'AnnotationJob.vue', 'LlmReview.vue', 'LlmExamples.vue', 'ProjectSettings.vue']) {
     assert.doesNotMatch(source(file), /(?<![.\w])(confirm|alert|prompt)\(|window\.(confirm|alert|prompt)\(/, file);   // a method of a part (picker.confirm) is not one
   }
+});
+
+test("a record is annotated by its own annotations or by its photo's accepted label", () => {
+  assert.equal(recordStatus({ annotated: true, annotated_at: '2026-11-18T10:00:00Z', label_accepted: true }), 'Annotated');
+  assert.equal(recordStatus({ annotated: true, annotated_at: null, label_accepted: true }), 'Label accepted');
+  assert.equal(recordStatus({ annotated: false, annotated_at: null, label_accepted: false }), 'Not annotated');
+  assert.equal(recordStatus(null), 'Not annotated');
 });

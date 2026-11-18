@@ -5,7 +5,9 @@
 // how an app calls it, and Stop. The workspace Deployments page shows it for every project; a project's Deploy page
 // shows it with ``projectRef``: that project's deployments and the workspace's open models', and a start for that
 // project only (the same calls, so every rule stays the backend's: the Train right, the model's approval for the
-// environment, a machine of this workspace, the person's balance).
+// environment, a machine of this workspace, the person's balance). A chat project's trained version is offered the same
+// way (backend dedicated.start_chat; owner, 2026-11-18): approved for the environment on the project's Deploy page, on a
+// GPU that holds it or one of the workspace's machines, and called as OpenAI's chat completions.
 // Backend: app_api.py workspace/dedicated/ (list, start) and workspace/dedicated/<id>/stop/.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Activity, Check, Code, Copy, Cpu, KeyRound, LoaderCircle, Plus, RefreshCw, Rocket, Server, Square, Wallet } from 'lucide-vue-next';
@@ -24,8 +26,9 @@ import {
   useSnippet, dedicatedOfProject, projectStartProblem, focusDeploymentsTab,
 } from '../api/workspace.js';
 
-// projectRef: the project whose Deploy page this is ('' on the workspace Deployments page).
-const props = defineProps({ projectRef: { type: String, default: '' } });
+// projectRef: the project whose Deploy page this is ('' on the workspace Deployments page). chat: that project is a chat
+// project (its Deploy page is LlmDeploy.vue): Edge Devices, which answers photos, is not offered there.
+const props = defineProps({ projectRef: { type: String, default: '' }, chat: { type: Boolean, default: false } });
 const emit = defineEmits(['navigate']);
 // Edge Devices is on the workspace Deployments page: a project's page opens it there.
 function openEdge() { focusDeploymentsTab('edge'); emit('navigate', 'deployments'); }
@@ -82,16 +85,21 @@ const chosenProject = computed(() => options.value.projects.find(p => p.ref === 
 const projectProblem = computed(() => projectStartProblem(options.value, props.projectRef));
 const thisProject = computed(() => options.value.projects.find(p => p.ref === props.projectRef) || null);
 const eligible = computed(() => dedicatedModels(chosenProject.value, form.value.kind));
+// A chat project's version brings its own machines (the GPUs and the workspace's machines that hold its weights).
+const chatProject = computed(() => chosenProject.value?.family === 'llm');
+const chosenModel = computed(() => eligible.value.find(m => String(m.number) === String(form.value.model)) || null);
 const mayOpen = computed(() => dedMay.value.start_open_model === true);
 const sources = computed(() => DEDICATED_SOURCES.filter(source => source.value === 'model' || mayOpen.value));
 const openModels = computed(() => options.value.open_models || []);
 const offeredOpen = computed(() => deployableOpenModels(openModels.value));
 const chosenOpen = computed(() => offeredOpen.value.find(m => String(m.id) === String(form.value.open_model)) || null);
-const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value));
+const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value,
+  form.value.source === 'model' && chatProject.value ? (chosenModel.value || { machines: [] }) : null));
 const chosenMachine = computed(() => machinesShown.value.find(m => m.instance_type === form.value.instance_type) || null);
 // The workspace's own machines this model may run on (backend machine_deployments.py; MACHINE_RUNPOD_PARITY_PLAN.md):
 // each with whether it holds the model and why not, and the platform fee. Chosen as 'machine:<id>'.
-const ownMachines = computed(() => (form.value.source === 'open_model' ? chosenOpen.value?.own_machines : chosenProject.value?.own_machines) || []);
+const ownMachines = computed(() => (form.value.source === 'open_model' ? chosenOpen.value?.own_machines
+  : chatProject.value ? chosenModel.value?.own_machines : chosenProject.value?.own_machines) || []);
 const chosenOwn = computed(() => ownMachines.value.find(m => m.key === form.value.instance_type) || null);
 // The machines of this form in the picker's shape (MachinePicker): GPU or CPU, then one from a list.
 const dedPicker = ref(null);
@@ -101,7 +109,8 @@ const loadDedMachines = computed(() => {
     memory_gb: m.memory_gb ?? '', data_center: m.data_center || '', soc2: !!m.soc2, stock_text: m.stock_text || '',
     files_here: !!m.files_here, usd_per_hour: m.charged_usd_per_hour, usd_per_second: m.usd_per_second || (Number(m.charged_usd_per_hour) / 3600),
   })).concat(ownMachines.value);
-  const gpuOnly = form.value.source === 'open_model' ? chosenOpen.value?.gpu_only || '' : '';
+  const gpuOnly = form.value.source === 'open_model' ? chosenOpen.value?.gpu_only || ''
+    : chatProject.value ? chosenModel.value?.gpu_only || '' : '';
   return () => Promise.resolve({ machines: listed, gpu_only: gpuOnly,
     note: 'You are charged by the second it runs, from your balance. A location without the model\'s files copies them first.' });
 });
@@ -123,8 +132,8 @@ const startWhy = computed(() => {
   if (!anyMachine.value) return 'No machine can be chosen right now.';
   return '';
 });
-// A changed source or open model keeps the machine only while it is still offered for it.
-watch([() => form.value.source, () => form.value.open_model, machinesShown], () => {
+// A changed source, open model or chat version keeps the machine only while it is still offered for it.
+watch([() => form.value.source, () => form.value.open_model, () => form.value.model, machinesShown], () => {
   if (!machinesShown.value.some(m => m.instance_type === form.value.instance_type) && !ownMachines.value.some(m => m.fits && m.key === form.value.instance_type)) {
     form.value.instance_type = machinesShown.value[0]?.instance_type || '';
   }
@@ -217,7 +226,8 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
       </DeploymentHeader>
       <DeploymentMetrics :items="dedicatedMetrics" :loaded="!!ded"/>
       <p v-if="ded && ded.cost_note" class="ded-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ ded.cost_note }}</span></p>
-      <p v-if="projectRef" class="ded-billing"><Cpu :size="16" aria-hidden="true"/><span>On one of your own machines, its calls reach the machine through AADML, and it is charged by the second at the platform fee for work on your machine. To answer only on your own network instead, with the photos never leaving it, use <button type="button" class="link-button" @click="openEdge">Edge Devices</button>.</span></p>
+      <p v-if="projectRef && chat" class="ded-billing"><Cpu :size="16" aria-hidden="true"/><span>On one of your own machines, its calls reach the machine through AADML and are answered whole, not streamed, and it is charged by the second at the platform fee for work on your machine.</span></p>
+      <p v-else-if="projectRef" class="ded-billing"><Cpu :size="16" aria-hidden="true"/><span>On one of your own machines, its calls reach the machine through AADML, and it is charged by the second at the platform fee for work on your machine. To answer only on your own network instead, with the photos never leaving it, use <button type="button" class="link-button" @click="openEdge">Edge Devices</button>.</span></p>
       <div v-if="dedSaid" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ dedSaid }}</span></div>
       <div v-if="dedError" class="ded-error" role="alert">
         <span>{{ dedError }}</span>
@@ -327,7 +337,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
               <option v-if="!eligible.length" value="">No approved model</option>
               <option v-for="m in eligible" :key="m.number" :value="String(m.number)">{{ modelName(m) }}</option>
             </select>
-            <p id="ded-model-help" class="ded-help">{{ eligible.length ? `Only models approved for ${form.kind==='production' ? 'production' : 'staging'} are listed.` : missingApproval(chosenProject, form.kind) }}</p>
+            <p id="ded-model-help" class="ded-help">{{ eligible.length ? `Only models approved for ${form.kind==='production' ? 'production' : 'staging'} are listed.${chatProject ? " It answers chat in OpenAI's format." : ''}` : missingApproval(chosenProject, form.kind) }}</p>
             <p id="ded-model-error" class="field-error" aria-live="polite">{{ fieldErrors.model }}</p>
           </div>
         </div>
@@ -335,7 +345,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <div class="ded-field">
           <MachinePicker ref="dedPicker" v-model="form.instance_type" :load="loadDedMachines" legend="Machine"/>
           <p v-if="options.machines_unavailable" class="field-error" role="alert">{{ options.machines_unavailable }}</p>
-          <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
+          <p v-if="(form.source==='open_model' || chatProject) && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
           <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
         </div>
 

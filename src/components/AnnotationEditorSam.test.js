@@ -53,7 +53,8 @@ test('restored SAM disables point tool and keyboard while retaining automatic an
   const body = await api.editor(); body.detect.sources[0].point_selection=false; api.editor.mockResolvedValue(body); api.editor.mockClear();
   const w=render();await flushPromises();
   expect(w.get('[aria-label="SAM 3 click to label (A)"]').element.disabled).toBe(true);
-  expect(w.text()).toContain('Mouse selection is temporarily unavailable');
+  expect(w.text()).toContain('SAM 3 click-to-label is unavailable right now');
+  expect(w.text()).not.toContain('Mouse selection');
   expect(w.get('[aria-label="Draw polygon (P)"]').element.disabled).toBe(false);
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'a',bubbles:true}));
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();

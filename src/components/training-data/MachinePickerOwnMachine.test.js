@@ -114,3 +114,27 @@ describe('Your machine offered elsewhere on the page', () => {
     expect(kind(wrapper, 'own_machine').text()).toBe('Your machine: none connected for this model');
   });
 });
+
+// Live, 2026-11-18: with "Your machine" chosen, the rented GPUs' note ("each says whether its data center is SOC 2 Type
+// II") was still shown under it. It is said of rented machines only.
+describe("The rented machines' note", () => {
+  const NOTE = 'Machines that can hold this model and are free now; each says whether its data center is SOC 2 Type II.';
+  it('is shown for a rented GPU and not for your machine', async () => {
+    const wrapper = await picker([MINE, GPU], { note: NOTE });
+    await wrapper.find('select.machine-kind').setValue('gpu');
+    expect(wrapper.find('.machine-note').text()).toContain('SOC 2 Type II');
+    await wrapper.find('select.machine-kind').setValue('own_machine');
+    expect(wrapper.find('.machine-note').text()).not.toContain('SOC 2');
+    expect(wrapper.find('.machine-note').text()).toContain('Read again');            // reading again stays
+  });
+});
+
+// Live, 2026-11-18: the Open models page said RF-DETR Nano "trains on a CPU" while the Train picker said "CPU: this model
+// needs a GPU". A rented machine trains on a GPU; a machine of the person's own may train on its CPU: the server says so.
+describe('What the CPU choice says on a Train page', () => {
+  it("says the server's own words when it gives them", async () => {
+    const wrapper = await picker([GPU], { gpu_only: 'x', cpu_text: 'rented machines train on a GPU; your own machine may train on its CPU' });
+    expect(kind(wrapper, 'cpu').text()).toBe('CPU: rented machines train on a GPU; your own machine may train on its CPU');
+    expect(kind(wrapper, 'cpu').attributes('disabled')).toBeDefined();
+  });
+});

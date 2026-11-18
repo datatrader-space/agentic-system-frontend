@@ -52,7 +52,9 @@ test('a dedicated deployment can go on one of the workspace\'s own machines or o
   // The picker lists the rented machines and the workspace's own (machine:<id>, with why one cannot hold the model).
   assert.match(dedicatedTab, /<MachinePicker ref="dedPicker" v-model="form\.instance_type" :load="loadDedMachines"/);
   assert.match(dedicatedTab, /\}\)\)\.concat\(ownMachines\.value\);/);
-  assert.match(dedicatedTab, /form\.value\.source === 'open_model' \? chosenOpen\.value\?\.own_machines : chosenProject\.value\?\.own_machines/);
+  // An open model's machines are its own; a chat project's version brings its own too (they hold its weights), and a
+  // photo project's are the project's (backend app_api._dedicated_body, _dedicated_chat_models).
+  assert.match(dedicatedTab, /form\.value\.source === 'open_model' \? chosenOpen\.value\?\.own_machines\s+: chatProject\.value \? chosenModel\.value\?\.own_machines : chosenProject\.value\?\.own_machines/);
   // An open model of the workspace is offered only with the Train right in the workspace (the backend's may).
   assert.match(dedicatedTab, /const mayOpen = computed\(\(\) => dedMay\.value\.start_open_model === true\);/);
   // Its state, how to call it, and Stop, confirmed first.
