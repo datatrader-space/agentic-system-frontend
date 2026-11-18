@@ -14,7 +14,6 @@
 //                     tool_call {tool, params} / tool_result {tool_name, result, success}
 //                     agent_session_complete | stop_acknowledged | error {error|message}
 import { reconnectDelay, RECONNECT_BASE_MS, RECONNECT_CAP_MS } from '../utils/reconnectingSocket.js'
-import api from './api'
 
 // Heartbeat / reconnect tuning. A backend reload kills the socket WITHOUT always delivering a
 // close frame (half-open) — so we ping and treat silence as death, then reconnect automatically.
@@ -206,8 +205,11 @@ export class ChatConnection {
   // A refused handshake reaches the browser as a plain close (1006), the same as a network drop, so a signed-out page
   // retried forever (one tab: 83 refusals in 40 minutes, 2026-11-18). After a few failures ask the server once: a
   // 401 means the session is gone, so stop retrying; the global 401 handler (services/api.js) then lands on /login.
+  // The API module is loaded only here, with its full name: this file is also imported by the Training Data app's
+  // assistant chat, which its Node tests load without Vite (a static import broke them, CI of b6df47a).
   async _checkSignedIn() {
     try {
+      const { default: api } = await import('./api.js')
       await api.getCurrentUser()
     } catch (e) {
       if (e?.response?.status === 401) {
