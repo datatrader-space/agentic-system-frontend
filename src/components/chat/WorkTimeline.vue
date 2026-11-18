@@ -122,7 +122,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, useSlots, watch } from 'vue'
 import api from '../../services/api'
 import MediaThumb from '../common/MediaThumb.vue'
 import { fmtTokens } from '../../composables/tokens'
@@ -153,7 +153,11 @@ const props = defineProps({
 // The ids that tie a row's button to its panel (`aria-controls`), unique per timeline on the page.
 const uid = `wt${Math.random().toString(36).slice(2, 8)}`
 
-const rows = computed(() => workRows(props.steps, { finished: props.finished, hasAnswer: props.hasAnswer }))
+// A plan row is drawn only when the host has a plan card to put in it (`plan` slot): a plan with no steps has no card,
+// and its row was a lone dot over an empty line (live test 2026-11-18, every model).
+const slots = useSlots()
+const rows = computed(() => workRows(props.steps, { finished: props.finished, hasAnswer: props.hasAnswer })
+  .filter((r) => r.kind !== 'plan' || !!slots.plan))
 
 function rowDot(r) {
   if (r.kind === 'text' || r.kind === 'answer' || r.kind === 'steer' || r.kind === 'compaction' || r.kind === 'plan') {

@@ -87,6 +87,17 @@ describe('WorkTimeline', () => {
     w.unmount()
   })
 
+  it('a plan step with no plan card to show draws no row (the lone dot of the live test)', () => {
+    const planStep = { stepId: 'pl1', isPlan: true, planId: 'p1', runId: 'r1', status: 'ok' }
+    const text = { stepId: 't9', isText: true, text: 'Done.', status: 'ok' }
+    const without = mountIt({ steps: [planStep, text], hasAnswer: false })
+    expect(without.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))).toEqual(['text'])
+    without.unmount()
+    const withCard = mountIt({ steps: [planStep, text], hasAnswer: false }, { plan: '<div class="card">Plan</div>' })
+    expect(withCard.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))).toEqual(['plan', 'text'])
+    withCard.unmount()
+  })
+
   it('a long OUT saved as its ref still previews from its saved first lines, without a fetch', () => {
     const long = { stepId: 'step_l', toolCallId: 'l', tool: 'CODE_RUN_COMMAND', title: 'Bash', label: 'Running a command',
                    status: 'ok', input: { command: 'npm test' }, ioRef: 'step:9', outputChars: 9000,

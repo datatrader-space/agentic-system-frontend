@@ -213,7 +213,9 @@ export function useAgentTimeline() {
       // is its own item) instead of one ever-growing blob.
       if (evt.type === 'reasoning_done') {
         if (openReasoning) {
-          if (evt.duration_ms != null) openReasoning.durationMs = evt.duration_ms
+          // A positive duration is the server's; none (or 0) is unknown and the row's own elapsed time is used, never
+          // "Thought for 0.0s" (live test 2026-11-18, every model).
+          if (evt.duration_ms > 0) openReasoning.durationMs = evt.duration_ms
           _closeRow(openReasoning, 'ok')
         } else if (evt.hidden) {
           // The model thought but keeps its reasoning private (sent only encrypted): one closed thought with its

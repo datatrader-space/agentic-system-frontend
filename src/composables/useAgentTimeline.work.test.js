@@ -83,6 +83,24 @@ describe('useAgentTimeline — a Work turn', () => {
     expect(rows[0].step.reasoningText || '').toBe('')
   })
 
+  it('a thought closed with no duration (or 0) keeps its own elapsed time, never "Thought for 0.0s"', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ type: 'reasoning_delta', step_id: 's1', text: 'thinking' })
+    const row = tl.steps.value[tl.steps.value.length - 1]
+    row.startedAt = Date.now() - 1500
+    tl.ingest({ type: 'reasoning_done', step_id: 's1', duration_ms: 0 })
+    expect(row.durationMs).toBeGreaterThanOrEqual(1400)
+  })
+
+  it('a thought closed with a positive server duration keeps it', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ type: 'reasoning_delta', step_id: 's2', text: 'thinking' })
+    tl.ingest({ type: 'reasoning_done', step_id: 's2', duration_ms: 3200 })
+    expect(tl.steps.value[tl.steps.value.length - 1].durationMs).toBe(3200)
+  })
+
   it('a reasoning_done without hidden and with no open thought adds nothing', () => {
     const tl = useAgentTimeline()
     tl.reset('work')
