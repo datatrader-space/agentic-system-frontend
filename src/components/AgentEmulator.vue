@@ -106,6 +106,9 @@
                    v-html="renderMarkdown(m.content)"></div>
               <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md). -->
               <VoiceReply v-if="m.voiceReply" :reply="m.voiceReply" />
+              <!-- What this turn REALLY saved to memory (backend ADM-1264 M3) — the same row as New Chat. -->
+              <MemoryChips v-if="m.memoriesSaved && m.memoriesSaved.length" :message="m"
+                           field="memoriesSaved" label="Saved to memory" />
               <!-- Provenance footer (where the answer came from) — same as New Chat -->
               <ProvenanceFooter v-if="!m.streaming && m.answerBasis" :basis="m.answerBasis" />
               <!-- KB sources panel (clickable): cited-or-top-4 when provenance is on, else full list -->
@@ -264,7 +267,8 @@ import { notify } from '@/composables/useNotify'
 import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
-import { showMemorySavedToast } from '@/composables/useMemoryToast'
+import MemoryChips from './chat/MemoryChips.vue'
+import { mergeSavedMemories } from '@/stores/useChatStore'
 import { fmtTokens, fmtCost, shownCost } from '../composables/tokens'
 import VoiceNoteMic from './chat/VoiceNoteMic.vue'
 import VoiceNotePlayer from './chat/VoiceNotePlayer.vue'
@@ -805,9 +809,13 @@ function handleEvent(raw) {
       scrollToBottom()
       break
     }
-    case 'memory_saved':
-      showMemorySavedToast(evt)
+    case 'memory_saved': {
+      // A memory was REALLY saved from this test chat: shown as "Saved to memory" under the answer being written,
+      // else the last one. Nothing saved, no row.
+      const target = streamingAssistant() || [...messages.value].reverse().find((x) => x.role === 'assistant')
+      if (target && Array.isArray(evt.memories)) target.memoriesSaved = mergeSavedMemories(target.memoriesSaved, evt.memories)
       break
+    }
     case 'chat_response':
     case 'assistant_message':
     case 'assistant': {
@@ -996,6 +1004,8 @@ async function loadHistory(id) {
         const a = newAssistantMessage()
         a.content = m.content || ''
         a.streaming = false   // historical turn — no live timeline
+        // What that turn really saved to memory, kept on the answer by the server ("Saved to memory").
+        a.memoriesSaved = mergeSavedMemories(m.model_info && m.model_info.memories_saved, [])
         return a
       }
       return { role: 'user', content: m.content || '' }

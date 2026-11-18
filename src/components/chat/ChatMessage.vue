@@ -70,6 +70,11 @@
         <MemoryChips v-if="message.status !== 'streaming' && message.memories && message.memories.length"
                      :message="message" />
 
+        <!-- What this turn REALLY saved to memory, from the server's ledger (never from the answer's words).
+             Shown as each save lands, even mid-answer; nothing saved, no row. -->
+        <MemoryChips v-if="message.memoriesSaved && message.memoriesSaved.length"
+                     :message="message" field="memoriesSaved" label="Saved to memory" />
+
         <!-- Per-response token usage -->
         <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
 

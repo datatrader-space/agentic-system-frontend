@@ -70,6 +70,20 @@ function pickArray(d) {
   return []
 }
 
+// The memories an answer REALLY saved ("Saved to memory", backend ADM-1264 M3): the saved row's list and the live
+// `memory_saved` frames, one chip per memory id. The row is the ground truth of a save — it comes from the
+// ledger, never from what the model said — so nothing saved means no chips and no row.
+export function mergeSavedMemories(held, incoming) {
+  const out = [...pickArray(held)]
+  const ids = new Set(out.map((c) => c && c.id))
+  for (const c of pickArray(incoming)) {
+    if (!c || c.id == null || ids.has(c.id)) continue
+    ids.add(c.id)
+    out.push(c)
+  }
+  return out
+}
+
 // One page of chat history. Deliberately small: the drawer opens on the recent page and pulls older
 // ones on demand, so a user with hundreds of chats doesn't pay for all of them to open a chat.
 const HISTORY_PAGE_SIZE = 25
@@ -807,6 +821,8 @@ export const useChatStore = defineStore('chat', {
         // The memories this answer drew on ({ref, kind, text, via, id?, status?}) — shown as chips under
         // it, where a fact can be marked outdated or forgotten. Persisted on model_info like the rest.
         memories: pickArray(info.memories),
+        // The memories this turn really saved ("Saved to memory"), kept on the answer by the server.
+        memoriesSaved: pickArray(info.memories_saved),
         conversationId: String(conversationId),
       }
     },
@@ -1849,6 +1865,9 @@ export const useChatStore = defineStore('chat', {
             ? pickArray(m.model_info.chat_actions) : ((_prev && _prev.chatActions) || []),
           memories: pickArray(m.model_info && m.model_info.memories).length
             ? pickArray(m.model_info.memories) : ((_prev && _prev.memories) || []),
+          // The server's saved list plus any save shown live that the row does not hold yet (a learner's save).
+          memoriesSaved: mergeSavedMemories(m.model_info && m.model_info.memories_saved,
+            _prev && _prev.memoriesSaved),
           conversationId: String(this.conversationId),
         }))
         this.messages = this._foldSteers(this.messages)   // a STEER shows inside its run (see _foldSteers)
@@ -1971,6 +1990,7 @@ export const useChatStore = defineStore('chat', {
         timeline: null, // activity-timeline snapshot, pinned on completion (friendly, param-free)
         chatActions: [], // connector buttons offered by CONNECT_SERVICE (live `chat_action` frames)
         memories: [], // memories this answer drew on (live `memories_used` frame, after the save)
+        memoriesSaved: [], // memories this turn really saved (live `memory_saved` frames) — "Saved to memory"
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
@@ -2473,6 +2493,18 @@ export const useChatStore = defineStore('chat', {
             && this.messages.find((x) => x.role === 'assistant' && String(x.serverId ?? x.id) === String(msg.message_id)))
             || m || [...this.messages].reverse().find((x) => x.role === 'assistant')
           if (target && Array.isArray(msg.memories)) target.memories = msg.memories
+          break
+        }
+        case 'memory_saved': {
+          // A memory was REALLY saved from this chat (backend `store.announce_saved`): a MEMORY_WRITE / MEMORY_EDIT
+          // during the turn, or the end-of-run learner after it. Shown as "Saved to memory" under the answer it
+          // belongs to — the one being written, else the last one. Sent to every page of the person, so only this
+          // chat's saves are taken.
+          if (msg.conversation_id != null && String(msg.conversation_id) !== String(this.conversationId)) break
+          const target = m || [...this.messages].reverse().find((x) => x.role === 'assistant')
+          if (target && Array.isArray(msg.memories)) {
+            target.memoriesSaved = mergeSavedMemories(target.memoriesSaved, msg.memories)
+          }
           break
         }
         case 'run_usage': {
