@@ -91,6 +91,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
+// The Studio's shared form styles (st-field, st-input, st-button): opened straight from a link, no other Studio page
+// has loaded them yet, and the start form showed as bare boxes (live 2026-11-18).
+import '../components/studio/studio.css'
 import { getStudioFeature, loadStudioFeatures } from '../services/studioFeatures'
 import { useVideoStore } from '../stores/useVideoStore'
 import { useClipEditor } from '../components/clip-editor/useClipEditor'
