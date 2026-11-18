@@ -282,9 +282,9 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
     </div>
 
     <UiDialog :open="keysOpen" title="API keys" @close="keysOpen=false">
-      <p class="dialog-description">An app calls a project's model with a key of its own, made on the project's Connect app page. Keys are never shown again after they are made.</p>
+      <p class="dialog-description">An app calls a project's model with a key of its own (it starts with aadml_app_), made on the project's Deployments page under "Apps that may call the model", or in a dedicated deployment's Use dialog. Keys are never shown again after they are made. A key from Connect app (tmd_) only sends records in.</p>
       <p v-if="!rows.length" class="muted">No project yet.</p>
-      <ul class="key-list"><li v-for="row in rows" :key="row.project.ref"><span>{{ row.project.name }}</span><a class="text-link" :href="projectLink(row.project.ref,'connect')" @click="keysOpen=false">Its keys</a></li></ul>
+      <ul class="key-list"><li v-for="row in rows" :key="row.project.ref"><span>{{ row.project.name }}</span><a class="text-link" :href="projectLink(row.project.ref,'deploy')" @click="keysOpen=false">Its apps and keys</a></li></ul>
       <div class="dialog-actions"><UiButton @click="keysOpen=false">Close</UiButton></div>
     </UiDialog>
 

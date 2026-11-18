@@ -41,7 +41,15 @@ export const workspaceApi = {
     timeoutMs: SLOW,
   }),
   stopDedicated: id => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/stop/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // An app key that calls this deployment, in one step (the app, its access in the deployment's environment, a key):
+  // the key is in this one answer only. Live, 2026-11-18: the Use dialog sent people to Connect app, whose tmd_ keys
+  // only send records in, and the call was refused.
+  dedicatedAppKey: (id, name) => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-key/`, { method: 'POST', body: { name }, timeoutMs: SLOW }),
 };
+
+// Where an app key (aadml_app_) is made, said the same way on every page. A project's Connect app keys (tmd_) only send
+// records in: they never call a model.
+export const APP_KEY_WHERE = 'An app key starts with aadml_app_. It is made here, or on the project\'s Deployments page under "Apps that may call the model". A key from Connect app (tmd_) only sends records in and cannot call a model.';
 
 // ── Dedicated deployments ──────────────────────────────────────────────────────────────────────────
 // The rules are the backend's; these only say them before a request is sent and put the answer in words.

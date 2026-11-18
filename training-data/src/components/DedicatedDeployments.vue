@@ -23,7 +23,7 @@ import {
   workspaceApi, projectLink, modelName, timeAgo, DEDICATED_NAME_RULE, dedicatedNameProblem, dedicatedCostSummary,
   dedicatedModels, missingApproval, dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels,
   dedicatedMachinesFor, machineKind, openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall,
-  useSnippet, dedicatedOfProject, projectStartProblem, focusDeploymentsTab,
+  useSnippet, dedicatedOfProject, projectStartProblem, focusDeploymentsTab, APP_KEY_WHERE,
 } from '../api/workspace.js';
 
 // projectRef: the project whose Deploy page this is ('' on the workspace Deployments page). chat: that project is a chat
@@ -204,10 +204,23 @@ const languages = computed(() => useLanguages(using.value));
 const installLine = computed(() => useInstall(using.value));
 const useUrl = computed(() => (using.value ? `${DEDICATED_HOST}${using.value.path}` : ''));
 const useCode = computed(() => (useUrl.value ? useSnippet(using.value, language.value, useUrl.value) : ''));
-const COPIED_WORDS = { install: 'the install command', code: 'the code', address: 'the address' };
+const COPIED_WORDS = { install: 'the install command', code: 'the code', address: 'the address', key: 'the key' };
 let copiedTimer = null;
 const CHAT_ABOUT = "It takes OpenAI's chat format, so OpenAI's own client works with it: set the client's base URL to the address below.";
-function openUse(d) { using.value = d; language.value = useLanguages(d)[0]; copied.value = ''; copyError.value = ''; }
+function openUse(d) {
+  using.value = d; language.value = useLanguages(d)[0]; copied.value = ''; copyError.value = '';
+  keyName.value = ''; madeKey.value = null; keyError.value = '';
+}
+// Making the app key right here (workspaceApi.dedicatedAppKey): it may call this deployment's project in its
+// environment, works at once, and is shown only in this dialog, once.
+const keyName = ref(''); const madeKey = ref(null); const keyBusy = ref(false); const keyError = ref('');
+async function makeAppKey() {
+  if (!using.value || keyBusy.value || !keyName.value.trim()) return;
+  keyBusy.value = true; keyError.value = '';
+  try { madeKey.value = (await workspaceApi.dedicatedAppKey(using.value.id, keyName.value.trim())).made; }
+  catch (e) { keyError.value = e.message; }
+  finally { keyBusy.value = false; }
+}
 async function copyText(text, what) {
   try {
     await navigator.clipboard.writeText(text); copied.value = what; copyError.value = '';
@@ -402,9 +415,25 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <dl class="use-facts">
           <div><dt>{{ using.call==='chat' ? 'Address (the base URL is everything before /chat/completions)' : 'Address' }}</dt><dd><code>{{ useUrl }}</code><button type="button" class="copy-icon" :aria-label="copied==='address' ? 'Address copied' : 'Copy the address'" @click="copyText(useUrl,'address')"><Check v-if="copied==='address'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></dd></div>
           <div><dt>App key</dt><dd><KeyRound :size="14" aria-hidden="true"/>
-            <span v-if="using.project">A key of an app allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }}. <a class="text-link" :href="projectLink(using.project.ref,'connect')" @click="using=null">Make or find one</a></span>
-            <span v-else>A key of an app of this workspace that may call one of its projects in {{ environmentLabel(using.environment).toLowerCase() }}. Keys are made on a project's Connect app page.</span></dd></div>
+            <span v-if="using.project">The key of an app allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }}: it starts with aadml_app_. Make one below, or find your apps on <a class="text-link" :href="projectLink(using.project.ref,'deploy')" @click="using=null">the project's Deployments page</a>.</span>
+            <span v-else>The key of an app of this workspace allowed, in {{ environmentLabel(using.environment).toLowerCase() }}, on any of its projects: it starts with aadml_app_. It is made on that project's Deployments page, under "Apps that may call the model". A key from Connect app (tmd_) only sends records in.</span></dd></div>
         </dl>
+        <section v-if="using.project" class="use-key" aria-labelledby="use-key-h">
+          <h3 id="use-key-h">Make an app key for this deployment</h3>
+          <template v-if="!madeKey">
+            <p class="ded-help">Name the app that will call it (a new one, or one of yours). It is allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }} and gets a key that works at once.</p>
+            <form class="use-key-form" @submit.prevent="makeAppKey">
+              <input v-model="keyName" class="text-input" maxlength="120" placeholder="App name, e.g. Support site" aria-label="Name of the app that calls this deployment">
+              <UiButton type="submit" variant="primary" :disabled="keyBusy || !keyName.trim()"><KeyRound :size="14" aria-hidden="true"/> {{ keyBusy ? 'Making…' : 'Make the key' }}</UiButton>
+            </form>
+          </template>
+          <div v-else class="use-key-made" role="status">
+            <strong>The key for {{ madeKey.app }}. Copy it now: it is shown only this once.</strong>
+            <div class="use-key-line"><code>{{ madeKey.key }}</code><button type="button" class="copy-icon" :aria-label="copied==='key' ? 'Key copied' : 'Copy the key'" @click="copyText(madeKey.key,'key')"><Check v-if="copied==='key'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></div>
+            <p class="ded-help">Put it in the code above where it says &lt;your app key&gt;.</p>
+          </div>
+          <p v-if="keyError" class="field-error" role="alert">{{ keyError }}</p>
+        </section>
         <p class="sr-only" aria-live="polite">{{ copied ? `Copied ${COPIED_WORDS[copied]}.` : '' }}</p>
         <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
         <div class="dialog-actions"><UiButton @click="using=null">Close</UiButton></div>
@@ -502,6 +531,13 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 .use-facts dd{margin:0;display:flex;align-items:flex-start;gap:6px;font-size:13px;color:#22304a;overflow-wrap:anywhere;line-height:1.45}
 .use-facts dd svg{flex-shrink:0;margin-top:2px;color:#6b778c}
 .use-facts code{font-size:12px;min-width:0}
+.use-key{margin-top:18px;padding:14px;border:1px solid #e3e6ed;border-radius:9px}
+.use-key h3{font-size:14px;margin:0 0 6px}
+.use-key-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.use-key-form .text-input{flex:1 1 220px;min-width:0}
+.use-key-made{display:grid;gap:8px}
+.use-key-line{display:flex;align-items:center;gap:6px;min-width:0}
+.use-key-line code{overflow-wrap:anywhere;min-width:0;font-size:12px}
 .use-facts .text-link{margin:0}
 .copy-icon{display:inline-grid;place-items:center;flex-shrink:0;min-width:44px;min-height:44px;margin:-12px -10px -12px auto;border:0;border-radius:6px;background:transparent;color:#6b778c;cursor:pointer}
 .copy-icon:hover{background:var(--aadml-tint);color:var(--aadml-primary)}

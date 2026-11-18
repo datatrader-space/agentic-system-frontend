@@ -96,6 +96,7 @@ const curl = computed(() => guide.value && isLlm.value ? [
         <div class="eyebrow">KEYS</div>
         <h2>Let an app send its data here</h2>
         <p>An app (FitMyWall, a shop, a sensor) sends each record with a key. A key is shown once, when it is made: keep it in the app's settings.</p>
+        <p class="connect-note"><strong>These keys (tmd_) only send records into this project.</strong> To call a deployed model, an app needs an app key (aadml_app_): make it on <a class="text-link" href="#" @click.prevent="$emit('navigate', 'deploy')">the Deployments page</a>, under "Apps that may call the model", or in a dedicated deployment's Use dialog.</p>
         <p v-if="keys && !keys.can_create" class="connect-refused"><UiBadge>Not yet</UiBadge> {{ keys.refused }}</p>
         <form v-else class="connect-new" @submit.prevent="make"><label class="field-label">Key name<input v-model="keyName" class="text-input" maxlength="120" placeholder="e.g. FitMyWall app"></label><UiButton type="submit" variant="primary" :disabled="busy">{{ busy ? 'Creating…' : 'Create key' }}</UiButton></form>
         <div v-if="fresh" class="connect-fresh" role="status"><strong>Your new key. Copy it now: it will not be shown again.</strong><code>{{ fresh.key }}</code><UiButton @click="copy(fresh.key, 'key')"><Copy :size="15" /> {{ copied === 'key' ? 'Copied' : 'Copy key' }}</UiButton><UiButton @click="fresh = null">I have kept it</UiButton></div>
@@ -180,6 +181,7 @@ const curl = computed(() => guide.value && isLlm.value ? [
 </template>
 
 <style scoped>
+.connect-note{padding:10px 12px;border-radius:8px;background:#f4f6fb;font-size:13px;line-height:1.5}
 .connect-app{display:grid;gap:20px}.connect-app h3{margin:22px 0 8px}
 .connect-new{display:flex;gap:12px;align-items:flex-end;margin:16px 0}.connect-new .field-label{flex:1;margin:0}
 .connect-fresh{display:grid;gap:10px;padding:16px;margin:16px 0;border:1px solid #99f6e4;border-radius:8px;background:#f0fdfa;color:#0f766e}
