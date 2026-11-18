@@ -359,7 +359,7 @@ import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
-import { normalizeRunMode, isAutonomous, isPlanReview } from '@/composables/agentModes'
+import { normalizeRunMode, isAutonomous } from '@/composables/agentModes'
 
 // ── Wired to the PER-AGENT policy (AgentProfile.agent_policy) + agent_run_mode. ──
 // Per-agent policy can only TIGHTEN the org GlobalAgentPolicy floor; the backend clamps any
@@ -380,11 +380,9 @@ const saving = ref(false)
 const rawPolicy = ref({})            // full agent_policy as loaded, so we preserve unknown keys on save
 const runMode = ref('manual')        // AgentProfile.agent_run_mode (canonical enforced field)
 
-// The checkbox is a coarse manual/autonomous toggle; preserve the plan-review dimension across it.
+// The checkbox is the manual/autonomous toggle (an agent has no plan-review mode, ADM-1306).
 function setApprovalRequired(required) {
-  const plan = isPlanReview(runMode.value)
-  if (required) runMode.value = plan ? 'plan_review_manual' : 'manual'
-  else runMode.value = plan ? 'plan_review_autonomous' : 'autonomous'
+  runMode.value = required ? 'manual' : 'autonomous'
 }
 
 const pol = reactive({

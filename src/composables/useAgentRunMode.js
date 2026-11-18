@@ -26,7 +26,7 @@ export function useAgentRunMode(getAgentId, getInitialMode = () => 'manual') {
 
   watch(getInitialMode, (v) => { if (v) mode.value = normalizeRunMode(v) })
 
-  // The 4 canonical run modes live in one pure module (agentModes.js) so it stays the single source of
+  // The 2 canonical run modes live in one pure module (agentModes.js) so it stays the single source of
   // truth and is unit-tested independently of any component.
   const isAuto = computed(() => isAutonomous(mode.value))
   const activeKey = computed(() => modeKey(mode.value))

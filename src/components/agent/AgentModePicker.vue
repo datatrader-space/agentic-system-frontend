@@ -73,7 +73,6 @@ async function select(opt) {
 .amp-dot { width: 7px; height: 7px; border-radius: 9999px; }
 .amp-dot-manual { background: #9ca3af; }
 .amp-dot-auto { background: #14b8a6; }
-.amp-dot-plan { background: #6366f1; }
 .amp-caret { width: 13px; height: 13px; color: var(--vm-ink-faint); transition: transform .15s; }
 .amp-caret-open { transform: rotate(180deg); }
 .amp-backdrop { position: fixed; inset: 0; z-index: 40; }

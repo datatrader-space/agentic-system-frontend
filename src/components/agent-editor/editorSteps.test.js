@@ -164,6 +164,19 @@ describe('AutonomySafetyStep', () => {
     expect(coding.text()).not.toContain('Code Execution')
   })
 
+  it('offers only Manual and Autonomous, and shows a stored plan-review mode as its mapped mode (ADM-1306)', async () => {
+    const agent = reactive({ id: 1, name: 'A', agent_run_mode: 'plan_review_autonomous' })
+    const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })
+    await flushPromises()
+    const cards = w.findAll('.mode-card')
+    expect(cards.map((c) => c.find('.block').text())).toEqual(['Manual', 'Autonomous'])
+    expect(w.text()).not.toContain('Plan review')
+    expect(cards[1].attributes('aria-pressed')).toBe('true')
+    expect(w.text()).toContain('choose Plan in the chat box')
+    await cards[0].trigger('click')
+    expect(agent.agent_run_mode).toBe('manual')
+  })
+
   it('confirms a saved spending limit (notify was used without being imported)', async () => {
     api.createBudget.mockResolvedValue({ data: { id: 4 } })
     const w = mount(AutonomySafetyStep, { props: { agent: reactive({ id: 1, name: 'A' }) }, global: { stubs } })

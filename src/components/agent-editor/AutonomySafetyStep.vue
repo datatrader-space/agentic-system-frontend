@@ -21,7 +21,8 @@
         </div>
 
         <div class="execution-options">
-          <!-- Run mode — the single canonical agent_run_mode (four options) -->
+          <!-- Run mode — the single canonical agent_run_mode: manual or autonomous (ADM-1306). Planning first is
+               chosen per message with Plan in the chat box, never per agent. -->
             <div class="mode-grid admin-responsive-grid">
             <button
               v-for="mode in runModes"
@@ -33,16 +34,16 @@
               @click="selectMode(mode.key)"
             >
               <span class="flex items-start justify-between gap-3">
-                <component :is="mode.icon" :size="26" :stroke-width="2" :class="mode.iconClass" />
-                <span class="radio-dot" :class="runMode === mode.key ? 'radio-dot-active' : ''">
+                <component :is="mode.icon" :size="26" :stroke-width="2" :class="mode.iconClass" aria-hidden="true" />
+                <span class="radio-dot" :class="runMode === mode.key ? 'radio-dot-active' : ''" aria-hidden="true">
                   <Check v-if="runMode === mode.key" :size="12" :stroke-width="3.5" />
                 </span>
               </span>
               <span class="mt-3 block text-[15px] font-semibold text-[#0F172A]">{{ mode.title }}</span>
               <span class="mt-1 block text-[13px] leading-5 text-[#475569]">{{ mode.desc }}</span>
-              <span v-if="mode.recommended" class="mt-3 inline-flex rounded-full bg-[#EAF0FF] px-3 py-1 text-[11px] font-bold text-[#2563EB]">Recommended</span>
             </button>
           </div>
+          <p class="mode-plan-hint">To have the agent write a plan for you to approve first, choose Plan in the chat box for that message. The approved plan then runs in this mode.</p>
 
           <!-- Advanced controls (Code Execution / Service Setup) -->
           <div class="capabilities-block">
@@ -503,7 +504,7 @@ import {
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { useEditorShell } from '../../composables/editorShell'
-import { normalizeRunMode, isAutonomous, isPlanReview } from '../../composables/agentModes'
+import { normalizeRunMode, isAutonomous } from '../../composables/agentModes'
 
 const props = defineProps({ agent: { type: Object, required: true } })
 const router = useRouter()
@@ -545,8 +546,6 @@ function actionLabel(action) {
 const runModes = [
   { key: 'manual', title: 'Manual', desc: 'Agent asks every time before taking action.', icon: Hand, iconClass: 'text-violet-600' },
   { key: 'autonomous', title: 'Autonomous', desc: 'Agent acts automatically within defined guardrails.', icon: Zap, iconClass: 'text-emerald-600' },
-  { key: 'plan_review_manual', title: 'Plan review → Manual', desc: 'Agent plans, you approve the plan, then approve each action.', icon: ListChecks, iconClass: 'text-[#2563EB]', recommended: true },
-  { key: 'plan_review_autonomous', title: 'Plan review → Autonomous', desc: 'Agent plans (reviewed automatically), then runs autonomously.', icon: ListChecks, iconClass: 'text-emerald-600' },
 ]
 const policy = computed({
   // READ-ONLY getter: a missing/invalid policy reads as a fresh {} and is never written back. It used
@@ -748,11 +747,6 @@ const canvasModeEnabled = computed({
 })
 const activeGuardrailCount = computed(() => Math.max(agentGuardrailsList.value.length, effectiveGuardrails.value.length))
 const summaryMode = computed(() => {
-  if (isPlanReview(runMode.value)) {
-    return isAutonomous(runMode.value)
-      ? 'plan first, then run autonomously'
-      : 'plan before acting and wait for approval'
-  }
   if (isAutonomous(runMode.value)) return 'act automatically within guardrails'
   return 'ask before every action'
 })
@@ -1067,7 +1061,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 .execution-copy p { margin: 0; }
 .mode-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 .mode-card {
@@ -1081,7 +1075,8 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 .mode-card svg { width: 22px; height: 22px; }
 .mode-card > span:nth-child(2) { margin-top: 8px; font-size: 13.5px; }
 .mode-card > span:nth-child(3) { margin-top: 3px; font-size: 11.5px; line-height: 1.4; }
-.mode-card > span:nth-child(4) { margin-top: 7px; padding: 2px 8px; font-size: 9.5px; }
+.mode-card:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.mode-plan-hint { margin-top: 8px; font-size: 12px; line-height: 1.5; color: #475569; }
 .radio-dot { width: 18px; height: 18px; }
 .capabilities-block {
   padding-top: 12px;
@@ -1142,7 +1137,6 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 }
 
 @media (max-width: 1250px) {
-  .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .planning-card { grid-column: 1 / -1; }
   .planning-card .field-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
