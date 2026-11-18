@@ -81,6 +81,12 @@ async function load() {
     const body = await videoSources.list();
     page.value = body; error.value = ''; broken.value = new Set();
     emit('loaded', body);
+    // After a reload, the camera that was open in this tab opens again (if it is still in the list).
+    const kept = detailId.value === null ? keptOpen() : '';
+    if (kept) {
+      const again = (body?.sources || []).find(s => String(s.id) === kept);
+      if (again) openDetail(again); else keepOpen(null);
+    }
   } catch (e) { error.value = e.message; }
   finally { loading.value = false; schedule(); }
 }
@@ -107,7 +113,13 @@ const detail = computed(() => {
   return row ? { ...(detailFull.value?.id === detailId.value ? detailFull.value : {}), ...row } : null;
 });
 const detailStreams = computed(() => (Array.isArray(detailFull.value?.streams) ? detailFull.value.streams : []));
+// The camera open in this tab is kept for a reload (live, 2026-11-18: a reload went back to the list, so a camera that
+// was recording looked as if nothing happened). This tab only: sessionStorage.
+const OPEN_KEY = 'tmd.videoSources.open';
+function keepOpen(id) { try { if (id === null) sessionStorage.removeItem(OPEN_KEY); else sessionStorage.setItem(OPEN_KEY, String(id)); } catch { /* no storage: nothing kept */ } }
+function keptOpen() { try { return sessionStorage.getItem(OPEN_KEY) || ''; } catch { return ''; } }
 async function openDetail(source) {
+  keepOpen(source.id);
   detailId.value = source.id; detailFull.value = null; detailError.value = '';
   try {
     const body = await videoSources.get(source.id);
@@ -115,7 +127,7 @@ async function openDetail(source) {
     if (detailId.value === source.id && full) detailFull.value = { ...full, id: full.id ?? source.id, streams: full.streams ?? body?.streams };
   } catch (e) { if (detailId.value === source.id) detailError.value = e.message; }
 }
-function closeDetail() { detailId.value = null; detailFull.value = null; checkError.value = ''; }
+function closeDetail() { keepOpen(null); detailId.value = null; detailFull.value = null; checkError.value = ''; }
 // The source's own read again (a stream started or stopped on it).
 async function refreshDetail() {
   const id = detailId.value;
@@ -523,6 +535,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
                 <span class="vs-badges">
                   <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
                   <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+                  <UiBadge v-if="s.recording_on" tone="red" class="vs-recording-badge">● Recording</UiBadge>
                 </span>
                 <small class="vs-when">{{ lastFrameText(s) }}</small>
               </td>
@@ -541,6 +554,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <span class="vs-tile-badges">
               <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
               <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+              <UiBadge v-if="s.recording_on" tone="red" class="vs-recording-badge">● Recording</UiBadge>
             </span>
           </div>
           <div class="vs-tile-body">
