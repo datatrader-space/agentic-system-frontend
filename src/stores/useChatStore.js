@@ -152,7 +152,7 @@ export function timelineWithCompactions(timeline, saved) {
   const rows = Array.isArray(saved) ? saved.filter((c) => c && typeof c === 'object') : []
   if (!rows.length) return timeline || null
   const base = timeline && typeof timeline === 'object' ? timeline : {
-    statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, hasFailures: false, interrupted: false,
+    statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, interrupted: false,
   }
   const steps = Array.isArray(base.steps) ? base.steps.slice() : []
   const runRows = rows.filter((c) => c.scope !== 'manual')
@@ -427,7 +427,6 @@ export const useChatStore = defineStore('chat', {
     liveSources: () => _tl.sources.value,
     liveSummary: () => _tl.summary.value,
     liveComplete: () => _tl.isComplete.value,
-    liveHasFailures: () => _tl.hasFailures.value,
     liveReasoning: () => _tl.reasoning.value,
     // The live turn's running token count and when it began here: the Work timeline's status line (ADM-1302).
     liveTokens: () => _tl.tokens.value,
@@ -2268,8 +2267,7 @@ export const useChatStore = defineStore('chat', {
       const step = compactionStep(frame, `compact_manual_${Date.now()}`, Date.now())
       if (last) {
         const tl = last.timeline && typeof last.timeline === 'object' ? last.timeline : {
-          statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, hasFailures: false,
-          interrupted: false,
+          statusLabel: '', steps: [], sources: [], summary: null, isComplete: true, interrupted: false,
         }
         last.timeline = { ...tl, steps: [...(Array.isArray(tl.steps) ? tl.steps : []), step] }
       }

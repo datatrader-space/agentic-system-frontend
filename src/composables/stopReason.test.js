@@ -41,3 +41,26 @@ describe('stopReasonBadge', () => {
     expect(b.confidence).toBe('low')
   })
 })
+
+// ADM-1284: the turn header's words, from how the turn ended.
+import { turnHeadline, TURN_WARN } from './stopReason'
+describe('turnHeadline', () => {
+  it('words every way a turn ends', () => {
+    expect(turnHeadline('completed', 'task_completed')).toBe('')
+    expect(turnHeadline('completed', 'stopped_by_user')).toBe('Stopped by you')
+    expect(turnHeadline('paused', 'balance_empty')).toBe('Paused — balance ran out')
+    expect(turnHeadline('paused', 'cost_budget_reached')).toBe('Paused — budget reached')
+    expect(turnHeadline('paused', '')).toBe('Paused')
+    expect(turnHeadline('waiting', 'approval_wait')).toBe('Waiting for you')
+    expect(turnHeadline('not_verified', 'action_obligations_unmet')).toBe('Not verified')
+    expect(turnHeadline('not_verified', 'insufficient_information')).toBe('Partial — not enough info')
+    expect(turnHeadline('failed', 'provider_failure')).toBe('Could not complete')
+    expect(turnHeadline('interrupted')).toBe('Interrupted — connection lost')
+    expect(turnHeadline('detached')).toBe('Still running — reopen to follow')
+  })
+
+  it('only a plain completion is not a warning', () => {
+    expect(TURN_WARN.has('completed')).toBe(false)
+    for (const s of ['paused', 'waiting', 'not_verified', 'failed', 'interrupted', 'detached']) expect(TURN_WARN.has(s)).toBe(true)
+  })
+})

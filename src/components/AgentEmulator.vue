@@ -92,7 +92,6 @@
                 :sources="m.streaming ? liveSources : m.timeline.sources"
                 :summary="m.streaming ? liveSummary : m.timeline.summary"
                 :is-complete="m.streaming ? liveComplete : true"
-                :has-failures="m.streaming ? liveHasFailures : m.timeline.hasFailures"
                 :tokens="(m.usage && m.usage.total_tokens) || null"
                 :reasoning="m.streaming ? liveReasoning : reasoningItems(m.timeline && m.timeline.steps)"
                 :running="m.streaming"
@@ -549,7 +548,6 @@ const {
   steps: liveSteps,
   sources: liveSources,
   summary: liveSummary,
-  hasFailures: liveHasFailures,
   isComplete: liveComplete,
   tokens: liveTokens,
   reasoning: liveReasoning,

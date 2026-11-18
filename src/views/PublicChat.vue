@@ -51,7 +51,6 @@
                   :sources="m.streaming ? liveSources : m.timeline.sources"
                   :summary="m.streaming ? liveSummary : m.timeline.summary"
                   :is-complete="m.streaming ? liveComplete : true"
-                  :has-failures="m.streaming ? liveHasFailures : m.timeline.hasFailures"
                   :running="m.streaming"
                 />
                 <div v-if="m.content" class="pc-md" v-html="md(m.content)"></div>
@@ -118,7 +117,6 @@ const {
   steps: liveSteps,
   sources: liveSources,
   summary: liveSummary,
-  hasFailures: liveHasFailures,
   isComplete: liveComplete,
   ingest: ingestTimeline,
   reset: resetTimeline,

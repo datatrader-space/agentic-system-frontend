@@ -52,22 +52,34 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(s.status).toBe('failed')
     expect(s.reason).toBe('a connected service needs reconnecting')
     expect(s.nextAction).toBe('Reconnect the service and try again')
-    expect(t.hasFailures.value).toBe(true)
   })
 
-  it('the end-of-turn summary decides: a failure the agent recovered from is not an issue (conv 2960)', () => {
+  // ADM-1284: the header is how the turn ENDED (final_status + stop_reason), never a sum of the calls that failed.
+  it('a failed row never changes a completed turn\'s header; there is no failures rollup', () => {
     const t = useAgentTimeline()
-    t.ingest({ type: 'agent_step_failed', step_id: 'a', label: 'Looking for a tool', reason: 'no such tool' })
-    expect(t.hasFailures.value).toBe(true)                    // live, before the summary
-    t.ingest({ type: 'agent_turn_summary', final_status: 'completed', had_failures: false })
-    expect(t.hasFailures.value).toBe(false)
+    t.ingest({ type: 'agent_step_failed', step_id: 'a', label: 'Running a command', reason: 'This waits for your approval' })
+    t.ingest({ type: 'agent_turn_summary', final_status: 'completed', stop_reason: 'task_completed', had_failures: true })
+    expect(t.summary.value.label).toBe('Completed')
+    expect(t.summary.value.stopReason).toBe('task_completed')
+    expect(t.summary.value).not.toHaveProperty('hadFailures')
+    expect(t).not.toHaveProperty('hasFailures')
+    expect(t.snapshot()).not.toHaveProperty('hasFailures')
     expect(t.steps.value[0].status).toBe('failed')            // the row itself stays failed
   })
 
-  it('a summary that reports an unrecovered failure keeps the issue', () => {
-    const t = useAgentTimeline()
-    t.ingest({ type: 'agent_turn_summary', final_status: 'completed', had_failures: true })
-    expect(t.hasFailures.value).toBe(true)
+  it('paused, waiting and not-verified turns say so', () => {
+    const cases = [
+      [{ final_status: 'paused', stop_reason: 'balance_empty' }, 'Paused — balance ran out'],
+      [{ final_status: 'paused', stop_reason: 'cost_budget_reached' }, 'Paused — budget reached'],
+      [{ final_status: 'waiting', stop_reason: 'approval_wait' }, 'Waiting for you'],
+      [{ final_status: 'not_verified', stop_reason: 'action_obligations_unmet' }, 'Not verified'],
+      [{ final_status: 'completed', stop_reason: 'stopped_by_user' }, 'Stopped by you'],
+    ]
+    for (const [evt, label] of cases) {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_turn_summary', ...evt })
+      expect(t.summary.value.label).toBe(label)
+    }
   })
 
   it('source_citation aggregates and deduplicates sources', () => {
@@ -88,14 +100,10 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.summary.value).toMatchObject({ finalStatus: 'completed', label: 'Completed', toolsUsedCount: 3, sourcesUsedCount: 2 })
   })
 
-  it('turn summary reflects warnings / failed-safely', () => {
-    const warn = useAgentTimeline()
-    warn.ingest({ type: 'agent_turn_summary', final_status: 'completed', had_failures: true })
-    expect(warn.summary.value.label).toBe('Completed with warnings')
-
+  it('a failed turn reads "Could not complete"', () => {
     const failed = useAgentTimeline()
-    failed.ingest({ type: 'agent_turn_summary', final_status: 'failed' })
-    expect(failed.summary.value.label).toBe('Failed safely')
+    failed.ingest({ type: 'agent_turn_summary', final_status: 'failed', stop_reason: 'provider_failure' })
+    expect(failed.summary.value.label).toBe('Could not complete')
   })
 
   it('captures builder-tier fields (tool, args_preview) when present; leaves them empty otherwise', () => {
@@ -145,7 +153,7 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.isComplete.value).toBe(true)
     expect(t.interrupted.value).toBe(true)
     expect(t.summary.value.finalStatus).toBe('interrupted')
-    expect(t.summary.value.label).toBe('Interrupted')
+    expect(t.summary.value.label).toBe('Interrupted — connection lost')
   })
 
   it('fail() — a server error frame reads as failed, never "connection lost" (prod conv 1661)', () => {
@@ -156,7 +164,7 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.isComplete.value).toBe(true)
     expect(t.interrupted.value).toBe(false)
     expect(t.summary.value.finalStatus).toBe('failed')
-    expect(t.summary.value.label).toBe('Failed safely')
+    expect(t.summary.value.label).toBe('Could not complete')
     expect(t.steps.value[0].reason || '').toBe('') // the bubble carries the error; the row does not repeat it
   })
 

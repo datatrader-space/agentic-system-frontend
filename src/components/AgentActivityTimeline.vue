@@ -12,7 +12,9 @@
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
       <button v-else-if="isComplete && (visibleSteps.length || (reasoning && reasoning.length))" type="button" class="at-head" @click="expanded = !expanded">
-        <svg class="at-check" :class="summaryWarn ? 'warn' : 'ok'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+        <!-- A turn that ended paused or waiting on the person is drawn with the pause mark, not a check (ADM-1284). -->
+        <svg v-if="endedOnHold" class="at-pause" data-test="timeline-ended-on-hold" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM7.5 6.5a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Zm5 0a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Z" clip-rule="evenodd"/></svg>
+        <svg v-else class="at-check" :class="summaryWarn ? 'warn' : 'ok'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
         <span class="at-head-text">{{ headLabel }}<span v-if="workStepCount"> · {{ workStepCount }} step{{ workStepCount === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
@@ -205,7 +207,7 @@
           <template v-if="summary.toolsUsedCount != null"> · tools={{ summary.toolsUsedCount }}</template>
           <template v-if="summary.sourcesUsedCount != null"> · sources={{ summary.sourcesUsedCount }}</template>
           <template v-if="summary.hadApproval != null"> · approval={{ summary.hadApproval }}</template>
-          <template v-if="summary.hadFailures != null"> · failures={{ summary.hadFailures }}</template>
+          <template v-if="summary.stopReason"> · stop={{ summary.stopReason }}</template>
           <template v-if="summary.durationMs != null"> · {{ fmtDuration(summary.durationMs) }}</template>
         </div>
       </div>
@@ -220,6 +222,7 @@ import { renderInlineMarkdown } from '../utils/inlineMarkdown'
 import VerificationBadge from './common/VerificationBadge.vue'
 import { parseDelegationResult, isDelegationTool } from './common/verificationBadge'
 import { foldMilestones, wasFolded, isSetup } from './plan/workProgress'
+import { turnHeadline, TURN_WARN } from '../composables/stopReason'
 
 const props = defineProps({
   statusLabel: { type: String, default: '' },
@@ -227,7 +230,6 @@ const props = defineProps({
   sources: { type: Array, default: () => [] },
   summary: { type: Object, default: null },
   isComplete: { type: Boolean, default: false },
-  hasFailures: { type: Boolean, default: false },
   running: { type: Boolean, default: false },
   // Set while the turn is paused on a decision ("Waiting for approval"): replaces the live header.
   pausedLabel: { type: String, default: '' },
@@ -317,23 +319,20 @@ const hasDebug = computed(
   () => (props.steps && props.steps.length > 0) || (props.sources && props.sources.length > 0) || !!props.summary,
 )
 
-const summaryWarn = computed(() => {
-  const s = props.summary
-  // `failed` too: a green check beside "Could not complete" contradicts itself (prod conv 1662).
-  return props.hasFailures || !!(s && (s.finalStatus === 'interrupted' || s.finalStatus === 'detached' ||
-    s.finalStatus === 'failed'))
-})
+// THE HEADER SAYS HOW THE TURN ENDED (ADM-1284), as Claude Code shows it: the summary's `finalStatus` (completed,
+// paused, waiting, not verified, failed; or this page's own interrupted / detached), worded by `stopReason.turnHeadline`.
+// A failed call keeps its own red row and never turns a good turn's header into "Completed with issues": a permission
+// wait, a denial, a Stop or a diagnostic exit 1 did exactly that (9 of 17 Coding Agent runs in 7 days), and a turn
+// paused for money read "Completed with issues" too.
+const summaryWarn = computed(() => !!(props.summary && TURN_WARN.has(props.summary.finalStatus)))
+const endedOnHold = computed(() => !props.publicSafe && !!props.summary
+  && (props.summary.finalStatus === 'paused' || props.summary.finalStatus === 'waiting'))
 
-// Collapsed-header headline (legacy "Done" wording). Public stays simple.
+// Collapsed-header headline. Public stays simple.
 const doneLabel = computed(() => {
   const s = props.summary
   if (props.publicSafe) return (s && s.finalStatus === 'failed') ? 'Could not complete' : 'Completed'
-  if (s && s.finalStatus === 'interrupted') return 'Interrupted — connection lost'
-  // The run did NOT stop; this view stopped following it. Saying "Done" here is the specific lie
-  // reported from conversation 1432 — a finished-looking panel above an answer that never came.
-  if (s && s.finalStatus === 'detached') return 'Still running — reopen to follow'
-  if (s && s.finalStatus === 'failed') return 'Could not complete'
-  return summaryWarn.value || props.hasFailures ? 'Completed with issues' : 'Done'
+  return (s && turnHeadline(s.finalStatus, s.stopReason)) || 'Done'
 })
 
 const durationText = computed(() => {
@@ -346,9 +345,7 @@ const durationText = computed(() => {
 const headLabel = computed(() => {
   const s = props.summary
   if (props.publicSafe) return doneLabel.value
-  if (s && (s.finalStatus === 'interrupted' || s.finalStatus === 'failed'
-            || s.finalStatus === 'detached')) return doneLabel.value
-  if (summaryWarn.value || props.hasFailures) return doneLabel.value
+  if (s && turnHeadline(s.finalStatus, s.stopReason)) return doneLabel.value
   return durationText.value ? `Thought for ${durationText.value}` : 'Done'
 })
 

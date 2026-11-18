@@ -48,7 +48,6 @@
           :summary="isStreaming ? chat.liveSummary : message.timeline.summary"
           :is-complete="turnReallyFinished"
           :paused-label="pausedLabel"
-          :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
           :running="!turnReallyFinished && !pausedLabel" />

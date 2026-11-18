@@ -28,6 +28,33 @@ const TONES = {
 // Reasons that are "clean enough" to NOT badge when confidence is high.
 const QUIET = new Set(['task_completed'])
 
+// THE TURN HEADER (ADM-1284): how the turn ENDED, as Claude Code shows it. The backend sends `final_status` (its
+// `stop_reason.turn_status`: completed | paused | waiting | not_verified | failed) and the stop reason behind it; a
+// failed call keeps its own red row and never changes the header. `interrupted` and `detached` are this page's own:
+// the socket dropped, or this view stopped following a turn that is still running.
+const TURN_WORDS = {
+  paused: 'Paused',
+  waiting: 'Waiting for you',
+  not_verified: 'Not verified',
+  failed: 'Could not complete',
+  interrupted: 'Interrupted — connection lost',
+  detached: 'Still running — reopen to follow',
+}
+
+// The statuses that are not a plain finish: the header is drawn as a warning, not a green check.
+export const TURN_WARN = new Set(['paused', 'waiting', 'not_verified', 'failed', 'interrupted', 'detached'])
+
+// The header's words for a turn that ended with `status` for `reason`; '' for a plain completed turn (the card then
+// reads "Thought for Ns" or "Done"). A pause names what ran out ("Paused — balance ran out"), and a turn the person
+// stopped says so.
+export function turnHeadline(status, reason) {
+  if (status === 'paused') return LABELS[reason] && reason !== 'task_completed' ? LABELS[reason] : TURN_WORDS.paused
+  if (status === 'not_verified' && reason === 'insufficient_information') return LABELS[reason]
+  if (TURN_WORDS[status]) return TURN_WORDS[status]
+  if (reason === 'stopped_by_user') return LABELS.stopped_by_user
+  return ''
+}
+
 export function stopReasonBadge(reason, confidence) {
   if (!reason) return null
   const conf = TONES[confidence] ? confidence : 'low'

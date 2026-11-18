@@ -5,7 +5,8 @@
 //   agent_step_completed { step_id, label, status, tool_call_id?, summary?, duration_ms? }
 //   agent_step_failed    { step_id, label, reason, tool_call_id?, next_action? }
 //   source_citation      { kind, name, ref? }
-//   agent_turn_summary   { final_status, tools_used_count?, sources_used_count?, had_failures?, had_approval?, duration_ms? }
+//   agent_turn_summary   { final_status, stop_reason?, tools_used_count?, sources_used_count?, had_approval?, duration_ms? }
+//                        final_status = how the turn ENDED: completed | paused | waiting | not_verified | failed (ADM-1284)
 //
 // This composable turns that stream into a clean render model (status line + step timeline + sources +
 // turn summary), and additionally folds in streamed reasoning (reasoning_delta/_done) and live token
@@ -17,6 +18,7 @@
 import { ref, computed } from 'vue'
 import { fmtTokens, shownCost } from './tokens'
 import { compactIo } from '../components/chat/workRail'
+import { turnHeadline } from './stopReason'
 
 const RICH_EVENT_TYPES = new Set([
   'agent_status',
@@ -38,27 +40,12 @@ function sourceKey(s) {
   return [s.kind || '', s.name || '', s.ref || ''].join('|')
 }
 
-// Map the backend's final_status → a friendly, user-tier line (New Chat / Emulator). Public copy is
-// overridden in the component (AgentActivityTimeline) so customer-facing wording stays simple + safe.
-function finalStatusLabel(status, hasFailures) {
-  switch (status) {
-    case 'failed':
-      return 'Failed safely'
-    case 'interrupted':
-      return 'Interrupted'
-    // The VIEW stopped following the turn; the turn itself did not stop. Distinct from 'interrupted'
-    // (the work actually ended) and emphatically distinct from 'completed' — reported from production
-    // conversation 1432, where the panel read "Done · 12 steps" while the run was still executing and
-    // the user reasonably concluded it had finished and shown nothing.
-    case 'detached':
-      return 'Still running — reopen to follow'
-    case 'completed_with_warnings':
-      return 'Completed with warnings'
-    case 'completed':
-      return hasFailures ? 'Completed with warnings' : 'Completed'
-    default:
-      return status ? String(status) : 'Completed'
-  }
+// Map the backend's final_status → a friendly, user-tier line (New Chat / Emulator): how the turn ENDED, never a sum of
+// the calls that failed on the way (ADM-1284; `stopReason.turnHeadline`). Public copy is overridden in the component
+// (AgentActivityTimeline) so customer-facing wording stays simple + safe. 'detached': the VIEW stopped following the
+// turn, which is still running (production conversation 1432 read "Done · 12 steps" over a run still executing).
+function finalStatusLabel(status, reason = '') {
+  return turnHeadline(status, reason) || 'Completed'
 }
 
 /**
@@ -86,7 +73,7 @@ export function useAgentTimeline() {
   const currentStatus = ref(null) // { phase, label } | null — the live "what it's doing now" line
   const steps = ref([]) // [{ stepId, toolCallId, phase, tool, label, status, summary, durationMs, reason, nextAction, coalescedCount }]
   const sources = ref([]) // [{ kind, name, ref }] — deduped
-  const summary = ref(null) // { finalStatus, label, toolsUsedCount, sourcesUsedCount, hadFailures, hadApproval, durationMs } | null
+  const summary = ref(null) // { finalStatus, stopReason, label, toolsUsedCount, sourcesUsedCount, hadApproval, durationMs } | null
   const isComplete = ref(false)
   const interrupted = ref(false) // socket dropped / cancelled mid-turn (no backend terminal event)
   // Live token metering for this turn (fed by `token_usage`, reconciled by assistant_message_complete):
@@ -110,15 +97,6 @@ export function useAgentTimeline() {
       if (steps.value[i].status === 'running') return steps.value[i]
     }
     return null
-  })
-
-  // The end-of-turn summary decides once it has arrived: the backend counts only failures the agent did not
-  // recover from (a ToolSearch for names that do not exist, followed by one that found the tool, is not an
-  // issue). Until then, and for a summary without the field, any failed row counts.
-  const hasFailures = computed(() => {
-    const s = summary.value
-    if (s && typeof s.hadFailures === 'boolean') return s.hadFailures
-    return steps.value.some((st) => st.status === 'failed')
   })
 
   function reset(turnMode = '') {
@@ -464,13 +442,13 @@ export function useAgentTimeline() {
 
       case 'agent_turn_summary': {
         const status = evt.final_status || 'completed'
-        const failed = evt.had_failures != null ? evt.had_failures : steps.value.some((s) => s.status === 'failed')
+        const reason = evt.stop_reason || ''
         summary.value = {
           finalStatus: status,
-          label: finalStatusLabel(status, failed),
+          stopReason: reason,
+          label: finalStatusLabel(status, reason),
           toolsUsedCount: evt.tools_used_count != null ? evt.tools_used_count : null,
           sourcesUsedCount: evt.sources_used_count != null ? evt.sources_used_count : null,
-          hadFailures: evt.had_failures != null ? evt.had_failures : null,
           hadApproval: evt.had_approval != null ? evt.had_approval : null,
           durationMs: evt.duration_ms != null ? evt.duration_ms : null,
         }
@@ -513,10 +491,10 @@ export function useAgentTimeline() {
     if (!summary.value || summary.value.finalStatus === 'completed') {
       summary.value = {
         finalStatus: 'interrupted',
-        label: finalStatusLabel('interrupted', hasFailures.value),
+        stopReason: '',
+        label: finalStatusLabel('interrupted'),
         toolsUsedCount: null,
         sourcesUsedCount: null,
-        hadFailures: null,
         hadApproval: null,
         durationMs: null,
       }
@@ -532,7 +510,7 @@ export function useAgentTimeline() {
     interrupt('')
     interrupted.value = false
     if (summary.value && summary.value.finalStatus === 'interrupted') {
-      summary.value = { ...summary.value, finalStatus: 'failed', label: finalStatusLabel('failed', hasFailures.value) }
+      summary.value = { ...summary.value, finalStatus: 'failed', label: finalStatusLabel('failed') }
     }
   }
 
@@ -556,10 +534,10 @@ export function useAgentTimeline() {
     if (!summary.value || summary.value.finalStatus === 'completed') {
       summary.value = {
         finalStatus: 'detached',
-        label: finalStatusLabel('detached', hasFailures.value),
+        stopReason: '',
+        label: finalStatusLabel('detached'),
         toolsUsedCount: null,
         sourcesUsedCount: null,
-        hadFailures: null,
         hadApproval: null,
         durationMs: null,
       }
@@ -635,7 +613,6 @@ export function useAgentTimeline() {
       sources: sources.value.map((s) => ({ ...s })),
       summary: summary.value ? { ...summary.value } : null,
       isComplete: true,
-      hasFailures: hasFailures.value,
       interrupted: interrupted.value,
     }
   }
@@ -656,7 +633,6 @@ export function useAgentTimeline() {
     activeStep,
     sources,
     summary,
-    hasFailures,
     isComplete,
     interrupted,
     fail,
