@@ -3,7 +3,7 @@
 // Hydrates the snapshot on mount (if the pushed frame hasn't populated it yet), passes freshness to
 // the card, and routes approval decisions through the plan store (same domain service as the agent).
 import { computed, onMounted } from 'vue'
-import { usePlanStore } from '../../stores/usePlanStore'
+import { usePlanStore, planIsStepless } from '../../stores/usePlanStore'
 import InlinePlanCard from './InlinePlanCard.vue'
 import { notify } from '../../composables/useNotify'
 
@@ -21,15 +21,8 @@ const decided = computed(() => props.readOnly || store.isPlanModeRun(props.runId
 
 onMounted(() => { if (!plan.value) store.hydrateRun(props.runId) })
 
-// A STEPLESS ORDINARY PLAN SAYS NOTHING. Prod conv 1662: a chat question whose routing call was refused drew a
-// "Plan · Blocked" card with no steps under an answer that already said why; conv 1666: every plain chat turn
-// flashed an empty "Plan · Planning" card while the activity timeline above it was already showing progress. The
-// card appears once there is a step to show.
-const stepless = computed(() => {
-  const p = plan.value
-  if (!p) return false
-  return !(p.steps || []).length && !((p.total_step_count || 0) > 0)
-})
+// A STEPLESS ORDINARY PLAN SAYS NOTHING (`planIsStepless`): the card appears once there is a step to show.
+const stepless = computed(() => planIsStepless(plan.value))
 
 async function onDecide({ decision, comment }) {
   const res = await store.decide(props.runId, decision, { comment })

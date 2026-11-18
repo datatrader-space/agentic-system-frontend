@@ -81,6 +81,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
+import { usePlanStore, planIsStepless } from '../../stores/usePlanStore'
 
 // Optional display-only adapter; store messages and requests are never modified.
 defineProps({ presentMessage: Function, prepareEdit: Function })
@@ -112,8 +113,12 @@ function isFirstAnchor(messageId, planId, runId) {
 }
 // A Work turn (ADM-1302): its plan card and approvals are drawn on its rail, not after it.
 const isWorkTurn = (m) => !!m && m.role === 'assistant' && m.turnMode === 'work'
+// A plan the card would not draw (stepless) gets no rail row either: the row's dot stood alone over nothing
+// (live test 2026-11-18). A plan not loaded yet keeps its row, so its card mounts and loads it.
+const plans = usePlanStore()
 function firstPlans(m) {
-  return (m.planArtifacts || []).filter((a) => a && isFirstAnchor(m.id, a.plan_id, a.run_id))
+  return (m.planArtifacts || []).filter((a) => a && isFirstAnchor(m.id, a.plan_id, a.run_id)
+    && !planIsStepless(plans.planFor(a.run_id)))
 }
 // The person's messages that a Work turn answers: drawn as a box, as Claude Code draws them (ADM-1302). A message
 // with no answer yet takes the mode it was sent in (the conversation's).

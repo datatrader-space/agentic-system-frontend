@@ -26,6 +26,14 @@ export function runHasEnded(plan) {
   return ['blocked', 'paused'].includes(String(plan.plan_status_user || ''))
 }
 
+/** True when a plan has no step to show. A STEPLESS ORDINARY PLAN SAYS NOTHING (prod conv 1662: a "Plan · Blocked" card
+ * with no steps under an answer that already said why; conv 1666: every plain chat turn flashed an empty "Plan ·
+ * Planning" card). The card and a Work turn's rail (ADM-1302) both ask this, so neither draws an empty plan. */
+export function planIsStepless(plan) {
+  if (!plan) return false
+  return !(plan.steps || []).length && !((plan.total_step_count || 0) > 0)
+}
+
 // Module-level debounce timers (non-reactive) for conversation re-hydration.
 const _hydrateTimers = {}
 
