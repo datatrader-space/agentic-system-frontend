@@ -7,8 +7,8 @@
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowDown, ArrowLeft, ChartLine, Circle, CircleQuestionMark, Disc, Download, ImageOff, LoaderCircle, Maximize, Pencil,
-  Play, RefreshCw, Square, Trash2, Tv, Workflow,
+  ArrowDown, ArrowLeft, ChartLine, Circle, CircleQuestionMark, Disc, Download, History, ImageOff, LoaderCircle, Maximize,
+  Pencil, Play, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import UiBadge from './UiBadge.vue';
@@ -17,7 +17,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
-  videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText,
+  videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -126,6 +126,13 @@ async function loadRecordings() {
   finally { recLoading.value = false; }
 }
 watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); });
+// ── management (CLOUD_STREAMING_PLAN.md §3.6): this month's spend and the state history ─────────────────────────────
+const spend = computed(() => spendItems(props.source.spend_month));
+const spendMonth = computed(() => monthText(props.source.spend_month?.month));
+const history = computed(() => historyRows(props.source.history));
+const HISTORY_FIRST = 5; const historyAll = ref(false);
+const historyShown = computed(() => (historyAll.value ? history.value : history.value.slice(0, HISTORY_FIRST)));
+
 async function removeRecording(row) {
   try { await recordingsApi.remove(row.id); if (playing.value?.id === row.id) playing.value = null; await loadRecordings(); emit('refresh'); }
   catch (e) { recListError.value = e.message; }
@@ -232,6 +239,28 @@ async function removeRecording(row) {
             <UiButton v-else-if="may.stream !== false" variant="primary" :disabled="!mayStart" :title="mayStart ? undefined : startWhy" @click="emit('start')"><Play :size="14" aria-hidden="true"/> Run a model</UiButton>
             <UiButton disabled title="Workflows on cameras are coming"><Workflow :size="14" aria-hidden="true"/> Build a workflow <UiBadge>Soon</UiBadge></UiButton>
           </div>
+        </section>
+        <!-- This month and the state history -->
+        <section v-if="spend.length" class="sp-card sp-manage" aria-labelledby="sp-spend-h">
+          <div class="sp-card-bar"><h3 id="sp-spend-h" class="sp-card-title"><Wallet :size="15" aria-hidden="true"/>&nbsp;Spent on this camera</h3><small class="sp-muted">{{ spendMonth || 'This month' }}</small></div>
+          <dl class="sp-spend">
+            <div v-for="item in spend" :key="item.key" :class="{ total: item.key === 'total' }">
+              <dt>{{ item.label }}<small v-if="item.hint">{{ item.hint }}</small></dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
+        <section v-if="source.history" class="sp-card sp-manage" aria-labelledby="sp-history-h">
+          <div class="sp-card-bar"><h3 id="sp-history-h" class="sp-card-title"><History :size="15" aria-hidden="true"/>&nbsp;State history</h3></div>
+          <p v-if="!history.length" class="sp-muted sp-pad">No change yet. Each time this camera goes online or offline, it is listed here, and the workspace's Admins are told when it goes offline.</p>
+          <ol v-else class="sp-history">
+            <li v-for="e in historyShown" :key="e.key">
+              <span class="sp-history-top"><UiBadge :tone="e.badge[0]">{{ e.badge[1] }}</UiBadge><time :datetime="e.at" :title="new Date(e.at).toLocaleString()">{{ e.when }}</time></span>
+              <span v-if="e.reason" class="sp-history-reason">{{ e.reason }}</span>
+              <small>{{ [e.cause, e.told].filter(Boolean).join('. ') }}</small>
+            </li>
+          </ol>
+          <button v-if="history.length > HISTORY_FIRST" type="button" class="sp-link sp-pad" :aria-expanded="historyAll" @click="historyAll = !historyAll">{{ historyAll ? 'Show fewer' : `Show all ${history.length}` }}</button>
         </section>
         <p v-if="consent" class="sp-consent">{{ consent }}</p>
       </div>
@@ -377,6 +406,21 @@ async function removeRecording(row) {
 .sp-rec-list li.playing{border-color:var(--aadml-primary);background:var(--aadml-tint)}
 .sp-rec-list li span:first-child{display:flex;flex-direction:column;gap:2px}
 .sp-rec-list small{color:#64748b;font-size:12px}
+.sp-manage{margin-top:12px}
+.sp-pad{padding:12px 14px}
+.sp-spend{margin:0;padding:6px 14px 10px}
+.sp-spend > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 0}
+.sp-spend > div.total{border-top:1px solid #eef1f5;margin-top:4px;padding-top:8px;font-weight:600}
+.sp-spend dt{display:flex;flex-direction:column;gap:1px;font-size:13px;color:#33415a}
+.sp-spend dt small{font-size:11px;color:#64748b;font-weight:400}
+.sp-spend dd{margin:0;font-size:13px;color:#17243b;font-variant-numeric:tabular-nums}
+.sp-history{list-style:none;margin:0;padding:6px 14px 8px;display:grid;gap:0}
+.sp-history li{display:flex;flex-direction:column;gap:3px;padding:8px 0;border-bottom:1px solid #f0f2f6}
+.sp-history li:last-child{border-bottom:0}
+.sp-history-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-history time{font-size:12px;color:#64748b;white-space:nowrap}
+.sp-history-reason{font-size:12px;color:#33415a;line-height:1.5;overflow-wrap:anywhere}
+.sp-history small{font-size:11px;color:#64748b}
 .spin{animation:sp-spin 1.1s linear infinite}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}

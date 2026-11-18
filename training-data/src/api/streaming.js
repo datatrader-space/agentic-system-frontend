@@ -49,7 +49,8 @@ export const videoSources = {
   update: (id, body) => apiFetch(`${SOURCES}${enc(id)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
   // Connects once and takes a frame: it may take as long as the camera does to answer.
   check: id => apiFetch(`${SOURCES}${enc(id)}/check/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
-  remove: id => apiFetch(`${SOURCES}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  // ``recordings``: 'keep' (the server's default: kept until their days are over) or 'delete' (deleted now).
+  remove: (id, { recordings = 'keep' } = {}) => apiFetch(`${SOURCES}${enc(id)}/${recordings === 'delete' ? '?recordings=delete' : ''}`, { method: 'DELETE', timeoutMs: SLOW }),
   // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
   // renew_after}. Anyone who may see the source may watch it.
   // ``job``: a connector camera's live job the page follows (CLOUD_STREAMING_PLAN.md §12): its failure is said, not retried.
@@ -525,4 +526,61 @@ export function liveErrorText(error) {
   if (error?.serverCode === 'relay_unavailable') return own || LIVE_UNAVAILABLE;
   if (error?.status === 404) return LIVE_GONE;
   return own || LIVE_UNAVAILABLE;
+}
+
+// ── camera management (CLOUD_STREAMING_PLAN.md §3.6; streaming_api._source_detail ``history`` and ``spend_month``) ──
+const CAUSES = { check: 'Found by a check', machine: 'Found by its machine', stream: 'Found by a stream on it', change: 'Its address or sign-in was changed' };
+
+// A camera's state changes, newest first, as the page lists them: when, the state as a badge, the reason and what
+// found it; ``told`` when the workspace's Admins were sent a notice about it.
+export function historyRows(history, now = Date.now()) {
+  return (Array.isArray(history) ? history : []).filter(e => e && e.at).map((e, i) => ({
+    key: `${e.at}-${i}`, at: e.at, when: timeAgo(e.at, now), badge: sourceState({ state: e.state }),
+    reason: typeof e.reason === 'string' ? e.reason : '', cause: CAUSES[e.cause] || e.cause_label || '',
+    told: e.notice === 'offline' ? 'Admins were told it went offline.' : e.notice === 'online' ? 'Admins were told it is back.' : '',
+  }));
+}
+
+// "November 2026" for the answer's "2026-11"; '' when it cannot be read.
+export function monthText(month) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(month || ''));
+  if (!m) return '';
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+// What the camera cost this workspace this month: its streams' answered frames, its kept recordings, and the total.
+export function spendItems(spend) {
+  if (!spend || typeof spend !== 'object') return [];
+  const money = v => usdText(Number(v) || 0) || '$0.00';
+  const frames = Number(spend.frames) || 0; const days = Number(spend.recording_days) || 0;
+  return [
+    { key: 'frames', label: 'Frames answered', value: money(spend.frames_usd), hint: `${frames.toLocaleString('en-US')} frame${frames === 1 ? '' : 's'}` },
+    { key: 'recording', label: 'Recording storage', value: money(spend.recording_usd), hint: `${days} day${days === 1 ? '' : 's'} charged` },
+    { key: 'total', label: 'Total', value: money(spend.total_usd), hint: '' },
+  ];
+}
+
+// The Connectors card: the workspace's machines that have cameras (the sources' ``machine``), with what the machines
+// list says of each (its state and agent version) and how many cameras it has. A removed machine is said as removed.
+export function connectorRows(machines, sources) {
+  const cameras = new Map(); const named = new Map();
+  for (const s of sources || []) {
+    const m = s && s.kind === 'connector' && !isPublic(s) ? s.machine : null;
+    if (!m || m.id === undefined || m.id === null) continue;
+    const id = String(m.id);
+    cameras.set(id, (cameras.get(id) || 0) + 1);
+    if (!named.has(id)) named.set(id, m);
+  }
+  const known = new Map((machines || []).filter(m => m && m.id !== undefined && m.id !== null).map(m => [String(m.id), m]));
+  return [...cameras.keys()].map(id => {
+    const m = known.get(id) || named.get(id) || {};
+    const state = m.state === 'online' ? 'online' : m.state === 'removed' ? 'removed' : 'offline';
+    return { id, name: m.name || 'A machine', state, badge: state === 'online' ? ['green', 'Online'] : ['neutral', state === 'removed' ? 'Removed' : 'Offline'],
+      agent: typeof m.agent_version === 'string' ? m.agent_version : '', cameras: cameras.get(id) };
+  }).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+export function connectorLine(row) {
+  const n = Number(row?.cameras) || 0;
+  return [`${n} camera${n === 1 ? '' : 's'}`, row?.agent ? `agent ${row.agent}` : ''].filter(Boolean).join(' · ');
 }

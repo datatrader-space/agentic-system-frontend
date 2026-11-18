@@ -8,7 +8,9 @@ import {
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
+  historyRows, monthText, spendItems, connectorRows, connectorLine,
 } from '../src/api/streaming.js';
+import { timeAgo } from '../src/api/workspace.js';
 
 test('a camera on a machine: a private rtsp address, its machine, no live view', () => {
   assert.equal(connectorAddressProblem('rtsp://192.168.1.20:554/stream1'), '');
@@ -432,4 +434,80 @@ test('a camera that answered but whose video could not be played is not said to 
   assert.notEqual(LIVE_NOT_PLAYABLE, LIVE_NO_ANSWER);
   assert.match(LIVE_NOT_PLAYABLE, /answered/);
   assert.doesNotMatch(LIVE_NOT_PLAYABLE, /did not answer/);
+});
+
+// ── camera management (CLOUD_STREAMING_PLAN.md §3.6) ─────────────────────────────────────────────────────────────
+test('a camera\'s state history reads as badges, reasons, what found it and whether the Admins were told', () => {
+  const now = Date.parse('2026-11-17T12:00:00Z');
+  const rows = historyRows([
+    { at: '2026-11-17T11:58:00Z', state: 'online', previous: 'offline', reason: '', cause: 'stream', notice: 'online' },
+    { at: '2026-11-17T11:00:00Z', state: 'offline', previous: 'online', reason: 'No frame could be read from the camera.', cause: 'check', notice: 'offline' },
+    { at: '2026-11-17T10:00:00Z', state: 'attention', previous: 'offline', reason: 'Not public.', cause: 'machine', notice: '' },
+    { at: '2026-11-17T09:00:00Z', state: 'new', previous: 'offline', cause: 'change' },
+    { state: 'online' },                                                                   // no time: not listed
+  ], now);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map(r => r.badge), [['green', 'Live'], ['neutral', 'Offline'], ['amber', 'Needs attention'], ['neutral', 'Not checked yet']]);
+  assert.deepEqual(rows.map(r => r.cause), ['Found by a stream on it', 'Found by a check', 'Found by its machine', 'Its address or sign-in was changed']);
+  assert.deepEqual(rows.map(r => r.told), ['Admins were told it is back.', 'Admins were told it went offline.', '', '']);
+  assert.equal(rows[1].reason, 'No frame could be read from the camera.');
+  assert.equal(rows[0].when, timeAgo('2026-11-17T11:58:00Z', now));
+  assert.deepEqual(historyRows(undefined), []);
+  assert.deepEqual(historyRows('nope'), []);
+});
+
+test('this month\'s spend on a camera is its frames, its recording storage and the total', () => {
+  assert.equal(monthText('2026-11'), 'November 2026');
+  assert.equal(monthText('11/2026'), '');
+  const items = spendItems({ month: '2026-11', frames: 1200, frames_usd: '1.4400', recording_days: 1, recording_usd: '0.0300', total_usd: '1.4700' });
+  assert.deepEqual(items.map(i => [i.key, i.value, i.hint]), [
+    ['frames', '$1.44', '1,200 frames'], ['recording', '$0.03', '1 day charged'], ['total', '$1.47', ''],
+  ]);
+  assert.deepEqual(spendItems({ frames: 0, frames_usd: '0.0000', recording_days: 0, recording_usd: '0.0000', total_usd: '0.0000' }).map(i => i.value), ['$0.00', '$0.00', '$0.00']);
+  assert.deepEqual(spendItems(null), []);
+});
+
+test('the Connectors card lists the machines that have cameras, with their state, agent and cameras', () => {
+  const machines = [
+    { id: 3, name: 'Shop PC', state: 'online', agent_version: '1.5.0' },
+    { id: 4, name: 'Spare', state: 'online', agent_version: '1.5.0' },                     // no camera: not listed
+    { id: 5, name: 'Back office', state: 'offline', agent_version: '1.4.0' },
+  ];
+  const sources = [
+    { id: 1, kind: 'connector', machine: { id: 3, name: 'Shop PC', state: 'online' } },
+    { id: 2, kind: 'connector', machine: { id: 3, name: 'Shop PC', state: 'online' } },
+    { id: 6, kind: 'connector', machine: { id: 5, name: 'Back office', state: 'offline' } },
+    { id: 7, kind: 'connector', machine: { id: 9, name: 'Old laptop', state: 'removed' } },   // not in the machines list
+    { id: 8, kind: 'url', machine: null },
+    { id: 10, kind: 'connector', public: true, machine: { id: 3 } },                          // a public camera: not ours
+  ];
+  const rows = connectorRows(machines, sources);
+  assert.deepEqual(rows.map(r => [r.name, r.badge[1], r.agent, r.cameras]), [
+    ['Back office', 'Offline', '1.4.0', 1], ['Old laptop', 'Removed', '', 1], ['Shop PC', 'Online', '1.5.0', 2],
+  ]);
+  assert.equal(connectorLine(rows[2]), '2 cameras · agent 1.5.0');
+  assert.equal(connectorLine(rows[1]), '1 camera');
+  assert.deepEqual(connectorRows([], []), []);
+  assert.deepEqual(connectorRows(undefined, [{ kind: 'connector', machine: { id: 3, name: 'Shop PC', state: 'online' } }]).map(r => r.badge), [['green', 'Online']]);
+});
+
+test('removing a camera keeps its recordings unless the person chose to delete them now', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => ({ activeWorkspaceId: '7' })[key] ?? null } });
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await videoSources.remove(4);
+    await videoSources.remove(4, { recordings: 'keep' });
+    await videoSources.remove(4, { recordings: 'delete' });
+    await videoSources.remove(4, { recordings: 'anything else' });
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage); else delete globalThis.localStorage;
+  }
+  const base = '/api/training-data/app/workspace/video-sources/4/';
+  assert.deepEqual(calls.map(c => [c.init.method, c.url]), [
+    ['DELETE', base], ['DELETE', base], ['DELETE', `${base}?recordings=delete`], ['DELETE', base],
+  ]);
 });

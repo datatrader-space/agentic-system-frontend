@@ -24,6 +24,7 @@ import {
   videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
   thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
+  connectorRows, connectorLine, sizeText,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -307,14 +308,17 @@ function tabKeys(event, index, list, pick, prefix) {
   document.getElementById(`${prefix}-${String(next.id ?? next).toLowerCase()}`)?.focus();
 }
 
-// ── "Remove", always confirmed first ──────────────────────────────────────────────────────────────
-const removing = ref(null); const removeBusy = ref(false); const removeError = ref('');
-function askRemove(source) { removing.value = source; removeError.value = ''; }
+// ── "Remove", always confirmed first; its recordings kept until their days are over (the default) or deleted now ──
+const removing = ref(null); const removeBusy = ref(false); const removeError = ref(''); const removeRecordings = ref('keep');
+const removingKept = computed(() => Number(removing.value?.recording?.stored_bytes) || 0);
+// The choice is offered when the camera has recordings, or when its page has not said yet whether it has.
+const removeAsks = computed(() => !!removing.value && (!removing.value.recording || removingKept.value > 0));
+function askRemove(source) { removing.value = source; removeError.value = ''; removeRecordings.value = 'keep'; }
 async function confirmRemove() {
   if (!removing.value || removeBusy.value) return;
   removeBusy.value = true;
   try {
-    const answer = await videoSources.remove(removing.value.id);
+    const answer = await videoSources.remove(removing.value.id, { recordings: removeAsks.value ? removeRecordings.value : 'keep' });
     tell(answer?.said || `${removing.value.name} is removed. Its past streams and their results are kept.`);
     if (watching.value?.id === removing.value.id) watching.value = null;
     if (detailId.value === removing.value.id) closeDetail();      // its page is gone with it
@@ -324,6 +328,20 @@ async function confirmRemove() {
     removeError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { removeBusy.value = false; }
+}
+
+// ── the Connectors card: the workspace's machines that have cameras (the machines list and the sources) ────────────
+const connectorMachines = ref(null);
+async function loadConnectors() {
+  try { connectorMachines.value = (await machinesApi.list())?.machines || []; }
+  catch { connectorMachines.value = []; }          // the sources' own machine names and states are shown then
+}
+watch(() => sources.value.some(s => s.kind === 'connector'), has => { if (has && connectorMachines.value === null) loadConnectors(); }, { immediate: true });
+watch(page, () => { if (connectorMachines.value !== null) loadConnectors(); });
+const connectors = computed(() => connectorRows(connectorMachines.value || machineRows.value || [], sources.value));
+function connectCamera() {
+  openAdd();
+  if (editorOpen.value) way.value = 'connector';
 }
 
 defineExpose({ load, openAdd, addWhy, ready, refreshDetail, closeDetail });
@@ -450,10 +468,19 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
           </div>
         </header>
         <p v-if="helpOpen==='connectors'" id="vs-help-connectors" class="vs-helptext">A connector is a small program on a computer in your own network. It reaches out to AADML, so cameras that are not on the internet can be used without opening a port on your router.</p>
-        <div class="vs-empty vs-empty-plain">
+        <ul v-if="connectors.length" class="vs-connectors" aria-label="Machines with cameras">
+          <li v-for="c in connectors" :key="c.id">
+            <span class="vs-connector-name"><strong>{{ c.name }}</strong><small>{{ connectorLine(c) }}</small></span>
+            <UiBadge :tone="c.badge[0]">{{ c.badge[1] }}</UiBadge>
+          </li>
+        </ul>
+        <div v-else class="vs-empty vs-empty-plain">
           <span class="vs-empty-icon"><Plug :size="20" aria-hidden="true"/></span>
-          <h4>No connectors yet</h4>
-          <p>Connect cameras on your own network through AADML's connector. Coming soon.</p>
+          <h4>No camera on your machines yet</h4>
+          <p>A machine in your own network can read its cameras for AADML: they are listed here once you add one.</p>
+        </div>
+        <div v-if="page && !addWhy" class="vs-connector-foot">
+          <UiButton class="small" @click="connectCamera"><Webcam :size="14" aria-hidden="true"/> Connect a camera</UiButton>
         </div>
       </section>
     </aside>
@@ -613,6 +640,11 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
     <UiDialog :open="!!removing" :title="removing ? `Remove ${removing.name}?` : 'Remove source?'" @close="removing=null">
       <template v-if="removing">
         <p class="dialog-description">Any stream running on this camera stops, and its address and password are deleted. Past streams and their results are kept.</p>
+        <fieldset v-if="removeAsks" class="vs-remove-recs">
+          <legend>Its recordings<template v-if="removingKept"> ({{ sizeText(removingKept) }} kept now)</template></legend>
+          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="keep"> Keep them until their days are over, then they are deleted. Keeping them is charged until then.</label>
+          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="delete"> Delete them now. This cannot be undone.</label>
+        </fieldset>
         <p v-if="removeError" class="field-error" role="alert">{{ removeError }}</p>
         <div class="dialog-actions">
           <UiButton @click="removing=null">Keep it</UiButton>
@@ -650,6 +682,17 @@ onUnmounted(() => { gone = true; clearTimeout(timer); });
 .vs-empty h4{margin:0 0 6px;font-size:14px;color:#17243b}
 .vs-empty p{margin:0 auto 14px;max-width:440px;font-size:12px;line-height:1.6}
 .vs-empty-plain p{margin-bottom:0}
+.vs-connectors{list-style:none;margin:0;padding:6px 16px}
+.vs-connectors li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #f0f2f6}
+.vs-connectors li:last-child{border-bottom:0}
+.vs-connector-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vs-connector-name strong{font-size:13px;color:#162139;overflow-wrap:anywhere}
+.vs-connector-name small{font-size:12px;color:#64748b}
+.vs-connector-foot{display:flex;justify-content:center;padding:0 16px 14px}
+.vs-remove-recs{display:grid;gap:8px;margin:12px 0 0;padding:10px 12px;border:1px solid #e3e8ef;border-radius:10px}
+.vs-remove-recs legend{padding:0 4px;font-size:13px;font-weight:600;color:#17243b}
+.vs-remove-recs label{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;color:#33415a}
+.vs-remove-recs input{margin-top:3px}
 .vs-link{border:0;background:none;padding:0;color:var(--aadml-primary);text-decoration:underline;font:inherit;cursor:pointer;min-height:44px}
 /* relative: the hidden "Details" heading is absolutely placed, and must not widen the page past this scroll box */
 .vs-table-wrap{position:relative;overflow-x:auto}
