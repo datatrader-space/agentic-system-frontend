@@ -549,6 +549,12 @@ export default {
   // CHANGED_ON_DISK and nothing is written; without a sha the save overwrites what is there.
   saveFileContent: (systemId, repoId, path, content, sha) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, sha ? { path, content, sha } : { path, content }),
+  // A Python file's text formatted by the project's own formatter (ruff, else black) in its sandbox (ADM-1319). The
+  // text is sent, not read from disk, so unsaved edits are formatted; nothing is written.
+  // -> 200 { content, formatter: 'ruff' | 'black', changed }; 400 { error } not Python or a bad path; 403 { error,
+  // outside: true }; 422 { error, code: 'FORMAT_FAILED', detail } (the formatter refused, e.g. a syntax error).
+  formatRepositoryFile: (systemId, repoId, path, content) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/format/`, { path, content }),
   // The explorer's file actions (ADM-1205). Nothing is ever replaced unless `overwrite` says so.
   createRepositoryEntry: (systemId, repoId, path, type = 'file') =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/create/`, { path, type }),

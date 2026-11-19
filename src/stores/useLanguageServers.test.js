@@ -5,11 +5,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref, nextTick } from 'vue'
 
-vi.mock('@/services/api', () => ({ default: { checkProjectProblems: vi.fn() } }))
+vi.mock('@/services/api', () => ({ default: { checkProjectProblems: vi.fn(), getFileContent: vi.fn(),
+  saveFileContent: vi.fn(), formatRepositoryFile: vi.fn() } }))
+vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }))
 import api from '@/services/api'
+import { notify } from '@/composables/useNotify'
+import { useEditorSettings } from '@/composables/useEditorSettings'
 import {
   createLanguageServers, serverFor, languageIdOf, toUri, pathOfUri, problemOf, rangeOf, positionOf,
-  hoverContents, locationsOf, completionsOf,
+  hoverContents, locationsOf, completionsOf, applyTextEdits, endOf, workspaceEditFiles, inlayHintsOf, lspRangeOf,
+  leaveEditingToServers, RESOURCE_OPERATIONS_REFUSED,
 } from './useLanguageServers'
 
 const ROOT = '/home/northrays/workspace/repo-4'
@@ -58,30 +63,47 @@ class FakeConnection {
   open() { this.state = 'connecting'; return this }
   close() { this.state = 'closed'; this.closed = true }
   ready() { this.state = 'ready'; this.onStatus({ state: 'ready', root: ROOT }) }
-  request(method, params) { this.sent.push(['request', method, params]); return Promise.resolve(method === 'initialize' ? { capabilities: {} } : null) }
+  request(method, params) { this.sent.push(['request', method, params]); return Promise.resolve(method === 'initialize' ? { capabilities: FakeConnection.caps } : null) }
   notify(method, params) { this.sent.push(['notify', method, params]); return true }
   methods() { return this.sent.map((x) => x[1]) }
 }
 FakeConnection.made = []
+FakeConnection.caps = {}
 
 function editorCtx() {
-  const model = { uri: { toString: () => 'inmemory://1' } }
-  const providers = {}
-  const reg = (kind) => vi.fn((lang, p) => { (providers[kind] ||= {})[lang] = p; return { dispose: vi.fn() } })
-  const monaco = { MarkerSeverity: { Error: 8, Warning: 4, Info: 2, Hint: 1 },
-    Uri: { parse: (u) => ({ toString: () => u }) },
-    editor: { setModelMarkers: vi.fn(), registerEditorOpener: vi.fn((o) => { providers.opener = o; return { dispose: vi.fn() } }) },
-    languages: { registerHoverProvider: reg('hover'), registerCompletionItemProvider: reg('completion'),
-      registerSignatureHelpProvider: reg('signature'), registerDefinitionProvider: reg('definition') } }
   const tabs = ref([{ id: 1, type: 'file', path: 'app/page.tsx', content: 'const a = 1', original: 'const a = 1' }])
   const activeId = ref(1)
   const activeTab = { get value() { return tabs.value.find((t) => t.id === activeId.value) } }
-  return { model, monaco, providers, tabs, activeId, ctx: { monaco: () => monaco, editor: () => ({ getModel: () => model }),
-    activeTab, openTabs: tabs, openAt: vi.fn() } }
+  // The editor's one model shows the active tab's text.
+  const model = { uri: { toString: () => 'inmemory://1' }, getValue: () => activeTab.value.content,
+    getOptions: () => ({ tabSize: 4, insertSpaces: true }),
+    getWordAtPosition: () => ({ word: 'a', startColumn: 7, endColumn: 8 }),
+    getValueInRange: (r) => activeTab.value.content.split(/\n/)[r.startLineNumber - 1].slice(r.startColumn - 1, r.endColumn - 1) }
+  const providers = {}
+  const reg = (kind) => vi.fn((lang, p) => { (providers[kind] ||= {})[lang] = p; return { dispose: vi.fn() } })
+  const commands = {}
+  const monaco = { MarkerSeverity: { Error: 8, Warning: 4, Info: 2, Hint: 1 },
+    Uri: { parse: (u) => ({ toString: () => u }) },
+    editor: { setModelMarkers: vi.fn(), registerEditorOpener: vi.fn((o) => { providers.opener = o; return { dispose: vi.fn() } }),
+      registerCommand: vi.fn((id, fn) => { commands[id] = fn; return { dispose: vi.fn() } }) },
+    languages: { registerHoverProvider: reg('hover'), registerCompletionItemProvider: reg('completion'),
+      registerSignatureHelpProvider: reg('signature'), registerDefinitionProvider: reg('definition'),
+      registerRenameProvider: reg('rename'), registerCodeActionProvider: reg('codeAction'),
+      registerInlayHintsProvider: reg('inlay'), registerDocumentFormattingEditProvider: reg('formatting'),
+      registerDocumentRangeFormattingEditProvider: reg('rangeFormatting') } }
+  // As CodeBrowser's editOpenFile: a file open in a tab takes the edits in its text; null when it is not open.
+  const editOpenFile = vi.fn((path, edits) => {
+    const tab = tabs.value.find((t) => t.type === 'file' && t.path === path)
+    if (!tab) return null
+    tab.content = applyTextEdits(tab.content, edits)
+    return tab.content
+  })
+  return { model, monaco, providers, commands, tabs, activeId, ctx: { monaco: () => monaco, editor: () => ({ getModel: () => model }),
+    activeTab, openTabs: tabs, openAt: vi.fn(), editOpenFile } }
 }
 
 describe('the store', () => {
-  beforeEach(() => { FakeConnection.made = []; vi.useRealTimers() })
+  beforeEach(() => { FakeConnection.made = []; FakeConnection.caps = {}; vi.useRealTimers() })
 
   it('starts the server of the file shown, initialises it, then opens the files in tabs', async () => {
     const e = editorCtx()
@@ -253,5 +275,192 @@ describe('the store', () => {
     s.open({ path: 'x.ts', line: 1, column: 1 })
     expect(b.ctx.openAt).toHaveBeenCalled()
     expect(a.ctx.openAt).not.toHaveBeenCalled()
+  })
+})
+
+describe('text edits and workspace edits (ADM-1319)', () => {
+  const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } })
+  it('edits are read in the text as it was, across LF and CRLF lines, and inserts at one place keep their order', () => {
+    expect(applyTextEdits('let a = 1\nlet b = a\n', [{ range: r(0, 4, 0, 5), newText: 'total' },
+      { range: r(1, 8, 1, 9), newText: 'total' }])).toBe('let total = 1\nlet b = total\n')
+    expect(applyTextEdits('one\r\ntwo', [{ range: r(1, 0, 1, 3), newText: 'TWO' }, { range: r(0, 3, 0, 99), newText: '!' }]))
+      .toBe('one!\r\nTWO')
+    expect(applyTextEdits('x', [{ range: r(0, 0, 0, 0), newText: 'a' }, { range: r(0, 0, 0, 0), newText: 'b' }])).toBe('abx')
+    expect(endOf('a\nbc')).toEqual({ line: 1, character: 2 })
+    expect(lspRangeOf({ startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 5 })).toEqual(r(1, 2, 1, 4))
+  })
+  it('a workspace edit names its files; one that creates, renames or deletes a file is refused whole', () => {
+    expect(workspaceEditFiles({ changes: { u1: [{ range: r(0, 0, 0, 1), newText: 'x' }] } }).files)
+      .toEqual([{ uri: 'u1', version: null, steps: [[{ range: r(0, 0, 0, 1), newText: 'x' }]] }])
+    expect(workspaceEditFiles({ documentChanges: [{ textDocument: { uri: 'u1', version: 3 }, edits: [] },
+      { kind: 'rename', oldUri: 'u1', newUri: 'u2' }] })).toEqual({ files: [], refused: RESOURCE_OPERATIONS_REFUSED })
+  })
+  it('inlay hints become Monaco hints', () => {
+    expect(inlayHintsOf([{ position: { line: 2, character: 5 }, label: ': number', kind: 1, paddingLeft: true },
+      { position: { line: 0, character: 0 }, label: [{ value: 'x:', tooltip: { kind: 'markdown', value: 'the x' } }], kind: 2 }]))
+      .toEqual([
+        { label: ': number', position: { lineNumber: 3, column: 6 }, kind: 1, paddingLeft: true, paddingRight: false, tooltip: undefined },
+        { label: [{ label: 'x:', tooltip: { value: 'the x' } }], position: { lineNumber: 1, column: 1 }, kind: 2,
+          paddingLeft: false, paddingRight: false, tooltip: undefined },
+      ])
+  })
+  it("Monaco's own TypeScript rename, code actions, inlay hints and formatting are never registered", () => {
+    const d = () => ({ modeConfiguration: { hovers: true, rename: true }, setModeConfiguration: vi.fn() })
+    const monaco = { typescript: { typescriptDefaults: d(), javascriptDefaults: d() } }
+    leaveEditingToServers(monaco)
+    expect(monaco.typescript.typescriptDefaults.setModeConfiguration).toHaveBeenCalledWith({ hovers: true, rename: false,
+      codeActions: false, inlayHints: false, documentRangeFormattingEdits: false })
+  })
+})
+
+describe('editing through the language servers (ADM-1319)', () => {
+  const SHA = 'a'.repeat(64)
+  const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } })
+  const PAGE = toUri(ROOT, 'app/page.tsx')
+  const UTIL = toUri(ROOT, 'lib/util.ts')
+  const CHANGED = { response: { status: 409, data: { code: 'CHANGED_ON_DISK', error: 'changed' } } }
+
+  beforeEach(() => {
+    FakeConnection.made = []
+    FakeConnection.caps = { renameProvider: { prepareProvider: true }, codeActionProvider: { resolveProvider: true },
+      inlayHintProvider: true, documentFormattingProvider: true, documentRangeFormattingProvider: true }
+    vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  async function ready(e = editorCtx()) {
+    const s = createLanguageServers({ systemId: 5, repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    const c = FakeConnection.made[0]
+    c.ready()
+    await Promise.resolve(); await Promise.resolve()
+    return { e, s, c }
+  }
+  // The server's answers by method.
+  const answers = (c, map) => { c.request = vi.fn(async (m, p) => (typeof map[m] === 'function' ? map[m](p) : map[m] ?? null)) }
+
+  it('F2 asks prepareRename for the name and its place', async () => {
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/prepareRename': r(0, 6, 0, 7) })
+    const loc = await e.providers.rename.typescript.resolveRenameLocation(e.model, { lineNumber: 1, column: 7 })
+    expect(c.request).toHaveBeenCalledWith('textDocument/prepareRename', { textDocument: { uri: PAGE }, position: { line: 0, character: 6 } })
+    expect(loc).toEqual({ range: { startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 8 }, text: 'a' })
+    answers(c, { 'textDocument/prepareRename': null })
+    expect((await e.providers.rename.typescript.resolveRenameLocation(e.model, { lineNumber: 1, column: 7 })).rejectReason)
+      .toBe('This cannot be renamed.')
+  })
+
+  it('a rename in two files changes the open tab in place and writes the closed file with the sha it was read at', async () => {
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/rename': { documentChanges: [
+      { textDocument: { uri: PAGE, version: 1 }, edits: [{ range: r(0, 6, 0, 7), newText: 'total' }] },
+      { textDocument: { uri: UTIL, version: null }, edits: [{ range: r(1, 9, 1, 10), newText: 'total' }] }] } })
+    api.getFileContent.mockResolvedValueOnce({ data: { content: 'import { a } from "../app/page"\nexport { a }\n', sha: SHA } })
+    api.saveFileContent.mockResolvedValueOnce({ data: { sha: 'b'.repeat(64) } })
+    const out = await e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
+    expect(c.request).toHaveBeenCalledWith('textDocument/rename', { textDocument: { uri: PAGE }, position: { line: 0, character: 6 }, newName: 'total' })
+    expect(out).toEqual({ edits: [] })                                       // applied here, not by Monaco
+    expect(e.tabs.value[0].content).toBe('const total = 1')
+    expect(e.tabs.value[0].original).toBe('const a = 1')                     // unsaved: the person saves it
+    expect(api.getFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts')
+    expect(api.saveFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts', 'import { a } from "../app/page"\nexport { total }\n', SHA)
+    expect(notify.success).toHaveBeenCalledWith('Renamed in 2 files')
+  })
+
+  it('a closed file changed on disk meanwhile is reported and never overwritten', async () => {
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/rename': { changes: {
+      [PAGE]: [{ range: r(0, 6, 0, 7), newText: 'total' }], [UTIL]: [{ range: r(0, 0, 0, 1), newText: 'total' }] } } })
+    api.getFileContent.mockResolvedValueOnce({ data: { content: 'a', sha: SHA } })
+    api.saveFileContent.mockRejectedValueOnce(CHANGED)
+    await e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
+    expect(api.saveFileContent).toHaveBeenCalledTimes(1)
+    expect(api.saveFileContent.mock.calls[0][4]).toBe(SHA)
+    expect(notify.error).toHaveBeenCalledWith('Renamed in 1 file. This file was not changed: '
+      + 'lib/util.ts (it changed in the project meanwhile, so it was not overwritten).')
+    expect(notify.success).not.toHaveBeenCalled()
+  })
+
+  it('code actions are asked for the range with its problems; an edit is applied, a command is run, resolve when needed', async () => {
+    const { e, c } = await ready()
+    const d = { range: r(0, 6, 0, 7), severity: 1, message: 'unused', code: 6133, source: 'typescript' }
+    c.onNotification('textDocument/publishDiagnostics', { uri: PAGE, diagnostics: [d, { ...d, range: r(5, 0, 5, 1) }] })
+    const fix = { title: 'Rename to b', kind: 'quickfix', edit: { changes: { [PAGE]: [{ range: r(0, 6, 0, 7), newText: 'b' }] } } }
+    const organize = { title: 'Organize imports', command: '_typescript.organizeImports', arguments: ['x'] }
+    const lazy = { title: 'Extract constant', kind: 'refactor.extract', data: { id: 1 } }
+    answers(c, { 'textDocument/codeAction': [fix, organize, lazy],
+      'codeAction/resolve': (a) => ({ ...a, edit: { changes: { [PAGE]: [{ range: r(0, 10, 0, 11), newText: 'ONE' }] } } }) })
+    const range = { startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 7 }
+    const { actions } = await e.providers.codeAction.typescript.provideCodeActions(e.model, range, { trigger: 1 })
+    expect(c.request).toHaveBeenCalledWith('textDocument/codeAction', { textDocument: { uri: PAGE },
+      range: r(0, 6, 0, 6), context: { diagnostics: [d], triggerKind: 1 } })
+    expect(actions.map((a) => [a.title, a.kind])).toEqual([['Rename to b', 'quickfix'], ['Organize imports', undefined],
+      ['Extract constant', 'refactor.extract']])
+    const run = (a) => e.commands[a.command.id](null, ...a.command.arguments)
+
+    await run(actions[0])
+    expect(e.tabs.value[0].content).toBe('const b = 1')
+    await run(actions[1])
+    expect(c.request).toHaveBeenCalledWith('workspace/executeCommand', { command: '_typescript.organizeImports', arguments: ['x'] })
+    await run(actions[2])
+    expect(c.request).toHaveBeenCalledWith('codeAction/resolve', lazy)
+    expect(e.tabs.value[0].content).toBe('const b = ONE')
+    expect(notify.error).not.toHaveBeenCalled()
+  })
+
+  it("the server's workspace/applyEdit is applied and answered; a file operation is refused and changes nothing", async () => {
+    const { e, c } = await ready()
+    expect(await c.onRequest('workspace/applyEdit', { edit: { changes: { [PAGE]: [{ range: r(0, 0, 0, 5), newText: 'let' }] } } }))
+      .toEqual({ applied: true })
+    expect(e.tabs.value[0].content).toBe('let a = 1')
+    const refused = await c.onRequest('workspace/applyEdit', { edit: { documentChanges: [
+      { textDocument: { uri: PAGE, version: null }, edits: [{ range: r(0, 0, 0, 3), newText: 'var' }] },
+      { kind: 'create', uri: toUri(ROOT, 'new.ts') }] } })
+    expect(refused).toEqual({ applied: false, failureReason: RESOURCE_OPERATIONS_REFUSED })
+    expect(e.tabs.value[0].content).toBe('let a = 1')
+    expect(api.getFileContent).not.toHaveBeenCalled()
+    expect(api.saveFileContent).not.toHaveBeenCalled()
+    expect(notify.error).toHaveBeenCalledWith(RESOURCE_OPERATIONS_REFUSED)
+  })
+
+  it('inlay hints are asked for the range shown and mapped', async () => {
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/inlayHint': [{ position: { line: 0, character: 7 }, label: ': 1', kind: 1 }] })
+    const { hints } = await e.providers.inlay.typescript.provideInlayHints(e.model,
+      { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 12 })
+    expect(c.request).toHaveBeenCalledWith('textDocument/inlayHint', { textDocument: { uri: PAGE }, range: r(0, 0, 0, 11) })
+    expect(hints).toEqual([expect.objectContaining({ label: ': 1', position: { lineNumber: 1, column: 8 }, kind: 1 })])
+  })
+
+  it('TypeScript is formatted by its server with the editor tab size', async () => {
+    const { e, c } = await ready()
+    const { settings } = useEditorSettings()
+    settings.tabSize = 2
+    answers(c, { 'textDocument/formatting': [{ range: r(0, 5, 0, 6), newText: ' ' }] })
+    const edits = await e.providers.formatting.typescript.provideDocumentFormattingEdits(e.model)
+    expect(c.request).toHaveBeenCalledWith('textDocument/formatting', { textDocument: { uri: PAGE }, options: { tabSize: 2, insertSpaces: true } })
+    expect(edits).toEqual([{ range: { startLineNumber: 1, startColumn: 6, endLineNumber: 1, endColumn: 7 }, text: ' ' }])
+    settings.tabSize = 'auto'
+  })
+
+  it('Python is formatted by the project formatter: the text is replaced only when it changed; a refusal keeps it', async () => {
+    const e = editorCtx()
+    e.tabs.value = [{ id: 1, type: 'file', path: 'main.py', content: 'x=1\n', original: 'x=1\n' }]
+    const s = createLanguageServers({ systemId: 5, repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)                                                            // pyright need not be ready
+    const format = e.providers.formatting.python
+    api.formatRepositoryFile.mockResolvedValueOnce({ data: { content: 'x = 1\n', formatter: 'ruff', changed: true } })
+    expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([{
+      range: { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 1 }, text: 'x = 1\n' }])
+    expect(api.formatRepositoryFile).toHaveBeenCalledWith(5, 4, 'main.py', 'x=1\n')
+    api.formatRepositoryFile.mockResolvedValueOnce({ data: { content: 'x=1\n', formatter: 'ruff', changed: false } })
+    expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+    api.formatRepositoryFile.mockRejectedValueOnce({ response: { status: 422,
+      data: { error: 'The formatter could not read main.py.', code: 'FORMAT_FAILED', detail: 'error: line 1: invalid syntax' } } })
+    expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+    expect(notify.error).toHaveBeenCalledWith('The file was not formatted: The formatter could not read main.py. error: line 1: invalid syntax')
+    expect(e.tabs.value[0].content).toBe('x=1\n')
+    expect(s.canFormat('main.py')).toBe(true)
+    expect(s.canFormat('README.md')).toBe(false)
   })
 })

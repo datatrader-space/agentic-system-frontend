@@ -45,6 +45,10 @@
         <span>Minimap</span>
         <input v-model="settings.minimap" type="checkbox" />
       </label>
+      <label class="es-row es-check" title="TypeScript, JavaScript and Python files are formatted before they are saved">
+        <span>Format on save</span>
+        <input v-model="settings.formatOnSave" type="checkbox" data-test="es-format-on-save" />
+      </label>
       <div class="es-foot">
         <button type="button" class="es-reset" @click="reset">Restore the defaults</button>
       </div>

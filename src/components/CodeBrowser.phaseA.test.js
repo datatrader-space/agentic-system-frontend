@@ -119,9 +119,13 @@ describe('editor settings (the gear beside Save)', () => {
     const checks = document.querySelectorAll('.es input[type="checkbox"]')
     checks[0].click()                                            // wrap off
     checks[1].click()                                            // minimap off
+    const formatOnSave = document.querySelector('[data-test="es-format-on-save"]')
+    expect(formatOnSave.checked).toBe(false)                     // off unless chosen (ADM-1319)
+    formatOnSave.click()
     await flushPromises()
     expect(w.find('.monaco-stub').attributes()).toMatchObject({ 'data-font': '18', 'data-wrap': 'off', 'data-minimap': 'false' })
-    expect(JSON.parse(localStorage.getItem('lets-code:editor-settings'))).toMatchObject({ fontSize: 18, wordWrap: false, minimap: false })
+    expect(JSON.parse(localStorage.getItem('lets-code:editor-settings'))).toMatchObject({ fontSize: 18, wordWrap: false, minimap: false,
+      formatOnSave: true })
     document.querySelector('.es-reset').click()
     await flushPromises()
     expect(w.find('.monaco-stub').attributes('data-font')).toBe('14')

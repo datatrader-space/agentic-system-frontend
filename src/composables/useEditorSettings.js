@@ -1,5 +1,5 @@
-// The Let's Code editor's settings (ADM-1205, phase A): font size, tab size, word wrap, minimap, line numbers and
-// whitespace, as VS Code's most used editor settings. Kept in this browser; one set for every project.
+// The Let's Code editor's settings (ADM-1205, phase A): font size, tab size, word wrap, minimap, line numbers,
+// whitespace and format on save (ADM-1319), as VS Code's most used editor settings. Kept in this browser; one set for every project.
 import { reactive, watch } from 'vue'
 
 export const EDITOR_SETTINGS_KEY = 'lets-code:editor-settings'
@@ -11,6 +11,7 @@ export const DEFAULTS = Object.freeze({
   minimap: true,
   lineNumbers: 'on',        // 'on' | 'relative' | 'off'
   whitespace: 'selection',  // 'none' | 'selection' | 'all'
+  formatOnSave: false,      // Save formats a TypeScript, JavaScript or Python file first (ADM-1319)
 })
 
 export const CHOICES = Object.freeze({
@@ -27,7 +28,7 @@ export function clean(raw) {
   for (const k of ['fontSize', 'tabSize', 'lineNumbers', 'whitespace']) {
     if (CHOICES[k].includes(raw[k])) out[k] = raw[k]
   }
-  for (const k of ['wordWrap', 'minimap']) if (typeof raw[k] === 'boolean') out[k] = raw[k]
+  for (const k of ['wordWrap', 'minimap', 'formatOnSave']) if (typeof raw[k] === 'boolean') out[k] = raw[k]
   return out
 }
 

@@ -23,6 +23,12 @@ describe('useEditorSettings', () => {
     expect(clean(null)).toEqual({ ...DEFAULTS })
   })
 
+  it('format on save is off unless chosen, and only a true/false is kept (ADM-1319)', () => {
+    expect(DEFAULTS.formatOnSave).toBe(false)
+    expect(clean({ formatOnSave: true }).formatOnSave).toBe(true)
+    expect(clean({ formatOnSave: 'yes' }).formatOnSave).toBe(false)
+  })
+
   it('reset restores the defaults', () => {
     const { settings, reset } = useEditorSettings()
     settings.lineNumbers = 'off'

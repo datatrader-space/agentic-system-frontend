@@ -304,6 +304,9 @@ let monacoNs = null
 // Monaco's own language list, once it has loaded: every file opens in the language Monaco knows for it (ADM-1200).
 const monacoLanguages = shallowRef(null)
 function noteMonacoLoaded(ns) {
+  // Before Monaco holds a file: rename, code actions, inlay hints and formatting come from the language servers only
+  // (ADM-1319). A read-only editor loses nothing by it: it neither renames, fixes nor formats.
+  if (monacoNs !== ns) leaveEditingToServers(ns)
   monacoNs = ns
   if (!monacoLanguages.value) {
     try { monacoLanguages.value = ns.languages.getLanguages() } catch { /* the fallback list stays */ }
@@ -342,7 +345,7 @@ import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
-import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
+import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
 import { bindConflictActions } from '@/utils/mergeConflicts'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
@@ -564,6 +567,7 @@ async function saveActive() {
   if (!tab || !isDirty(tab) || saving.value) return
   saving.value = true
   try {
+    await formatBeforeSave(tab)
     await writeTab(tab, tab.diskSha)
   } catch (e) {
     if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') await changedOnDisk(tab)
@@ -571,6 +575,47 @@ async function saveActive() {
   } finally {
     saving.value = false
   }
+}
+
+// FORMAT ON SAVE (ADM-1319; the editor's settings, off unless chosen). A TypeScript, JavaScript or Python file is
+// formatted first and its text takes the result. A formatter that fails never stops the save: the text is saved as it
+// is and one notification says why it was not formatted.
+async function formatBeforeSave(tab) {
+  if (!editorSettings.formatOnSave || !languages || !languages.canFormat(tab.path)) return
+  const text = tab.content
+  let edits
+  try {
+    edits = await languages.formatEdits(tab.path, text)
+  } catch (e) {
+    notify.warning(`${tab.name} was saved without formatting: ${e.message}`)
+    return
+  }
+  if (!edits.length) return
+  if (tab.content !== text) {
+    notify.warning(`${tab.name} was saved without formatting: its text changed while it was being formatted.`)
+    return
+  }
+  editOpenFile(tab.path, edits)
+}
+
+// A language server's change to a file open in a tab (ADM-1319: a rename, a quick fix, formatting): it goes into the
+// tab's text, so the tab becomes unsaved and the person saves it. The tab shown changes through Monaco, so Undo takes
+// it back. Returns the tab's new text, or null when the file is not open in a tab (the change is then written to the
+// file on disk by the language servers' store).
+function editOpenFile(path, edits) {
+  const tab = openTabs.value.find(t => t.type === 'file' && t.path === path)
+  if (!tab || tab.content == null) return null
+  const model = tab.id === activeTabId.value && !chatFront.value && editorInst && editorInst.getModel ? editorInst.getModel() : null
+  if (model && model.getValue() === tab.content && typeof editorInst.executeEdits === 'function') {
+    editorInst.pushUndoStop?.()
+    editorInst.executeEdits('lets-code-language-server', edits.map((e) => ({ range: rangeOf(e.range), text: e.newText ?? '',
+      forceMoveMarkers: true })))
+    editorInst.pushUndoStop?.()
+    tab.content = model.getValue()
+  } else {
+    tab.content = applyTextEdits(tab.content, edits)
+  }
+  return tab.content
 }
 
 async function changedOnDisk(tab) {
@@ -676,9 +721,11 @@ function onEditorMount(editor) {
   applyLanguage()
   revealPending()
   // The project's language servers (ADM-1205 phase F item 16): hover, completion, go to definition, references and
-  // problems for the files open in tabs; another file opens here through openAt.
+  // problems for the files open in tabs; another file opens here through openAt. Rename, quick fixes and formatting
+  // change a file open in a tab through editOpenFile (ADM-1319).
   if (languages && props.editable) {
-    releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
+    releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt,
+      editOpenFile })
   }
   // The debugger (ADM-1205 phase F item 17): breakpoints in the gutter, the paused line, F5 / F9.
   if (debuggerStore && props.editable) {
