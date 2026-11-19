@@ -27,7 +27,7 @@
       </label>
       <button type="button" class="cur-act" data-test="compact-now"
               :disabled="!canCompact" @click="compact">
-        {{ running ? 'Compacting…' : 'Compact Now' }}
+        {{ running ? 'Compacting…' : 'Compact now' }}
       </button>
       <span v-if="chat.isStreaming && !running" class="cur-tip-note">Available when the reply has finished.</span>
       <span class="cur-tip-note" :class="{ 'is-err': failed }" role="status" aria-live="polite"

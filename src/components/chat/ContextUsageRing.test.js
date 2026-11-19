@@ -98,7 +98,7 @@ describe('ContextUsageRing', () => {
     const spy = vi.spyOn(chat, 'compactNow').mockResolvedValue()
     const w = mount(ContextUsageRing)
     const btn = w.find('[data-test="compact-now"]')
-    expect(btn.text()).toBe('Compact Now')
+    expect(btn.text()).toBe('Compact now')
     expect(btn.attributes('disabled')).toBeUndefined()
     await btn.trigger('click')
     expect(spy).toHaveBeenCalledTimes(1)
