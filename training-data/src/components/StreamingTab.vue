@@ -127,7 +127,8 @@ function keptView() { try { return sessionStorage.getItem(VIEW_KEY) === 'recordi
 const view = ref(keptView());
 watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
 function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
-// "Offline notifications": not built yet, and said so (no switch that would save nothing).
+// "Offline notifications": what is sent and to whom (backend camera_management.py OFFLINE NOTICES; live, 2026-11-19:
+// this dialog still said "coming soon" after the notices shipped). The e-mail's switch is in AADML's Settings.
 const notifying = ref(false);
 
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
@@ -488,7 +489,9 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     </UiDialog>
 
     <UiDialog :open="notifying" title="Offline notifications" @close="notifying=false">
-      <p class="dialog-description">Being told by e-mail or in AADML when a camera goes offline is coming soon. For now, a camera's state is updated when you press Check now in its details.</p>
+      <p class="dialog-description">When a camera goes offline or needs attention, the workspace's Admins and the organization's owners are told under the bell in AADML and by e-mail, at most once an hour a camera, and again once when it is back online.</p>
+      <p class="dialog-description">AADML notices a change while the camera is watched, recorded or streamed, when its machine reports it, and when you press Check now in its details. A camera nobody is using is not checked by itself.</p>
+      <p class="dialog-description">The e-mail can be turned off in Settings, Notifications, Camera alerts; the notice under the bell is always made.</p>
       <div class="dialog-actions"><UiButton variant="primary" @click="notifying=false">Close</UiButton></div>
     </UiDialog>
 
