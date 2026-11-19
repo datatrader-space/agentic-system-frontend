@@ -197,3 +197,54 @@ it('counts My templates in the sidebar and links to them next to Saved templates
   expect(w.get('[data-test="vs-nav-saved"]').text()).toBe('Saved templates1'); expect(w.get('[data-test="vs-nav-saved"]').attributes('aria-current')).toBeUndefined()
   w.unmount(); HTMLDialogElement.prototype.close = close
 })
+
+describe('VideoStudioShell side panel (owner, 2026-11-19)', () => {
+  it('collapses to an icon rail like the main dashboard, keeps names for screen readers and tooltips, and remembers it', async () => {
+    const { w } = await mountAt('/dashboard/video-studio/library')
+    const aside = () => w.get('#vs-sidebar')
+    expect(aside().classes()).not.toContain('collapsed')
+    const recent = () => w.findAllComponents({ name: 'StudioRecentChats' }).length
+    expect(recent()).toBe(1)
+    const toggle = w.get('[data-test="vs-collapse"]')
+    expect(toggle.attributes('aria-label')).toBe('Collapse sidebar')
+    await toggle.trigger('click')
+    expect(aside().classes()).toContain('collapsed')
+    expect(w.get('[data-test="vs-collapse"]').attributes('aria-label')).toBe('Expand sidebar')
+    expect(w.get('[data-test="vs-collapse"]').attributes('aria-expanded')).toBe('false')
+    // The page's name is still in the link (visually hidden), and shows as a tooltip.
+    expect(w.get('[data-test="vs-nav-library"]').text()).toContain('Library')
+    expect(w.get('[data-test="vs-nav-library"]').attributes('title')).toBe('Library')
+    expect(w.get('[data-test="vs-back"]').attributes('title')).toBe('Back to AADML Dashboard')
+    expect(recent()).toBe(0)
+    // One setting with the main dashboard.
+    expect(JSON.parse(localStorage.getItem('v2_layout_prefs')).sidebarCollapsed).toBe(true)
+    w.unmount()
+  })
+
+  it('toggles with Ctrl/Cmd+B, and a creative group on the rail opens the panel with that group open', async () => {
+    const { w } = await mountAt('/dashboard/video-studio')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, cancelable: true }))
+    await flushPromises()
+    expect(w.get('#vs-sidebar').classes()).toContain('collapsed')
+    const group = w.findAll('.vs-group-toggle')[0]
+    expect(group.attributes('title')).toBe(group.text())
+    await group.trigger('click')
+    expect(w.get('#vs-sidebar').classes()).not.toContain('collapsed')
+    expect(w.findAll('.vs-group-toggle')[0].attributes('aria-expanded')).toBe('true')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, cancelable: true }))
+    await flushPromises()
+    expect(w.get('#vs-sidebar').classes()).toContain('collapsed')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, cancelable: true }))
+    await flushPromises()
+    expect(w.get('#vs-sidebar').classes()).not.toContain('collapsed')
+    w.unmount()
+  })
+
+  it('draws its workspace menu dark and keeps the person in the Studio after a switch (N-1, N-2)', async () => {
+    const { w } = await mountAt('/dashboard/video-studio')
+    const switcher = w.findComponent({ name: 'WorkspaceSwitcher' })
+    expect(switcher.props('tone')).toBe('dark')
+    expect(switcher.props('navigateOnSwitch')).toBe(false)
+    w.unmount()
+  })
+})
