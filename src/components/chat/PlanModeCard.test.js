@@ -53,6 +53,21 @@ describe('PlanModeCard', () => {
     expect(w.find('[data-test="pmc-no-autonomy"]').text()).toContain('as its owner set it')
   })
 
+  it('approving leaves plan mode for the mode it came from; keeping planning stays in it', async () => {
+    const { useChatStore } = await import('../../stores/useChatStore')
+    const chat = useChatStore()
+    chat.setTurnMode('work')
+    chat.setTurnMode('plan')
+    await mountCard().find('[data-test="pmc-answer-ask_before_each_change"]').trigger('click')
+    expect(chat.turnMode).toBe('work')
+    chat.setTurnMode('plan')
+    const w = mountCard(request({ request_id: 'pr2' }))
+    await w.find('[data-test="pmc-answer-keep_planning"]').trigger('click')
+    await w.find('[data-test="pmc-notes"]').setValue('add tests first')
+    await w.find('form').trigger('submit')
+    expect(chat.turnMode).toBe('plan')
+  })
+
   it('an answer is remembered for the line the card leaves behind', async () => {
     const w = mountCard(request({ answers: [{ id: 'ask_before_each_change', title: 'Yes, ask me before risky changes' },
                                            { id: 'keep_planning', title: 'No, keep planning' }] }))

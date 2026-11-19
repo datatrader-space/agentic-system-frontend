@@ -56,6 +56,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { usePlanReviewStore } from '@/stores/usePlanReviewStore'
+import { useChatStore } from '@/stores/useChatStore'
 
 const props = defineProps({
   // The `hitl_request` as the chat store keeps it: { request_id, payload: { kind: 'plan_approval', ... } }.
@@ -111,6 +112,8 @@ function respond(id, feedback = '') {
   sent.value = true
   plans.show(props.request, convId.value)
   plans.answered(props.request.request_id, answerLine(id))
+  // An approved plan leaves plan mode for Chat or Work, as Claude Code does; "keep planning" stays in it.
+  if (id !== notesAnswer.value) useChatStore().leavePlanMode()
   emit('respond', { request_id: props.request.request_id, response_value: id, feedback })
 }
 
