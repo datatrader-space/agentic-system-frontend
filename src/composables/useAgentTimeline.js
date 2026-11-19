@@ -34,6 +34,17 @@ export function isRichEvent(evt) {
   return !!evt && RICH_EVENT_TYPES.has(evt.type)
 }
 
+// Why a call was not run, in the person's words, from its `tool_blocked` frame: its `outcome` (the person's answer
+// on its card) or its `reason` (plan mode, a rule).
+export function blockedNote(evt) {
+  const outcome = String((evt && evt.outcome) || '')
+  if (outcome === 'declined') return "Not run: you didn't approve it"
+  if (outcome === 'waits') return 'Not run yet: it waits for your approval'
+  if (evt && evt.reason === 'plan_mode') return 'Not run: plan mode only reads'
+  if (evt && evt.reason === 'arguments_cut_off') return "Not run: the model's request was cut off"
+  return 'Not run: blocked by a rule'
+}
+
 // Dedup key for a source citation. Prefer the explicit ref when present so two distinct
 // docs/records with the same display name still count separately; collapse otherwise.
 function sourceKey(s) {
@@ -286,22 +297,34 @@ export function useAgentTimeline() {
         if (media.length) row.media = [...(row.media || []), ...media]
       }
     }
-    // PLAN MODE ONLY READS (backend phase 4): a call that would change something is refused with `tool_blocked`
-    // and reason `plan_mode`. That is the mode doing its job, not a failure: the step says so plainly, and the run
-    // is not marked as having failures. The row of that call (still running) takes the note; else one is added.
-    if (evt && evt.type === 'tool_blocked' && evt.reason === 'plan_mode') {
-      const note = 'Not run: plan mode only reads'
-      const open = [...steps.value].reverse().find((x) => x.status === 'running' && !x.isPhase && evt.tool && x.tool === evt.tool)
+    // A CALL THAT WAS NOT RUN (`tool_blocked`) STAYS A STEP, WITH WHY (ADM-1290), like Claude Code's rejected tool
+    // row. Plan mode refusing a change is the mode doing its job; a call the person did not approve says so; a rule
+    // says it blocked it. None marks the run as having failures. The row of that call takes the note; a call the
+    // person turned down on its card never opened one (it was not about to run), so one is added, with its short
+    // name and, on a Work turn, its IN. Phase 8 live, 2026-11-19: a cancelled `rm -rf` had no row at all.
+    if (evt && evt.type === 'tool_blocked') {
+      const note = blockedNote(evt)
+      const callId = evt.tool_call_id ? String(evt.tool_call_id) : ''
+      const open = (callId && steps.value.find((x) => x.toolCallId && String(x.toolCallId) === callId))
+        || [...steps.value].reverse().find((x) => x.status === 'running' && !x.isPhase && evt.tool && x.tool === evt.tool)
       if (open) {
         open.status = 'held'
         open.reason = note
       } else {
         _closeOpenPhases()
-        steps.value.push({
-          stepId: `held_${steps.value.length}_${_now()}`, toolCallId: '', phase: 'held', tool: evt.tool || '',
+        const row = {
+          stepId: `held_${steps.value.length}_${_now()}`, toolCallId: callId, phase: 'held', tool: evt.tool || '',
           argsPreview: '', label: note, status: 'held', summary: '', durationMs: null, reason: '', nextAction: '',
           coalescedCount: 0, startedAt: _now(),
-        })
+        }
+        // The Work rail's row: its short name, its IN (the line under the name) and the note under that. The card of
+        // a Chat or Plan turn reads the note as the row's label, so it is not repeated as its reason there.
+        if (mode.value === 'work') {
+          row.reason = note
+          if (evt.title) row.title = String(evt.title)
+          if (evt.tool_input !== undefined) row.input = evt.tool_input
+        }
+        steps.value.push(row)
       }
       return false
     }

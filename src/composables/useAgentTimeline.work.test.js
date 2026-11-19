@@ -2,7 +2,7 @@
 // snapshot a reload draws the same rows from. A Chat turn's stays as it was.
 import { describe, it, expect } from 'vitest'
 import { useAgentTimeline } from './useAgentTimeline'
-import { workRows, INLINE_IO_CHARS } from '../components/chat/workRail'
+import { workRows, INLINE_IO_CHARS, toolName, toolDescription, dotState } from '../components/chat/workRail'
 
 // One Work turn, frame by frame, as the socket sends it: the round's text, then its call (the raw `tool_call` before
 // the activity line derived from it), the result, then the next round.
@@ -119,5 +119,56 @@ describe('useAgentTimeline — a Chat turn keeps today\'s shape', () => {
     expect(row.input).toBeUndefined()
     expect(row.output).toBeUndefined()
     expect(tl.snapshot().mode).toBeUndefined()
+  })
+})
+
+// ADM-1290, phase 8 live 2026-11-19: a call the person turned down on its card never opened a row (it was not about
+// to run), so the rail went from the Write straight to the answer. It stays a step, with why, like Claude Code's
+// rejected tool row.
+describe('useAgentTimeline — a call that was not run stays a step', () => {
+  const declined = { type: 'tool_blocked', tool: 'CODE_RUN_COMMAND', reason: 'blocked_by_policy', title: 'Bash',
+                     tool_call_id: 'c9', tool_input: { command: 'rm -rf tmp-delete-me' }, outcome: 'declined' }
+
+  it('a call the person did not approve is a row with its name, its command and why', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest(declined)
+    const row = tl.steps.value.find((s) => s.toolCallId === 'c9')
+    expect(row).toMatchObject({ status: 'held', title: 'Bash', input: { command: 'rm -rf tmp-delete-me' },
+                                reason: "Not run: you didn't approve it" })
+    const [r] = workRows(tl.steps.value)
+    expect(r.kind).toBe('tool')
+    expect(toolName(r.step)).toBe('Bash')
+    expect(toolDescription(r.step)).toBe('rm -rf tmp-delete-me')
+    expect(dotState(r.step)).toBe('notrun')
+  })
+
+  it('a call that waits for the person says so; a rule says it blocked it', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ ...declined, tool_call_id: 'c10', outcome: 'waits' })
+    tl.ingest({ ...declined, tool_call_id: 'c11', outcome: '' })
+    expect(tl.steps.value.find((s) => s.toolCallId === 'c10').reason).toBe('Not run yet: it waits for your approval')
+    expect(tl.steps.value.find((s) => s.toolCallId === 'c11').reason).toBe('Not run: blocked by a rule')
+  })
+
+  it('a call whose row is open takes the note on that row, found by its id', () => {
+    const tl = useAgentTimeline()
+    tl.reset('work')
+    tl.ingest({ type: 'tool_call', tool: 'CODE_WRITE_FILE', title: 'Write', tool_call_id: 'c12', tool_input: { path: 'a.txt' } })
+    tl.ingest({ type: 'agent_step_started', step_id: 'step_c12', tool_call_id: 'c12', phase: 'tool', label: 'Writing a file' })
+    tl.ingest({ type: 'tool_blocked', tool: 'CODE_WRITE_FILE', reason: 'plan_mode', tool_call_id: 'c12' })
+    const rows = tl.steps.value.filter((s) => s.toolCallId === 'c12')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ status: 'held', reason: 'Not run: plan mode only reads', title: 'Write' })
+  })
+
+  it('a Chat turn\'s card reads the note once, as the row\'s label, with no IN', () => {
+    const tl = useAgentTimeline()
+    tl.reset()
+    tl.ingest(declined)
+    const row = tl.steps.value.find((s) => s.toolCallId === 'c9')
+    expect(row).toMatchObject({ status: 'held', label: "Not run: you didn't approve it", reason: '' })
+    expect(row.input).toBeUndefined()
   })
 })

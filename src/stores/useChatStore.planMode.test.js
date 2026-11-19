@@ -142,11 +142,14 @@ describe('plan mode: a refused call', () => {
     expect(held[0].label).toBe('Not run: plan mode only reads')
   })
 
-  it('a tool_blocked for another reason adds no plan-mode row', () => {
+  it('a tool_blocked for another reason is a "Not run" row saying why, never a plan-mode one (ADM-1290)', () => {
     const chat = useChatStore()
     chat.conversationId = 'c1'
     chat._beginAssistant()
     chat._onEvent({ type: 'tool_blocked', tool: 'X', reason: 'not_granted', conversation_id: 'c1' })
-    expect(chat.liveSteps.some((s) => s.status === 'held')).toBe(false)
+    chat._onEvent({ type: 'tool_blocked', tool: 'Y', reason: 'blocked_by_policy', outcome: 'declined', conversation_id: 'c1' })
+    expect(chat.liveSteps.filter((s) => s.status === 'held').map((s) => s.label))
+      .toEqual(['Not run: blocked by a rule', "Not run: you didn't approve it"])
+    expect(chat._cur().error || '').toBe('')
   })
 })
