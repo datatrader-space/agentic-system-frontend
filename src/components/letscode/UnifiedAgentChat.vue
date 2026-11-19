@@ -131,7 +131,7 @@
             <!-- The same pick as the main chat for a shared agent: the person's own model for the Coding Agent. -->
             <AgentModelPicker v-if="agentId" :agent-id="agentId" />
             <!-- Chat / Work / Plan: the main chat's own switch (one control, the shared chat store). Plan mode's file
-                 lives in this project (`.aadml/plans/<run>.md`), so a project chat is where it matters most. -->
+                 lives in this project (`docs/plans/<date>-<request>-<run>.md`), so a project chat is where it matters most. -->
             <TurnModeSwitch compact class="uac-turnmode" />
           </div>
           <div class="uac-send">

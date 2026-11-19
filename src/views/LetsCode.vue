@@ -277,7 +277,7 @@ provide(DEBUGGER, debuggerStore)
 watch(() => active.value && active.value.repo_id, () => debuggerStore.reset())
 function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The plan under review (plan mode, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md) is read beside the chat as the editor's rendered
-// preview of `.aadml/plans/<run>.md`. The chat and the editor share one pane here, so a plan that opens by itself is
+// preview of the project's `docs/plans/<date>-<request>-<run>.md`. The chat and the editor share one pane here, so a plan that opens by itself is
 // added as a tab behind the chat (its card stays in view); "Open the plan" brings it to the front. The editor's tab is
 // this page's panel, so the request is taken and the flag cleared.
 const chat = useChatStore()
