@@ -277,14 +277,15 @@ provide(DEBUGGER, debuggerStore)
 watch(() => active.value && active.value.repo_id, () => debuggerStore.reset())
 function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The plan under review (plan mode, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md) is read beside the chat as the editor's rendered
-// preview of `.aadml/plans/<run>.md`: opened by itself when the plan is ready, or from the card's "Open the plan". The
-// editor's tab is this page's panel, so the request is taken and the flag cleared.
+// preview of `.aadml/plans/<run>.md`. The chat and the editor share one pane here, so a plan that opens by itself is
+// added as a tab behind the chat (its card stays in view); "Open the plan" brings it to the front. The editor's tab is
+// this page's panel, so the request is taken and the flag cleared.
 const chat = useChatStore()
 const planReview = usePlanReviewStore()
 watch(() => [planReview.open, planReview.review && planReview.review.requestId, codeBrowser.value], ([open]) => {
   const review = open ? planReview.forConversation(chat.conversationId) : null
   if (!review || !codeBrowser.value) return
-  codeBrowser.value.openMarkdownPreview(review.path || 'plan.md', review.content)
+  codeBrowser.value.openMarkdownPreview(review.path || 'plan.md', review.content, { focus: planReview.focus })
   planReview.closePanel()
 })
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.

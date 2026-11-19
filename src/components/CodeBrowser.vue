@@ -276,6 +276,10 @@
             <button type="button" class="image-code-btn" @click="openFile(activeTab.path, { asCode: true })">
               <Icon icon="lucide:code" aria-hidden="true" /> Open as code
             </button>
+            <!-- The chat shares this pane: its plan card is where the plan is answered. -->
+            <button v-if="chatTabs" type="button" class="image-code-btn md-back" data-test="md-back-to-chat" @click="chatTabs.showChat()">
+              <Icon icon="lucide:message-square" aria-hidden="true" /> Back to the chat
+            </button>
           </div>
         </div>
         <MonacoEditor
@@ -1021,17 +1025,18 @@ onBeforeUnmount(() => { for (const t of openTabs.value) if (t.type === 'image' &
 
 // A Markdown file shown rendered, from text the page already holds (the plan under review: exactly what the person is
 // answering, with no read of the sandbox). The same path again updates its tab (a new version of the plan).
-function openMarkdownPreview(filePath, text) {
-  showFilesInFront()
+// `focus: false` adds the tab without bringing the files to the front: the chat shares this pane, and the plan's card in
+// it is what the person answers (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
+function openMarkdownPreview(filePath, text, { focus = true } = {}) {
   const html = renderUntrustedMarkdown(String(text || ''))
-  const existing = openTabs.value.find(t => t.path === filePath && t.type === 'markdown')
-  if (existing) {
-    existing.html = html
-    activeTabId.value = existing.id
-    return
+  let tab = openTabs.value.find(t => t.path === filePath && t.type === 'markdown')
+  if (tab) tab.html = html
+  else {
+    tab = { id: nextTabId(), type: 'markdown', path: filePath, name: filePath.split('/').pop(), html }
+    openTabs.value.push(tab)
   }
-  const tab = { id: nextTabId(), type: 'markdown', path: filePath, name: filePath.split('/').pop(), html }
-  openTabs.value.push(tab)
+  if (!focus) return
+  showFilesInFront()
   activeTabId.value = tab.id
 }
 
@@ -2014,6 +2019,7 @@ const FileTreeNode = {
 .md-doc :deep(ul), .md-doc :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
 .md-doc :deep(pre) { overflow: auto; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--vm-surface-soft); }
 .md-doc:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: -2px; }
+.image-code-btn.md-back { margin-left: 0; }
 .image-stage {
   flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto;
   background-color: var(--vm-surface-soft);

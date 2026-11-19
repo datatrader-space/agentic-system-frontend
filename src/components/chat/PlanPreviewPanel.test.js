@@ -60,6 +60,22 @@ describe('PlanPreviewPanel', () => {
   })
 })
 
+describe('the plan under review: opened by itself or asked for', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('a plan that opens by itself is not "asked for"; "Open the plan" is, and closing clears both', () => {
+    // Let's Code shares one pane between the chat and the editor: only an asked-for plan takes it, so the card stays.
+    const plans = usePlanReviewStore()
+    plans.show(request(), 'c1', { openPanel: true })
+    expect([plans.open, plans.focus]).toEqual([true, false])
+    plans.closePanel()
+    plans.openPanel()
+    expect([plans.open, plans.focus]).toEqual([true, true])
+    plans.closePanel()
+    expect([plans.open, plans.focus]).toEqual([false, false])
+  })
+})
+
 describe('ChatDock — the Plan tab', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
   const stubs = { CanvasShell: true, ArtifactsPanel: true, BrowserPanel: true, VideoPanel: true, Icon: true }

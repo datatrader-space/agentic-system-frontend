@@ -12,6 +12,9 @@ export const usePlanReviewStore = defineStore('planReview', {
     review: null,
     // The side panel shows the plan.
     open: false,
+    // The person asked to see it ("Open the plan", "View plan"), rather than it opening by itself: a surface whose plan
+    // shares one pane with the chat (Let's Code) brings it to the front only then, so the card stays in view.
+    focus: false,
   }),
   getters: {
     // The plan of THIS conversation, or null: a plan never shows in another chat.
@@ -38,15 +41,15 @@ export const usePlanReviewStore = defineStore('planReview', {
             .map((s) => String((s && s.description) || '').trim()).filter(Boolean),
           answer: '',
         }
-        if (openPanel) this.open = true
+        if (openPanel) { this.open = true; this.focus = false }
       }
     },
     // The person answered this plan's card: the card becomes one line saying so.
     answered(requestId, answer) {
       if (this.review && this.review.requestId === requestId) this.review = { ...this.review, answer: String(answer || '') }
     },
-    openPanel() { if (this.review) this.open = true },
-    closePanel() { this.open = false },
-    clear() { this.review = null; this.open = false },
+    openPanel() { if (this.review) { this.open = true; this.focus = true } },
+    closePanel() { this.open = false; this.focus = false },
+    clear() { this.review = null; this.open = false; this.focus = false },
   },
 })
