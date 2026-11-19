@@ -1,13 +1,10 @@
 <template>
   <!-- A WORK turn, drawn like Claude Code's chat (ADM-1302): one continuous rail, a dot per row, every row in the
        order it happened. Narration and the answer are drawn by the host through the `text` slot (ChatMessage's own
-       markdown, code copy and media), the plan card through `plan`, approvals and questions through `pending`. -->
+       markdown, code copy and media), approvals and questions through `pending`. A plan is reviewed on its own
+       card and followed on the task list, never drawn on the rail (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
   <section class="wt" :class="{ 'wt-live': running }" aria-label="What the agent did" data-test="work-timeline">
     <ol class="wt-rail">
-      <li v-if="planFirst && $slots.plan" class="wt-row wt-plan" data-test="wt-row" data-kind="plan">
-        <span class="wt-dot is-done" aria-hidden="true"></span>
-        <div class="wt-body"><slot name="plan" /></div>
-      </li>
       <li v-for="r in rows" :key="r.key" class="wt-row" :class="`wt-${r.kind}`" data-test="wt-row" :data-kind="r.kind">
         <span class="wt-dot" :class="`is-${rowDot(r)}`" aria-hidden="true"></span>
 
@@ -101,7 +98,6 @@
         <!-- The earlier conversation summarized to fit the context window. -->
         <p v-else-if="r.kind === 'compaction'" class="wt-body wt-compact" data-test="wt-compaction">{{ r.step.label }}</p>
 
-        <div v-else-if="r.kind === 'plan'" class="wt-body"><slot name="plan" :plan-id="r.step.planId" :run-id="r.step.runId" /></div>
       </li>
 
       <!-- Approvals and questions for this turn, on its rail. -->
@@ -122,7 +118,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, useSlots, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import MediaThumb from '../common/MediaThumb.vue'
 import { fmtTokens } from '../../composables/tokens'
@@ -147,20 +143,15 @@ const props = defineProps({
   // The conversation, for loading a long IN/OUT by its ref.
   conversationId: { type: [String, Number], default: '' },
   // The turn's plan card has no place among the rows (a snapshot saved without it): drawn first.
-  planFirst: { type: Boolean, default: false },
 })
 
 // The ids that tie a row's button to its panel (`aria-controls`), unique per timeline on the page.
 const uid = `wt${Math.random().toString(36).slice(2, 8)}`
 
-// A plan row is drawn only when the host has a plan card to put in it (`plan` slot): a plan with no steps has no card,
-// and its row was a lone dot over an empty line (live test 2026-11-18, every model).
-const slots = useSlots()
-const rows = computed(() => workRows(props.steps, { finished: props.finished, hasAnswer: props.hasAnswer })
-  .filter((r) => r.kind !== 'plan' || !!slots.plan))
+const rows = computed(() => workRows(props.steps, { finished: props.finished, hasAnswer: props.hasAnswer }))
 
 function rowDot(r) {
-  if (r.kind === 'text' || r.kind === 'answer' || r.kind === 'steer' || r.kind === 'compaction' || r.kind === 'plan') {
+  if (r.kind === 'text' || r.kind === 'answer' || r.kind === 'steer' || r.kind === 'compaction') {
     return r.kind === 'steer' ? 'steer' : 'quiet'
   }
   if (r.kind === 'thought') return r.step.status === 'running' ? 'running' : 'quiet'

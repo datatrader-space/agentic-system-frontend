@@ -23,7 +23,7 @@ function mountWith(messages) {
   const chat = useChatStore()
   chat.messages = messages
   return mount(ChatMessageList, {
-    global: { stubs: { ChatMessage: true, InlinePlanArtifact: true } },
+    global: { stubs: { ChatMessage: true } },
   })
 }
 
@@ -59,38 +59,35 @@ describe('ChatMessageList — run scaffolding', () => {
     expect(drawnIds(w)).toEqual(['a1'])
   })
 
-  it('keeps a plan anchored to a suppressed row in place', () => {
+  it('draws no plan card in the thread, even for a message saved with the old plan anchors', () => {
+    // A plan is reviewed on its card where the run paused and followed on the task list
+    // (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md); messages saved before 2026-11-19 still carry `plan_artifacts`.
     const w = mountWith([
       { id: 'u1', role: 'user', content: 'go', status: 'done' },
-      {
-        id: 'u2', role: 'user', content: 'continue', status: 'done', authoredBy: 'system',
-        planArtifacts: [{ plan_id: 'p1', run_id: 'r1' }],
-      },
+      { id: 'a1', role: 'assistant', content: 'done', status: 'done', planArtifacts: [{ plan_id: 'p1', run_id: 'r1' }] },
     ])
-    expect(drawnIds(w)).not.toContain('u2')
-    expect(w.findAllComponents({ name: 'InlinePlanArtifact' })).toHaveLength(1)
+    expect(drawnIds(w)).toEqual(['u1', 'a1'])
+    expect(w.find('.msg-plan').exists()).toBe(false)
   })
 })
 
-describe('ChatMessageList — one rail per run, even when its plan id changes', () => {
-  it('prod conv 1627: two anchors of one run (placeholder plan id, then the real one) draw ONE rail', async () => {
+describe('ChatMessageList — what the run waits on, where the thread ends', () => {
+  it('draws the after-thread slot in the flow, after the last message, and nothing when it is empty', async () => {
     const { setActivePinia, createPinia } = await import('pinia')
     const { mount } = await import('@vue/test-utils')
     const { useChatStore } = await import('../../stores/useChatStore')
     const ChatMessageList = (await import('./ChatMessageList.vue')).default
     setActivePinia(createPinia())
     const chat = useChatStore()
-    chat.messages = [
-      { id: 'u1', role: 'user', content: 'go' },
-      { id: 'a1', role: 'assistant', content: 'one', runId: 'r1', status: 'done',
-        planArtifacts: [{ run_id: 'r1', plan_id: 'r1' }] },
-      { id: 'a2', role: 'assistant', content: 'two', runId: 'r1', status: 'done',
-        planArtifacts: [{ run_id: 'r1', plan_id: 'plan-real' }] },
-      { id: 'a3', role: 'assistant', content: 'other run', runId: 'r2', status: 'done',
-        planArtifacts: [{ run_id: 'r2', plan_id: 'p2' }] },
-    ]
-    const w = mount(ChatMessageList, { global: { stubs: { ChatMessage: true,
-      InlinePlanArtifact: { props: ['runId'], template: '<div class="stub-rail" :data-run="runId" />' } } } })
-    expect(w.findAll('.stub-rail').map((r) => r.attributes('data-run'))).toEqual(['r1', 'r2'])
+    chat.messages = [{ id: 'u1', role: 'user', content: 'plan it' }, { id: 'a1', role: 'assistant', content: '', status: 'done' }]
+    const withCard = mount(ChatMessageList, { global: { stubs: { ChatMessage: true } },
+      slots: { 'after-thread': '<section class="stub-plan-card">Plan ready for review</section>' } })
+    const after = withCard.find('[data-test="msg-after-thread"]')
+    expect(after.exists()).toBe(true)
+    expect(after.text()).toContain('Plan ready for review')
+    const inner = withCard.find('.msg-list-inner').element
+    expect(inner.lastElementChild).toBe(after.element)                      // after every message
+    const without = mount(ChatMessageList, { global: { stubs: { ChatMessage: true } } })
+    expect(without.find('[data-test="msg-after-thread"]').exists()).toBe(false)
   })
 })

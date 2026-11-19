@@ -52,7 +52,7 @@ async function setup({ contentHeight = 2000 } = {}) {
   vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   const chat = useChatStore()
   chat.messages = [{ id: 'u1', role: 'user', content: 'go', status: 'done' }]
-  const w = mount(ChatMessageList, { global: { stubs: { ChatMessage: true, InlinePlanArtifact: true } } })
+  const w = mount(ChatMessageList, { global: { stubs: { ChatMessage: true } } })
   const height = { value: contentHeight }
   const el = w.get('.msg-list').element
   const view = layout(el, { contentHeight: height })

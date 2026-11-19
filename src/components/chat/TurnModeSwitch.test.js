@@ -113,11 +113,12 @@ describe('the welcome composer keeps its own controls', () => {
   })
 })
 
-describe('TurnModeSwitch — three modes, no Auto (LONG_RUN phase 5)', () => {
-  it('offers exactly Chat, Work and Plan, and no Auto', () => {
+describe('TurnModeSwitch — Chat and Work, no Auto; Plan is in the Mode menu (owner, 2026-11-19)', () => {
+  it('offers exactly Chat and Work, and no Auto or Plan', () => {
     const w = mount(TurnModeSwitch)
-    expect(w.findAll('[role="radio"]').map((b) => b.text())).toEqual(['Chat', 'Work', 'Plan'])
+    expect(w.findAll('[role="radio"]').map((b) => b.text())).toEqual(['Chat', 'Work'])
     expect(w.find('[data-test="turnmode-auto"]').exists()).toBe(false)
+    expect(w.find('[data-test="turnmode-plan"]').exists()).toBe(false)
   })
 
   it('is a radio group: one mode is always selected, and clicking it again keeps it', async () => {
@@ -125,23 +126,42 @@ describe('TurnModeSwitch — three modes, no Auto (LONG_RUN phase 5)', () => {
     const w = mount(TurnModeSwitch)
     expect(w.find('[role="radiogroup"]').exists()).toBe(true)
     expect(w.find('[data-test="turnmode-chat"]').attributes('aria-checked')).toBe('true')
-    await w.find('[data-test="turnmode-plan"]').trigger('click')
-    await w.find('[data-test="turnmode-plan"]').trigger('click')
-    expect(chat.turnMode).toBe('plan')
-    expect(w.find('[data-test="turnmode-plan"]').attributes('aria-checked')).toBe('true')
+    await w.find('[data-test="turnmode-work"]').trigger('click')
+    await w.find('[data-test="turnmode-work"]').trigger('click')
+    expect(chat.turnMode).toBe('work')
     expect(w.findAll('[aria-checked="true"]')).toHaveLength(1)
   })
 
-  it('arrow keys move the selection', async () => {
+  it('arrow keys move the selection between the two', async () => {
     const chat = useChatStore()
     const w = mount(TurnModeSwitch, { attachTo: document.body })
     await w.find('[data-test="turnmode-chat"]').trigger('keydown', { key: 'ArrowRight' })
     expect(chat.turnMode).toBe('work')
-    await w.find('[data-test="turnmode-work"]').trigger('keydown', { key: 'ArrowLeft' })
+    await w.find('[data-test="turnmode-work"]').trigger('keydown', { key: 'ArrowRight' })
     expect(chat.turnMode).toBe('chat')
-    await w.find('[data-test="turnmode-chat"]').trigger('keydown', { key: 'ArrowLeft' })
-    expect(chat.turnMode).toBe('plan')
     w.unmount()
+  })
+
+  it('while Plan is on, shows the mode it returns to and a Plan chip whose x goes back there', async () => {
+    const chat = useChatStore()
+    chat.setTurnMode('work')
+    chat.setTurnMode('plan')
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-work"]').attributes('aria-checked')).toBe('true')
+    expect(w.findAll('[aria-checked="true"]')).toHaveLength(1)
+    expect(w.find('[data-test="turnmode-plan-on"]').text()).toContain('Plan mode')
+    expect(w.find('[data-test="turnmode-plan-off"]').attributes('aria-label')).toContain('back to Work')
+    await w.find('[data-test="turnmode-plan-off"]').trigger('click')
+    expect(chat.turnMode).toBe('work')
+    expect(w.find('[data-test="turnmode-plan-on"]').exists()).toBe(false)
+  })
+
+  it('picking Chat or Work while Plan is on leaves Plan for that mode', async () => {
+    const chat = useChatStore()
+    chat.setTurnMode('plan')
+    const w = mount(TurnModeSwitch)
+    await w.find('[data-test="turnmode-work"]').trigger('click')
+    expect(chat.turnMode).toBe('work')
   })
 
   it('only the selected mode is in the tab order', () => {
@@ -155,7 +175,7 @@ describe('TurnModeSwitch — three modes, no Auto (LONG_RUN phase 5)', () => {
     const hint = w.find('[data-test="turnmode-work"]').attributes('title')
     expect(hint).toContain('three or more steps')
     expect(hint).toContain('notified')
-    expect(hint).not.toMatch(/credit|helper|notice/i)
+    expect(hint).not.toMatch(/credit|helper|notice\b/i)
   })
 
   it('a name that is not a mode changes nothing; there is no Auto to fall back to', () => {

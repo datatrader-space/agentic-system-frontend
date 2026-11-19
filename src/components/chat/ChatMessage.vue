@@ -24,13 +24,11 @@
             :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
             :tokens="isStreaming && chat.liveTokens ? chat.liveTokens.total : null"
             :started-at="isStreaming ? chat.liveStartedAt : null"
-            :conversation-id="message.conversationId || chat.conversationId || ''"
-            :plan-first="!!$slots['rail-plan'] && !workSteps.some((s) => s && s.isPlan)">
+            :conversation-id="message.conversationId || chat.conversationId || ''">
             <template #text="{ text, answer }">
               <div v-if="answer" ref="bubbleEl" class="bubble assistant" data-test="work-answer" v-html="rendered"></div>
               <div v-else class="bubble assistant work-narration" data-test="work-narration" v-html="renderAnswerHtml(text)"></div>
             </template>
-            <template v-if="$slots['rail-plan']" #plan><slot name="rail-plan" /></template>
             <template v-if="$slots['rail-pending']" #pending><slot name="rail-pending" /></template>
           </WorkTimeline>
         </div>
@@ -426,7 +424,6 @@ const isStreaming = computed(() => props.message.status === 'streaming')
 // trades a wrong word for a hung UI.
 const turnReallyFinished = computed(() => {
   if (isStreaming.value) return false
-  if (chat.planRunning) return false
   const m = props.message
   return !!((m.content || '').trim() || m.error)
 })

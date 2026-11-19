@@ -87,15 +87,13 @@ describe('WorkTimeline', () => {
     w.unmount()
   })
 
-  it('a plan step with no plan card to show draws no row (the lone dot of the live test)', () => {
+  it('a plan step saved before 2026-11-19 draws no row: a plan is reviewed on its card, never on the rail', () => {
     const planStep = { stepId: 'pl1', isPlan: true, planId: 'p1', runId: 'r1', status: 'ok' }
     const text = { stepId: 't9', isText: true, text: 'Done.', status: 'ok' }
-    const without = mountIt({ steps: [planStep, text], hasAnswer: false })
-    expect(without.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))).toEqual(['text'])
-    without.unmount()
-    const withCard = mountIt({ steps: [planStep, text], hasAnswer: false }, { plan: '<div class="card">Plan</div>' })
-    expect(withCard.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))).toEqual(['plan', 'text'])
-    withCard.unmount()
+    const w = mountIt({ steps: [planStep, text], hasAnswer: false }, { plan: '<div class="card">Plan</div>' })
+    expect(w.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))).toEqual(['text'])
+    expect(w.text()).not.toContain('Plan')
+    w.unmount()
   })
 
   it('a long OUT saved as its ref still previews from its saved first lines, without a fetch', () => {
@@ -193,12 +191,10 @@ describe('WorkTimeline', () => {
     w.unmount()
   })
 
-  it('approvals sit on the rail, and the plan goes first when it has no place among the rows', () => {
-    const w = mountIt({ planFirst: true }, { pending: '<div class="appr">Approve?</div>', plan: '<div class="plancard">PLAN</div>' })
+  it('approvals sit on the rail, under its last row', () => {
+    const w = mountIt({}, { pending: '<div class="appr">Approve?</div>' })
     const kinds = w.findAll('[data-test="wt-row"]').map((r) => r.attributes('data-kind'))
-    expect(kinds[0]).toBe('plan')
     expect(kinds[kinds.length - 1]).toBe('pending')
-    expect(w.text()).toContain('PLAN')
     expect(w.text()).toContain('Approve?')
     w.unmount()
   })

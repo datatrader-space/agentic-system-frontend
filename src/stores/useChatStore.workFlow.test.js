@@ -1,5 +1,5 @@
 // A refresh must not remount the thread (production conv 1578, 2026-09-16), parallel calls keep their step, and a
-// run is anchored once. (Work mode's iterations, which this file also pinned, went with Work mode in LONG_RUN phase 5.)
+// run's plan events draw no plan card (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md) but still name the run of their message. (Work mode's iterations, which this file also pinned, went with Work mode in LONG_RUN phase 5.)
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
@@ -7,7 +7,6 @@ vi.mock('../services/api', () => ({ default: { getConversationMessages: vi.fn() 
 
 import api from '../services/api'
 import { useChatStore } from './useChatStore'
-import { usePlanStore } from './usePlanStore'
 
 
 describe('A refresh of the thread', () => {
@@ -18,8 +17,7 @@ describe('A refresh of the thread', () => {
     s.conversationId = '1578'
     s.messages = [
       { id: 'x1', role: 'user', content: 'do it' },
-      { id: 'x2', role: 'assistant', content: 'attempt one', runId: 'run_x',
-        planArtifacts: [{ plan_id: 'p', run_id: 'run_x' }] },
+      { id: 'x2', role: 'assistant', content: 'attempt one', runId: 'run_x' },
       { id: 'x3', role: 'assistant', content: 'attempt two', runId: 'run_x',
         timeline: { steps: [{ stepId: 's', label: 'Reading a web page' }] } },
     ]
@@ -36,7 +34,6 @@ describe('A refresh of the thread', () => {
     expect(ids[3]).toBe('x3')
     expect(ids[2]).not.toMatch(/^x[123]$/)
     // What only the live stream knew survives until the server carries it.
-    expect(s.messages[1].planArtifacts).toEqual([{ plan_id: 'p', run_id: 'run_x' }])
     expect(s.messages[3].runId).toBe('run_x')
     expect(s.messages[3].timeline.steps[0].label).toBe('Reading a web page')
   })
@@ -67,8 +64,6 @@ describe('Parallel calls in the store', () => {
   it('keeps the step the server attributed a call to, and puts its media on that call’s row', () => {
     const s = useChatStore()
     s.conversationId = '1588'
-    const plan = usePlanStore()
-    plan._applySnapshot({ run_id: 'r', conversation_id: '1588', run_status: 'executing', current_step_id: 'op_1' })
     s._beginAssistant()
     for (const [id, step] of [['c1', 'op_1'], ['c2', 'op_2']]) {
       s._onEvent({ type: 'agent_step_started', step_id: `step_${id}`, tool_call_id: id, plan_step_id: step,
@@ -91,20 +86,29 @@ describe('Parallel calls in the store', () => {
   })
 })
 
-describe('A run is anchored once', () => {
+describe('A run’s plan events', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('prod conv 1627: a later attempt’s plan (new plan id, same run) does not anchor a second rail', () => {
+  it('draw no plan card and add no rail row, but name the run of each message they reach', () => {
     const s = useChatStore()
     s.conversationId = '1627'
-    const plan = usePlanStore()
-    plan.applyPlanEvent = () => {}
+    s.setTurnMode('work')
     s._beginAssistant()
     s._onEvent({ type: 'plan_event', conversation_id: '1627', run_id: 'r1', plan_id: 'r1', event_id: 'e1' })
     s._onEvent({ type: 'assistant_message_complete', full_message: 'one' })
     s._beginAssistant()
     s._onEvent({ type: 'plan_event', conversation_id: '1627', run_id: 'r1', plan_id: 'plan-real', event_id: 'e2' })
-    const anchors = s.messages.flatMap((m) => m.planArtifacts || [])
-    expect(anchors).toEqual([{ plan_id: 'r1', run_id: 'r1', ordinal: 0 }])
+    const answers = s.messages.filter((m) => m.role === 'assistant')
+    expect(answers.map((m) => m.runId)).toEqual(['r1', 'r1'])
+    expect(answers.some((m) => 'planArtifacts' in m)).toBe(false)
+    expect(s.liveSteps.some((r) => r.isPlan)).toBe(false)
+  })
+
+  it('a plan event of another conversation names nothing here', () => {
+    const s = useChatStore()
+    s.conversationId = '1627'
+    s._beginAssistant()
+    s._onEvent({ type: 'plan_event', conversation_id: '99', run_id: 'r9', plan_id: 'p9', event_id: 'e9' })
+    expect(s.messages.at(-1).runId).toBeUndefined()
   })
 })

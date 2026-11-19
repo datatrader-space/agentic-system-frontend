@@ -247,6 +247,8 @@ import ProjectEnv from '../components/letscode/ProjectEnv.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
 import { isReady, phaseTone, relativeTime, githubWebUrl, linkedProject, openQuery } from '../components/letscode/projectStatus'
+import { useChatStore } from '@/stores/useChatStore'
+import { usePlanReviewStore } from '@/stores/usePlanReviewStore'
 
 const route = useRoute()
 const router = useRouter()
@@ -274,6 +276,17 @@ const debuggerStore = createDebugger({ systemId: () => Number(active.value?.syst
 provide(DEBUGGER, debuggerStore)
 watch(() => active.value && active.value.repo_id, () => debuggerStore.reset())
 function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
+// The plan under review (plan mode, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md) is read beside the chat as the editor's rendered
+// preview of `.aadml/plans/<run>.md`: opened by itself when the plan is ready, or from the card's "Open the plan". The
+// editor's tab is this page's panel, so the request is taken and the flag cleared.
+const chat = useChatStore()
+const planReview = usePlanReviewStore()
+watch(() => [planReview.open, planReview.review && planReview.review.requestId, codeBrowser.value], ([open]) => {
+  const review = open ? planReview.forConversation(chat.conversationId) : null
+  if (!review || !codeBrowser.value) return
+  codeBrowser.value.openMarkdownPreview(review.path || 'plan.md', review.content)
+  planReview.closePanel()
+})
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
   if (bottomPanel.value) bottomPanel.value.openPreview(port)

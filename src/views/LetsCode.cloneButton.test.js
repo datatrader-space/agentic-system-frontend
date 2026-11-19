@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Let's Code's "Clone by address" button (ADM-1128, 2026-11-17): idle with the box empty it said "Cloning" with a
 // spinner (it compared two empty strings). It now follows the form's own clone.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 vi.mock('vue-router', () => ({
@@ -32,6 +32,10 @@ vi.mock('../services/api', () => {
 
 import api from '../services/api'
 import LetsCode from './LetsCode.vue'
+import { setActivePinia, createPinia } from 'pinia'
+
+// The page reads the chat store (the plan under review opens in its editor), as it does in the app.
+beforeEach(() => { setActivePinia(createPinia()) })
 
 function mountPage() {
   return mount(LetsCode, { global: { stubs: {

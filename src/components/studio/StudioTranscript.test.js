@@ -8,11 +8,11 @@ import { presentStudioMessage, prepareStudioEdit } from '../../services/studioMe
 let wrapper
 afterEach(() => { wrapper?.unmount(); vi.unstubAllGlobals() })
 it('shows only authored words while preserving the wire context and message metadata', () => {
-  const original = Object.freeze({id:'u1',role:'user',content:'I am on the Image page. I am using my own idea.\n\nhi',attachments:[{name:'reference.png'}],planArtifacts:[{plan_id:'p1'}]})
+  const original = Object.freeze({id:'u1',role:'user',content:'I am on the Image page. I am using my own idea.\n\nhi',attachments:[{name:'reference.png'}],citations:[{title:'c1'}]})
   const shown = presentStudioMessage(original)
   expect(shown.content).toBe('hi')
   expect(shown.attachments).toBe(original.attachments)
-  expect(shown.planArtifacts).toBe(original.planArtifacts)
+  expect(shown.citations).toBe(original.citations)
   expect(original.content).toContain('I am on the Image page.')
   expect(presentStudioMessage({...original,content:'I am on the Video page. My chosen preset is A measured reveal.\n\nKeep the camera still.'}).content).toBe('Keep the camera still.')
 })
@@ -27,7 +27,7 @@ it('the shared list defaults to unchanged messages and opts into presentation wi
   vi.stubGlobal('ResizeObserver',class {observe(){} disconnect(){}})
   const chat=useChatStore()
   chat.messages=[{id:'u1',role:'user',content:'I am on the Image page. I am using my own idea.\n\nhi',status:'done'}]
-  wrapper=mount(ChatMessageList,{global:{stubs:{ChatMessage:true,InlinePlanArtifact:true}}})
+  wrapper=mount(ChatMessageList,{global:{stubs:{ChatMessage:true}}})
   const message=()=>wrapper.findComponent({name:'ChatMessage'}).props('message')
   expect(message().content).toBe(chat.messages[0].content)
   const edit=vi.spyOn(chat,'editAndResend').mockImplementation(()=>{})
@@ -94,7 +94,7 @@ it('shows the adapted helper reply through the real shared transcript list', () 
   setActivePinia(createPinia()); vi.stubGlobal('ResizeObserver',class {observe(){} disconnect(){}})
   const chat=useChatStore()
   chat.messages=[{id:'u',role:'user',content:'I am on the Image page in Manual mode. Write an editable creative prompt.',status:'done'},{id:'a',role:'assistant',content:'{"question":"Which product?","prompt":null}',status:'done'}]
-  wrapper=mount(ChatMessageList,{props:{presentMessage:m=>presentStudioMessage(m,chat.messages)},global:{stubs:{ChatMessage:true,InlinePlanArtifact:true}}})
+  wrapper=mount(ChatMessageList,{props:{presentMessage:m=>presentStudioMessage(m,chat.messages)},global:{stubs:{ChatMessage:true}}})
   expect(wrapper.findAllComponents({name:'ChatMessage'}).map(c=>c.props('message').content)).toEqual(['You asked for a prompt','The agent asked: Which product?'])
   expect(chat.messages[1].content).toContain('"question"')
 })

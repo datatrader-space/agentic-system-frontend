@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useChatStore } from './useChatStore'
-import { usePlanStore } from './usePlanStore'
+import { usePlanReviewStore } from './usePlanReviewStore'
 
 vi.mock('../services/api', () => ({
   default: {
@@ -63,8 +63,45 @@ describe('plan mode: the card', () => {
     expect(chat.hitlRequests[0].payload.kind).toBe('plan_approval')
     expect(chat.awaitingApproval).toBe(true)
     expect(chat.isStreaming).toBe(true)
-    expect(usePlanStore().isPlanModeRun('run-9')).toBe(true)
-    expect(usePlanStore().isPlanModeRun(null, 'pv-3')).toBe(true)
+    // The plan is shown for review beside the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md), with its run.
+    const review = usePlanReviewStore().forConversation('c1')
+    expect(review).toMatchObject({ requestId: 'pr1', runId: 'run-9', path: '.aadml/plans/plan.md',
+                                   content: '# Plan\n\n1. Read', steps: ['Read the views'], answer: '' })
+  })
+
+  it('opens the plan beside the chat by itself on a wide screen, not on a phone', () => {
+    const wide = (on) => vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: on })))
+    wide(true)
+    const chat = useChatStore()
+    chat.conversationId = 'c1'
+    chat._onEvent(planCard())
+    expect(usePlanReviewStore().open).toBe(true)
+    setActivePinia(createPinia())
+    wide(false)
+    const phone = useChatStore()
+    phone.conversationId = 'c1'
+    phone._onEvent(planCard())
+    expect(usePlanReviewStore().open).toBe(false)
+    expect(usePlanReviewStore().forConversation('c1')).not.toBe(null)   // "Open the plan" opens it
+    vi.unstubAllGlobals()
+  })
+
+  it('a plan of another chat is never shown here', () => {
+    const chat = useChatStore()
+    chat.conversationId = 'c1'
+    chat._onEvent(planCard())
+    expect(usePlanReviewStore().forConversation('c2')).toBe(null)
+  })
+
+  it('after the card is answered, a late plan_approval_required of that run still pauses nothing', () => {
+    const chat = useChatStore()
+    chat.conversationId = 'c1'
+    chat._beginAssistant()
+    chat._onEvent(planCard())
+    chat.hitlRequests = []                                              // the card was answered
+    chat._onEvent({ type: 'plan_approval_required', plan: { run_id: 'run-9', steps: [] } })
+    expect(chat.pendingPlan).toBe(null)
+    expect(chat.isStreaming).toBe(true)
   })
 
   it('the answer goes back as hitl_response with the answer id and the notes', () => {

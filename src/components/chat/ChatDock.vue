@@ -9,6 +9,9 @@
          there would otherwise be no way to dismiss the panel (CanvasShell has its own X; the Artifacts
          panel does not). The Canvas tab appears only when there is a canvas to show. -->
     <div class="dock-tabs" role="tablist">
+      <!-- The plan under review (plan mode), read beside the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
+      <button v-if="planAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'plan'"
+              :class="{ on: tab === 'plan' }" data-test="dock-tab-plan" @click="select('plan')">Plan</button>
       <button v-if="canvasAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'canvas'"
               :class="{ on: tab === 'canvas' }" @click="select('canvas')">Canvas</button>
       <button v-if="browserAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'browser'"
@@ -36,6 +39,7 @@
     <!-- Panes are kept MOUNTED and hidden rather than v-if'd away: switching to Artifacts and back must
          not tear down the canvas iframe (it would reload the preview and lose scroll/selection). -->
     <div class="dock-body">
+      <PlanPreviewPanel v-if="planAvailable" v-show="tab === 'plan'" :conversation-id="chat.conversationId" class="dock-pane" />
       <CanvasShell v-if="canvasAvailable" v-show="tab === 'canvas'" class="dock-pane" />
       <!-- v-if, not only v-show: closing the Browser pane must close its live connection, so the agent's
            browser stops streaming to nobody. `active` pauses the stream while another tab is on top. -->
@@ -53,29 +57,37 @@ import CanvasShell from '../canvas/CanvasShell.vue'
 import ArtifactsPanel from '../artifacts/ArtifactsPanel.vue'
 import BrowserPanel from '../browser/BrowserPanel.vue'
 import VideoPanel from '../video/VideoPanel.vue'
+import PlanPreviewPanel from './PlanPreviewPanel.vue'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import { useBrowserStore } from '../../stores/useBrowserStore'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { usePlanReviewStore } from '../../stores/usePlanReviewStore'
+import { useChatStore } from '../../stores/useChatStore'
 
 const canvas = useCanvasStore()
 const artifacts = useArtifactsStore()
 const browser = useBrowserStore()
 const video = useVideoStore()
+const planReview = usePlanReviewStore()
+const chat = useChatStore()
 
 const canvasAvailable = computed(() => canvas.open && canvas.hasCanvas)
 const browserAvailable = computed(() => browser.open && browser.hasSession)
 const videoAvailable = computed(() => video.panelOpen)
+const planAvailable = computed(() => planReview.open && !!planReview.forConversation(chat.conversationId))
 
 // Which pane is on top. Whichever surface the user (or the agent) most recently opened wins. A pane that
 // is wanted but no longer there falls to one that is; with neither a canvas nor a browser the dock can
 // only be showing Artifacts.
 const _tab = ref('canvas')
 const tab = computed(() => {
+  if (_tab.value === 'plan' && planAvailable.value) return 'plan'
   if (_tab.value === 'canvas' && canvasAvailable.value) return 'canvas'
   if (_tab.value === 'browser' && browserAvailable.value) return 'browser'
   if (_tab.value === 'video' && videoAvailable.value) return 'video'
   if (_tab.value === 'artifacts') return 'artifacts'
+  if (planAvailable.value) return 'plan'
   if (canvasAvailable.value) return 'canvas'
   if (browserAvailable.value) return 'browser'
   if (videoAvailable.value) return 'video'
@@ -102,6 +114,9 @@ function select(t) {
   if (t === 'artifacts') artifacts.unseen = 0
 }
 
+// A plan ready for review comes to the front (opened by itself, or from the card's "Open the plan").
+watch(() => [planAvailable.value, planReview.review && planReview.review.requestId], ([on]) => { if (on) _tab.value = 'plan' },
+  { immediate: true })
 // The agent producing a design pulls the canvas forward; the user opening Artifacts pulls that forward.
 watch(canvasAvailable, (on) => { if (on) _tab.value = 'canvas' })
 watch(() => artifacts.open, (on) => { if (on) { _tab.value = 'artifacts'; artifacts.unseen = 0 } })
@@ -112,11 +127,13 @@ watch(() => [video.panelOpen, video.panelTab], ([on]) => { if (on) _tab.value = 
 // Close the pane that is showing, then show whichever other one is still open.
 function closeDock() {
   const closing = tab.value
-  if (closing === 'artifacts') artifacts.closePanel()
+  if (closing === 'plan') planReview.closePanel()
+  else if (closing === 'artifacts') artifacts.closePanel()
   else if (closing === 'browser') browser.close()
   else if (closing === 'video') video.closePanel()
   else canvas.close()
-  if (closing !== 'canvas' && canvasAvailable.value) _tab.value = 'canvas'
+  if (closing !== 'plan' && planAvailable.value) _tab.value = 'plan'
+  else if (closing !== 'canvas' && canvasAvailable.value) _tab.value = 'canvas'
   else if (closing !== 'browser' && browserAvailable.value) _tab.value = 'browser'
   else if (closing !== 'video' && videoAvailable.value) _tab.value = 'video'
   else if (closing !== 'artifacts' && artifacts.open) _tab.value = 'artifacts'

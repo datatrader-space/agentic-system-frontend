@@ -40,10 +40,11 @@ describe('workRows — every row in the order it happened', () => {
       .toEqual(['text', 'tool'])
   })
 
-  it('a subagent, a compaction and the plan are rows of their own; one plan row per turn', () => {
+  it('a subagent and a compaction are rows of their own; a plan step saved before 2026-11-19 is not drawn', () => {
+    // A plan is reviewed on its card and followed on the task list (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
     const s = [{ stepId: 'pl', isPlan: true, planId: 'P' }, tool('a', { tool: 'AGENT' }),
       { stepId: 'k', isCompaction: true, label: 'Earlier conversation summarized' }, { stepId: 'pl2', isPlan: true, planId: 'Q' }]
-    expect(workRows(s).map((r) => r.kind)).toEqual(['plan', 'subagent', 'compaction'])
+    expect(workRows(s).map((r) => r.kind)).toEqual(['subagent', 'compaction'])
   })
 })
 

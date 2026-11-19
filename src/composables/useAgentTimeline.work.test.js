@@ -62,15 +62,6 @@ describe('useAgentTimeline — a Work turn', () => {
     expect(row.input).toEqual({ path: 'src/app.py' })                // short: kept inline
   })
 
-  it('a plan is placed once, where it was given', () => {
-    const tl = useAgentTimeline()
-    tl.reset('work')
-    tl.addText('Planning.', true)
-    tl.addPlan('P1', 'R1')
-    tl.addPlan('P1', 'R1')
-    expect(tl.steps.value.filter((s) => s.isPlan).length).toBe(1)
-  })
-
   it('a model that thought in private still shows "Thought for Ns" with no text (its reasoning came encrypted)', () => {
     const tl = useAgentTimeline()
     tl.reset('work')

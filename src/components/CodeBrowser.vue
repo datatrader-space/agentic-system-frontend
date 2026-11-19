@@ -267,6 +267,17 @@
             </div>
           </template>
         </div>
+        <!-- A Markdown file shown rendered (the plan under review, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md): read beside the chat
+             like Claude's artifacts; "Open as code" opens the file itself. Untrusted markdown: no raw HTML, safe links. -->
+        <div v-else-if="activeTab && activeTab.type === 'markdown'" class="md-view" data-test="md-preview">
+          <div class="md-doc md" tabindex="0" :aria-label="`Preview of ${activeTab.path}`" v-html="activeTab.html"></div>
+          <div class="image-meta">
+            <span translate="no">{{ activeTab.path }}</span>
+            <button type="button" class="image-code-btn" @click="openFile(activeTab.path, { asCode: true })">
+              <Icon icon="lucide:code" aria-hidden="true" /> Open as code
+            </button>
+          </div>
+        </div>
         <MonacoEditor
           v-else-if="activeTab"
           :value="activeTab.content"
@@ -330,6 +341,7 @@ const MonacoDiffEditor = lazyComponent(async () => {
 })
 import { Icon } from '@iconify/vue'
 import { codeSelection } from '@/utils/codeMentions'
+import { renderUntrustedMarkdown } from '@/utils/safeMarkdown'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -946,7 +958,7 @@ function showSourceControl() {
 }
 // How many open files have edits that are not saved: the IDE asks before leaving the project or the page (ADM-1200).
 const unsavedCount = computed(() => openTabs.value.filter(isDirty).length)
-defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount })
+defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openMarkdownPreview })
 
 // PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
 // bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a
@@ -1006,6 +1018,22 @@ async function openImage(filePath) {
   await loadImageInto(openTabs.value.find(t => t.id === tab.id))
 }
 onBeforeUnmount(() => { for (const t of openTabs.value) if (t.type === 'image' && t.url) URL.revokeObjectURL(t.url) })
+
+// A Markdown file shown rendered, from text the page already holds (the plan under review: exactly what the person is
+// answering, with no read of the sandbox). The same path again updates its tab (a new version of the plan).
+function openMarkdownPreview(filePath, text) {
+  showFilesInFront()
+  const html = renderUntrustedMarkdown(String(text || ''))
+  const existing = openTabs.value.find(t => t.path === filePath && t.type === 'markdown')
+  if (existing) {
+    existing.html = html
+    activeTabId.value = existing.id
+    return
+  }
+  const tab = { id: nextTabId(), type: 'markdown', path: filePath, name: filePath.split('/').pop(), html }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+}
 
 async function openFile(filePath, { asCode = false } = {}) {
   showFilesInFront()
@@ -1975,7 +2003,17 @@ const FileTreeNode = {
 }
 
 /* A picture tab: the picture centred on a checkerboard (transparency reads), never scaled above its own size. */
-.image-view { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.image-view, .md-view { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.md-doc { flex: 1; min-height: 0; overflow: auto; padding: 20px 28px 32px; background: var(--vm-surface); color: var(--vm-ink);
+  font: 15px/1.65 var(--vm-font-sans); overflow-wrap: anywhere; }
+.md-doc > :deep(*) { max-width: 72ch; }
+.md-doc :deep(h1) { font-size: 20px; margin: 4px 0 12px; }
+.md-doc :deep(h2) { font-size: 17px; margin: 18px 0 8px; }
+.md-doc :deep(h3) { font-size: 15px; margin: 14px 0 6px; }
+.md-doc :deep(p) { margin: 0 0 10px; }
+.md-doc :deep(ul), .md-doc :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
+.md-doc :deep(pre) { overflow: auto; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--vm-surface-soft); }
+.md-doc:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: -2px; }
 .image-stage {
   flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto;
   background-color: var(--vm-surface-soft);

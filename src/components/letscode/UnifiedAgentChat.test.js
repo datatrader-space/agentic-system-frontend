@@ -91,15 +91,12 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 
-  it('opens on Work, and offers the shared Chat / Work / Plan switch', async () => {
-    // Plan mode's file lives in the project (`.aadml/plans/<run>.md`), so a project chat has the same switch.
+  it('opens on Work, and offers the shared Chat / Work switch (Plan is in the Mode menu, owner 2026-11-19)', async () => {
     chat.turnMode = 'chat'
     const w = await mountChat()
     expect(chat.setTurnMode).toHaveBeenCalledWith('work')   // the Coding Agent's project chats work by default
-    const plan = w.findAll('button').find((b) => b.text().trim() === 'Plan')
-    expect(plan, 'a Plan choice in the project composer').toBeTruthy()
-    await plan.trigger('click')
-    expect(chat.setTurnMode).toHaveBeenCalledWith('plan')
+    const labels = w.findAll('[role="radio"]').map((b) => b.text().trim())
+    expect(labels).toEqual(['Chat', 'Work'])
     w.unmount()
   })
 

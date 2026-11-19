@@ -2,7 +2,7 @@
 // Cloning a repository from the list names no branch (2026-11-18, Hamza's project 22): GitHub's listing says
 // "main" even for an empty repository, and a clone of that named branch failed with "Remote branch main not found".
 // The server reads the default branch from the remote itself.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 vi.mock('vue-router', () => ({
@@ -28,6 +28,10 @@ vi.mock('../services/api', () => {
 
 import api from '../services/api'
 import LetsCode from './LetsCode.vue'
+import { setActivePinia, createPinia } from 'pinia'
+
+// The page reads the chat store (the plan under review opens in its editor), as it does in the app.
+beforeEach(() => { setActivePinia(createPinia()) })
 
 describe('Clone from the repository list', () => {
   it('sends the repository and no branch', async () => {

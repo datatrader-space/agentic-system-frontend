@@ -101,19 +101,23 @@
           <HITLModal inline :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl"
                      @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
         </template>
+        <!-- A Chat or Plan turn's plan card, where the run paused: in the conversation, never floating over it. The plan
+             is read beside the chat (the Plan tab). Once answered, one line says what was chosen
+             (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). A Work turn's card is on its rail, above. -->
+        <template v-if="(planRequest && !chat.latestTurnIsWork) || answeredPlan" #after-thread>
+          <PlanModeCard v-if="planRequest && !chat.latestTurnIsWork" :request="planRequest"
+                        :conversation-id="chat.conversationId" @respond="chat.respondHitl" />
+          <p v-else-if="answeredPlan" class="plan-answered" data-test="plan-answered">
+            <Icon icon="lucide:clipboard-check" aria-hidden="true" />
+            <span>{{ answeredPlan.answer }}</span>
+            <button type="button" class="plan-answered-open" data-test="plan-answered-open" @click="planReview.openPanel()">View plan</button>
+          </p>
+        </template>
       </ChatMessageList>
     </div>
 
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!showWelcome" class="chat-footer">
-      <!-- Active-plan navigation chip: scrolls back to the inline plan card when it's out of view. -->
-      <button v-if="activePlan" type="button" class="active-plan-chip" @click="scrollToActivePlan"
-              aria-label="Jump to the active plan">
-        <span class="apc-dot" aria-hidden="true"></span>
-        <span class="apc-label">{{ activePlan.awaitingApproval ? 'Plan awaiting approval' : 'Active plan' }}</span>
-        <span class="apc-count">{{ activePlan.done }}/{{ activePlan.total }}</span>
-        <span class="apc-arrow" aria-hidden="true">↑</span>
-      </button>
       <!-- The socket keeps retrying on its own and never gives up; after a few failures in a row the
            person can also make it try now (replaces the old "Lost connection — please refresh"). -->
       <div v-if="chat.connectionLost" class="conn-lost" role="status">
@@ -152,7 +156,7 @@
          max-steps pause-and-ask (Stop / Continue / Continue-for-chat) — same hitl_request mechanism. -->
     <HITLModal
       v-if="!(chat.latestTurnIsWork && !showWelcome)"
-      :requests="chat.hitlRequests"
+      :requests="overlayRequests"
       :show-stop="true"
       @respond="chat.respondHitl"
       @dismiss="chat.dismissHitl"
@@ -205,7 +209,9 @@ import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
-import { usePlanStore } from '../../stores/usePlanStore'
+import { usePlanReviewStore } from '../../stores/usePlanReviewStore'
+import PlanModeCard from './PlanModeCard.vue'
+import { Icon } from '@iconify/vue'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import { useBrowserStore } from '../../stores/useBrowserStore'
 import BrowserCard from '../browser/BrowserCard.vue'
@@ -228,6 +234,8 @@ import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()
 const video = useVideoStore()
+// The plan under review (plan mode): read by the conversation watcher below, so it is set up first.
+const planReview = usePlanReviewStore()
 // Video mode state follows the conversation: its jobs and the project it has open come from the server,
 // so a reload or a later visit shows the same estimates, renders and storyboard.
 //
@@ -247,6 +255,8 @@ async function loadVideoWork() {
 }
 watch(() => chat.conversationId, (cid, prev) => {
   if (String(cid || '') === String(prev || '')) return
+  // Another chat's plan is not shown here: its panel closes (the plan stays with its own chat's card).
+  if (!planReview.forConversation(cid)) planReview.closePanel()
   video.reset()
   videoLoadedFor = null
   loadVideoWork()
@@ -290,7 +300,6 @@ onBeforeUnmount(() => {
 })
 const canvas = useCanvasStore()
 const layout = useLayoutStore()
-const plan = usePlanStore()
 const artifacts = useArtifactsStore()
 const browser = useBrowserStore()
 // This view takes the browser store as soon as it is set up. When a new chat gets its id the shell builds
@@ -300,19 +309,15 @@ const browserView = browser.attach()
 const route = useRoute()
 const router = useRouter()
 
-// Active-plan navigation chip (inline plan artifact — approved wireframe §4). A nav aid only: it shows
-// the live plan's progress near the composer and scrolls back to the anchored card. NOT a second card
-// and NOT a second source of state. Shown on the durable-anchor path while a plan is still incomplete.
-const activePlan = computed(() => {
-  if (!chat.hasDurablePlanAnchors) return null
-  const p = plan.progressForConversation(chat.conversationId)
-  if (!p || p.ended || (p.total > 0 && p.done >= p.total)) return null   // hide once over / complete / no steps
-  return p
+// The plan the run paused on (plan mode): its card goes in the conversation, not in the floating approval overlay,
+// which keeps every other card. After the answer, one line remains (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
+const isPlanRequest = (r) => !!(r && r.payload && r.payload.kind === 'plan_approval')
+const planRequest = computed(() => (chat.hitlRequests || []).find(isPlanRequest) || null)
+const overlayRequests = computed(() => (chat.hitlRequests || []).filter((r) => !isPlanRequest(r)))
+const answeredPlan = computed(() => {
+  const r = planReview.forConversation(chat.conversationId)
+  return r && r.answer && !planRequest.value ? r : null
 })
-function scrollToActivePlan() {
-  const el = typeof document !== 'undefined' && document.querySelector('.msg-list .msg-plan')
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-}
 // Chat history drawer (collapsed by default; agent-scoped — see ChatHistoryDrawer.vue).
 const historyOpen = ref(false)
 
@@ -366,7 +371,8 @@ function closeMoreOnEsc(e) { if (e.key === 'Escape') moreOpen.value = false }
 // ── Canvas side panel (resizable) ────────────────────────────────────────────────────────────────
 const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
 const browserOpen = computed(() => browser.open && browser.hasSession)
-const dockOpen = computed(() => canvasOpen.value || artifacts.open || browserOpen.value || video.panelOpen)
+const planPanelOpen = computed(() => planReview.open && !!planReview.forConversation(chat.conversationId))
+const dockOpen = computed(() => planPanelOpen.value || canvasOpen.value || artifacts.open || browserOpen.value || video.panelOpen)
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
 const isMobile = computed(() => viewportWidth.value < (video.panelOpen ? 1024 : 768))
 
@@ -780,18 +786,15 @@ watch(
   text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, var(--vm-ink-faint));
   font-variant-numeric: tabular-nums; user-select: none;
 }
-/* Active-plan navigation chip — a small pill centered above the composer (approved wireframe §4). */
-.active-plan-chip {
-  display: flex; align-items: center; gap: 8px; margin: 0 auto 8px; padding: 6px 13px;
-  border: 1px solid var(--vm-border, var(--vm-line-2)); border-radius: 999px;
-  background: var(--vm-surface, var(--vm-surface)); color: var(--vm-text, var(--vm-ink)); font-size: 12.5px;
-  cursor: pointer; box-shadow: 0 3px 10px rgba(20, 24, 33, .08); font-family: inherit;
-}
-.active-plan-chip:hover { background: var(--vm-bg-soft, var(--vm-surface-soft)); }
-.active-plan-chip:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
-.active-plan-chip .apc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-accent, #3a5bd9); flex: none; }
-.active-plan-chip .apc-count { font-variant-numeric: tabular-nums; color: var(--vm-text-2, var(--vm-ink-soft)); font-weight: 600; }
-.active-plan-chip .apc-arrow { color: var(--vm-text-3, var(--vm-ink-faint)); }
+/* The line a plan card leaves once answered: a quiet event line in the thread, like "You approved the plan". */
+.plan-answered { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border: 1px solid var(--vm-line-2);
+  border-radius: 10px; background: var(--vm-surface-soft); color: var(--vm-ink-soft); font-size: 13.5px; }
+.plan-answered :deep(svg) { width: 16px; height: 16px; flex: none; color: var(--vm-green-ink, var(--vm-ink-soft)); }
+.plan-answered span { min-width: 0; flex: 1 1 auto; }
+.plan-answered-open { flex: none; min-height: 36px; padding: 0 10px; border: none; border-radius: 8px; background: transparent;
+  color: var(--vm-violet-d, var(--vm-link)); font: 600 13px var(--vm-font-sans, inherit); cursor: pointer; }
+.plan-answered-open:hover { background: var(--vm-surface); }
+.plan-answered-open:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 .conn-lost {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; margin: 0 auto 8px;
   padding: 6px 8px 6px 13px; border: 1px solid var(--vm-border, var(--vm-line-2)); border-radius: 999px;
@@ -823,7 +826,7 @@ watch(
   .icon-btn { width: 32px; height: 32px; }
   .session-meter { padding: 0 12px 4px; font-size: 10px; }
   .turnmode-bar { padding: 6px 0 0; }
-  .active-plan-chip { font-size: 0.75rem; }
+  .plan-answered-open { min-height: 44px; }
 }
 /* Touch targets of at least 44px (plan 4.4) without widening the header: the visible button keeps its
    size and an invisible hit area extends it. */

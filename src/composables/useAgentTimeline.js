@@ -612,17 +612,6 @@ export function useAgentTimeline() {
     })
   }
 
-  // WORK MODE: the run's plan card goes on the rail where the plan was given. Once per plan.
-  function addPlan(planId, runId = '') {
-    if (mode.value !== 'work' || !planId) return
-    if (steps.value.some((s) => s.isPlan && (s.planId === planId || (runId && s.runId === runId)))) return
-    steps.value.push({
-      stepId: `plan_${planId}`, toolCallId: '', phase: 'plan', tool: '', argsPreview: '', label: '', status: 'ok',
-      summary: '', durationMs: null, reason: '', nextAction: '', coalescedCount: 0, isPlan: true, planId,
-      runId: runId || '', startedAt: _now(),
-    })
-  }
-
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message
   // (so it persists after the live refs are reset for the next turn).
   function snapshot() {
@@ -667,7 +656,6 @@ export function useAgentTimeline() {
     addSteer,
     addCompaction,
     addText,
-    addPlan,
     reset,
     finalize,
     interrupt,

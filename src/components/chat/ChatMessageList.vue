@@ -31,33 +31,17 @@
           @edit="chat.editAndResend(m.id, prepareEdit ? prepareEdit(m, $event) : $event)"
           @feedback="(value, detail) => chat.setFeedback(m.id, value, detail)"
         >
-          <!-- A WORK turn's plan card and its approvals go on its rail (ADM-1302): the plan where it was given, the
-               approvals and questions of the newest turn under its last row. -->
-          <template v-if="isWorkTurn(m) && firstPlans(m).length" #rail-plan>
-            <div v-for="a in firstPlans(m)" :key="a.plan_id" class="msg-plan-rail">
-              <InlinePlanArtifact :run-id="a.run_id" :plan-id="a.plan_id" />
-            </div>
-          </template>
+          <!-- A WORK turn's approvals and questions go on its rail (ADM-1302), under the newest turn's last row. -->
           <template v-if="isWorkTurn(m) && m.id === latestAssistantId && $slots['rail-pending']" #rail-pending>
             <slot name="rail-pending" />
           </template>
         </ChatMessage>
         <!-- A surface's own cards for this message (Let's Code: the proposed diff, the running app's preview). -->
         <slot name="after-message" :message="m" />
-        <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
-             keyed by plan_id, in exact chronological place. Updates in place from pushed plan_event
-             frames; no polling, no detached card. -->
-        <!-- A plan renders at its FIRST anchor and nowhere else. The store now refuses to anchor one
-             plan twice, but a snapshot hydrated from the server carries whatever anchors the server
-             wrote, and a plan drawn twice is the most confusing thing on the page -- two cards with the
-             same steps, updating together. Deciding it here means neither source can produce it. -->
-        <template v-if="m.planArtifacts && m.planArtifacts.length && !isWorkTurn(m)">
-          <div v-for="a in m.planArtifacts" :key="a.plan_id" class="msg-plan">
-            <InlinePlanArtifact v-if="isFirstAnchor(m.id, a.plan_id, a.run_id)"
-                                :run-id="a.run_id" :plan-id="a.plan_id" />
-          </div>
-        </template>
       </template>
+      <!-- Where the thread ends: what the run is waiting on, in the conversation's flow (the plan card of a Chat or
+           Plan turn, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
+      <div v-if="$slots['after-thread']" class="msg-after" data-test="msg-after-thread"><slot name="after-thread" /></div>
 
       </div>
     </div>
@@ -80,8 +64,6 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
-import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
-import { usePlanStore, planIsStepless } from '../../stores/usePlanStore'
 
 // Optional display-only adapter; store messages and requests are never modified.
 defineProps({ presentMessage: Function, prepareEdit: Function })
@@ -93,39 +75,8 @@ const chat = useChatStore()
 // on every row written before the marker existed, so both read as the user's own — which is correct.
 const isRunScaffolding = (m) => m.role === 'user' && m.authoredBy === 'system'
 
-// The FIRST anchor of each RUN (message id + plan id). Keyed by run, not plan: the card renders the run
-// (`InlinePlanArtifact` reads `planFor(runId)`), and a run's plan id can change — a run whose plan was
-// created by its second attempt carried two anchors with different plan ids and drew the same rail twice
-// (prod conv 1627), three times after a further attempt. Recomputed with the thread, so a late anchor
-// landing on an earlier message still wins and the card does not jump.
-const firstAnchorByRun = computed(() => {
-  const out = {}
-  for (const m of (chat.messages || [])) {
-    for (const a of (m.planArtifacts || [])) {
-      const key = a && (a.run_id || a.plan_id)
-      if (key && out[key] === undefined) out[key] = `${m.id}|${a.plan_id}`
-    }
-  }
-  return out
-})
-function isFirstAnchor(messageId, planId, runId) {
-  return firstAnchorByRun.value[runId || planId] === `${messageId}|${planId}`
-}
-// A Work turn (ADM-1302): its plan card and approvals are drawn on its rail, not after it.
+// A Work turn (ADM-1302): its approvals are drawn on its rail, not after it.
 const isWorkTurn = (m) => !!m && m.role === 'assistant' && m.turnMode === 'work'
-// A plan the card would not draw gets no rail row either: the row's dot stood alone over nothing (live test
-// 2026-11-18). That is a stepless plan, and a run whose load came back with no plan or failed. A plan still to be
-// loaded keeps its row, so its card mounts and loads it.
-const plans = usePlanStore()
-const LOADED_WITHOUT_A_PLAN = new Set(['empty', 'error'])
-function firstPlans(m) {
-  return (m.planArtifacts || []).filter((a) => {
-    if (!a || !isFirstAnchor(m.id, a.plan_id, a.run_id)) return false
-    const plan = plans.planFor(a.run_id)
-    if (plan) return !planIsStepless(plan)
-    return !LOADED_WITHOUT_A_PLAN.has(plans.connStateFor(a.run_id))
-  })
-}
 // The person's messages that a Work turn answers: drawn as a box, as Claude Code draws them (ADM-1302). A message
 // with no answer yet takes the mode it was sent in (the conversation's).
 const workUserIds = computed(() => {
@@ -333,7 +284,7 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
    28px top gap was sized for a desktop header that is no longer 22px tall here. */
 @media (max-width: 640px) {
   .msg-list-inner { padding: 14px 10px 10px; }
-  .msg-plan, .load-earlier { margin-bottom: 14px; }
+  .msg-after, .load-earlier { margin-bottom: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -342,10 +293,10 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 .msg-list-inner {
   padding: 28px 16px 16px;
 }
-/* Plan card aligned to the same centered content column as the message bubbles. It flows with the
-   conversation (in chronological order) — no sticky/pinned behaviour. */
-.msg-plan { max-width: 760px; margin: 0 auto 22px; }
-.msg-plan-rail + .msg-plan-rail { margin-top: 8px; }
+/* What the run waits on where the thread ends (a plan card), in the same centered column as the messages. It flows
+   with the conversation: never sticky, never over it. */
+.msg-after { max-width: 760px; margin: 0 auto 22px; }
+.msg-after:empty { display: none; }
 
 /* "Load earlier messages" — top of the thread, same centered column as the bubbles. */
 .load-earlier { max-width: 760px; margin: 0 auto 18px; display: flex; justify-content: center; }

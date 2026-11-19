@@ -10,7 +10,7 @@ import { ChatConnection } from '../services/chatService'
 import { willIngestChatAttachment } from '../services/ingestionPolicy'
 import { useCanvasStore } from './useCanvasStore'
 import { useArtifactsStore } from './useArtifactsStore'
-import { usePlanStore } from './usePlanStore'
+import { usePlanReviewStore } from './usePlanReviewStore'
 import { useVideoStore } from './useVideoStore'
 import { useAgentTimeline, isRichEvent, compactionStep } from '../composables/useAgentTimeline'
 import { shownCost } from '../composables/tokens'
@@ -228,6 +228,9 @@ export const useChatStore = defineStore('chat', {
     // Coding Agent project chat, Chat elsewhere) and sent with every message, so the server keeps the choice.
     // A new chat starts on Chat; a new Let's Code project chat on Work (`reset`, `newChatRepoId`).
     turnMode: 'chat',
+    // The mode Plan returns to (Chat or Work): Plan is picked in the composer's Mode menu beside Manual and Autonomous,
+    // like Claude Code's plan mode, and leaving it goes back to where the person was. The switch shows this one.
+    planReturnMode: 'chat',
     // HOW FULL THE MODEL'S CONTEXT WINDOW IS for the open conversation, like Claude Code's ring: `{ used, window,
     // percent, compactAt }` from the run's `context_usage` frames, and from the conversation when it opens (its last
     // measurement). null = not measured yet (a new chat, or a model whose window is unknown): the ring is not shown.
@@ -268,9 +271,8 @@ export const useChatStore = defineStore('chat', {
     // twice. Cleared when a conversation is opened from history: the page then has no turn on screen to continue.
     _runSeq: {},
 
-    // Legacy native plan-mode WS approval signal (vestigial). The unified plan UI now handles
-    // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
-    // resume mechanic only and is removed when that loop is internalized into the coordinator.
+    // A plan the run's older `plan_approval_required` frame paused on (not plan mode, whose plan is answered on its
+    // `plan_approval` card). Feeds the "Waiting for approval" header and the WS resume mechanic only.
     pendingPlan: null,
     // Full-document cost gate (manual mode): a complete-mode KB scope overflowed the model
     // window. Holds { conversationId, question, cost, actions } while the user decides; cleared on resolve.
@@ -367,10 +369,6 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
-    // Inline plan artifact: true when the loaded history carries durable plan anchors. Drives the
-    // active-plan chip near the composer (the plan card itself always renders inline at its anchor).
-    hasDurablePlanAnchors: (s) =>
-      s.messages.some((m) => Array.isArray(m.planArtifacts) && m.planArtifacts.length > 0),
     // True once we know the user has zero agents — drives the "create an agent first"
     // empty state and the disabled composer on the welcome screen.
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
@@ -403,32 +401,11 @@ export const useChatStore = defineStore('chat', {
     // ── Live activity timeline (the currently-streaming message) — the SOLE activity renderer
     // (AgentActivityTimeline): friendly, param-free steps (Searching → Generating), reasoning, tokens. ──
     richActive: () => _tl.hasActivity(),
-    //: True while this conversation's plan still has steps to go. The timeline header reads it so a
-    //: turn in progress cannot be labelled "Done"; nothing about the turn's lifecycle depends on it.
-    //: Computed here rather than delegating to the action so it tracks the plan store reactively —
-    //: a getter that calls an action is recomputed on the wrong dependencies, which for a live progress
-    //: readout means a header that stops updating halfway through.
-    //: True while this conversation's plan waits for the person's decision: the turn has ended on the
-    //: approval card and nothing runs until they choose. The paused turn reads "Waiting for approval".
-    planAwaitingApproval: (s) => {
-      if (s.pendingPlan) return true
-      try {
-        const p = usePlanStore().progressForConversation(s.conversationId)
-        return !!(p && !p.ended && p.awaitingApproval)
-      } catch (e) {
-        return false
-      }
-    },
-    planRunning: (s) => {
-      try {
-        const p = usePlanStore().progressForConversation(s.conversationId)
-        // A plan waiting for approval is not running: the turn ended on the approval card, and reading it
-        // as running kept the activity panel on "Working" (prod conv 2742, 2026-10-14).
-        return !!(p && !p.ended && !p.awaitingApproval && p.total > 0 && p.done < p.total)
-      } catch (e) {
-        return false
-      }
-    },
+    //: True while this conversation's plan waits for the person's decision: the turn has ended on the plan card and
+    //: nothing runs until they choose. The paused turn reads "Waiting for approval". A plan's progress after that is
+    //: the task list's alone (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
+    planAwaitingApproval: (s) => !!s.pendingPlan
+      || (s.hitlRequests || []).some((r) => r && r.payload && r.payload.kind === 'plan_approval'),
     liveStatus: () => _tl.currentStatus.value,
     liveSteps: () => _tl.steps.value,
     liveSources: () => _tl.sources.value,
@@ -712,6 +689,7 @@ export const useChatStore = defineStore('chat', {
       this.todos = []
       // A new chat starts on its default mode: Work for a Coding Agent project chat (Let's Code), Chat elsewhere.
       this.turnMode = this.newChatRepoId ? 'work' : 'chat'
+      this.planReturnMode = this.turnMode
       this.contextUsage = null
       this.compaction = { status: '', message: '' }
       this.error = ''
@@ -825,9 +803,6 @@ export const useChatStore = defineStore('chat', {
         // Let's Code: the checkpoint taken before this user message's turn first changed a file, so the chat can
         // offer "Restore to before this message" (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9).
         restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id) || null,
-        // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
-        // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
-        planArtifacts: pickArray(m.plan_artifacts),
         // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
         // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
         attachments: pickArray(m.attachments),
@@ -864,8 +839,6 @@ export const useChatStore = defineStore('chat', {
         const older = pickArray(data.results).map((m) => this._mapServerMessage(m, id))
         this.messages = this._foldSteers(older.concat(this.messages))
         this.messagesHasMore = !!data.has_more
-        // Newly-prepended rows may carry their own plan anchors — hydrate so their inline cards render.
-        this._hydratePlanAnchors(id)
       } catch {
         /* non-fatal — the button stays available for a retry */
       } finally {
@@ -922,6 +895,7 @@ export const useChatStore = defineStore('chat', {
         // The conversation's mode: the person's choice kept by the server, else its default (Work in a Coding Agent
         // project chat, Chat elsewhere) — the server answers both in `turn_mode`.
         this.turnMode = TURN_MODES.includes(data.turn_mode) ? data.turn_mode : 'chat'
+        this.planReturnMode = data.repository ? 'work' : 'chat'
         this.contextUsage = normalizeContextUsage(data.context_usage)
         this.compaction = { status: '', message: '' }
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
@@ -930,9 +904,6 @@ export const useChatStore = defineStore('chat', {
         // row we hold. Older servers send neither field — then there is nothing more to fetch.
         this.messagesHasMore = !!data.has_more_messages
         this.messagesTotal = data.message_count || this.messages.length
-        // Hydrate + reconcile any plans anchored in the loaded history so the inline cards render on
-        // open (durable-anchor path). No-op when the feature is off (no plan_artifacts present).
-        this._hydratePlanAnchors(id)
         // The conversation's repository picks the socket (a Let's Code project chat → /ws/chat/repository/<id>/,
         // where the turn gets the project's CODE_* tools). The backend serializes it as a bare PK, like
         // agent_profile below; reading `.id` of that number lost it, so a reopened project chat went to the plain
@@ -1038,7 +1009,14 @@ export const useChatStore = defineStore('chat', {
     // Chat / Work / Plan for the open conversation. Sent with the next message, which is when the server keeps it as
     // the conversation's choice; a name that is not a mode changes nothing.
     setTurnMode(mode) {
-      if (TURN_MODES.includes(mode)) this.turnMode = mode
+      if (!TURN_MODES.includes(mode)) return
+      if (mode === 'plan' && this.turnMode !== 'plan') this.planReturnMode = this.turnMode
+      if (mode !== 'plan') this.planReturnMode = mode
+      this.turnMode = mode
+    },
+    // Leave Plan for the mode it was entered from (Chat or Work).
+    leavePlanMode() {
+      if (this.turnMode === 'plan') this.turnMode = this.planReturnMode === 'work' ? 'work' : 'chat'
     },
 
     _canvasSendOpts() {
@@ -1881,8 +1859,6 @@ export const useChatStore = defineStore('chat', {
           // Same restore point as the main loader: a turn's checkpoint lands on its user row while it runs.
           restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id)
             || (_prev && _prev.restoreCheckpointId) || null,
-          planArtifacts: pickArray(m.plan_artifacts).length ? pickArray(m.plan_artifacts)
-            : ((_prev && _prev.planArtifacts) || []),
           citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations)
             || (_prev && _prev.citations) || [],
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
@@ -1902,33 +1878,10 @@ export const useChatStore = defineStore('chat', {
         this.messages = this._foldSteers(this.messages)   // a STEER shows inside its run (see _foldSteers)
         // The thread is now the latest window again, so older pages are "more" whenever the server has them.
         this.messagesHasMore = !!data.has_more
-        this._hydratePlanAnchors(this.conversationId)
         return true
       } catch {
         return false
       }
-    },
-
-    // Inline plan artifact: hydrate snapshots for plans anchored in the loaded history so their inline
-    // cards render on open. If no anchor is present but an assistant turn exists, attempt ONE lazy
-    // reconcile (idempotent) to upgrade a legacy plan, then reload history to pick up its anchor.
-    // Gated + safe: a complete no-op when the feature is off.
-    _hydratePlanAnchors(cid) {
-      if (cid == null) return
-      try {
-        const plan = usePlanStore()
-        const runIds = new Set()
-        for (const m of this.messages) {
-          for (const a of (m.planArtifacts || [])) if (a && a.run_id) runIds.add(a.run_id)
-        }
-        if (runIds.size) { for (const rid of runIds) plan.hydrateRun(rid); return }
-        if (!this.messages.some((m) => m.role === 'assistant')) return   // no plan possible
-        plan.reconcileConversation(cid).then((r) => {
-          if (r && r.created > 0 && String(cid) === String(this.conversationId)) {
-            this._reloadHistoryForAnchors(cid)
-          }
-        })
-      } catch (_e) { /* plan store optional */ }
     },
 
     // Let's Code: a turn's restore point is saved on its user message WHILE the turn runs, and no frame
@@ -1962,32 +1915,6 @@ export const useChatStore = defineStore('chat', {
       } catch (_e) { /* the button then appears on the next load, as before */ }
     },
 
-    // After a lazy reconcile attaches anchors, re-map plan_artifacts onto the in-memory messages (by
-    // assistant order — message order is stable) and hydrate the newly-anchored runs.
-    async _reloadHistoryForAnchors(cid) {
-      try {
-        // Only the messages' plan anchors are needed: the latest window, not the whole conversation.
-        const res = await api.getConversationMessages(cid, { limit: MESSAGE_WINDOW })
-        if (String(cid) !== String(this.conversationId)) return
-        const assistantRows = pickArray(res.data).filter((m) => m.role === 'assistant')
-        // Aligned from the NEWEST end: the read returns only the latest page of messages,
-        // while the screen may also hold older pages the person loaded, so matching from the start
-        // put one message's plan onto another.
-        const onScreen = this.messages.filter((m) => m.role === 'assistant')
-        const offset = onScreen.length - assistantRows.length
-        onScreen.forEach((m, i) => {
-          const src = assistantRows[i - offset]
-          if (src && Array.isArray(src.plan_artifacts) && src.plan_artifacts.length) {
-            m.planArtifacts = src.plan_artifacts
-          }
-        })
-        const plan = usePlanStore()
-        for (const m of this.messages) {
-          for (const a of (m.planArtifacts || [])) if (a && a.run_id) plan.hydrateRun(a.run_id)
-        }
-      } catch (_e) { /* noop */ }
-    },
-
     _teardown(clearStreaming = true) {
       this._stopProgressPolling()   // the socket is going away; an interval outliving it leaks
       if (this._conn) {
@@ -2013,7 +1940,6 @@ export const useChatStore = defineStore('chat', {
         status: 'streaming',
         error: '',
         toolCalls: [],
-        planArtifacts: [], // inline plan anchors attached live from plan_event (durable-anchor path)
         citations: [], // P6: KB sources for the "Sources" panel (set on assistant_message_complete)
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         timeline: null, // activity-timeline snapshot, pinned on completion (friendly, param-free)
@@ -2030,34 +1956,6 @@ export const useChatStore = defineStore('chat', {
       this._startDeafWatchdog()
       _think.reset()
       _tl.reset(this.turnMode)   // fresh live activity timeline for this turn (a Work turn's keeps its narration and IN/OUT)
-    },
-
-    // STAMP THE PLAN STEP THAT OWNS A LIVE ACTIVITY, at the only moment it is knowable.
-    //
-    // An activity row ("Running a script", "Looking at the image") carries `step_id` =
-    // `step_<tool_call_id>` -- its OWN id, with no reference to the plan step it belongs to. The rail
-    // therefore had nowhere to nest it. The rows carry no timestamp, so bucketing them against the plan's
-    // step boundaries afterwards would be guesswork; live, the snapshot's `current_step_id` IS the answer.
-    //
-    // Only from a run still in flight. A new run's first activity arrives before its own plan exists,
-    // and the conversation's latest snapshot is then the PREVIOUS run, whose `current_step_id` would
-    // file this run's preparation under a step of a run that already finished.
-    // RE-READ THE RUN AT EVERY SEGMENT BOUNDARY. The rail is drawn from pushed plan snapshots, and a push
-    // that never arrives leaves it frozen: prod conv 1608 showed "1 goal check, still running" (event 12)
-    // for a run the server had finished — ACHIEVED after three attempts (event 21). A segment starting and
-    // the goal closing are the two moments the rail must be current, so they fetch the truth instead of
-    // trusting that every push landed. Best-effort; the store applies a snapshot only if it is newer.
-    _stampPlanStep(msg) {
-      // The server names the step when it knows it (each call of a parallel round is attributed to its
-      // own step); the snapshot's single `current_step_id` is only the fallback for frames that do not.
-      if (msg && msg.plan_step_id) return
-      try {
-        const _runs = usePlanStore().runsForConversation(this.conversationId) || []
-        const _live = _runs[_runs.length - 1]
-        const _over = ['completed', 'failed', 'cancelled', 'insufficient_evidence']
-          .includes(String((_live && _live.run_status) || ''))
-        if (_live && !_over && _live.current_step_id) msg.plan_step_id = _live.current_step_id
-      } catch { /* a nesting hint must never break the stream */ }
     },
 
     _cur() {
@@ -2080,28 +1978,6 @@ export const useChatStore = defineStore('chat', {
         if (this.messages[i].role === 'assistant') return this.messages[i]
       }
       return null
-    },
-
-    // Is a PLAN still being worked through for this conversation?
-    //
-    // PRESENTATION ONLY — read by the timeline header, never by the turn lifecycle. An earlier version
-    // of this used the same predicate to SKIP `_endAssistant`, and that was the wrong layer: for the
-    // ordinary chat path `chat_response` IS the terminal event, so blocking on it left a turn whose
-    // answer had already arrived with nothing to finalize it. The answer was in the database and the
-    // screen showed nothing. Delaying a turn's end to fix a label trades a wrong word for a hung UI.
-    //
-    // What it is for: conversation 1446 showed "Done · 12 steps" directly above "Active plan 0/10",
-    // then went back to 2/10 with the spinner running. The turn had not ended; only the header said so.
-    // A plan with steps remaining is the plainest evidence that work continues, so the header asks this
-    // and nothing else changes.
-    _planStillRunning() {
-      try {
-        const p = usePlanStore().progressForConversation(this.conversationId)
-        return !!(p && !p.ended && !p.awaitingApproval && p.total > 0 && p.done < p.total)
-      } catch (e) {
-        // A guard that throws must not be able to strand a turn as permanently unfinished.
-        return false
-      }
     },
 
     _endAssistant() {
@@ -2346,56 +2222,19 @@ export const useChatStore = defineStore('chat', {
         try { useVideoStore().onPlanFrame(msg) } catch { /* the chat continues without the card */ }
         return
       }
-      // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
-      // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
-      // conversation (the frame is broadcast to the user group with conversation_id inside). The store
-      // applies by (version, sequence) and dedups by event_id; this handler never derives state.
+      // A run's plan event (the run's event stream, run_coordinator): the chat draws no plan from it -- a plan is
+      // reviewed on its card and beside the chat, and followed on the task list (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
+      // It still names the run of the message it reaches and carries the person's plan DECISION. Scope to THIS
+      // window's conversation (the frame is broadcast to the user group with conversation_id inside).
       if (t === 'plan_event') {
         const pcid = msg.conversation_id
         if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
           try {
-            usePlanStore().applyPlanEvent(msg)
-            // Live anchor: attach this plan to the current assistant turn so its inline card renders
-            // immediately (before the durable anchor is persisted + reloaded on next open). This matches
-            // the eventual server anchor (same turn's assistant message).
+            // WHICH RUN PRODUCED THIS MESSAGE, stamped on every message the run's events reach: a Work run's
+            // segments each have their own assistant message, and the renderer reads it from the message.
             const cur = this._cur() || this.messages.filter((x) => x.role === 'assistant').slice(-1)[0]
-            const pid = msg.plan_id || (msg.plan_view && msg.plan_view.plan_id)
             const rid = msg.run_id || (msg.plan_view && msg.plan_view.run_id)
-            // ONE PLAN, ONE ANCHOR, ACROSS THE WHOLE THREAD.
-            //
-            // THE DUPLICATE PLAN CARD. This guard used to read `cur.planArtifacts` -- the CURRENT
-            // message's own list -- so it could only ever notice a plan anchored twice to the SAME
-            // message. A Work run sends a plan_event per segment and each segment produces a new
-            // assistant message, so on segment 2 `cur` is a different message, its list is empty, and
-            // the same plan_id is anchored again. The card is then rendered once per anchor: the same
-            // plan drawn twice, which is exactly what was reported in conv 1542.
-            //
-            // It could not be found in the run or plan data because it is not there -- the run has one
-            // plan and one card's worth of state. The duplication is created here, on the client, by
-            // scoping a uniqueness check to a message when the thing being made unique belongs to the
-            // conversation.
-            if (cur && pid && rid) {
-              // WHICH RUN PRODUCED THIS MESSAGE. Stamped on EVERY message the plan events reach, not
-              // only the one that wins the anchor below: a Work run sends a plan_event per segment and
-              // each segment has its own assistant message, but only the first is anchored. Without
-              // this, segments 2..N had no way to tell they belonged to a Work run, and the renderer
-              // fell back to asking the CONVERSATION -- a question whose answer is true forever once
-              // asked, which is what leaked Work-mode suppression into ordinary chat turns.
-              cur.runId = rid
-              if (!Array.isArray(cur.planArtifacts)) cur.planArtifacts = []
-              // ...AND ONE RUN, ONE ANCHOR. A run's plan id can change under it: a Work run whose first
-              // attempt had no plan is anchored under the run's placeholder id, and the plan created by a
-              // later attempt arrives with a new one — which anchored a second rail for the same run at the
-              // new message (prod conv 1627: two, then three identical timelines after a failed check).
-              const anchoredAlready = this.messages.some(
-                (m) => Array.isArray(m.planArtifacts)
-                  && m.planArtifacts.some((a) => a.plan_id === pid || (rid && String(a.run_id) === String(rid))))
-              if (!anchoredAlready) {
-                cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
-                // A Work turn draws its plan card on its rail, at the point the plan was given (ADM-1302).
-                if (cur.turnMode === 'work' && cur.id === this._assistantId) _tl.addPlan(pid, rid)
-              }
-            }
+            if (cur && rid) cur.runId = rid
             // ── Bridge a human plan DECISION to the run's resume plumbing ──────────────────────────
             // The inline card's decision is a REST call that only RECORDS the decision + pushes this
             // outbox event; nothing else re-invokes the agent (that's why "Approve"/"Send changes" did
@@ -2458,8 +2297,6 @@ export const useChatStore = defineStore('chat', {
         } else if (t === 'agent_status' && msg.reason === 'RESUMED_AFTER_RESTART') {
           this.runHostRestarting = false
         }
-        // Which plan step owns this activity — see `_stampPlanStep`.
-        this._stampPlanStep(msg)
         _tl.ingest(msg)
         const _rm = this._cur()
         if (_rm && _rm.prepStatus) _rm.prepStatus = ''   // live timeline now drives the status line
@@ -2480,9 +2317,6 @@ export const useChatStore = defineStore('chat', {
       }
       // Feed the live activity timeline (Thinking → tools → Generating → Done). Rich events already
       // returned above; this also folds in reasoning + token metering (no-op for other event types).
-      // Reasoning is stamped with its plan step too, so a Work run shows each thought inside the step
-      // that was running when the model had it.
-      if (t === 'reasoning_delta') this._stampPlanStep(msg)
       if (m && t !== 'error') _tl.ingest(msg)
       switch (t) {
         case 'message_saved': {
@@ -2806,11 +2640,15 @@ export const useChatStore = defineStore('chat', {
           // An MCP client's approval ("mcp:<session>") belongs to no chat: it is answered on the Sessions page.
           if (_hcid.startsWith('mcp:')) break
           if (_hcid && _hcid !== String(this.conversationId || '')) break
-          // Plan mode's card: its run's plan is answered HERE, so the inline plan card shows the plan without its
-          // own Approve buttons, and a `plan_approval_required` for it is not a second card.
+          // Plan mode's card: its run's plan is answered HERE, so a `plan_approval_required` for it is not a second card.
           if (msg.payload && msg.payload.kind === 'plan_approval') {
             this.pendingPlan = null
-            try { usePlanStore().markPlanModeRun(msg.payload.run_id, msg.payload.plan_version_id) } catch (_e) { /* plan store optional */ }
+            // The plan is read BESIDE the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md): it opens there by itself on a wide
+            // screen; on a phone the card's "Open the plan" opens it.
+            const wide = typeof window !== 'undefined' && window.matchMedia
+              && window.matchMedia('(min-width: 1024px)').matches
+            usePlanReviewStore().show({ request_id: msg.request_id, payload: msg.payload }, _hcid || this.conversationId,
+              { openPanel: !!wide })
           }
           // A PARKED approval (phase 2b, agent/services/hitl/parked_approvals.py): a run nobody watched stopped
           // before this step and ended its turn; the person's answer continues it. No clock, no "for the session".
@@ -3007,8 +2845,6 @@ export const useChatStore = defineStore('chat', {
           // signal and lock the composer in steering mode forever. Only real task runs (no display_only)
           // set the flag.
           if (!msg.display_only) this._taskRunActive = true
-          // The inline plan card is anchored durably via the message's plan_artifacts (persisted +
-          // pushed via plan_event), not a runtime anchor id — nothing to set here.
           break
         case 'agent_session_complete':
         case 'agent_session_stopped':
@@ -3040,13 +2876,10 @@ export const useChatStore = defineStore('chat', {
           // PLAN MODE: the plan is answered on its `plan_approval` card (a `hitl_request` that keeps the turn open),
           // so the run's older event for the same plan is display-only. Pausing here would end the turn under the card.
           const _p = msg.plan || {}
-          let _planMode = this._planModeTurn
+          const _review = usePlanReviewStore().review
+          const _planMode = this._planModeTurn
             || this.hitlRequests.some((r) => r.payload && r.payload.kind === 'plan_approval')
-          if (!_planMode) {
-            try {
-              _planMode = usePlanStore().isPlanModeRun(_p.run_id || msg.run_id, _p.plan_version_id || msg.plan_version_id)
-            } catch (_e) { /* plan store optional */ }
-          }
+            || !!(_review && _review.runId && String(_review.runId) === String(_p.run_id || msg.run_id || ''))
           if (_planMode) break
           this.pendingPlan = _p
           this._pauseAssistant('plan_approval')

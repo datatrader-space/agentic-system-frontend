@@ -128,8 +128,9 @@
         </div>
       </div>
 
-      <!-- Unified plan experience — the ONLY plan UI (approval + live execution checklist). -->
-      <UnifiedPlanTimeline :conversation-id="conversationId" class="px-3 pb-2 shrink-0" />
+      <!-- The agent's task list (TODO_WRITE; a plan's steps once it is approved), as in the chat: the only progress
+           shown. A plan is answered on its card (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
+      <div v-if="todos.length" class="px-3 pb-2 shrink-0"><ChatTaskList :todos="todos" :running="busy" compact /></div>
 
       <div class="px-3 pb-3 shrink-0">
         <!-- Unified composer: input on top, + attach + mode pill (upward) + send on the bottom toolbar -->
@@ -245,10 +246,9 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are followed
+// (security audit, frontend finding A12).
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
-// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
-// followed (security audit, frontend finding A12).
-const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { marked } from 'marked'
 import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { resumeStatusLine } from '../utils/resumeStatus'
@@ -261,13 +261,13 @@ import ProvenanceFooter from './chat/ProvenanceFooter.vue'
 import HITLModal from './HITLModal.vue'
 import AgentModePicker from './agent/AgentModePicker.vue'
 import AddDocumentUrl from './knowledge/AddDocumentUrl.vue'
-import UnifiedPlanTimeline from './plan/UnifiedPlanTimeline.vue'
+import ChatTaskList from './chat/ChatTaskList.vue'
 import { notify } from '@/composables/useNotify'
 import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
 import MemoryChips from './chat/MemoryChips.vue'
-import { mergeSavedMemories } from '@/stores/useChatStore'
+import { mergeSavedMemories, normalizeTodos } from '@/stores/useChatStore'
 import { fmtTokens, fmtCost, shownCost } from '../composables/tokens'
 import VoiceNoteMic from './chat/VoiceNoteMic.vue'
 import VoiceNotePlayer from './chat/VoiceNotePlayer.vue'
@@ -473,6 +473,9 @@ async function copyTranscript() {
 const busy = ref(false)
 const error = ref('')
 const conversationId = ref(null)
+// The agent's task list for this conversation (`todo_update` frames, and the conversation's own on load).
+const todos = ref([])
+watch(conversationId, () => { todos.value = [] })
 const scroller = ref(null)
 const view = ref('emulator') // 'emulator' | 'inspector'
 
@@ -718,6 +721,11 @@ function handleEvent(raw) {
     return
   }
   switch (evt.type) {
+    case 'todo_update':
+      if (evt.conversation_id == null || String(evt.conversation_id) === String(conversationId.value ?? '')) {
+        todos.value = normalizeTodos(evt.todos)
+      }
+      break
     case 'conversation_created':
       conversationId.value = evt.conversation_id
       saveConv()   // remember this conversation so a page refresh restores its history
@@ -968,17 +976,6 @@ function stop() {
   busy.value = false
 }
 
-// Plan approval (Manual Mode): tell the server, then wait for plan_approved/plan_rejected/plan_revise.
-function sendPlanDecision(decision, feedback) {
-  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    ws.value.send(JSON.stringify({ type: 'plan_approval_response', decision, feedback, conversation_id: conversationId.value }))
-  }
-}
-function approvePlan() { pendingPlan.value = null; sendPlanDecision('approve') }
-function rejectPlan() { pendingPlan.value = null; sendPlanDecision('reject') }
-// Request changes: send feedback to the agent; it re-plans and asks again (revise-and-re-approve).
-function revisePlan(feedback) { pendingPlan.value = null; sendPlanDecision('revise', feedback) }
-
 // ── Session persistence across page refresh ──
 // The emulator conversation id is remembered per agent (localStorage) so a refresh reloads the
 // same thread instead of starting blank. The ↻ button explicitly starts a fresh conversation.
@@ -996,6 +993,7 @@ async function loadHistory(id) {
   try {
     const res = await api.getConversation(id)
     const data = res.data || {}
+    todos.value = normalizeTodos(data.todos)
     const raw = Array.isArray(data.messages) ? data.messages : (data.messages && data.messages.results) || []
     messages.value = raw.map((m) => {
       if (m.role === 'assistant' || m.role === 'agent') {

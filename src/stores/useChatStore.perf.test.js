@@ -188,7 +188,7 @@ describe('useChatStore — message windowing', () => {
     expect(older.serverId).toBe(8)
     expect(older.feedback).toBe('up')
     expect(older.attachments).toHaveLength(1)
-    expect(older.planArtifacts[0].plan_id).toBe('p1')
+    expect(older).not.toHaveProperty('planArtifacts')          // a plan is never drawn in the thread (2026-11-19)
     expect(older.usage.total_tokens).toBe(42)
     expect(older.stopReason).toBe('end_turn')
     expect(older.citations).toHaveLength(1)

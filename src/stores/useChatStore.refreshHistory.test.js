@@ -111,20 +111,17 @@ describe('the recovery loop', () => {
   })
 })
 
-describe('_reloadHistoryForAnchors', () => {
-  it('maps plan anchors from the latest window of messages, not the conversation', async () => {
+describe('plan anchors', () => {
+  it('are never read into the thread: a plan is reviewed on its card and followed on the task list', async () => {
     api.getConversationMessages.mockResolvedValue(page([
       USER_ROW, { ...ANSWER_ROW, plan_artifacts: [{ plan_id: 'p1', run_id: 'run_1' }] },
     ]))
     const s = useChatStore()
     s.conversationId = '77'
-    s.messages = [
-      { id: 'm1', role: 'user', content: 'what is the title?' },
-      { id: 'm2', role: 'assistant', content: 'The title is Tide.', planArtifacts: [] },
-    ]
-    await s._reloadHistoryForAnchors('77')
-    expect(api.getConversationMessages).toHaveBeenCalledWith('77', { limit: 50 })
-    expect(api.getConversation).not.toHaveBeenCalled()
-    expect(s.messages[1].planArtifacts).toEqual([{ plan_id: 'p1', run_id: 'run_1' }])
+    s.messages = [{ id: 'm1', role: 'user', content: 'what is the title?' },
+                  { id: 'm2', role: 'assistant', content: 'The title is Tide.' }]
+    expect(s._reloadHistoryForAnchors).toBeUndefined()
+    await s._refreshHistory()
+    expect(s.messages.some((m) => 'planArtifacts' in m)).toBe(false)
   })
 })

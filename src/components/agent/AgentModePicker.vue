@@ -1,7 +1,7 @@
 <!--
   AgentModePicker — a compact "Modes" dropdown for the chat header (styled after the IDE Modes menu).
-  Lets the user flip the agent between Manual / Auto Mode / Planning Mode right from the chat. The
-  selection PERSISTS to the agent (PATCH /agents/:id/) so it sticks across every chat with that agent.
+  Lets the user pick Manual / Autonomous (the agent's run mode, PERSISTED to the agent so it sticks across every chat
+  with it) or Plan (the conversation's plan mode, like Claude Code's), right from the chat.
   Used by all four chat surfaces (new chat, emulator, old chat, playground).
 -->
 <template>
@@ -54,11 +54,12 @@ const { options: reasoningOptions, reload: reloadReasoning } = useReasoningOptio
 watch(open, (v) => { if (v) reloadReasoning() })
 // Load/choose/persist — shared with the Mode section inside the shared agent's model dropdown so the
 // autonomous confirmation and the shared-agent write rule can never drift between the two surfaces.
-const { mode, saving, error, isAuto, label, dotClass, options, select: apply } =
+const { saving, error, isAuto, label, dotClass, options, select: apply } =
   useAgentRunMode(() => props.agentId, () => props.runMode)
 
 async function select(opt) {
-  if (await apply(opt)) emit('change', { ...opt.patch })
+  // Plan is the conversation's turn mode (no patch to the agent): only a run mode tells the host the agent changed.
+  if (await apply(opt) && opt.patch) emit('change', { ...opt.patch })
   open.value = false
 }
 

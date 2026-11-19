@@ -222,10 +222,9 @@ export function workRows(steps, { finished = false, hasAnswer = false } = {}) {
       rows.push({ kind: 'steer', key: s.stepId, step: s })
     } else if (s.isCompaction) {
       rows.push({ kind: 'compaction', key: s.stepId, step: s })
-    } else if (s.isPlan) {
-      // The host draws the turn's plan card (one per run) at the first place a plan was given.
-      if (!rows.some((r) => r.kind === 'plan')) rows.push({ kind: 'plan', key: s.stepId, step: s })
-    } else if (s.isPhase) {
+    } else if (s.isPlan || s.isPhase) {
+      // A plan is reviewed on its card and followed on the task list (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md); the plan row
+      // a Work turn saved before 2026-11-19 is not drawn.
       continue
     } else {
       rows.push({ kind: isSubagent(s) ? 'subagent' : 'tool', key: s.stepId, step: s })
@@ -236,7 +235,7 @@ export function workRows(steps, { finished = false, hasAnswer = false } = {}) {
     for (let i = rows.length - 1; i >= 0; i--) {
       const k = rows[i].kind
       if (k === 'text') { last = i; break }
-      if (k === 'tool' || k === 'subagent' || k === 'steer' || k === 'plan') break
+      if (k === 'tool' || k === 'subagent' || k === 'steer') break
     }
     if (last >= 0) rows.splice(last, 1)
     rows.push({ kind: 'answer', key: 'answer' })

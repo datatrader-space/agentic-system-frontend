@@ -48,6 +48,11 @@ export function modeDotClass(mode) {
   return isAutonomous(mode) ? 'amp-dot-auto' : 'amp-dot-manual'
 }
 
+/** Plan, in the same Mode menu as the run modes (Claude Code's plan mode): the agent only reads, writes a plan and asks
+ * before changing anything. It is the conversation's turn mode, not the agent's run mode, so it carries no patch. */
+export const PLAN_OPTION = { key: 'plan', icon: '📋', title: 'Plan',
+  desc: 'Reads only, writes a plan and asks you before changing anything.' }
+
 /** The two menu options, each carrying the exact backend patch it persists. */
 export const MODE_OPTIONS = [
   { key: 'manual', icon: '✋', title: 'Manual', desc: 'You approve each tool / question.',

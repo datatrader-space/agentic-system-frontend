@@ -1,7 +1,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../services/api'
 import { confirm } from './useConfirm'
-import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS, normalizeRunMode, isAutonomous } from './agentModes'
+import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS, PLAN_OPTION, normalizeRunMode, isAutonomous } from './agentModes'
+import { useChatStore } from '../stores/useChatStore'
 
 /**
  * Run-mode state for one agent: load, choose, persist.
@@ -30,9 +31,16 @@ export function useAgentRunMode(getAgentId, getInitialMode = () => 'manual') {
   // truth and is unit-tested independently of any component.
   const isAuto = computed(() => isAutonomous(mode.value))
   const activeKey = computed(() => modeKey(mode.value))
-  const label = computed(() => modeLabel(mode.value))
+  // PLAN sits beside Manual and Autonomous (Claude Code's plan mode is one of its permission modes): one of the three
+  // is on. It is the conversation's turn mode, so it is read from and written to the chat store, never the agent.
+  const chat = useChatStore()
+  const planOn = computed(() => chat.turnMode === 'plan')
+  const label = computed(() => (planOn.value ? PLAN_OPTION.title : modeLabel(mode.value)))
   const dotClass = computed(() => modeDotClass(mode.value))
-  const options = computed(() => MODE_OPTIONS.map((o) => ({ ...o, active: o.key === activeKey.value })))
+  const options = computed(() => [
+    ...MODE_OPTIONS.map((o) => ({ ...o, active: !planOn.value && o.key === activeKey.value })),
+    { ...PLAN_OPTION, active: planOn.value },
+  ])
 
   // Authoritatively sync from the backend on mount (surfaces may pass only an agent id).
   const load = async () => {
@@ -54,7 +62,13 @@ export function useAgentRunMode(getAgentId, getInitialMode = () => 'manual') {
   /** Apply a mode. Resolves true when it was saved, false when cancelled or it failed. */
   const select = async (opt) => {
     const id = getAgentId()
-    if (opt.active || saving.value || !id) return false
+    if (opt.active || saving.value) return false
+    if (opt.key === PLAN_OPTION.key) { chat.setTurnMode('plan'); return true }
+    // A run mode leaves Plan; the agent's mode is saved only when it changes.
+    const wasPlan = planOn.value
+    if (wasPlan) chat.leavePlanMode()
+    if (opt.key === activeKey.value) return wasPlan
+    if (!id) return false
     const next = opt.patch.agent_run_mode
     if (isAutonomous(next)) {
       const ok = await confirm({
