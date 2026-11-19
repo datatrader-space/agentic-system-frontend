@@ -175,3 +175,16 @@ test('a read of the Try state that failed once is cleared by the next read that 
   assert.match(load, /if \(pollFailed\) \{ tryError\.value = ''; pollFailed = false; \}/);
   assert.match(load, /catch \(e\) \{ tryError\.value = e\.message; pollFailed = true; \}/);
 });
+
+// ADM-1310 (owner, 2026-11-18): the Train page said only "Nano, Small, Medium, Large". Each size now says its photo side and
+// what it is for, the chosen one is explained with Roboflow's published figures, and every size can be compared.
+test('the Train page describes the chosen model size and offers a comparison of every size', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const studio = await readFile(new URL('../src/components/ProjectStudio.vue', import.meta.url), 'utf8');
+  assert.ok(studio.includes('const sizeDetails=computed(()=>trainModel.value?.size_details||[]);'), 'sizes come from the server');
+  assert.ok(studio.includes('${sizeDetailOf(s).side} px · ${sizeDetailOf(s).best_for}'), 'each option says its side and use');
+  assert.ok(studio.includes('class="size-about"') && studio.includes('{{ sizeAbout.description }}'), 'the chosen size is explained');
+  assert.ok(studio.includes('Measured on everyday objects, not on your walls'), 'the published figures say what they measure');
+  assert.ok(studio.includes('<summary>Compare all sizes</summary>'), 'every size can be compared');
+  assert.ok(studio.includes('<option>XLarge</option><option>2XLarge</option>'), 'the preview lists every size');
+});
