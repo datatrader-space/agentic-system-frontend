@@ -192,6 +192,7 @@
           @keydown.enter.self="showFile(tab.id)"
           :class="['tab', { active: !chatFront && activeTabId === tab.id }]">
           <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
+          <Icon v-else-if="tab.type === 'review'" class="tab-icon" icon="lucide:list-checks" aria-hidden="true" />
           <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
                 :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
           <span class="tab-name">{{ tab.name }}</span>
@@ -214,6 +215,16 @@
         <!-- The Coding Agent's chat (the page passes it in): kept mounted while a file is in front, so a running chat
              is never stopped or reloaded by switching tabs. -->
         <div v-show="chatFront" class="chat-host" data-test="cb-chat-host"><slot name="chat" /></div>
+        <!-- Review the Coding Agent's changes since a message (ADM-1314, ADM-1329): one per message, kept mounted while
+             another tab is in front, so the change shown, the cursor and comments not sent yet are still there. -->
+        <ReviewChanges
+          v-for="rt in reviewTabs" v-show="!chatFront && activeTabId === rt.id" :key="rt.id"
+          :system-id="systemId" :repo-id="repositoryId" :message-id="rt.messageId" :conversation-id="rt.conversationId"
+          :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :theme="monacoTheme" :monaco="() => monacoNs"
+          :is-unsaved="isUnsavedPath" :send="sendReview"
+          @written="onReviewWritten" @loaded="(n) => onReviewLoaded(rt, n)" @comments="(n) => { rt.comments = n }"
+          @open-file="openFile"
+        />
         <template v-if="!chatFront">
         <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
              as VS Code shows it. Read-only: edits are made in the file's own tab. -->
@@ -237,6 +248,8 @@
             @editorDidMount="onDiffMount"
           />
         </template>
+        <!-- A Review tab is drawn above (ReviewChanges); nothing else shows under it. -->
+        <span v-else-if="activeTab && activeTab.type === 'review'" hidden></span>
         <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
              also be opened as its code. -->
         <div v-else-if="activeTab && activeTab.type === 'image'" class="image-view">
@@ -349,6 +362,7 @@ import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf, setup
 import { DEBUGGER } from '@/stores/useDebugger'
 import { bindConflictActions } from '@/utils/mergeConflicts'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
+import ReviewChanges from '@/components/letscode/ReviewChanges.vue'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -407,7 +421,9 @@ const props = defineProps({
 })
 // A new project was published to GitHub from Source control: the page reloads the project (its GitHub address,
 // its branches).
-const emit = defineEmits(['published', 'branch', 'ask-selection'])
+// send-review: the Review tab's comments, as one message for the chat that made the change ({ conversationId, text,
+// done(ok) }: the page answers whether the chat took it).
+const emit = defineEmits(['published', 'branch', 'ask-selection', 'send-review'])
 
 // State
 const sidebarTab = ref('files')
@@ -1060,7 +1076,29 @@ function showSourceControl() {
 }
 // How many open files have edits that are not saved: the IDE asks before leaving the project or the page (ADM-1200).
 const unsavedCount = computed(() => openTabs.value.filter(isDirty).length)
-defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount })
+
+// "Review changes" from the chat (ADM-1314): the changes since that message, in a Review tab of their own. One tab per
+// message: asked again, the tab already open comes in front.
+const reviewTabs = computed(() => openTabs.value.filter(t => t.type === 'review'))
+const reviewName = (n) => `Review: ${n} ${n === 1 ? 'file' : 'files'}`
+function openReview({ messageId, conversationId = null, count = 0 } = {}) {
+  if (messageId == null || messageId === '') return
+  showFilesInFront()
+  const existing = openTabs.value.find(t => t.type === 'review' && String(t.messageId) === String(messageId))
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = { id: nextTabId(), type: 'review', path: '', messageId, conversationId, name: reviewName(count), comments: 0 }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+}
+function onReviewLoaded(tab, n) { tab.name = reviewName(n) }
+// A file the review wrote or deleted: its folder is read again, as when the project's watcher reports it, so its tab
+// (without unsaved edits) shows it at once.
+function onReviewWritten(path) { onFilesChanged({ dirs: [dirOf(path || '')] }) }
+function isUnsavedPath(path) { return openTabs.value.some(t => t.type === 'file' && t.path === path && isDirty(t)) }
+function sendReview({ conversationId, text }) {
+  return new Promise((resolve) => emit('send-review', { conversationId, text, done: (ok) => resolve(!!ok) }))
+}
+defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openReview })
 
 // PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
 // bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a
@@ -1190,6 +1228,14 @@ async function closeTab(tabId) {
   if (index === -1) return
 
   const tab = openTabs.value[index]
+  if (tab.type === 'review' && tab.comments > 0) {
+    const ok = await confirm({
+      title: 'Discard your comments?',
+      message: `"${tab.name}" has ${tab.comments} ${tab.comments === 1 ? 'comment' : 'comments'} not sent to the Coding Agent. Close without sending?`,
+      confirmText: 'Close', cancelText: 'Keep reviewing', danger: true,
+    })
+    if (!ok) return
+  }
   if (isDirty(tab)) {
     const ok = await confirm({
       title: 'Discard unsaved changes?',

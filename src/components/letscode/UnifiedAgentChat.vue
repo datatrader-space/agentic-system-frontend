@@ -62,6 +62,11 @@
               <Icon icon="lucide:file-diff" aria-hidden="true" />
               <span class="ai-changes-text">{{ changesText(message.lcCard.changes) }}</span>
               <button type="button" class="ai-changes-open" @click="emit('view-changes')">View changes</button>
+              <!-- ADM-1314: the changes since the message that started this turn, one at a time, in a Review tab. -->
+              <button v-if="message.lcCard.changes.files && message.lcCard.changes.files.length" type="button"
+                      class="ai-changes-open ai-changes-review" data-test="review-changes" @click="reviewChanges(message)">
+                Review changes
+              </button>
             </div>
             <div v-if="message.lcCard.preview" class="ai-preview">
               <Icon icon="lucide:monitor-play" aria-hidden="true" />
@@ -170,7 +175,7 @@ const props = defineProps({
   repoId: { type: [String, Number], required: true },
   crsReady: { type: Boolean, default: false },
 })
-const emit = defineEmits(['changes', 'activity', 'view-changes', 'open-preview'])
+const emit = defineEmits(['changes', 'activity', 'view-changes', 'review-changes', 'open-preview'])
 
 const chat = useChatStore()
 const input = ref('')
@@ -529,6 +534,64 @@ function changesText(ch) {
   return others > 0 ? `${head} · ${others} more ${others === 1 ? 'change' : 'changes'} not committed` : head
 }
 
+// "Review changes" (ADM-1314): the review is of the person's message that started this answer's turn: the first of
+// the person's messages after the answer before it (a message sent while the agent worked steers the same turn). A
+// message sent here has its saved id once the turn has ended (refreshRestorePoints); it is read again if not yet.
+function turnMessageOf(answer) {
+  const list = chat.messages
+  const at = list.indexOf(answer)
+  if (at < 0) return null
+  let found = null
+  for (let i = at - 1; i >= 0; i--) {
+    const m = list[i]
+    if (m.role === 'assistant') break
+    if (m.role === 'user' && m.authoredBy !== 'system') found = m
+  }
+  return found
+}
+async function reviewChanges(answer) {
+  let msg = turnMessageOf(answer)
+  if (msg && msg.serverId == null) {
+    try { await chat.refreshRestorePoints() } catch { /* said below */ }
+    msg = turnMessageOf(answer)
+  }
+  if (!msg || msg.serverId == null) {
+    notify.error('This message is not saved yet, so its changes cannot be reviewed. Try again in a moment.')
+    return
+  }
+  emit('review-changes', { messageId: msg.serverId, conversationId: chat.conversationId || null,
+                           count: (answer.lcCard?.changes?.files || []).length })
+}
+
+// The Review tab's comments (ADM-1329): ONE message to the chat that made the change, the way the editor's "Ask the
+// Coding Agent about this" reaches it. That chat's tab is opened (or brought in front); a chat that cannot be opened
+// leaves the one in front to take it. The words in the box and its files stay for the person's own next message.
+async function sendReview({ conversationId = null, text = '' } = {}) {
+  const msg = String(text || '').trim()
+  if (!msg || !props.crsReady || !agentId.value) return false
+  const cid = conversationId != null && conversationId !== '' ? String(conversationId) : ''
+  if (cid && cid !== String(chat.conversationId || '')) {
+    resumeCancelled = true
+    try { await openConversation({ id: cid }) } catch { /* the chat in front takes it */ }
+  }
+  tabsStore.front = true
+  const held = chat.pendingAttachments.slice()
+  chat.pendingAttachments = []
+  let ok = false
+  try {
+    ok = !!(await chat.sendMessage(msg))
+  } finally {
+    if (held.length) chat.pendingAttachments = [...held, ...chat.pendingAttachments]
+  }
+  if (ok) {
+    lastUserPrompt.value = msg
+    lastCodeContext = null
+    activity.length = 0
+    scrollDown()
+  }
+  return ok
+}
+
 function openPreview(c) {
   // The IDE's Preview tab on that port (ADM-1205 phase D): it asks AADML for a fresh signed link, after AADML has woken
   // the sandbox and started the app again when it had stopped. "Open in a new tab" is there too.
@@ -602,7 +665,7 @@ onBeforeUnmount(() => {
   if (previous) { chat.repoId = previous.repoId || 0; if (previous.agentId) chat.selectedAgentId = previous.agentId }
 })
 
-defineExpose({ send, addSelection })
+defineExpose({ send, addSelection, sendReview })
 </script>
 
 <style scoped>

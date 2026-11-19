@@ -547,8 +547,11 @@ export default {
     }),
   // `sha`: the version the editor opened (files/content's sha, ADM-1323). A file that changed since answers 409
   // CHANGED_ON_DISK and nothing is written; without a sha the save overwrites what is there.
-  saveFileContent: (systemId, repoId, path, content, sha) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, sha ? { path, content, sha } : { path, content }),
+  // `{ newFile: true }` writes only a file that is not there (409 { code: 'EXISTS' } otherwise): the review tab
+  // restoring a file the Coding Agent deleted (ADM-1314).
+  saveFileContent: (systemId, repoId, path, content, sha, { newFile = false } = {}) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`,
+      { path, content, ...(sha ? { sha } : {}), ...(newFile ? { new: true } : {}) }),
   // A Python file's text formatted by the project's own formatter (ruff, else black) in its sandbox (ADM-1319). The
   // text is sent, not read from disk, so unsaved edits are formatted; nothing is written.
   // -> 200 { content, formatter: 'ruff' | 'black', changed }; 400 { error } not Python or a bad path; 403 { error,
@@ -563,8 +566,9 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/files/create/`, { path, type }),
   renameRepositoryEntry: (systemId, repoId, path, newPath) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/rename/`, { path, new_path: newPath }),
-  deleteRepositoryEntry: (systemId, repoId, path) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, { path }),
+  // With `sha` (one file's version, ADM-1314) nothing is deleted when the file changed since: 409 CHANGED_ON_DISK.
+  deleteRepositoryEntry: (systemId, repoId, path, sha) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, sha ? { path, sha } : { path }),
   // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top). Sent as multipart, said
   // explicitly: the instance's JSON default otherwise went out with the form and the server read no files (live,
   // 2026-11-11: "Choose files to upload.").
@@ -1017,6 +1021,12 @@ export default {
   // Put the project's files back to the checkpoint taken before a chat message's turn changed them (git-ignored files
   // are not touched). 200 on success; an error carries `error`.
   restoreLetsCodeMessage: (repoId, messageId) => api.post(`/lets-code/projects/${repoId}/messages/${messageId}/restore/`),
+  // What the Coding Agent changed since a chat message (that message's turn and later edits), to review one change at a
+  // time (ADM-1314). -> 200 { message_id, checkpoint, files: [{ path, status: 'added' | 'modified' | 'deleted',
+  // before, after, sha (sha256 of the file on disk now, null when it is gone), binary?, redacted? }] }; 404 not the
+  // person's; 409 { code: 'NO_CHECKPOINT' } the turn changed nothing; 503 RUNNER_STARTING / SANDBOX_NOT_ANSWERING.
+  getLetsCodeMessageReview: (repoId, messageId) =>
+    api.get(`/lets-code/projects/${repoId}/messages/${messageId}/review/`, { noCache: true }),
   // How the project is installed, built, tested, linted, type-checked and run, and its port: filled in by the Coding
   // Agent from commands that worked, editable by the person. { facts: { install, build, test, lint, typecheck, serve, port }, updated_at }
   getProjectFacts: (repoId) => api.get(`/lets-code/projects/${repoId}/facts/`, { noCache: true }),
