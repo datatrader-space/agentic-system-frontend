@@ -187,4 +187,6 @@ test('the Train page describes the chosen model size and offers a comparison of 
   assert.ok(studio.includes('Measured on everyday objects, not on your walls'), 'the published figures say what they measure');
   assert.ok(studio.includes('<summary>Compare all sizes</summary>'), 'every size can be compared');
   assert.ok(studio.includes('<option>XLarge</option><option>2XLarge</option>'), 'the preview lists every size');
+  // Live, 2026-11-19: below the form the panel sat under "GPU it trains on" and read as the GPU's; it follows the size row.
+  assert.ok(studio.includes('max="500"></label><section v-if="live&&page==='train'&&!openChoice&&sizeDetails.length" class="size-about"'), 'the panel sits under the Model size row');
 });
