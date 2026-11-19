@@ -30,7 +30,7 @@ test('click-object candidate appends to existing manual annotations only on Appl
   const w=render();await flushPromises();
   await w.get('[aria-label="SAM 3 click to label (A)"]').trigger('click');
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
-  expect(api.segmentPoint).toHaveBeenCalledWith('~901','image-1','product logo',{coords:[[600,400]],labels:[1]},'');
+  expect(api.segmentPoint).toHaveBeenCalledWith('~901','image-1','product logo',{coords:[[600,400]],labels:[1]});
   expect(w.findAll('.shape-list button')).toHaveLength(1);
   expect(w.findAll('.sam-candidate polygon')).toHaveLength(1);
   await button(w,'Apply object outline').trigger('click');

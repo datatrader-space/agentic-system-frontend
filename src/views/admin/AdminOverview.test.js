@@ -14,7 +14,7 @@ describe('Admin overview',()=>{
     expect(wrapper.text()).toContain('$0.00000017')
     expect(wrapper.text()).toContain('Users in report')
     expect(wrapper.text()).not.toContain('Active Users')
-    expect(wrapper.findAll('.ov-tool')).toHaveLength(31)
+    expect(wrapper.findAll('.ov-tool')).toHaveLength(32)
     expect(wrapper.findAll('.ov-tool').some(e => e.attributes('href') === '/admin-dashboard/oauth-providers')).toBe(true)
     await wrapper.get('input[type=search]').setValue('prepaid')
     expect(wrapper.findAll('.ov-tool')).toHaveLength(1)
