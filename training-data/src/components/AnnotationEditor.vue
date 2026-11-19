@@ -250,10 +250,6 @@ async function runDetect(id,refine=null,find=null){clearTimeout(pollTimer);const
     if(body.state==='waiting'){detecting.value={...body,id,refine};pollTimer=setTimeout(()=>runDetect(id,refine,find),4000);return;}
     if(refine)applyRefine(body,refine);else showFound(body,find);}
   catch(e){if(item.value!==it)return;detecting.value=null;detectError.value=e.message;if(!detectOpen.value)hint.value=`${source.name} did not answer. ${e.message}`;}}
-function wordsOf(report){const did=[];if(report.cut)did.push(`cut at ${report.cut} room corner${report.cut===1?'':'s'}`);
-  if(report.straightened)did.push(`${report.straightened} wall${report.straightened===1?'':'s'} brought to ${report.straightened===1?'its':'their'} corners`);
-  if(report.moved)did.push(`${report.moved} door or window${report.moved===1?'':'s'} brought inside ${report.moved===1?'its':'their'} wall`);
-  if(report.repaired)did.push(`${report.repaired} shape${report.repaired===1?'':'s'} that crossed ${report.repaired===1?'itself':'themselves'} redrawn round ${report.repaired===1?'its':'their'} outline`);return did.join(', ');}
 // The answer, shown on the photo before anything is added (a "Basic Detector" answer tidied first by the old editor's
 // rules, geometry.js tidyUp). The model used is kept as this person's choice, offered first next time.
 function showFound(body,find){const W=meta.value.photo.width,H=meta.value.photo.height;detecting.value=null;closePop();cancelDrawing();
@@ -267,7 +263,7 @@ async function saveFound(){const f=found.value;const kept=foundKept.value;if(!f|
     try{const body=await liveApi.addClass(props.state.ref,{name:f.cls,description:findDescription.value.trim()});props.state.classes=classesOf(body.classes);}
     catch(e){detectError.value=`"${f.cls}" was not added to the project's classes, so nothing was added. ${e.message}`;return;}
     finally{findSaving.value=false;}}
-  remember();const before=shapes.value.length;shapes.value=[...shapes.value,...kept.map(({score,...shape})=>shape)];
+  remember();const before=shapes.value.length;shapes.value=[...shapes.value,...kept.map(({score:_score,...shape})=>shape)];
   if(!before){meta.value.started_from='from_ai';meta.value.started_model=f.started_model;}
   empty.value=false;selected.value=null;dirty.value=true;found.value=null;detectOpen.value=false;
   hint.value=`${kept.length} ${f.cls} shape${kept.length===1?'':'s'} from ${f.name} added beside what was drawn. A head start, not a label: check each one; Ctrl+Z takes them away.${f.research_only?' The model is for research or evaluation only, and the label says so.':''}`;}

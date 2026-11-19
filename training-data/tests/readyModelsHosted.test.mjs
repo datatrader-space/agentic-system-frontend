@@ -87,7 +87,7 @@ test('the API sends no place: detect, detect-preference and segment-point take n
 
 test('Auto Label chooses no place, says its price an image, and keeps no place in its workflow', () => {
   assert.doesNotMatch(autoLabel, /sentWhere|v-model:where|placeOf|whereFor|\bwhere\.value|config\.where|body\.where|place\.value|place\.price/);
-  assert.match(autoLabel, /const definition = computed\(\(\) => \(\{ schema: 'aadml\.labeling-workflow\.v1', source: chosen\.value,\n  classes:/);
+  assert.match(autoLabel, /const definition = computed\(\(\) => \(\{ schema: 'aadml\.labeling-workflow\.v1', source: chosen\.value,\n {2}classes:/);
   assert.match(autoLabel, /api\.detect\(props\.state\.ref, preview\.image\.id, chosen\.value, asked\.value\)/);
   assert.match(autoLabel, /emit\('autolabel', chosen\.value\)/);
   assert.match(autoLabel, /<span>\{\{ current\.hosted\?\.price \|\| 'Uses balance' \}\}<\/span>/);
