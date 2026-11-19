@@ -10,7 +10,8 @@ export function isStarting(error) {
   return r?.status === 503 && r?.data?.code === 'RUNNER_STARTING'
 }
 
-function retryAfterSeconds(error) {
+/** How long the server asked to wait before trying again (its Retry-After, else `retry_after_seconds`), 2..60 s. */
+export function retryAfterSeconds(error) {
   const header = Number(error?.response?.headers?.['retry-after'])
   const body = Number(error?.response?.data?.retry_after_seconds)
   const s = Number.isFinite(header) && header > 0 ? header : (Number.isFinite(body) && body > 0 ? body : 15)

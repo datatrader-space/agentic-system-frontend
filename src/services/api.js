@@ -552,7 +552,10 @@ export default {
   // A Python file's text formatted by the project's own formatter (ruff, else black) in its sandbox (ADM-1319). The
   // text is sent, not read from disk, so unsaved edits are formatted; nothing is written.
   // -> 200 { content, formatter: 'ruff' | 'black', changed }; 400 { error } not Python or a bad path; 403 { error,
-  // outside: true }; 422 { error, code: 'FORMAT_FAILED', detail } (the formatter refused, e.g. a syntax error).
+  // outside: true }; 422 { error, code: 'FORMAT_FAILED', detail } (the formatter refused, e.g. a syntax error);
+  // 503 { error, code: 'FORMATTER_PREPARING', retry_after_seconds } (the project's first format: the formatter is being
+  // installed, in the background); 502 { error, code: 'FORMATTER_UNAVAILABLE', detail } (that install failed; detail is
+  // its log, whole); 503 { error, code: 'SANDBOX_NOT_ANSWERING', retry_after_seconds } (the request's 45 s budget ran out).
   formatRepositoryFile: (systemId, repoId, path, content) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/format/`, { path, content }),
   // The explorer's file actions (ADM-1205). Nothing is ever replaced unless `overwrite` says so.

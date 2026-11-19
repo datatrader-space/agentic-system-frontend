@@ -107,6 +107,40 @@ describe('CodeBrowser: format on save (ADM-1319)', () => {
     w.unmount()
   })
 
+  it('Python formatting still being set up never holds the save: saved unformatted with its sha, one notification', async () => {
+    useEditorSettings().settings.formatOnSave = true
+    languages.formatEdits.mockRejectedValueOnce(Object.assign(
+      new Error('Python formatting is being set up in your project (first time only). Try again in a minute.'),
+      { preparing: true, retryAfter: 30 }))
+    const { w, st } = await editedPython()
+    await st.saveActive()
+    expect(lastSave()).toEqual([5, 4, 'app.py', 'x=2', SHA1])
+    expect(fileTab(st, 'app.py')).toMatchObject({ content: 'x=2', original: 'x=2', diskSha: SHA2 })
+    expect(notify.info).toHaveBeenCalledTimes(1)
+    expect(notify.info).toHaveBeenCalledWith('app.py was saved without formatting: Python formatting is being set up in '
+      + 'your project (first time only). It will format once setup finishes.')
+    expect(notify.warning).not.toHaveBeenCalled()
+    expect(notify.error).not.toHaveBeenCalled()
+    expect(notify.success).toHaveBeenCalledWith('Saved app.py')
+    w.unmount()
+  })
+
+  it('Python formatting that could not be set up never stops the save: saved with its sha, one notification with the log', async () => {
+    useEditorSettings().settings.formatOnSave = true
+    languages.formatEdits.mockRejectedValueOnce(Object.assign(
+      new Error("Python formatting could not be set up in your project's sandbox."), { setupLog: 'ERROR: no ruff\n' }))
+    const { w, st } = await editedPython()
+    await st.saveActive()
+    expect(lastSave()).toEqual([5, 4, 'app.py', 'x=2', SHA1])
+    expect(notify.warning).toHaveBeenCalledTimes(1)
+    expect(notify.warning).toHaveBeenCalledWith("app.py was saved without formatting: Python formatting could not be set "
+      + "up in your project's sandbox. Click this notification to copy the setup log.",
+    expect.objectContaining({ onClick: expect.any(Function) }))
+    expect(notify.error).not.toHaveBeenCalled()
+    expect(notify.success).toHaveBeenCalledWith('Saved app.py')
+    w.unmount()
+  })
+
   it('a file with no formatter is saved without asking for one', async () => {
     useEditorSettings().settings.formatOnSave = true
     const w = await browser()

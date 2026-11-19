@@ -345,7 +345,7 @@ import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
-import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf } from '@/stores/useLanguageServers'
+import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf, setupLogNotification } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
 import { bindConflictActions } from '@/utils/mergeConflicts'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
@@ -587,7 +587,13 @@ async function formatBeforeSave(tab) {
   try {
     edits = await languages.formatEdits(tab.path, text)
   } catch (e) {
-    notify.warning(`${tab.name} was saved without formatting: ${e.message}`)
+    // Python formatting still being set up (the project's first format) or not set up: the save goes on unformatted.
+    if (e.preparing) {
+      notify.info(`${tab.name} was saved without formatting: Python formatting is being set up in your project `
+        + '(first time only). It will format once setup finishes.')
+    } else {
+      notify.warning(...setupLogNotification(`${tab.name} was saved without formatting: ${e.message}`, e))
+    }
     return
   }
   if (!edits.length) return

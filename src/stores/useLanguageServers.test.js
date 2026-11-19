@@ -463,4 +463,97 @@ describe('editing through the language servers (ADM-1319)', () => {
     expect(s.canFormat('main.py')).toBe(true)
     expect(s.canFormat('README.md')).toBe(false)
   })
+
+  function pythonFormat(project = { systemId: 5, repoId: 4 }) {
+    const e = editorCtx()
+    e.tabs.value = [{ id: 1, type: 'file', path: 'main.py', content: 'x=1\n', original: 'x=1\n' }]
+    const s = createLanguageServers({ ...project, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    return { e, s, format: e.providers.formatting.python }
+  }
+  const PREPARING = 'Python formatting is being set up in your project (first time only). Try again in a minute.'
+  const preparing = () => ({ response: { status: 503,
+    data: { error: PREPARING, code: 'FORMATTER_PREPARING', retry_after_seconds: 30 } } })
+
+  it('Python formatting being set up: one info notification with the server words, the text kept, no retry', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-11-19T10:00:00Z'))
+      const { e, format } = pythonFormat()
+      const timers = vi.getTimerCount()
+      api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+      expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+      expect(api.formatRepositoryFile).toHaveBeenCalledTimes(1)                   // whileSandboxStarts did not wait
+      expect(notify.info).toHaveBeenCalledTimes(1)
+      expect(notify.info).toHaveBeenCalledWith(PREPARING)
+      expect(notify.error).not.toHaveBeenCalled()
+      expect(e.tabs.value[0].content).toBe('x=1\n')
+      expect(vi.getTimerCount()).toBe(timers)                                     // nothing scheduled to try again
+      // Pressed again within the server's 30 s: the server is asked (setup may be done) but nothing new is said.
+      vi.setSystemTime(new Date('2026-11-19T10:00:20Z'))
+      api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+      expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+      expect(api.formatRepositoryFile).toHaveBeenCalledTimes(2)
+      expect(notify.info).toHaveBeenCalledTimes(1)
+      // After the window it is said again.
+      vi.setSystemTime(new Date('2026-11-19T10:00:31Z'))
+      api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+      await format.provideDocumentFormattingEdits(e.model)
+      expect(notify.info).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the quiet window is per project: another project is told at once', async () => {
+    const a = pythonFormat({ systemId: 5, repoId: 4 })
+    api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+    await a.format.provideDocumentFormattingEdits(a.e.model)
+    let repo = 4
+    const b = pythonFormat({ systemId: 5, repoId: () => repo })
+    api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+    await b.format.provideDocumentFormattingEdits(b.e.model)
+    expect(notify.info).toHaveBeenCalledTimes(2)                                 // two stores, each says it once
+    api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+    await b.format.provideDocumentFormattingEdits(b.e.model)
+    expect(notify.info).toHaveBeenCalledTimes(2)
+    repo = 9                                                                     // the page swapped projects
+    api.formatRepositoryFile.mockRejectedValueOnce(preparing())
+    await b.format.provideDocumentFormattingEdits(b.e.model)
+    expect(notify.info).toHaveBeenCalledTimes(3)
+  })
+
+  it('Python formatting that could not be set up: an error notification, and a click copies the whole setup log', async () => {
+    const { e, format } = pythonFormat()
+    const log = 'Collecting ruff\nERROR: Could not find a version that satisfies the requirement ruff\n'
+    api.formatRepositoryFile.mockRejectedValueOnce({ response: { status: 502, data: {
+      error: "Python formatting could not be set up in your project's sandbox.", code: 'FORMATTER_UNAVAILABLE', detail: log } } })
+    expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+    expect(api.formatRepositoryFile).toHaveBeenCalledTimes(1)
+    expect(e.tabs.value[0].content).toBe('x=1\n')
+    expect(notify.error).toHaveBeenCalledTimes(1)
+    const [message, options] = notify.error.mock.calls[0]
+    expect(message).toBe("The file was not formatted: Python formatting could not be set up in your project's sandbox. "
+      + 'Click this notification to copy the setup log.')
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    try {
+      options.onClick()
+      await Promise.resolve(); await Promise.resolve()
+      expect(writeText).toHaveBeenCalledWith(log)
+      expect(notify.success).toHaveBeenCalledWith('The setup log was copied.')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('a sandbox that did not answer in time: an info notification, the text kept, no retry', async () => {
+    const { e, format } = pythonFormat()
+    api.formatRepositoryFile.mockRejectedValueOnce({ response: { status: 503, data: {
+      error: "The project's sandbox did not answer in time.", code: 'SANDBOX_NOT_ANSWERING', retry_after_seconds: 10 } } })
+    expect(await format.provideDocumentFormattingEdits(e.model)).toEqual([])
+    expect(api.formatRepositoryFile).toHaveBeenCalledTimes(1)
+    expect(notify.info).toHaveBeenCalledWith("The project's sandbox did not answer in time. The file was not formatted.")
+    expect(e.tabs.value[0].content).toBe('x=1\n')
+  })
 })

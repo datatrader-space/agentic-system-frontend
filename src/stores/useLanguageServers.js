@@ -25,7 +25,7 @@ import api from '@/services/api'
 import { LspConnection, lspSocketUrl } from '@/services/lspClient'
 import { notify } from '@/composables/useNotify'
 import { useEditorSettings } from '@/composables/useEditorSettings'
-import { whileSandboxStarts } from '@/utils/sandboxStarting'
+import { whileSandboxStarts, retryAfterSeconds } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 
 export const LANGUAGE_SERVERS = Symbol('lets-code-language-servers')
@@ -232,6 +232,19 @@ const CODE_ACTION_COMMAND = 'lets-code.lsp.code-action'
 const STARTING = 'The language server is still starting. Try again in a moment.'
 const notReady = (why) => Object.assign(new Error(why), { notReady: true })
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/** The arguments of a notification about a formatting error. One carrying the formatter's setup log (code
+ *  FORMATTER_UNAVAILABLE: the install log, whole) stays short: it says a click copies the log, and the click does. */
+export function setupLogNotification(message, error) {
+  const log = error && error.setupLog
+  if (!log) return [message]
+  const copy = () => {
+    const clip = typeof navigator !== 'undefined' ? navigator.clipboard : null
+    const done = clip && clip.writeText ? clip.writeText(log) : Promise.reject(new Error('no clipboard'))
+    done.then(() => notify.success('The setup log was copied.'), () => notify.error('The setup log could not be copied.'))
+  }
+  return [`${message} Click this notification to copy the setup log.`, { timeout: 15000, onClick: copy }]
+}
 
 // `systemId` / `repoId`: values, or functions giving the open project's (the page keeps one store and swaps projects).
 export function createLanguageServers({ systemId, repoId, Connection = LspConnection, urlFor = lspSocketUrl } = {}) {
@@ -473,6 +486,21 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         if (d && d.code === 'FORMAT_FAILED') {
           throw new Error([d.error || 'The formatter refused this file.', d.detail].filter(Boolean).join(' '), { cause: e })
         }
+        // The project's first format: the formatter is being installed in the sandbox, in the background. Nothing waits
+        // or retries here (whileSandboxStarts retries only RUNNER_STARTING); the person tries again later.
+        if (d && d.code === 'FORMATTER_PREPARING') {
+          throw Object.assign(new Error(d.error || 'Python formatting is being set up in your project. Try again in a minute.',
+            { cause: e }), { preparing: true, retryAfter: retryAfterSeconds(e) })
+        }
+        // The install failed: its log (whole) goes with the error, for setupLogNotification.
+        if (d && d.code === 'FORMATTER_UNAVAILABLE') {
+          throw Object.assign(new Error(d.error || "Python formatting could not be set up in your project's sandbox.",
+            { cause: e }), { setupLog: typeof d.detail === 'string' && d.detail ? d.detail : '' })
+        }
+        // The sandbox did not answer within the request's budget: a passing state, said like a server still starting.
+        if (d && d.code === 'SANDBOX_NOT_ANSWERING') {
+          throw Object.assign(notReady(d.error || "The project's sandbox did not answer in time. Try again."), { cause: e })
+        }
         throw new Error(d?.error || 'The file could not be formatted. Try again.', { cause: e })
       }
       if (!data || !data.changed || typeof data.content !== 'string' || data.content === text) return []
@@ -493,7 +521,10 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     return Array.isArray(edits) ? edits : []
   }
 
-  // Monaco's Format Document / Format Selection: the edits, or a notification saying why there are none.
+  // Monaco's Format Document / Format Selection: the edits, or a notification saying why there are none. While Python
+  // formatting is being set up in a project, its notification is shown once per the server's retry window: pressing
+  // again within it still asks the server (setup may have finished) but says nothing new.
+  const preparingQuietUntil = new Map()      // `${systemId}/${repoId}` -> time (ms) until which it is not said again
   async function monacoFormat(model, range) {
     const path = activeFile(model)
     if (!path) return []
@@ -501,8 +532,14 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       const edits = await formatEdits(path, model.getValue(), range ? lspRangeOf(range) : null)
       return edits.map((e) => ({ range: rangeOf(e.range), text: e.newText ?? '' }))
     } catch (e) {
-      if (e.notReady) notify.info(`${e.message} The file was not formatted.`)
-      else notify.error(`The file was not formatted: ${e.message}`)
+      if (e.preparing) {
+        const project = `${val(systemId)}/${val(repoId)}`
+        if (Date.now() >= (preparingQuietUntil.get(project) || 0)) {
+          preparingQuietUntil.set(project, Date.now() + e.retryAfter * 1000)
+          notify.info(e.message)
+        }
+      } else if (e.notReady) notify.info(`${e.message} The file was not formatted.`)
+      else notify.error(...setupLogNotification(`The file was not formatted: ${e.message}`, e))
       return []
     }
   }
