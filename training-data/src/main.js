@@ -1,14 +1,7 @@
 import { createApp, reactive } from 'vue';
-import App from './App.vue';
-import './styles.css';
-import './studio.css';
-import './aadml-theme.css';
 import { loadSession } from './api/session.js';
-import { signInUrl } from './api/client.js';
+import { ApiError, signInUrl } from './api/client.js';
 
-import PhoneUpload from './components/PhoneUpload.vue';
-import PhoneCameraScan from './components/PhoneCameraScan.vue';
-import PhoneCameraSend from './components/PhoneCameraSend.vue';
 import { cameraSecret, phoneCamSecret, phoneSecret } from './api/phone.js';
 import { watchForUpdates } from './api/updateCheck.js';
 
@@ -36,18 +29,32 @@ const phoneCam = secret || pairing ? '' : phoneLink('phonecam', phoneCamSecret);
 // Nothing else shows until AADML says who is signed in. A signed-out person goes to the AADML login page, which sends
 // them back to this exact page afterwards.
 // A tab opened before an AADML update says so and offers a reload (api/updateCheck.js), on every page here.
+// Each page's code is loaded only when it is the page shown (live, 2026-11-18: a phone on slow mobile data waited for
+// the whole 1.4 MB app, phone pages included, and showed nothing until it came). The signed-in app is loaded while
+// AADML is asked who is signed in, so it costs no extra wait.
 watchForUpdates();
-if (secret) createApp(PhoneUpload, { secret }).mount('#training-data-app');
-else if (pairing) createApp(PhoneCameraScan, { secret: pairing }).mount('#training-data-app');
-else if (phoneCam) createApp(PhoneCameraSend, { secret: phoneCam }).mount('#training-data-app');
-else loadSession().then(session => {
-  if (!session.signedIn) { window.location.assign(signInUrl()); return; }
-  createApp(App).provide('session', reactive(session)).mount('#training-data-app');
-}).catch(error => {
+function mountPhonePage(load, props) {
+  Promise.all([import('./phoneStyles.js'), load()])
+    .then(([styles, page]) => { styles.addPhoneStyles(); createApp(page.default, props).mount('#training-data-app'); })
+    .catch(showError);
+}
+if (secret) mountPhonePage(() => import('./components/PhoneUpload.vue'), { secret });
+else if (pairing) mountPhonePage(() => import('./components/PhoneCameraScan.vue'), { secret: pairing });
+else if (phoneCam) mountPhonePage(() => import('./components/PhoneCameraSend.vue'), { secret: phoneCam });
+else {
+  const app = import('./appEntry.js');
+  app.catch(() => { /* said by the step below, once the sign-in is known */ });
+  loadSession().then(async session => {
+    if (!session.signedIn) { window.location.assign(signInUrl()); return; }
+    createApp((await app).default).provide('session', reactive(session)).mount('#training-data-app');
+  }).catch(showError);
+}
+function showError(error) {
   const root = document.getElementById('training-data-app');
   root.setAttribute('role', 'alert');
   root.style.cssText = 'font:14px/1.6 Inter,system-ui,sans-serif;color:#334155;padding:48px 24px;text-align:center';
-  // The message may end by saying to try again already (api/client.js); the page says it once.
-  const said = String(error?.message || 'Could not reach AADML.').replace(/\s*(Check your connection and )?try again\.?$/i, '.').replace(/\.\.$/, '.');
+  // AADML's own message (api/client.js) may end by saying to try again already; the page says it once. Anything else
+  // (a page's code that did not download) is said plainly, never the browser's own text with its address.
+  const said = String((error instanceof ApiError && error.message) || 'This page did not load. Check your connection.').replace(/\s*(Check your connection and )?try again\.?$/i, '.').replace(/\.\.$/, '.');
   root.textContent = `${said} Reload the page to try again.`;
-});
+}
