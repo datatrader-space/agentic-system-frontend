@@ -8,7 +8,7 @@
 // "Read barcodes" (backend barcodes.py) reads the barcodes and QR codes of each frame, alone or after the model; each
 // frame read costs a share of a photo call (a tenth unless the platform changes it: options.codes.photo_calls_a_read),
 // and the codes read show newest first.
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, provide, ref, watch } from 'vue';
 import {
   Bell, Cctv, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
 } from 'lucide-vue-next';
@@ -16,6 +16,7 @@ import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import VideoSources from './VideoSources.vue';
 import CameraRecordings from './CameraRecordings.vue';
+import StreamingTermsDialog from './StreamingTermsDialog.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -23,7 +24,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
-  sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText,
+  sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText, termsRequired,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -127,6 +128,27 @@ function keptView() { try { return sessionStorage.getItem(VIEW_KEY) === 'recordi
 const view = ref(keptView());
 watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
 function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
+// The Terms and the Privacy Policy, accepted once before a first camera or stream (StreamingTermsDialog.vue): what the
+// person asked for opens right after. The server refuses those until then (428 terms_required): such a refusal opens
+// this window too (an older page, or acceptance withdrawn elsewhere).
+const termsOpen = ref(false); let afterTerms = null;
+const terms = computed(() => page.value?.terms || null);
+function ensureTerms(next) {
+  if (!terms.value || terms.value.accepted) return true;
+  afterTerms = next || null; termsOpen.value = true;
+  return false;
+}
+function termsNeeded() {
+  if (page.value) page.value = { ...page.value, terms: { ...(page.value.terms || {}), accepted: false } };
+  afterTerms = null; termsOpen.value = true;
+}
+function termsAccepted(state) {
+  if (page.value) page.value = { ...page.value, terms: state };
+  termsOpen.value = false;
+  const next = afterTerms; afterTerms = null;
+  if (next) next();
+}
+provide('streamingTerms', { ensure: ensureTerms, needed: termsNeeded })
 // "Offline notifications": what is sent and to whom (backend camera_management.py OFFLINE NOTICES; live, 2026-11-19:
 // this dialog still said "coming soon" after the notices shipped), and how often cameras are checked (camera_watch.py).
 // The e-mail's switch is in AADML's Settings.
@@ -173,6 +195,7 @@ watch(() => form.value.project, () => {
 // Opened from the header (no source), from a saved camera's "Start stream" (that camera, its default project first),
 // or from one of its recordings' "Use in project" (that recording, read in place: never continuous).
 function openCreate(saved = null, recording = null) {
+  if (!ensureTerms(() => openCreate(saved, recording))) return;
   const own = saved?.project?.ref ? options.value.projects.find(p => p.ref === saved.project.ref && p.models.length) : null;
   const first = own || options.value.projects.find(p => p.models.length) || options.value.projects[0];
   form.value = {
@@ -217,6 +240,7 @@ async function startStream() {
     if (sourceOpen.value) sourcesRef.value?.refreshDetail?.();
     else if (body?.stream) openStream(body.stream);
   } catch (e) {
+    if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
     if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
@@ -488,6 +512,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
         </div>
       </form>
     </UiDialog>
+
+    <StreamingTermsDialog :open="termsOpen" :terms="terms" @close="termsOpen = false" @accepted="termsAccepted"/>
 
     <UiDialog :open="notifying" title="Offline notifications" @close="notifying=false">
       <p class="dialog-description">When a camera goes offline or needs attention, the workspace's Admins and the organization's owners are told under the bell in AADML and by e-mail, at most once an hour a camera, and again once when it is back online.</p>

@@ -13,7 +13,7 @@
 // camera_pairing.py). Nothing is added until the person checks the form and presses Add camera.
 // Backend: streaming_api.py workspace/video-sources/ (list, add), <id>/ (one, change, remove), <id>/check/,
 // <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
   Activity, ArrowRight, Camera, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
   LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Smartphone, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
@@ -34,7 +34,7 @@ import {
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
   thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
   connectorRows, connectorLine, sizeText,
-  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost, pushDetails, phoneLinkDetails,
+  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost, pushDetails, phoneLinkDetails, termsRequired,
 } from '../api/streaming.js';
 import { qrOf } from '../api/phone.js';
 
@@ -196,8 +196,11 @@ const projectChoices = computed(() => {
 });
 const shownNow = computed(() => addressShown(form.value.address));
 
+// The Terms and the Privacy Policy first (StreamingTab.vue provides it; none: the server still refuses until then).
+const streamingTerms = inject('streamingTerms', null);
 function openAdd() {
   if (addWhy.value || !page.value) return;
+  if (streamingTerms && !streamingTerms.ensure(openAdd)) return;
   editing.value = null; way.value = 'url'; form.value = sourceForm();
   fieldErrors.value = {}; formError.value = ''; consentNote.value = ''; addedSaid.value = ''; said.value = '';
   addedPush.value = null; addedPhone.value = null;
@@ -220,7 +223,10 @@ async function showPairing() {
   try {
     pairing.value = await pairingApi.make(); pairState.value = 'waiting';
     pollPairing();
-  } catch (e) { pairError.value = e.message; }
+  } catch (e) {
+    if (termsRequired(e) && streamingTerms) { editorOpen.value = false; streamingTerms.needed(); return; }
+    pairError.value = e.message;
+  }
   finally { pairBusy.value = false; }
 }
 async function pollPairing() {
@@ -398,6 +404,7 @@ async function save() {
     }
     load(); emit('changed');
   } catch (e) {
+    if (termsRequired(e) && streamingTerms) { editorOpen.value = false; streamingTerms.needed(); return; }
     if (e.field && FIELDS.includes(e.field)) fieldErrors.value = { ...fieldErrors.value, [e.field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();

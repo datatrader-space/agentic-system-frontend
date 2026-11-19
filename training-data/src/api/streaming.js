@@ -77,6 +77,16 @@ export const videoSources = {
 // "Scan from phone" in the Add video source dialog (backend camera_pairing.py): a one-time pairing code an Admin shows
 // as a QR code; the phone sends what it scanned, and the dialog is given it once (state waiting | scanned | ended).
 const PAIRING = `${APP}/workspace/camera-pairing/`;
+// Accepting the Terms and the Privacy Policy before a first camera or stream (backend streaming_terms.py).
+const TERMS = `${APP}/workspace/streaming-terms/`;
+export const termsApi = {
+  get: () => apiFetch(TERMS),
+  accept: version => apiFetch(TERMS, { method: 'POST', body: { version, agree: true } }),
+};
+// The server's refusal of a person who has not accepted them yet (428 terms_required).
+export function termsRequired(error) {
+  return !!error && error.status === 428 && error.serverCode === 'terms_required';
+}
 export const pairingApi = {
   make: () => apiFetch(PAIRING, { method: 'POST', body: {}, timeoutMs: SLOW }),
   get: id => apiFetch(`${PAIRING}${enc(id)}/`),
