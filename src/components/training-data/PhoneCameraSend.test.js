@@ -291,4 +291,47 @@ describe('the phone camera page', () => {
     expect(w.text()).toContain('Sending a landscape picture (1280 × 720)');
     w.unmount();
   });
+
+  it('held sideways, shows Portrait on the picture; it and leaving full screen by the phone both let the screen turn', async () => {
+    phoneBrowser();
+    // A browser that can hold the screen sideways (Android Chrome): full screen and an orientation lock.
+    let fullscreen = null; const unlocked = []; const exited = [];
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true });
+    Object.defineProperty(document, 'fullscreenElement', { get: () => fullscreen, configurable: true });
+    document.documentElement.requestFullscreen = vi.fn(async () => { fullscreen = document.documentElement; });
+    document.exitFullscreen = vi.fn(async () => { exited.push(1); fullscreen = null; });
+    Object.defineProperty(globalThis.screen, 'orientation', { value: { lock: vi.fn(async () => {}), unlock: () => unlocked.push(1) }, configurable: true });
+    const w = mount(PhoneCameraSend, { props: { secret: SECRET }, attachTo: document.body });
+    await flushPromises();
+    const video = w.find('video').element;
+    Object.defineProperty(video, 'videoWidth', { value: 720, configurable: true });
+    Object.defineProperty(video, 'videoHeight', { value: 1280, configurable: true });
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    lastOnState('connected');
+    await w.find('video').trigger('resize');
+    expect(w.find('.unhold').exists()).toBe(false);
+    await button(w, 'Hold the screen sideways').trigger('click');
+    await flushPromises();
+    expect(screen.orientation.lock).toHaveBeenCalledWith('landscape');
+    const portrait = w.find('.frame .unhold');                              // on the picture itself
+    expect(portrait.exists()).toBe(true);
+    expect(portrait.text()).toBe('Portrait');
+    await portrait.trigger('click');
+    await flushPromises();
+    expect(unlocked).toHaveLength(1);
+    expect(exited).toHaveLength(1);
+    expect(w.find('.unhold').exists()).toBe(false);
+    // Held again, then full screen left by the phone's Back: the page lets go too.
+    await button(w, 'Hold the screen sideways').trigger('click');
+    await flushPromises();
+    expect(w.find('.unhold').exists()).toBe(true);
+    fullscreen = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    await flushPromises();
+    expect(w.find('.unhold').exists()).toBe(false);
+    expect(unlocked).toHaveLength(2);
+    w.unmount();
+    delete document.documentElement.requestFullscreen; delete document.exitFullscreen;
+  });
 });

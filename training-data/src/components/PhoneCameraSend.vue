@@ -13,7 +13,7 @@
 // A reload of a tab that was sending starts sending again by itself, with the camera it had (api/phone.js
 // cameraMemory; never after Stop); where the browser wants a tap first, the page says to tap Start.
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { Camera, CircleAlert, Disc, RefreshCw, RotateCw, Square, Video } from 'lucide-vue-next';
+import { Camera, CircleAlert, Disc, RefreshCw, RotateCw, Smartphone, Square, Video } from 'lucide-vue-next';
 import { cameraMemory, elapsedText, phoneCameraApi, recordingOf, rememberCamera } from '../api/phone.js';
 import {
   cameraConstraints, canHoldLandscape, holdLandscape, publish, releaseLandscape, retryDelay, shapeOf, swapCamera,
@@ -115,6 +115,7 @@ onMounted(async () => {
     if (memory.resume && supported) start({ resumed: true });          // this tab was sending when it was reloaded
   } catch (e) { error.value = e.message; }
   document.addEventListener('visibilitychange', onVisible);
+  document.addEventListener('fullscreenchange', onFullscreen);
   window.addEventListener('pagehide', onLeave);
 });
 
@@ -258,6 +259,12 @@ async function landscape() {
   held.value = await holdLandscape();
   if (!held.value) problem.value = 'This browser cannot hold the screen sideways. Let the phone\'s screen turn (its rotation lock off), then turn the phone.';
 }
+// Held sideways, the page is full screen; leaving it by the phone's own Back or gesture also lets the screen turn
+// (the browser drops the lock with full screen), so the page says so too (live, 2026-11-18: the owner held it sideways
+// and found no way back: the button to let it turn was below the picture, out of a landscape screen).
+function onFullscreen() {
+  if (held.value && !document.fullscreenElement) { held.value = false; releaseLandscape(); }
+}
 
 // Back on the page: the screen lock is asked for again (a browser drops it when the page is hidden), and a camera the
 // phone stopped while the page was hidden is opened again.
@@ -278,6 +285,7 @@ onUnmounted(() => {
   gone = true;
   clearInterval(pollTimer); clearInterval(tickTimer);
   document.removeEventListener('visibilitychange', onVisible);
+  document.removeEventListener('fullscreenchange', onFullscreen);
   window.removeEventListener('pagehide', onLeave);
   release();
 });
@@ -296,6 +304,8 @@ onUnmounted(() => {
       <div class="frame" :class="shape || 'unknown'" :style="frameStyle">
         <video v-show="sending" ref="preview" class="viewfinder" muted playsinline autoplay aria-label="What this phone sends" @loadedmetadata="measure" @resize="measure"></video>
         <div v-if="!sending" class="still"><Camera :size="34" aria-hidden="true"/></div>
+        <!-- Held sideways: the way back stays in the screen's corner, over the picture, however the page is scrolled. -->
+        <button v-if="held" class="unhold" type="button" @click="landscape"><Smartphone :size="16" aria-hidden="true"/> Portrait</button>
       </div>
       <p v-if="sending && shape" class="quiet shape">
         Sending a {{ shape }} picture<template v-if="size.w"> ({{ size.w }} × {{ size.h }})</template>.
@@ -353,6 +363,9 @@ h1{font-size:21px;margin:2px 0 0;letter-spacing:-.3px;overflow-wrap:anywhere}
 .frame{position:relative;margin:0 auto 14px;aspect-ratio:16/9;max-width:100%;max-height:62vh;border-radius:12px;overflow:hidden;background:#0d1320}
 .frame.portrait{height:62vh;width:auto}
 .viewfinder,.still{width:100%;height:100%;background:#0d1320;object-fit:contain;display:block}
+/* Pinned to the screen, not the page: held sideways the page scrolls, and the way back must stay in view. */
+.unhold{position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:20;display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 14px;border:0;border-radius:999px;background:rgba(13,19,32,.78);color:#fff;font:inherit;font-weight:600;cursor:pointer;box-shadow:0 2px 10px #0006}
+.unhold:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .still{display:grid;place-items:center;color:#8a97ab}
 .shape{margin-top:-4px}
 .cams{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 10px;padding:4px;border-radius:12px;background:#f1f4f8}
