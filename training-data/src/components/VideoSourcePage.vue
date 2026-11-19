@@ -16,7 +16,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
-  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, Smartphone, Square, Trash2, Tv, Wallet, Workflow,
+  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, RotateCcw, Smartphone, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
 import PushDetails from './PushDetails.vue';
@@ -30,7 +30,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -221,8 +221,13 @@ const history = computed(() => historyRows(props.source.history));
 const HISTORY_FIRST = 5; const historyAll = ref(false);
 const historyShown = computed(() => (historyAll.value ? history.value : history.value.slice(0, HISTORY_FIRST)));
 
+// Deleting schedules it (the 14-day recovery period, the owner, 2026-11-19): it stays listed, with Cancel deletion.
 async function removeRecording(row) {
-  try { await recordingsApi.remove(row.id); if (playing.value?.id === row.id) playing.value = null; await loadRecordings(); emit('refresh'); }
+  try { await recordingsApi.remove(row.id); await loadRecordings(); emit('refresh'); }
+  catch (e) { recListError.value = e.message; }
+}
+async function restoreRecording(row) {
+  try { await recordingsApi.restore(row.id); await loadRecordings(); emit('refresh'); }
   catch (e) { recListError.value = e.message; }
 }
 // "Use in project": a project's model runs over the recording, read in place (the tab's start dialog, as Run a model).
@@ -552,12 +557,13 @@ watch(tab, now => {
           </div>
           <ul v-else class="sp-rec-list">
             <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
-              <span><strong>{{ windowText(r) }}</strong><small>{{ sizeText(r.bytes) }}</small></span>
+              <span><strong>{{ windowText(r) }} <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
               <span class="sp-rec-acts">
                 <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
                 <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
                 <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
-                <UiButton v-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)}`" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+                <UiButton v-if="mayDelete && r.deletion" class="small" :aria-label="`Cancel the deletion of ${windowText(r)}`" @click="restoreRecording(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
+                <UiButton v-else-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)} (kept 14 days first, and it can be restored)`" title="Kept 14 days first, and it can be restored" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
               </span>
             </li>
           </ul>

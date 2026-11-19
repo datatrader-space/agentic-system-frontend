@@ -10,7 +10,7 @@ import {
   notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
-  linksFresh, LINKS_FRESH_MS, recordingWhen, keptUntilText, cameraChoices, storageText,
+  linksFresh, LINKS_FRESH_MS, recordingWhen, keptUntilText, cameraChoices, storageText, deletionText, deletionWhy, RECORDING_STATES,
   streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT, isPairingLink, PAIRING_SCANNED,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
@@ -808,4 +808,13 @@ test('the Recordings tab: fresh links, when, kept until, the camera filter and t
   assert.deepEqual(cameraChoices(null), [{ value: '', label: 'All cameras' }]);
   assert.equal(storageText(1.5 * 1024 ** 3, 50 * 1024 ** 3), '1.5 GB of 50.0 GB kept');
   assert.equal(storageText(5, 0), '');
+});
+
+test('a recording scheduled for deletion says when and why (the 14-day recovery period)', () => {
+  assert.equal(deletionText({ on: '2026-12-03T08:00:00+00:00' }), 'Deletes on 3 Dec 2026');
+  assert.equal(deletionText({}), 'Scheduled for deletion');
+  assert.equal(deletionWhy({ reason: 'expired' }), 'Scheduled for deletion: its days were over. Free until then, and it can be restored.');
+  assert.equal(deletionWhy({ reason: 'camera_removed' }), 'Scheduled for deletion: its camera was removed. Free until then, and it can be restored.');
+  assert.equal(deletionWhy({ reason: 'other' }), 'Scheduled for deletion: deleted by a person. Free until then, and it can be restored.');
+  assert.deepEqual(RECORDING_STATES.map(([v]) => v), ['', 'kept', 'scheduled']);
 });

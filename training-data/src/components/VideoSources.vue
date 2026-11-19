@@ -802,7 +802,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <fieldset v-if="removeAsks" class="vs-remove-recs">
           <legend>Its recordings<template v-if="removingKept"> ({{ sizeText(removingKept) }} kept now)</template></legend>
           <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="keep"> Keep them until their days are over, then they are deleted. Keeping them is charged until then.</label>
-          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="delete"> Delete them now. This cannot be undone.</label>
+          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="delete"> Delete them. They are kept 14 more days, free, and can be restored in Recordings until then.</label>
         </fieldset>
         <p v-if="removeError" class="field-error" role="alert">{{ removeError }}</p>
         <div class="dialog-actions">

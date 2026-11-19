@@ -8,7 +8,7 @@
 import { computed, ref, watch } from 'vue';
 import {
   Activity, ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Cloud, Cpu, KeyRound, Layers, Network, Plus, RefreshCw,
-  Film, Rocket, Server, Sparkles, Video,
+  Rocket, Server, Sparkles, Video,
 } from 'lucide-vue-next';
 import '../deployments.css';
 import DeploymentHeader from './DeploymentHeader.vue';
@@ -17,7 +17,6 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import StreamingTab from './StreamingTab.vue';
-import CameraRecordings from './CameraRecordings.vue';
 import CostTab from './CostTab.vue';
 import BatchTab from './BatchTab.vue';
 import DedicatedDeployments from './DedicatedDeployments.vue';
@@ -35,8 +34,6 @@ const TABS = [
   { id: 'batch', name: 'Batch Processing', icon: Layers },
   { id: 'edge', name: 'Edge Devices', icon: Cpu },
   { id: 'streaming', name: 'Cloud Streaming', icon: Video },
-  // Every kept recording, a removed camera's too (the owner, 2026-11-18).
-  { id: 'recordings', name: 'Recordings', icon: Film },
   { id: 'cost', name: 'Cost Benchmark', icon: ChartColumn },
 ];
 const tab = ref(takeDeploymentsTab(TABS.map(t => t.id)) || 'overview');
@@ -136,8 +133,6 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
     <DedicatedDeployments id="deployment-panel-dedicated" v-else-if="tab==='dedicated'" role="tabpanel"/>
 
     <StreamingTab id="deployment-panel-streaming" v-else-if="tab==='streaming'"/>
-
-    <CameraRecordings id="deployment-panel-recordings" v-else-if="tab==='recordings'"/>
 
     <CostTab id="deployment-panel-cost" v-else-if="tab==='cost'"/>
 

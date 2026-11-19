@@ -119,8 +119,9 @@ export function formFromScan(raw) {
 // The workspace's kept recordings, newest first, each with signed links to play and download it (15 minutes).
 const RECORDINGS = `${APP}/workspace/recordings/`;
 export const recordingsApi = {
-  list: ({ source = '', from = '', to = '', limit = 100, offset = 0 } = {}) => {
+  list: ({ source = '', from = '', to = '', limit = 100, offset = 0, state = '' } = {}) => {
     const query = new URLSearchParams();
+    if (state) query.set('state', state);
     if (source !== '' && source !== null && source !== undefined) query.set('source', String(source));
     if (from) query.set('from', from);
     if (to) query.set('to', to);
@@ -128,7 +129,9 @@ export const recordingsApi = {
     if (offset) query.set('offset', String(offset));
     return apiFetch(`${RECORDINGS}?${query.toString()}`, { timeoutMs: SLOW });
   },
+  // Deleting schedules it: kept GRACE days (the server's grace_days), free, then deleted for good; restore cancels it.
   remove: id => apiFetch(`${RECORDINGS}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  restore: id => apiFetch(`${RECORDINGS}${enc(id)}/restore/`, { method: 'POST', timeoutMs: SLOW }),
 };
 
 // The UTC day [from, to) a date picker's YYYY-MM-DD names, as the recordings list takes it; '' for no day.
@@ -174,6 +177,18 @@ export function cameraChoices(cameras) {
     return { value: String(c.id), label: `${c.name || 'Camera'}${c.removed ? ' (removed)' : ''}: ${n} recording${n === 1 ? '' : 's'}` };
   })];
 }
+// The recovery period (the owner, 2026-11-19): a recording scheduled for deletion says when, and why.
+export const RECORDING_STATES = [['', 'All recordings'], ['kept', 'Kept'], ['scheduled', 'Scheduled for deletion']];
+export function deletionText(deletion) {
+  const on = new Date(deletion?.on || '');
+  return Number.isNaN(on.getTime()) ? 'Scheduled for deletion' : `Deletes on ${on.toLocaleDateString('en-GB', DAY)}`;
+}
+const WHY = { expired: 'its days were over', deleted: 'deleted by a person', camera_removed: 'its camera was removed' };
+export function deletionWhy(deletion) {
+  const why = WHY[deletion?.reason] || WHY.deleted;
+  return `Scheduled for deletion: ${why}. Free until then, and it can be restored.`;
+}
+
 // "1.2 GB of 50.0 GB kept" ('' when the server did not say).
 export function storageText(stored, limit) {
   if (!Number.isFinite(Number(stored)) || !Number(limit)) return '';

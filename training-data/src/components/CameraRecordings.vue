@@ -1,24 +1,25 @@
 <script setup>
-// The Deployments page's Recordings tab (the owner, 2026-11-18: "a recording tab where all recordings will be shown
-// even after the video source is removed or disconnected, so we do not lose the recordings"). Every kept recording of
-// the workspace's cameras, newest first, a removed camera's too, until its days are over (the nightly clean-up; a
-// camera removed with "keep" keeps them). Filter by camera and day; play, download, and (an Admin) delete one.
+// Cloud Streaming's Recordings (the owner, 2026-11-18: "a recording tab where all recordings will be shown even after
+// the video source is removed or disconnected, so we do not lose the recordings"; 2026-11-19: inside Cloud Streaming).
+// Every kept recording of the workspace's cameras, newest first, a removed camera's too. Filter by camera and day;
+// play, download, and (an Admin) delete one. Nothing is deleted at once (the owner, 2026-11-19): a recording past its
+// days or deleted waits 14 days, free, said as "Deleted on <date>" with Cancel deletion, and is deleted for good after.
 // Backend: streaming_api.py workspace/recordings/ (``cameras``, ``removed``, ``kept_until``, ``offset``).
 // The play and download links are signed for 15 minutes: a list older than 10 asks for new ones before playing, and a
 // recording the browser cannot play says so and offers its download instead of spinning.
 import { computed, onMounted, ref, watch } from 'vue';
-import { Disc, Download, Film, Play, RefreshCw, Trash2 } from 'lucide-vue-next';
-import DeploymentHeader from './DeploymentHeader.vue';
+import { Disc, Download, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import {
   recordingsApi, dayRange, recordingWhen, keptUntilText, cameraChoices, storageText, sizeText, linksFresh,
+  deletionText, deletionWhy, RECORDING_STATES,
 } from '../api/streaming.js';
 
 const PAGE = 50;
 const rows = ref([]); const count = ref(0); const cameras = ref([]); const stored = ref(null); const limit = ref(0);
 const mayDelete = ref(false); const loading = ref(false); const error = ref(''); const said = ref('');
-const camera = ref(''); const day = ref('');
+const camera = ref(''); const day = ref(''); const state = ref(''); const grace = ref(14); const waiting = ref(0);
 const playing = ref(null); const playError = ref(''); const confirming = ref(null); const busy = ref(false);
 let loadedAt = 0;
 
@@ -29,19 +30,20 @@ const more = computed(() => rows.value.length < count.value);
 async function load({ append = false } = {}) {
   loading.value = true; error.value = '';
   try {
-    const answer = await recordingsApi.list({ source: camera.value, ...dayRange(day.value), limit: PAGE, offset: append ? rows.value.length : 0 });
+    const answer = await recordingsApi.list({ source: camera.value, ...dayRange(day.value), state: state.value, limit: PAGE, offset: append ? rows.value.length : 0 });
     const got = answer?.recordings || [];
     rows.value = append ? [...rows.value, ...got] : got;
     count.value = Number(answer?.count) || 0; cameras.value = answer?.cameras || [];
     stored.value = answer?.stored_bytes ?? null; limit.value = Number(answer?.limit_bytes) || 0;
     mayDelete.value = !!answer?.may?.delete;
+    grace.value = Number(answer?.grace_days) || 14; waiting.value = Number(answer?.scheduled) || 0;
     if (!append) loadedAt = Date.now();
     if (playing.value && !rows.value.some(r => r.id === playing.value.id)) playing.value = null;
   } catch (e) { error.value = e.message; }
   finally { loading.value = false; }
 }
 onMounted(load);
-watch([camera, day], () => { playing.value = null; confirming.value = null; load(); });
+watch([camera, day, state], () => { playing.value = null; confirming.value = null; load(); });
 
 // Links older than 10 minutes are asked for again first (they are signed for 15).
 async function play(row) {
@@ -60,10 +62,18 @@ async function remove(row) {
   if (confirming.value !== row.id) { confirming.value = row.id; return; }
   busy.value = true; said.value = '';
   try {
-    await recordingsApi.remove(row.id);
-    if (playing.value?.id === row.id) playing.value = null;
-    said.value = `The recording ${recordingWhen(row)} is deleted.`;
+    const answer = await recordingsApi.remove(row.id);
+    said.value = answer?.said || `The recording ${recordingWhen(row)} is scheduled for deletion.`;
     confirming.value = null;
+    await load();
+  } catch (e) { error.value = e.message; }
+  finally { busy.value = false; }
+}
+async function restore(row) {
+  busy.value = true; said.value = '';
+  try {
+    const answer = await recordingsApi.restore(row.id);
+    said.value = answer?.said || 'The recording is restored.';
     await load();
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
@@ -71,9 +81,8 @@ async function remove(row) {
 </script>
 
 <template>
-  <section class="recs" role="tabpanel" aria-labelledby="recs-heading" :aria-busy="loading">
-    <DeploymentHeader title="Recordings" heading-id="recs-heading" eyebrow="KEPT VIDEO" :icon="Film"
-                      description="Every recording of your cameras, a removed or offline camera's too, kept until its days are over."/>
+  <section class="recs" :aria-busy="loading">
+    <p class="recs-intro">Every recording of your cameras, a removed or offline camera's too. A deleted recording, or one past its days, is kept {{ grace }} more days, free, and can be restored until then.</p>
     <div class="recs-bar">
       <label class="recs-field"><span>Camera</span>
         <select v-model="camera" :disabled="loading && !rows.length">
@@ -84,6 +93,11 @@ async function remove(row) {
         <input v-model="day" type="date" :max="new Date().toISOString().slice(0, 10)">
       </label>
       <UiButton v-if="day" class="small" @click="day = ''">All days</UiButton>
+      <label class="recs-field"><span>Show</span>
+        <select v-model="state">
+          <option v-for="[value, label] in RECORDING_STATES" :key="value" :value="value">{{ label }}<template v-if="value === 'scheduled' && waiting"> ({{ waiting }})</template></option>
+        </select>
+      </label>
       <span class="recs-spacer"></span>
       <small v-if="usage" class="recs-usage">{{ usage }}</small>
       <UiButton class="small" :disabled="loading" aria-label="Refresh the recordings" @click="load()"><RefreshCw :size="14" aria-hidden="true"/></UiButton>
@@ -108,17 +122,18 @@ async function remove(row) {
       <p>Turn on Record to the cloud on a camera in Cloud Streaming. Its video is kept here in 5-minute pieces, a few minutes after it is made, and stays when the camera is removed (unless you choose to delete it then).</p>
     </div>
     <ul v-else class="recs-list">
-      <li v-for="r in rows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
+      <li v-for="r in rows" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion }">
         <span class="recs-what">
-          <strong>{{ r.source.name }} <UiBadge v-if="r.source.removed">Removed</UiBadge></strong>
+          <strong>{{ r.source.name }} <UiBadge v-if="r.source.removed">Removed</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong>
           <span>{{ recordingWhen(r) }}</span>
-          <small>{{ sizeText(r.bytes) }}<template v-if="keptUntilText(r.kept_until)"> · {{ keptUntilText(r.kept_until) }}</template></small>
+          <small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template><template v-else-if="keptUntilText(r.kept_until)"> · {{ keptUntilText(r.kept_until) }}</template></small>
         </span>
         <span class="recs-acts">
           <UiButton class="small" :disabled="!r.play_url" @click="play(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
           <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
-          <UiButton v-if="mayDelete" class="small recs-danger" :disabled="busy" :aria-label="confirming === r.id ? `Confirm: delete the recording ${recordingWhen(r)}` : `Delete the recording ${recordingWhen(r)}`" @click="remove(r)">
-            <Trash2 :size="13" aria-hidden="true"/><template v-if="confirming === r.id"> Delete?</template>
+          <UiButton v-if="mayDelete && r.deletion" class="small recs-restore" :disabled="busy" :aria-label="`Cancel the deletion of ${recordingWhen(r)}`" @click="restore(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
+          <UiButton v-if="mayDelete && !r.deletion" class="small recs-danger" :disabled="busy" :aria-label="confirming === r.id ? `Confirm: delete the recording ${recordingWhen(r)}` : `Delete the recording ${recordingWhen(r)}`" @click="remove(r)">
+            <Trash2 :size="13" aria-hidden="true"/><template v-if="confirming === r.id"> Delete? Kept {{ grace }} days first</template>
           </UiButton>
         </span>
       </li>
@@ -129,6 +144,9 @@ async function remove(row) {
 
 <style scoped>
 .recs{display:flex;flex-direction:column;gap:14px}
+.recs-intro{margin:0;color:#4c5d74;font-size:14px;max-width:760px}
+.recs-list li.waiting{background:#fffaf9;border-style:dashed}
+.recs-restore{color:#05603a}
 .recs-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
 .recs-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#4c5d74}
 .recs-field select,.recs-field input{min-height:36px;padding:6px 10px;border:1px solid #d4d9e3;border-radius:8px;background:#fff;color:#162139;font:inherit;font-size:14px;max-width:min(360px,calc(100vw - 32px))}

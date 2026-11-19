@@ -15,6 +15,7 @@ import {
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import VideoSources from './VideoSources.vue';
+import CameraRecordings from './CameraRecordings.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -118,6 +119,14 @@ async function openStreamById(id) {
 }
 // A source's own page (VideoSources.vue, VideoSourcePage.vue) takes the tab's place while it is open.
 const sourceOpen = ref(false);
+// Cameras and streams, or every kept recording (CameraRecordings.vue; the owner, 2026-11-19: inside Cloud Streaming,
+// not a Deployments tab of its own). Kept for this tab across a reload.
+const VIEW_KEY = 'tmd.streaming.view';
+const VIEWS = [['cameras', 'Cameras and streams'], ['recordings', 'Recordings']];
+function keptView() { try { return sessionStorage.getItem(VIEW_KEY) === 'recordings' ? 'recordings' : 'cameras'; } catch { return 'cameras'; } }
+const view = ref(keptView());
+watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
+function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
 // "Offline notifications": not built yet, and said so (no switch that would save nothing).
 const notifying = ref(false);
 
@@ -252,7 +261,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     <DeploymentHeader title="Cloud Streaming" heading-id="st-heading" eyebrow="VIDEO IN. INSIGHTS OUT." :icon="Video" description="Run your models on live video from your cameras, stream addresses or test videos, and watch them from the cloud.">
       <div class="st-head-acts">
         <UiButton @click="notifying = true"><Bell :size="15" aria-hidden="true"/> Offline notifications</UiButton>
-        <UiButton variant="primary" :disabled="!sourcesRef?.ready || !!sourcesRef?.addWhy" :title="sourcesRef?.addWhy || undefined" @click="sourcesRef?.openAdd()"><Plus :size="15" aria-hidden="true"/> Add video source</UiButton>
+        <UiButton variant="primary" :disabled="!sourcesRef?.ready || !!sourcesRef?.addWhy" :title="sourcesRef?.addWhy || undefined" @click="addSource"><Plus :size="15" aria-hidden="true"/> Add video source</UiButton>
       </div>
     </DeploymentHeader>
     <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
@@ -261,9 +270,15 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <span>{{ error }}</span>
       <UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
     </div>
+    <div class="st-views" role="tablist" aria-label="Cloud Streaming">
+      <button v-for="[id, label] in VIEWS" :id="`st-view-${id}`" :key="id" type="button" role="tab" :aria-selected="view === id"
+              :class="{ on: view === id }" @click="view = id">{{ label }}</button>
+    </div>
+    <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"/>
     </template>
     <p v-if="downloadError" class="field-error" role="alert">{{ downloadError }}</p>
 
+    <div v-show="view === 'cameras' || sourceOpen">
     <VideoSources ref="sourcesRef" :projects="options.projects" :may-start="!!page && may.start !== false" :start-why="may.reason || ''"
                   @start="openCreate" @loaded="sourcesPage = $event" @changed="changed" @open-stream="openStreamById"
                   @page="sourceOpen = $event" @stop-stream="askStop" @download="download"/>
@@ -363,6 +378,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </table>
     </div>
     </template>
+    </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
 
     <UiDialog class="st-dialog" :open="creating" title="New stream" @close="creating=false">
@@ -496,6 +512,10 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-head h2{margin:0 0 4px}
 .st-head p{margin:0;max-width:620px;color:#4c5d74}
 .st-head-acts{display:flex;gap:10px;flex-wrap:wrap}
+.st-views{display:inline-flex;gap:4px;margin:0 0 16px;padding:4px;border-radius:12px;background:#f1f4f8;max-width:100%;overflow-x:auto}
+.st-views button{min-height:40px;padding:8px 16px;border:0;border-radius:9px;background:transparent;color:#33415a;font:inherit;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer}
+.st-views button.on{background:#fff;color:#162139;box-shadow:0 1px 2px #0d132033}
+.st-views button:focus-visible{outline:2px solid var(--aadml-focus,#2563eb);outline-offset:2px}
 .st-head-acts .button{min-height:44px}
 .st-billing{display:flex;gap:8px;align-items:flex-start;margin:0 0 16px;font-size:13px;line-height:1.55;color:#33415a!important}
 .st-billing svg{flex-shrink:0;margin-top:2px;color:#5f6d82}
