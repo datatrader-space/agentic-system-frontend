@@ -63,3 +63,19 @@ describe('ProjectReviewPanel', () => {
     expect(w.text()).toContain('Ask its owner or a manager to let you comment')
   })
 })
+
+// ISSUE-15: what the signed-in person wrote or decided says "You"; others are named, an email only as their second line.
+it('names the signed-in person "You" and others by name in comments and approvals', async () => {
+  const { ref } = await import('vue')
+  vi.clearAllMocks()
+  api.get.mockImplementation(url => url.endsWith('/comments/')
+    ? Promise.resolve({ data: { comments: [
+      { comment_id: 1, target_type: 'project', target_id: 'p1', parent_id: null, author: { id: 1, name: 'ana@acme.com' }, body: 'Mine', timecode_ms: null, resolved: false, resolved_by: null, created_at: '2026-11-10T10:00:00Z', edited_at: null, can_edit: true, can_delete: true, can_resolve: true },
+      { comment_id: 2, target_type: 'project', target_id: 'p1', parent_id: 1, author: { id: 2, name: 'Ben Ray', email: 'ben@acme.com' }, body: 'Reply', timecode_ms: null, resolved: false, resolved_by: null, created_at: '2026-11-10T11:00:00Z', edited_at: null, can_edit: false, can_delete: false, can_resolve: false }] } })
+    : Promise.resolve({ data: { approvals: [{ user: { id: 1, name: 'ana@acme.com' }, decision: 'approved', note: '', updated_at: '2026-11-10T10:00:00Z' }, { user: { id: 3, name: 'cy@acme.com' }, decision: 'changes_requested', note: '', updated_at: '2026-11-10T10:00:00Z' }], mine: null } }))
+  const w = mount(ProjectReviewPanel, { props: { projectId: 'p1', abilities: { view: true, comment: true, approve: true } }, global: { provide: { studioUser: ref({ id: 1, email: 'ana@acme.com' }) } } }); await flushPromises()
+  const names = w.findAll('[data-test="review-person"]').map(n => n.text())
+  expect(names).toEqual(['You', 'cy@acme.com', 'You', 'Ben Ray'])
+  expect(w.text()).not.toContain('ana@acme.com')
+  expect(w.findAll('.prp-email').map(e => e.text())).toEqual(['ben@acme.com'])
+})

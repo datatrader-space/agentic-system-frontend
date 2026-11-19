@@ -4,7 +4,7 @@
     <CreativeError :error="shownError" locate />
     <template v-if="!projectId && kind !== 'cinema'"><label class="st-field" data-field="title">New project title<input v-model="newTitle" class="st-input" /></label><button class="st-button" :disabled="busy || !newTitle.trim()" @click="createProject">Create project</button></template>
     <template v-if="projectId"><label class="st-field">New scene description<textarea v-model="newIntent" class="st-input" /></label><button class="st-button" :disabled="busy || !project || !newIntent.trim()" @click="addScene">Add scene</button></template>
-    <RouterLink v-if="projectId && kind === 'storyboard'" class="st-button" data-test="board-edit-cut" :to="{ path: '/video-studio/editor', query: { project_id: projectId } }">Edit the cut in the clip editor</RouterLink>
+    <RouterLink v-if="projectId && kind === 'storyboard'" class="st-button" data-test="board-edit-cut" :to="{ path: studioPath('editor'), query: { project_id: projectId } }">Edit the cut in the clip editor</RouterLink>
     <template v-if="kind">
       <label class="st-field" data-field="route_id">{{ projectId ? 'Keyframe model' : 'Video model' }}<select v-model="routeId" class="st-input" data-test="board-route"><option value="">Choose model</option><option v-for="r in routes" :key="r.route_id" :value="r.route_id" :disabled="!r.ready">{{ routeLabel(r) }}{{ r.ready === false ? ' — Not yet proven' : '' }}</option></select></label>
       <p v-if="routeSummary" class="st-muted" data-test="board-reference-summary">{{ routeSummary }}</p>
@@ -45,6 +45,7 @@ import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { modelAliases, studioError, useStudioChat } from './studioForm'
+import { studioPath } from '../../services/studioPaths'
 const props = defineProps({ kind: String }), emit = defineEmits(['job']), route = useRoute()
 // What the chosen video model takes as references (the backend's per-model data), shown under the picker.
 const routeSummary = computed(() => routes.value.find(r => String(r.route_id) === String(routeId.value))?.inputs?.spec?.summary || '')

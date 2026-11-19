@@ -14,6 +14,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { studioPath } from '../../services/studioPaths'
 const props = defineProps({ item: { type: Object, required: true }, conversationId: [String,Number] })
 const router = useRouter(), video = useVideoStore()
 const root = ref(null), trigger = ref(null), open = ref(false), saving = ref(false), name = ref(''), kind = ref('product'), busy = ref(false), error = ref('')
@@ -37,9 +38,9 @@ function useVideo() {
   video.addExistingRef(props.item, 'first_frame')
   const added = video.refs.find(r => r.attachment_id === props.item.attachment_id && r.role === 'first_frame'); if (added) added.studioSlot = 'opening'
   close()
-  router.push({ path: '/video-studio/video', query: query(true) })
+  router.push({ path: studioPath('video'), query: query(true) })
 }
-function useEnhance() { window.dispatchEvent(new Event('studio-save-draft')); video.refs = []; video.addExistingRef(props.item, 'edit_source'); close(); router.push({ path: '/video-studio/enhance', query: query(true) }) }
+function useEnhance() { window.dispatchEvent(new Event('studio-save-draft')); video.refs = []; video.addExistingRef(props.item, 'edit_source'); close(); router.push({ path: studioPath('enhance'), query: query(true) }) }
 async function save() {
   if (busy.value || !name.value.trim()) return
   busy.value = true; error.value = ''
@@ -47,7 +48,7 @@ async function save() {
     const result = await video.createIngredient({ kind: kind.value, name: name.value.trim(), description: '', attachmentIds: [props.item.attachment_id] })
     if (!result) { error.value = 'Could not save this Element. Try again.'; return }
     saving.value = false
-    router.push({ path: '/video-studio/elements', query: query() })
+    router.push({ path: studioPath('elements'), query: query() })
   } catch { error.value = 'Could not save this Element. Try again.' } finally { busy.value = false }
 }
 function outside(event) { if (!root.value?.contains(event.target)) close() }

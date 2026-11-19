@@ -3,9 +3,10 @@
 // list below is the order, names and addresses, with the plan's status until the server has answered.
 import { shallowRef } from 'vue'
 import api from './api'
+import { studioPath } from './studioPaths'
 export const CREATIVE_STUDIO_PAGES = ['audio','music','characters','identity-training','edit','motion','swap','effects','storyboard','cinema','ads','marketing','ad-remix','avatar','lipsync','shorts','explainer','canvas']
 export const STUDIO_GROUPS = ['Home', 'Create', 'Edit & enhance', 'Characters', 'Video tools', 'Avatars & shorts', 'Story', 'Marketing', 'Workspace']
-const entry = (id, group, label, path, status, phase, purpose, icon) => ({ id, group, label, route: `/video-studio${path ? '/' + path : ''}`, status, phase, purpose, icon })
+const entry = (id, group, label, path, status, phase, purpose, icon) => ({ id, group, label, route: studioPath(path), status, phase, purpose, icon })
 export const studioFeatures = shallowRef([
   entry('home', 'Home', 'Discover', '', 'live', 'F0', 'Choose a look or a tool. Your agent helps with the rest.', 'home'),
   entry('image', 'Create', 'Image', 'image', 'live', 'F0', 'Make a picture from a preset, your references and a few details.', 'image'),
@@ -80,4 +81,16 @@ export function loadStudioFeatures({ force = false } = {}) {
     return rows
   }).catch(error => { pending = null; throw error })
   return pending
+}
+
+// How a page is shown wherever it is listed (the menu, Discover, search), from the server's word on it: a page the
+// server says this person cannot run yet (ready: false) is "Not available yet", with the server's reason, never
+// shown as ready. Its page stays reachable and says why. Null for a page that is ready and live.
+export function featureBadge(feature) {
+  if (!feature) return null
+  const reason = feature.reason || ''
+  if (feature.status === 'soon') return { label: 'Soon', tone: 'soon', unavailable: true, reason }
+  if (feature.ready === false) return { label: 'Not available yet', tone: 'unavailable', unavailable: true, reason }
+  if (feature.status === 'beta') return { label: 'Beta', tone: 'beta', unavailable: false, reason: '' }
+  return null
 }

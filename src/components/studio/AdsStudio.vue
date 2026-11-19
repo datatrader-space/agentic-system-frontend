@@ -129,6 +129,7 @@ import AdBatchCard from './AdBatchCard.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { studioError, useStudioChat } from './studioForm'
+import { studioPath } from '../../services/studioPaths'
 // Ads Studio (ADS_STUDIO_V2_PLAN.md, ADS_CHAT_FLOW_PLAN.md): video ads from a product's photo or a saved product (a brand kit
 // is optional), products read from a shop page, static image ads in
 // batches, the Ad Multiplier and the product recipes. Every paid step waits for the person's Generate on its card.
@@ -181,7 +182,7 @@ const brief = () => ({ platform: platform.value, ...(brandId.value ? { brand_id:
 const normalized = concept => { const c = { ...concept, scenes: concept.scenes.map(s => ({ ...s, planned_ms: Number(s.planned_ms) })) }; delete c.price; c.total_ms = c.scenes.reduce((sum, s) => sum + s.planned_ms, 0); return c }
 function concepts() { run(async alive => { const { data } = await api.post('/video/ads/concepts/', { ...brief(), goal: goal.value, notes: notes.value, n: count.value, ...await chatFields() }); if (alive()) drafts.value = data.concepts || [] }) }
 function priceAgain(concept) { run(async alive => { const { data } = await api.post('/video/ads/concepts/price/', { concept: normalized(concept), platform: platform.value, ...await chatFields() }); if (alive()) concept.price = data }) }
-function makeProject(concept) { run(async alive => { const { data } = await api.post('/video/ads/projects/', { ...brief(), concept: normalized(concept), ...await chatFields() }); if (alive()) router.push({ path: '/video-studio/storyboard', query: { project_id: data.project_id } }) }) }
+function makeProject(concept) { run(async alive => { const { data } = await api.post('/video/ads/projects/', { ...brief(), concept: normalized(concept), ...await chatFields() }); if (alive()) router.push({ path: studioPath('storyboard'), query: { project_id: data.project_id } }) }) }
 
 // ── products ──
 const products = ref([]), productUrl = ref(''), productDraft = ref(null), productRead = ref(''), productAnswer = ref([])
@@ -237,7 +238,7 @@ function startBatch(b) { run(async alive => { const { data } = await api.post(`/
 const marketingRecipes = ref([]), recipeProduct = ref('')
 const ENTRY = ['ugc','unboxing','try-on','poster','marketplace','product-spin','product-hero','product-lifestyle','product-packshot']
 async function loadRecipes() { try { const { data } = await api.getStudioRecipes('marketing'); marketingRecipes.value = (data.recipes || []).filter(r => ENTRY.includes(r.id)).sort((a, b) => ENTRY.indexOf(a.id) - ENTRY.indexOf(b.id)) } catch { error.value = { message: 'Could not load the recipes.' } } }
-function openRecipe(r) { router.push({ path: '/video-studio/marketing', query: { recipe: r.id, ...(recipeProduct.value ? { product: recipeProduct.value } : {}) } }) }
+function openRecipe(r) { router.push({ path: studioPath('marketing'), query: { recipe: r.id, ...(recipeProduct.value ? { product: recipeProduct.value } : {}) } }) }
 
 onMounted(() => run(async alive => {
   const [b, o, prods] = await Promise.all([api.get('/video/brands/'), api.get('/video/ads/options/'), api.get('/video/products/')])

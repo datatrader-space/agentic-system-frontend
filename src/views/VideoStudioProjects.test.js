@@ -2,15 +2,16 @@
 // The Projects page (owner, 2026-10-20): a project opens in the chat it was last open in; one never opened in a chat
 // opens with ?project= (a new chat). Opening a project made a new, empty chat every time before.
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../services/api', () => ({ default: { get: vi.fn().mockResolvedValue({ data: { projects: [
   { project_id: 'p-apple', title: 'apple', aspect_ratio: '9:16', updated_at: '2026-10-20T12:53:00Z', conversation_id: 2876, thumbnail_url: '/api/library/v1/thumbnail/' },
   { project_id: 'p-pear', title: 'pear', aspect_ratio: '1:1', updated_at: '2026-10-19T10:00:00Z', conversation_id: null },
-] } }), post: vi.fn().mockResolvedValue({data:{project_id:'new'}}) } }))
+] } }), post: vi.fn().mockResolvedValue({data:{project_id:'new'}}) }, clearApiCache: vi.fn() }))
 
 import VideoStudioProjects from './VideoStudioProjects.vue'
 import api from '../services/api'
+import { useWorkspace } from '../composables/useWorkspace'
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
@@ -59,6 +60,9 @@ describe('VideoStudioProjects sharing', () => {
     return Promise.resolve({ data: { projects: [mine, shared] } })
   }
 
+  // The Studio menu's workspace is Acme film (ISSUE-19): its folders are listed.
+  beforeEach(() => { useWorkspace().switchWorkspace({ id: 7, name: 'Acme film' }, { id: 1, name: 'Acme', slug: 'acme' }) })
+
   it("labels a shared project with its owner, my role and its review, and opens the share dialog from the card", async () => {
     api.get.mockImplementation(route)
     const w = mount(VideoStudioProjects, { global: { stubs } }); await flush(); await flush()
@@ -94,5 +98,18 @@ describe('VideoStudioProjects sharing', () => {
     await w.findAll('button').find(b => b.text() === 'Delete for good').trigger('click')
     await w.get('[data-test="vsp-purge"]').trigger('click'); await flush()
     expect(api.delete).toHaveBeenCalledWith('/video/projects/p-old/')
+  })
+
+  it('starts the workspace picker on the menu\'s workspace, not the first listed, and follows the menu (ISSUE-19)', async () => {
+    const ws = useWorkspace(); ws.switchWorkspace({ id: 7, name: 'Acme film' }, { id: 1, name: 'Acme', slug: 'acme' })
+    api.get.mockClear(); api.get.mockImplementation((url, config) => url === '/v2/workspaces/'
+      ? Promise.resolve({ data: [{ id: 4, name: 'ADM-243 Acceptance 2026-08-31', org_id: 2, org_name: 'Tests' }, { id: 7, name: 'Acme film', org_id: 1, org_name: 'Acme' }] })
+      : route(url, config))
+    const w = mount(VideoStudioProjects, { global: { stubs } }); await flush(); await flush()
+    expect(w.get('[data-test="vsp-workspace"]').element.value).toBe('7')
+    expect(api.get).toHaveBeenCalledWith('/video/folders/', { params: { workspace_id: '7' } })
+    ws.switchWorkspace({ id: 4, name: 'ADM-243 Acceptance 2026-08-31' }, { id: 2, name: 'Tests', slug: 'tests' }); await flush(); await flush()
+    expect(w.get('[data-test="vsp-workspace"]').element.value).toBe('4')
+    w.unmount()
   })
 })

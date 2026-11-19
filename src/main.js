@@ -1,4 +1,5 @@
-import { studioChildRoutes } from './services/studioRoutes'
+import { studioChildRoutes, legacyStudioRoute } from './services/studioRoutes'
+import { STUDIO_BASE, isStudioPath } from './services/studioPaths'
 import { createApp, createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -219,8 +220,6 @@ const router = createRouter({
         { path: '', name: 'dashboard-home', component: HomeDashboard },
         // Bare /dashboard/chat matched NOTHING, so the shell rendered an empty page rather than a
         // chat. It is a natural thing to type and to link to, so it lands where a new chat starts.
-        // Video Studio has its own dashboard (/video-studio). Old links keep working, with their query.
-        { path: 'video-studio', redirect: (to) => ({ path: '/video-studio', query: to.query }) },
         { path: 'chat', redirect: '/dashboard/chat/new' },
         // One viewKey for both: AppShell keeps the same ChatWorkspace when a new chat gets its id.
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace, meta: { viewKey: 'chat' } },
@@ -330,12 +329,16 @@ const router = createRouter({
     // ── Separate ADMIN dashboard (own shell + sidebar, staff-gated). Admin pages live here, not in
     //    the user /dashboard. requiresAdmin on the parent gates every child.
     {
-      // Video Studio: its own dashboard with its own side navigation, inside this app (owner, 2026-10-19).
-      path: '/video-studio',
+      // Video Studio: its own dashboard with its own side navigation, inside this app (owner, 2026-10-19), at
+      // /dashboard/video-studio (CR-2, 2026-11-19). A top-level route, not an AppShell child: the Studio has its own
+      // shell. The router ranks this static path above every /dashboard child.
+      path: STUDIO_BASE,
       component: () => import('./components/video-shell/VideoStudioShell.vue'),
       meta: { requiresAuth: true },
       children: studioChildRoutes,
     },
+    // The old /video-studio address redirects to the same page, keeping its query and hash.
+    legacyStudioRoute,
     {
       path: '/admin-dashboard',
       component: AdminShell,
@@ -568,6 +571,9 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach((to) => {
   // Navigation finished (route component resolved) — complete the progress bar + measure.
   doneNavProgress()
+  // index.html paints a Studio page dark before the app loads (ISSUE-3); anywhere else (a redirect to sign in, the
+  // main dashboard) takes the app's own background back.
+  if (typeof document !== 'undefined' && !isStudioPath(to.path)) document.documentElement.classList.remove('vs-boot')
   if (typeof performance !== 'undefined' && performance.mark) {
     performance.mark('nav:end')
     try { performance.measure('nav', 'nav:start', 'nav:end') } catch { /* no matching start */ }

@@ -31,7 +31,7 @@
     <section class="creative-form" aria-labelledby="ci-train">
       <h2 id="ci-train" class="ci-h">Train a new identity</h2>
       <label class="st-field" data-field="character_id">Character<select v-model="characterId" class="st-input" data-test="identity-character"><option value="">Choose a character</option><option v-for="c in characters" :key="c.ingredient_id" :value="c.ingredient_id">{{ c.name }} ({{ c.files.length }} image{{ c.files.length === 1 ? '' : 's' }})</option></select></label>
-      <p v-if="!loading && !characters.length" class="st-muted ci-note">Make and save a character first on the <RouterLink class="st-link" to="/video-studio/characters">Characters</RouterLink> page.</p>
+      <p v-if="!loading && !characters.length" class="st-muted ci-note">Make and save a character first on the <RouterLink class="st-link" :to="studioPath('characters')">Characters</RouterLink> page.</p>
       <p v-else-if="character && character.files.length < 4" class="st-muted ci-note" role="status">This character has {{ character.files.length }} image{{ character.files.length === 1 ? '' : 's' }}; training needs at least 4. Add more on the Characters page.</p>
       <MediaRoutePicker v-model="trainRoute" operation="train" label="Training model" />
       <label class="st-field" data-field="trigger_word">Trigger word<input v-model.trim="trigger" class="st-input" maxlength="40" placeholder="mara_keeper" data-test="identity-trigger" /></label>
@@ -54,6 +54,7 @@ import CreativeError from './CreativeError.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import { useMediaJob } from '../../composables/useMediaJob'
+import { studioPath } from '../../services/studioPaths'
 const emit = defineEmits(['job'])
 const route = useRoute(), monitor = inject('studioMonitor', '')
 const identities = ref([]), characters = ref([]), loading = ref(true), characterId = ref(String(route.query.character || '')), trainRoute = ref(''), trigger = ref('')

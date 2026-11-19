@@ -11,6 +11,7 @@ import { thumbnailFor } from '../utils/mediaThumb'
 import api from '../services/api'
 import { LOOK_ID } from '../services/studioLooks'
 import { notify } from '../composables/useNotify'
+import { studioPath } from '../services/studioPaths'
 
 const TERMINAL = new Set(['ready', 'failed', 'cancelled'])
 // Versions are read 50 at a time, newest first (GET /video/versions/); "Load older versions" asks for the next page.
@@ -1159,7 +1160,7 @@ export const useVideoStore = defineStore('video', {
       this.addExistingRef({ ...item, media_type: kind }, 'edit_source')
       const ref = this.refs.find((r) => r.attachment_id === item.attachment_id)
       if (ref) { ref.base_attachment_id = item.attachment_id; ref.thumbnail_url = item.thumbnail_url }
-      return { path: kind === 'video' ? '/video-studio/enhance' : '/video-studio/edit',
+      return { path: kind === 'video' ? studioPath('enhance') : studioPath('edit'),
                query: { ...(conversationId ? { conversation: String(conversationId) } : {}), useIn: '1', mode: this.studioMode } }
     },
     openPanel(tab) {

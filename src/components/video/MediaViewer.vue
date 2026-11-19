@@ -47,6 +47,7 @@
 <script setup>
 import { studioChatName } from '../../services/studioMessagePresentation'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { studioPath } from '../../services/studioPaths'
 
 const props = defineProps({
   items: { type: Array, required: true },          // the files that can be previewed, in the order shown
@@ -66,7 +67,7 @@ const pair = computed(() => {
 // A Studio chat opens in the Studio; any other chat in the main chat.
 const fromChat = computed(() => studioChatName(item.value.conversation_name, 'its chat'))
 const chatLink = computed(() => (item.value.conversation_in_studio
-  ? { path: '/video-studio', query: { conversation: String(item.value.conversation_id) } }
+  ? { path: studioPath(), query: { conversation: String(item.value.conversation_id) } }
   : `/dashboard/chat/${item.value.conversation_id}`))
 function size(n) {
   const b = Number(n) || 0

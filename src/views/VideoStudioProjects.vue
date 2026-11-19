@@ -15,8 +15,8 @@
 
       <section v-if="scope !== 'trash' && workspaces.length" class="vsp-folders" aria-label="Folders" data-test="vsp-folders">
         <div class="vsp-folder-bar">
-          <label v-if="workspaces.length > 1" class="vsp-ws"><span class="vsp-sr">Workspace</span>
-            <select v-model="workspaceId" data-test="vsp-workspace" @change="folderFilter = ''; loadFolders(); load()"><option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }}</option></select></label>
+          <label v-if="workspaces.length > 1 || !workspaceId" class="vsp-ws"><span class="vsp-sr">Workspace</span>
+            <select :value="workspaceId" data-test="vsp-workspace" @change="chooseWorkspace($event.target.value)"><option v-if="!workspaceId" value="" disabled>Choose a workspace</option><option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }}</option></select></label>
           <button type="button" class="vsp-chip" :class="{ on: folderFilter === '' }" :aria-pressed="folderFilter === '' ? 'true' : 'false'" @click="pickFolder('')">All</button>
           <button type="button" class="vsp-chip" :class="{ on: folderFilter === 'none' }" :aria-pressed="folderFilter === 'none' ? 'true' : 'false'" @click="pickFolder('none')">Not in a folder</button>
           <button v-for="f in sortedFolders" :key="f.folder_id" type="button" class="vsp-chip" :class="{ on: folderFilter === String(f.folder_id) }" :aria-pressed="folderFilter === String(f.folder_id) ? 'true' : 'false'" data-test="vsp-folder" @click="pickFolder(String(f.folder_id))">
@@ -102,7 +102,8 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import api from '../services/api'
 import ProjectShareDialog from '../components/studio/ProjectShareDialog.vue'
-import { REVIEW_LABELS, ROLE_LABELS, day, errorText, myWorkspaces, sharing as share } from '../services/studioSharing'
+import { REVIEW_LABELS, ROLE_LABELS, day, errorText, sharing as share } from '../services/studioSharing'
+import { useStudioWorkspace } from '../composables/useStudioWorkspace'
 
 const projects = ref([])
 const loading = ref(true)
@@ -110,7 +111,9 @@ const error = ref('')
 const q = ref('')
 const scopes = [{ value: 'all', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'shared', label: 'Shared with me' }, { value: 'trash', label: 'Trash' }]
 const scope = ref('all')
-const workspaces = ref([]), workspaceId = ref(''), folders = ref([]), folderFilter = ref('')
+// The workspace the Studio menu shows, kept in step with it (ISSUE-19): its folders are the ones listed here.
+const { workspaces, workspaceId, loadWorkspaces, chooseWorkspace } = useStudioWorkspace({ onChange: () => { folderFilter.value = ''; loadFolders(); load() } })
+const folders = ref([]), folderFilter = ref('')
 const folderForm = ref(null), folderBusy = ref(false), folderError = ref(''), confirmFolderDelete = ref(false), folderName = ref(null)
 const sharing = ref(null), busyId = ref(''), actionError = ref(''), confirmTrash = ref(''), confirmPurge = ref('')
 const createDialog=ref(null),newTitle=ref(''),creating=ref(false),createError=ref('')
@@ -181,13 +184,8 @@ const restore = (p) => act(p, () => share.restore(p.project_id), 'The project co
 const purge = (p) => act(p, () => share.purge(p.project_id), 'The project could not be deleted.')
 onMounted(async () => {
   load()
-  try {
-    workspaces.value = await myWorkspaces()
-    let active = ''
-    try { active = localStorage.getItem('activeWorkspaceId') || '' } catch { /* works without storage */ }
-    workspaceId.value = String((workspaces.value.find(w => String(w.id) === active) || workspaces.value[0] || {}).id || '')
-    await loadFolders()
-  } catch { workspaces.value = [] }
+  await loadWorkspaces()
+  await loadFolders()
 })
 </script>
 

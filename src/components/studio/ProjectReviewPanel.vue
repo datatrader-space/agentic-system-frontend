@@ -14,7 +14,7 @@
       <ul v-if="approvals.length" class="prp-decisions">
         <li v-for="a in approvals" :key="a.user.id" data-test="review-decision">
           <span class="prp-mark" :class="a.decision === 'approved' ? 'ok' : 'warn'">{{ a.decision === 'approved' ? 'Approved' : 'Changes requested' }}</span>
-          <span><strong>{{ a.user.name }}</strong><small>{{ when(a.updated_at) }}</small><span v-if="a.note" class="prp-note">{{ a.note }}</span></span>
+          <span><strong data-test="review-person">{{ personName(a.user, me) }}</strong><small v-if="personDetail(a.user, me)" class="prp-email">{{ personDetail(a.user, me) }}</small><small>{{ when(a.updated_at) }}</small><span v-if="a.note" class="prp-note">{{ a.note }}</span></span>
         </li>
       </ul>
       <p v-else class="prp-muted">No decisions yet.</p>
@@ -37,9 +37,9 @@
       <ol class="prp-threads">
         <li v-for="c in threads" :key="c.comment_id" class="prp-thread" :class="{ resolved: c.resolved }" data-test="review-comment">
           <article class="prp-comment">
-            <header><strong>{{ c.author.name }}</strong><small>{{ when(c.created_at) }}{{ c.edited_at ? ', edited' : '' }}</small>
+            <header><strong data-test="review-person">{{ personName(c.author, me) }}</strong><small v-if="personDetail(c.author, me)" class="prp-email">{{ personDetail(c.author, me) }}</small><small>{{ when(c.created_at) }}{{ c.edited_at ? ', edited' : '' }}</small>
               <span v-if="c.timecode_ms != null" class="prp-time">at {{ clock(c.timecode_ms) }}</span>
-              <span v-if="c.resolved" class="prp-mark ok">Resolved{{ c.resolved_by ? ` by ${c.resolved_by.name}` : '' }}</span></header>
+              <span v-if="c.resolved" class="prp-mark ok">Resolved{{ c.resolved_by ? ` by ${isMe(c.resolved_by, me) ? 'you' : personName(c.resolved_by, me)}` : '' }}</span></header>
             <form v-if="editing === c.comment_id" class="prp-edit" @submit.prevent="saveEdit(c)">
               <label class="prp-sr" :for="`prp-edit-${c.comment_id}`">Edit comment</label>
               <textarea :id="`prp-edit-${c.comment_id}`" v-model="editText" rows="3" maxlength="5000" required />
@@ -56,7 +56,7 @@
           </article>
           <ol v-if="c.replies.length" class="prp-replies">
             <li v-for="r in c.replies" :key="r.comment_id"><article class="prp-comment">
-              <header><strong>{{ r.author.name }}</strong><small>{{ when(r.created_at) }}{{ r.edited_at ? ', edited' : '' }}</small></header>
+              <header><strong data-test="review-person">{{ personName(r.author, me) }}</strong><small v-if="personDetail(r.author, me)" class="prp-email">{{ personDetail(r.author, me) }}</small><small>{{ when(r.created_at) }}{{ r.edited_at ? ', edited' : '' }}</small></header>
               <form v-if="editing === r.comment_id" class="prp-edit" @submit.prevent="saveEdit(r)">
                 <label class="prp-sr" :for="`prp-edit-${r.comment_id}`">Edit reply</label>
                 <textarea :id="`prp-edit-${r.comment_id}`" v-model="editText" rows="2" maxlength="5000" required />
@@ -70,7 +70,7 @@
             </article></li>
           </ol>
           <form v-if="replyTo === c.comment_id" class="prp-reply" @submit.prevent="send(c)">
-            <label class="prp-sr" :for="`prp-reply-${c.comment_id}`">Reply to {{ c.author.name }}</label>
+            <label class="prp-sr" :for="`prp-reply-${c.comment_id}`">Reply to {{ isMe(c.author, me) ? 'your comment' : personName(c.author, me) }}</label>
             <textarea :id="`prp-reply-${c.comment_id}`" ref="replyBox" v-model="replyText" rows="2" maxlength="5000" placeholder="Write a reply" required />
             <div class="prp-actions"><button type="submit" class="prp-btn primary" :disabled="!replyText.trim() || busy">Reply</button><button type="button" class="prp-btn quiet" @click="replyTo = ''">Cancel</button></div>
           </form>
@@ -90,8 +90,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
-import { errorText, sharing } from '../../services/studioSharing'
+import { computed, inject, nextTick, ref, watch } from 'vue'
+import { errorText, isMe, personDetail, personName, sharing } from '../../services/studioSharing'
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -101,6 +101,8 @@ const props = defineProps({
   initialTarget: { type: Object, default: null },
 })
 const emit = defineEmits(['decided'])
+// The signed-in person (the Studio shell provides it): what they wrote and decided says "You" (ISSUE-15).
+const me = inject('studioUser', ref(null))
 const allTargets = computed(() => [{ type: 'project', id: props.projectId, label: 'The whole project' }, ...props.targets])
 const key = (t) => `${t.type}:${t.id}`
 const targetKey = ref(props.initialTarget ? key(props.initialTarget) : `project:${props.projectId}`)
@@ -167,7 +169,7 @@ async function decide(decision) {
 .prp h3{margin:0;font-size:14px;font-weight:600}.prp-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .prp-decisions,.prp-threads,.prp-replies{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .prp-decisions li{display:flex;align-items:flex-start;gap:10px;font-size:13px}.prp-decisions li>span:last-child{display:grid;gap:2px}
-.prp small{font-size:11.5px;color:var(--vm-ink-soft)}.prp-note{font-size:12.5px;color:var(--vm-ink-soft);white-space:pre-wrap;overflow-wrap:anywhere}
+.prp small{font-size:11.5px;color:var(--vm-ink-soft)}.prp-email{overflow-wrap:anywhere}.prp-note{font-size:12.5px;color:var(--vm-ink-soft);white-space:pre-wrap;overflow-wrap:anywhere}
 .prp-mark{flex:none;font-size:11px;padding:2px 8px;border-radius:999px;white-space:nowrap}.prp-mark.ok{color:var(--vs-ok-ink);background:var(--vs-ok-bg)}.prp-mark.warn{color:var(--vs-warn-ink);background:var(--vs-warn-bg)}
 .prp-thread{display:grid;gap:8px;padding:12px;border:1px solid var(--vm-line-2);border-radius:8px;background:var(--vm-bg)}.prp-thread.resolved{opacity:.75}
 .prp-comment{display:grid;gap:6px}.prp-comment header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:13px}

@@ -30,11 +30,25 @@ export function presetsFor(feature) {
 export function allLooks() { return [...API_PRESET_PAGES.flatMap(feature => (fromApi[feature] || []).filter(p => p.clientOnly)), ...studioLooks] }
 // Tests only: forget what was read.
 export function forgetPresets() { for (const feature of API_PRESET_PAGES) fromApi[feature] = null }
+// A look's text field whose default stands for the person's own thing ("Your product", "Your subject") is a hint, not
+// a value (ISSUE-6): its field starts empty with the hint as its placeholder, and the prompt never carries the hint as
+// if it were the person's words. Any other default ("Warm ivory", "Slow push-in") is the look's prepared direction.
+export function isPlaceholderDefault(variable) { return /^\s*your\b/i.test(String(variable?.default ?? '')) }
+// The value a look's field starts with: its prepared direction, or empty when its default is only a hint.
+export function initialVariableValue(variable) { return isPlaceholderDefault(variable) ? '' : String(variable?.default ?? '') }
+// Only filled values go into the prompt. A field left empty takes the look's prepared direction; a hint left empty is
+// named the way an empty reference slot is, so the model asks or reads the person's references instead.
 export function composePreset(preset, values = {}, details = '', variant = 0) {
   if (!preset) return details.trim()
+  const supplied = Object.values(values || {}).some(value => Array.isArray(value) && value.length)
   const text = preset.promptTemplate.replace(/\{([^}]+)\}/g, (_, id) => {
     const variable = preset.variables?.find(item => item.label.toLowerCase() === id.toLowerCase())
-    if (variable) return String(values[variable.id] ?? variable.default).trim() || variable.default
+    if (variable) {
+      const filled = String(values[variable.id] ?? '').trim()
+      if (filled) return filled
+      if (!isPlaceholderDefault(variable)) return String(variable.default ?? '').trim()
+      return supplied ? 'the subject in the supplied references' : 'the subject described below'
+    }
     const chosen = values[id] || []
     return chosen.length ? `the supplied ${preset.slots.find(slot => slot.id === id)?.label.toLowerCase() || 'reference'}` : 'the subject described below'
   })

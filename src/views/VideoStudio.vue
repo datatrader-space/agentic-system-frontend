@@ -150,6 +150,7 @@ import ChatMessageList from '../components/chat/ChatMessageList.vue'
 import HITLModal from '../components/HITLModal.vue'
 import FullDocCostCard from '../components/chat/FullDocCostCard.vue'
 import ProjectShareDialog from '../components/studio/ProjectShareDialog.vue'
+import { studioPath } from '../services/studioPaths'
 
 const route = useRoute()
 const router = useRouter()
@@ -254,7 +255,7 @@ async function initialize() {
   if (route.query.project && hasVideoAgent.value) await openProject({ project_id: route.query.project })
   if (hasVideoAgent.value && video.queuedUse.length) await video.applyQueuedUse({ chat })
   if (route.query.new || route.query.project) {
-    router.replace({ path: '/video-studio/dashboard', query: chat.conversationId ? { conversation: chat.conversationId } : {} })
+    router.replace({ path: studioPath('dashboard'), query: chat.conversationId ? { conversation: chat.conversationId } : {} })
   }
 }
 // The built-in agent's card, kept in the chat store's agent list so a new chat opens with it.
@@ -298,7 +299,7 @@ function newVideo() {
   video.task = 'quick'
   video.routeId = ''
   mobileTab.value = 'agent'
-  router.replace({ path: '/video-studio/dashboard', query: {} })
+  router.replace({ path: studioPath('dashboard'), query: {} })
 }
 async function focusPrompt() {
   mobileTab.value = 'agent'
@@ -338,7 +339,7 @@ function composeEdit(event) {
 }
 watch(() => chat.conversationId, async (cid) => {
   if (loading.value || !cid || disposed) return
-  await router.replace({ path: '/video-studio/dashboard', query: { conversation: cid } })
+  await router.replace({ path: studioPath('dashboard'), query: { conversation: cid } })
   video.conversationId = cid
   await video.loadJobs(cid)
 })
@@ -356,7 +357,7 @@ onMounted(async () => {
   window.addEventListener('video-compose', composeEdit)
   await initialize()
   if (disposed) return
-  if (chat.conversationId && !route.query.conversation) router.replace({ path: '/video-studio/dashboard', query: { conversation: chat.conversationId } })
+  if (chat.conversationId && !route.query.conversation) router.replace({ path: studioPath('dashboard'), query: { conversation: chat.conversationId } })
   if (!disposed) sessionPoller.start({ immediate: false })
 })
 onBeforeUnmount(() => {

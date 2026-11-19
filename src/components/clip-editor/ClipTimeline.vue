@@ -12,7 +12,7 @@
         <div class="ct-playhead" :style="{ left: `${HEAD + px(playhead)}px` }" aria-hidden="true" />
         <div v-for="(track, ti) in doc.tracks" :key="track.id" class="ct-row" :class="[`ct-${track.kind}`, { 'ct-off': track.hidden || track.muted }]">
           <div class="ct-head">
-            <span class="ct-name">{{ trackName(track, ti) }}</span>
+            <span class="ct-name" :title="trackName(track, ti)" data-test="ct-track-name">{{ trackName(track, ti) }}</span>
             <button v-if="track.kind !== 'text'" type="button" class="ct-icon" :aria-pressed="!!track.muted" :aria-label="`${track.muted ? 'Unmute' : 'Mute'} ${trackName(track, ti)}`" @click="$emit('track', { id: track.id, changes: { muted: !track.muted } })">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path v-if="!track.muted" d="M16 9a4 4 0 0 1 0 6" /><path v-else d="m16 9 5 6M21 9l-5 6" /></svg>
             </button>
@@ -59,7 +59,9 @@ const props = defineProps({
   names: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['select', 'seek', 'move', 'trim', 'track', 'key'])
-const HEAD = 92
+// The track header's width, the same at every screen size (the ruler and the playhead are placed after it). Wide
+// enough for a track's name on its own line above its buttons (ISSUE-11).
+const HEAD = 112
 const scroller = ref(null), scrollLeft = ref(0), sliderId = `ct-seek-${useId()}`
 const focused = reactive({})
 const rate = computed(() => props.doc.rate || 30)
@@ -242,8 +244,9 @@ defineExpose({ focusItem })
 .ct-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--vs-accent-ink);z-index:3;pointer-events:none}
 .ct-row{display:flex;min-height:52px;border-bottom:1px solid var(--vm-line-2)}
 .ct-row.ct-text,.ct-row.ct-audio{min-height:40px}
-.ct-head{position:sticky;left:0;z-index:4;display:flex;align-items:center;gap:2px;width:92px;flex:none;padding:0 4px 0 8px;background:var(--vm-surface);border-right:1px solid var(--vm-line-2)}
-.ct-name{flex:1;min-width:0;font-size:11px;color:var(--vm-ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ct-head{position:sticky;left:0;z-index:4;display:flex;flex-wrap:wrap;align-content:center;align-items:center;gap:0 2px;box-sizing:border-box;width:112px;flex:none;padding:3px 4px 3px 8px;background:var(--vm-surface);border-right:1px solid var(--vm-line-2)}
+/* The name on its own line, whole (two lines at most for a long name of the person's own; the full name is its title). */
+.ct-name{flex:1 0 100%;min-width:0;font-size:11px;line-height:1.3;color:var(--vm-ink-soft);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ct-icon{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:none;color:var(--vm-ink-faint);cursor:pointer}
 .ct-icon[aria-pressed="true"]{color:var(--vs-warn-ink)}.ct-icon:hover{background:var(--vm-surface-2)}
 .ct-icon svg,.ct-transition svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -266,7 +269,7 @@ defineExpose({ focusItem })
 .ct-seek{padding:0 2px}.ct-slider{width:100%;accent-color:var(--vm-primary);min-height:24px}
 @media (max-width:767px){
   .ct-scroll{max-height:220px}
-  .ct-head{width:64px;padding-left:4px}.ct-name{font-size:10px}
+  .ct-head{padding-left:6px}
   .ct-icon{width:28px;height:28px}
   .ct-row{min-height:56px}.ct-row.ct-text,.ct-row.ct-audio{min-height:48px}
   .ct-handle{width:14px}

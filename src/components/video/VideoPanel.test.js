@@ -49,7 +49,7 @@ describe('Edit the cut', () => {
   it('opens the clip editor on this project once every scene has a take', () => {
     const w = mountWith(true)
     const link = w.get('[data-test="video-edit-cut"]')
-    expect(JSON.parse(link.attributes('data-to'))).toEqual({ path: '/video-studio/editor', query: { project_id: 'p1' } })
+    expect(JSON.parse(link.attributes('data-to'))).toEqual({ path: '/dashboard/video-studio/editor', query: { project_id: 'p1' } })
     expect(w.find('[data-test="video-export"]').exists()).toBe(false)            // no second timeline screen
     w.unmount()
   })

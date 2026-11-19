@@ -52,15 +52,21 @@
             <li v-for="it in visibleItems" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">
               <!-- Click to see it whole, or play it (owner, 2026-10-20). -->
-              <button v-if="it.media_type !== 'document'" type="button" class="lib-thumb-btn" :aria-label="'Preview ' + it.title"
+              <!-- Until its picture has loaded a card shows a placeholder that shimmers (still with reduced motion), and
+                   a picture that cannot be loaded says so, never a black box (ISSUE-9). Offscreen pictures load as they
+                   come near the view. -->
+              <button v-if="it.media_type !== 'document'" type="button" class="lib-thumb-btn" :class="{ 'is-loading': thumbLoading(it) }"
+                      :aria-label="'Preview ' + it.title" :aria-busy="thumbLoading(it) ? 'true' : undefined"
                       data-test="lib-preview" @click="openViewer(it)">
                 <!-- A small picture from the server (not the whole file); the file itself when there is none. -->
                 <img v-if="it.thumbnail_url && !thumbFailed.has(it.attachment_id)" :src="it.thumbnail_url" alt="" class="lib-thumb"
-                     loading="lazy" data-test="lib-thumbnail" @error="noThumbnail(it)" />
+                     loading="lazy" decoding="async" data-test="lib-thumbnail" @load="thumbDone(it)" @error="noThumbnail(it)" />
                 <span v-else-if="isPicker" class="lib-thumb lib-audio" aria-hidden="true">{{ fileKind(it.media_type) }}</span>
-                <video v-else-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
+                <span v-else-if="fileFailed.has(it.attachment_id)" class="lib-thumb lib-audio lib-thumb-failed" data-test="lib-thumb-failed">Preview unavailable</span>
+                <video v-else-if="it.media_type === 'video'" :ref="el => watchVideo(el)" :src="it.url" muted preload="none" class="lib-thumb" aria-hidden="true"
+                       @loadeddata="thumbDone(it)" @error="noFile(it)"></video>
                 <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
-                <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
+                <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" decoding="async" @load="thumbDone(it)" @error="noFile(it)" />
                 <span v-if="it.media_type === 'video'" class="lib-play" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
               </button>
@@ -122,7 +128,7 @@
         <div v-show="tab === 'ingredients'" class="lib-body" role="tabpanel" aria-label="Elements">
           <ElementsPanel :mode="mode" @use="useIngredient">
             <template #empty>
-              <router-link v-if="isPage" to="/video-studio/library" class="lib-btn primary">Open the Library</router-link>
+              <router-link v-if="isPage" :to="studioPath('library')" class="lib-btn primary">Open the Library</router-link>
               <button v-else type="button" class="lib-btn" @click="tab = 'files'">Show my files</button>
             </template>
           </ElementsPanel>
@@ -143,6 +149,7 @@ import VideoChoice from './VideoChoice.vue'
 import MediaViewer from './MediaViewer.vue'
 import ElementsPanel from './ElementsPanel.vue'
 import { KINDS } from './elementKinds'
+import { studioPath } from '../../services/studioPaths'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -196,6 +203,28 @@ const thumbFailed = ref(new Set())
 // What a file is, for the picker's placeholder when it has no small picture (an audio file is never "Image").
 function fileKind(type) { return { video: 'Video', image: 'Image', audio: 'Audio', document: 'Document' }[type] || 'File' }
 function noThumbnail(it) { thumbFailed.value = new Set([...thumbFailed.value, it.attachment_id]) }
+// Pictures that have loaded, and files whose own picture could not be shown either (ISSUE-9).
+const thumbLoaded = ref(new Set()), fileFailed = ref(new Set())
+function thumbDone(it) { if (!thumbLoaded.value.has(it.attachment_id)) thumbLoaded.value = new Set([...thumbLoaded.value, it.attachment_id]) }
+function noFile(it) { fileFailed.value = new Set([...fileFailed.value, it.attachment_id]) }
+// A card waits for a picture only when it shows one: an image or a video that has not loaded or failed yet.
+function thumbLoading(it) {
+  const id = it.attachment_id
+  if (thumbLoaded.value.has(id) || fileFailed.value.has(id)) return false
+  if (it.thumbnail_url && !thumbFailed.value.has(id)) return true
+  return !isPicker.value && ['image', 'video'].includes(it.media_type)
+}
+// A video card reads its first frame only once it is near the view; until then it asks the server for nothing.
+let videoObserver = null
+function watchVideo(el) {
+  if (!el || el.dataset.watched) return
+  el.dataset.watched = '1'
+  if (typeof IntersectionObserver === 'undefined') { el.preload = 'metadata'; return }
+  videoObserver ||= new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) { entry.target.preload = 'metadata'; entry.target.load?.(); videoObserver?.unobserve(entry.target) }
+  }, { rootMargin: '300px' })
+  videoObserver.observe(el)
+}
 const viewIndex = ref(-1)
 const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))
 function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.attachment_id === it.attachment_id) }
@@ -205,7 +234,7 @@ function leave() { viewIndex.value = -1; if (!isPage.value) close() }
 // in the main chat.
 function fromChat(it) { return studioChatName(it.conversation_name, 'its chat') }
 function chatLink(it) {
-  return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
+  return it.conversation_in_studio ? { path: studioPath(), query: { conversation: String(it.conversation_id) } }
     : `/dashboard/chat/${it.conversation_id}`
 }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
@@ -266,7 +295,7 @@ async function saveIngredient() {
       picked.value = new Set()
       Object.assign(draft, { name: '', kind: 'product', description: '' })
       // A page has no tabs (the side navigation picks Library or Ingredients), so it goes to the Ingredients page.
-      if (isPage.value) { router.push('/video-studio/elements'); return }
+      if (isPage.value) { router.push(studioPath('elements')); return }
       tab.value = 'ingredients'
       video.loadLibrary()
     }
@@ -289,7 +318,7 @@ onMounted(async () => {
   await nextTick()
   if (!isPage.value) panelEl.value?.focus()
 })
-onBeforeUnmount(() => clearTimeout(searchTimer))
+onBeforeUnmount(() => { clearTimeout(searchTimer); videoObserver?.disconnect(); videoObserver = null })
 </script>
 
 <style scoped>
@@ -339,6 +368,14 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-thumb-btn { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: zoom-in; }
 .lib-thumb-btn:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 .lib-thumb-btn:hover .lib-thumb { filter: brightness(1.08); }
+/* Loading: a soft placeholder the size of the picture, with the app's loading shimmer (vmShimmer, style.css) that stops
+   for reduced motion (ISSUE-9). */
+.lib-thumb-btn.is-loading { overflow: hidden; }
+.lib-thumb-btn.is-loading .lib-thumb { background: var(--vm-surface-2, #e5e7eb); }
+.lib-thumb-btn.is-loading::after { content: ""; position: absolute; inset: 0; border-radius: 4px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .12), transparent); transform: translateX(-100%); animation: vmShimmer 1.4s ease-in-out infinite; }
+.lib-thumb-failed { border: 1px dashed var(--vm-line, #cbd5e1); background: var(--vm-surface, #f8fafc); color: var(--vm-ink-soft, #64748b); }
+@media (prefers-reduced-motion: reduce) { .lib-thumb-btn.is-loading::after { animation: none; transform: none; background: transparent; } }
 .lib-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 40px; height: 40px;
   border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; pointer-events: none; }
 .lib-play svg { width: 18px; height: 18px; margin-left: 2px; }

@@ -65,6 +65,25 @@ describe('VideoClipEditor', () => {
     expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(2)
   })
 
+  // ISSUE-13: Split with the playhead where nothing can be cut says why, on screen, and changes nothing.
+  it('says why Split cannot cut when the playhead is not inside a selected clip', async () => {
+    await open()
+    await w.get('[data-id="a"]').trigger('keydown', { key: 'Enter' })
+    await w.get('.ct-slider').setValue('0')
+    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
+    await button('Split').trigger('click')
+    expect(w.get('[data-test="ve-split-note"]').text()).toBe('Move the playhead inside a selected clip to split it.')
+    expect(w.get('[data-test="ve-split"]').attributes('aria-describedby')).toBe('ve-split-note')
+    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(1)
+    expect(w.get('[aria-live="polite"]').text()).toBe('Move the playhead inside a selected clip to split it.')
+    // Moving the playhead clears the note; a cut inside the clip works.
+    await w.get('.ct-slider').setValue('1000')
+    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
+    await button('Split').trigger('click')
+    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(2)
+    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
+  })
+
   it('single-key shortcuts work only with the timeline focused and can be switched off', async () => {
     await open()
     await w.get('[data-id="a"]').trigger('keydown', { key: 'Enter' })

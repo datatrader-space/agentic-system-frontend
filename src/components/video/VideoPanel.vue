@@ -103,7 +103,7 @@
 
         <!-- The cut is edited in the clip editor (VIDEO_CLIP_EDITOR_PLAN.md E1): one timeline screen, not two. -->
         <div v-if="allRendered && video.project" class="vp-actions" data-test="video-timeline">
-          <RouterLink class="vp-btn primary" data-test="video-edit-cut" :to="{ path: '/video-studio/editor', query: { project_id: video.project.project_id } }">Edit the cut</RouterLink>
+          <RouterLink class="vp-btn primary" data-test="video-edit-cut" :to="{ path: studioPath('editor'), query: { project_id: video.project.project_id } }">Edit the cut</RouterLink>
           <span class="vp-sub">Trim, reorder, add text, captions and music, then export, in the clip editor.</span>
         </div>
       </template>
@@ -171,6 +171,7 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoLibrary from './VideoLibrary.vue'
 import VideoImageResults from './VideoImageResults.vue'
+import { studioPath } from '../../services/studioPaths'
 
 // bare: the host shows the project title itself and frames the panel (Video Studio's canvas).
 defineProps({ bare: { type: Boolean, default: false } })

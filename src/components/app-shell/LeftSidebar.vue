@@ -79,6 +79,7 @@ import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import SidebarProfileMenu from './SidebarProfileMenu.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
 import { balanceText } from '../../utils/money'
+import { studioPath } from '../../services/studioPaths'
 
 const props = defineProps({
   // When true (inside the mobile drawer) the sidebar is always expanded and
@@ -133,7 +134,7 @@ const primaryNav = [
   { to: '/dashboard/training-data/', external: true, label: 'Training Data', 'data-tour': 'training-data', iconComponent: Database },
   // Video Studio is its own dashboard inside this app, with its own side navigation (owner, 2026-10-19). This is
   // the one way in: the chat composer has no video mode.
-  { to: '/video-studio', match: '/video-studio', label: 'Video Studio', 'data-tour': 'video-studio', iconComponent: Clapperboard },
+  { to: studioPath(), match: studioPath(), label: 'Video Studio', 'data-tour': 'video-studio', iconComponent: Clapperboard },
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', iconComponent: CalendarClock },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', iconComponent: Activity },
   { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, iconComponent: ShieldCheck },

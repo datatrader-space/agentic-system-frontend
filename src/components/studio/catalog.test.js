@@ -10,7 +10,7 @@ describe('F0 feature and route catalog', () => {
   it('has every planned page, a working route pattern and honest status metadata', () => {
     expect(studioFeatures.value).toHaveLength(29)
     expect(new Set(studioFeatures.value.map(feature => feature.id)).size).toBe(29)
-    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/video-studio', component: { template: '<div />' }, children: studioChildRoutes }] })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dashboard/video-studio', component: { template: '<div />' }, children: studioChildRoutes }] })
     for (const feature of studioFeatures.value) {
       expect(STUDIO_GROUPS).toContain(feature.group); expect(studioIcons[feature.icon]).toBeTruthy()
       expect(['live','beta','soon']).toContain(feature.status)
@@ -25,9 +25,9 @@ describe('F0 feature and route catalog', () => {
   })
   it('redirects the old Ingredients address and keeps conversation and other query values', async () => {
     const routes = studioChildRoutes.map(route => ({ ...route, component: route.redirect ? undefined : { template: '<div />' } }))
-    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/video-studio', component: { template: '<div />' }, children: routes }] })
-    await router.push('/video-studio/ingredients?conversation=c9&source=old#saved')
-    expect(router.currentRoute.value.path).toBe('/video-studio/elements')
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dashboard/video-studio', component: { template: '<div />' }, children: routes }] })
+    await router.push('/dashboard/video-studio/ingredients?conversation=c9&source=old#saved')
+    expect(router.currentRoute.value.path).toBe('/dashboard/video-studio/elements')
     expect(router.currentRoute.value.query).toEqual({ conversation: 'c9', source: 'old' }); expect(router.currentRoute.value.hash).toBe('#saved')
   })
   it.each(['image','video'])('composes every %s preset the Recipe API serves with its declared slots', async feature => {

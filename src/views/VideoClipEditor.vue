@@ -54,7 +54,7 @@
       </div>
 
       <div class="ve-tools" role="toolbar" aria-label="Edit">
-        <button type="button" class="st-button" :disabled="!editor.selection.value.length" @click="split">Split</button>
+        <button type="button" class="st-button" :disabled="!editor.selection.value.length" :aria-describedby="splitNote ? 've-split-note' : undefined" data-test="ve-split" @click="split">Split</button>
         <button type="button" class="st-button" :disabled="!editor.selection.value.length" @click="remove(false)">Delete</button>
         <button type="button" class="st-button" :disabled="!editor.selection.value.length" @click="remove(true)">Delete and close the gap</button>
         <button type="button" class="st-button" :disabled="editor.selection.value.length !== 1" @click="duplicate">Duplicate</button>
@@ -74,6 +74,7 @@
         <label class="ve-keys"><input type="checkbox" :checked="editor.shortcuts.value" @change="editor.setShortcuts($event.target.checked)" /> Keyboard shortcuts</label>
         <button type="button" class="st-button primary ve-export" :disabled="!editor.total.value" @click="exportOpen = true">Export</button>
       </div>
+      <p v-if="splitNote" id="ve-split-note" class="ve-split-note" data-test="ve-split-note">{{ splitNote }}</p>
 
       <ClipTimeline ref="timelineEl" :doc="editor.doc.value" :selection="editor.selection.value" :playhead="editor.playhead.value" :zoom="editor.zoom.value"
                     :snapping="editor.snapping.value" :media="editor.media" :names="names"
@@ -191,10 +192,19 @@ function addText(captions) {
   }
 }
 function addTrack(kind) { apply(tl.addTrackOps(editor.doc.value, kind), `${kind === 'video' ? 'Video' : 'Sound'} track added`) }
+// Split cuts each selected clip at the playhead. With the playhead outside every selected clip (at 0:00, or past its
+// end) nothing can be cut, and the page says why, on screen and to a screen reader (ISSUE-13).
+const SPLIT_REASON = 'Move the playhead inside a selected clip to split it.'
+const splitNote = ref('')
+let splitNoteTimer = null
+function showSplitNote() { splitNote.value = SPLIT_REASON; editor.announce(SPLIT_REASON); clearTimeout(splitNoteTimer); splitNoteTimer = setTimeout(() => { splitNote.value = '' }, 6000) }
+watch(() => [editor.playhead.value, editor.selection.value], () => { if (splitNote.value) { splitNote.value = ''; clearTimeout(splitNoteTimer) } })
+onBeforeUnmount(() => clearTimeout(splitNoteTimer))
 function split() {
   const at = editor.playhead.value
   const ids = editor.selection.value.filter(id => { const f = tl.find(editor.doc.value, id); return f && tl.isTimed(f.item) && f.item.start_ms < at && at < tl.itemEnd(f.item) })
-  if (!ids.length) { editor.announce('Move the playhead inside the selected clip to split it.'); return }
+  if (!ids.length) { showSplitNote(); return }
+  splitNote.value = ''; clearTimeout(splitNoteTimer)
   let doc = editor.doc.value
   const ops = []
   for (const id of ids) { const o = tl.splitOps(doc, id, at, { rate: editor.rate.value }); ops.push(...o); doc = tl.applyOps(doc, o).doc }
@@ -328,6 +338,7 @@ watch(() => route.query.project_id, id => { if (id && String(id) !== projectId.v
 .ve-keys{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--vm-ink-soft)}
 .ve-export{margin-left:auto}
 .ve-hint{font-size:12px;line-height:1.5}
+.ve-split-note{margin:0;padding:8px 10px;border:1px solid var(--vs-warn-line);border-radius:6px;background:var(--vs-warn-bg);color:var(--vs-warn-ink);font-size:12px;line-height:1.5}
 @media (max-width:1023px){
   .ve-top{grid-template-columns:1fr}
   .ve-top > :deep(.bs-host){max-height:none;overflow:visible;padding:0;border:0;background:none}

@@ -108,6 +108,7 @@ import { jobOutputKind, thumbnailFor } from '../../utils/mediaThumb'
 import { priceAmount, priceRule } from '../../utils/studioPrice'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { studioPath } from '../../services/studioPaths'
 
 const props = defineProps({ job: { type: Object, required: true }, inStudio: { type: Boolean, default: false } })
 const emit = defineEmits(['open'])
@@ -182,7 +183,7 @@ function openPanel() {
     emit('open')
     return
   }
-  router.push({ path: '/video-studio', query: { conversation: props.job.conversation_id || undefined } })
+  router.push({ path: studioPath(), query: { conversation: props.job.conversation_id || undefined } })
 }
 
 const now = ref(Date.now())

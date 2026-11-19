@@ -9,10 +9,11 @@
     </header>
     <div class="vts-controls">
       <label v-if="workspaces.length" class="vts-field"><span>Workspace</span>
-        <select v-model="workspaceId" data-test="vts-workspace" @change="load"><option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }}{{ w.org_name && w.org_name !== w.name ? ` (${w.org_name})` : '' }}</option></select></label>
+        <select :value="workspaceId" data-test="vts-workspace" @change="chooseWorkspace($event.target.value)"><option v-if="!workspaceId" value="" disabled>Choose a workspace</option><option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }}{{ w.org_name && w.org_name !== w.name ? ` (${w.org_name})` : '' }}</option></select></label>
       <p v-if="data" class="vts-month">Month: {{ monthName }}</p>
     </div>
     <p v-if="!workspaces.length && !loading" class="vts-note">You are not in a workspace yet.</p>
+    <p v-else-if="workspaces.length && !workspaceId && !loading" class="vts-note" data-test="vts-choose">You are in personal mode. Choose a workspace to see what its members spent.</p>
     <p v-if="loading" class="vts-note" role="status">Loading spend…</p>
     <p v-else-if="error" class="vts-bad" role="alert">{{ error }} <button type="button" class="vts-btn" @click="load">Try again</button></p>
     <div v-else-if="data" class="vts-table-wrap">
@@ -21,12 +22,12 @@
         <thead><tr><th scope="col">Member</th><th scope="col">Spent</th><th scope="col">Held now</th><th scope="col">Monthly limit</th><th scope="col">Renders</th><th v-if="data.can_manage" scope="col"><span class="vts-sr">Save</span></th></tr></thead>
         <tbody>
           <tr v-for="m in data.members" :key="m.user.id" data-test="vts-row">
-            <th scope="row"><strong>{{ m.user.name || m.user.email }}</strong><small>{{ m.user.email }}{{ m.role ? `, ${m.role}` : '' }}</small></th>
+            <th scope="row"><strong>{{ personName(m.user, me) }}</strong><small>{{ [personDetail(m.user, me), m.role].filter(Boolean).join(', ') }}</small></th>
             <td data-label="Spent">{{ money(m.spent_usd) }}<span v-if="m.monthly_limit_usd != null" class="vts-meter" :style="{ '--p': pct(m) }" aria-hidden="true"></span></td>
             <td data-label="Held now">{{ money(m.held_usd) }}</td>
             <td data-label="Monthly limit">
               <template v-if="data.can_manage">
-                <label class="vts-sr" :for="`vts-limit-${m.user.id}`">Monthly limit for {{ m.user.name || m.user.email }} in dollars, blank for no limit</label>
+                <label class="vts-sr" :for="`vts-limit-${m.user.id}`">Monthly limit for {{ isMe(m.user, me) ? 'you' : personName(m.user, me) }} in dollars, blank for no limit</label>
                 <span class="vts-money"><span aria-hidden="true">$</span><input :id="`vts-limit-${m.user.id}`" v-model.trim="edits[m.user.id].limit" type="text" inputmode="decimal" placeholder="No limit" data-test="vts-limit" /></span>
               </template>
               <template v-else>{{ m.monthly_limit_usd != null ? money(m.monthly_limit_usd) : 'No limit' }}</template>
@@ -35,7 +36,7 @@
               <label v-if="data.can_manage" class="vts-check"><input v-model="edits[m.user.id].paused" type="checkbox" data-test="vts-paused" /> Paused</label>
               <template v-else>{{ m.paused ? 'Paused' : 'Allowed' }}</template>
             </td>
-            <td v-if="data.can_manage">
+            <td v-if="data.can_manage" class="vts-save">
               <button type="button" class="vts-btn" :disabled="!dirty(m) || !valid(m) || saving === m.user.id" data-test="vts-save" @click="save(m)">{{ saving === m.user.id ? 'Saving…' : 'Save' }}</button>
               <small v-if="!valid(m)" class="vts-bad">Enter an amount like 25 or 25.50.</small>
             </td>
@@ -50,10 +51,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { errorText, money, myWorkspaces, sharing } from '../services/studioSharing'
+import { computed, inject, onMounted, reactive, ref } from 'vue'
+import { errorText, isMe, money, personDetail, personName, sharing } from '../services/studioSharing'
+import { useStudioWorkspace } from '../composables/useStudioWorkspace'
 
-const workspaces = ref([]), workspaceId = ref(''), data = ref(null), loading = ref(true), error = ref('')
+// The workspace the Studio menu shows, kept in step with it (ISSUE-19).
+const { workspaces, workspaceId, loadWorkspaces, chooseWorkspace } = useStudioWorkspace({ onChange: () => load() })
+// The signed-in person (the Studio shell provides it): their own row says "You" (ISSUE-15).
+const me = inject('studioUser', ref(null))
+const data = ref(null), loading = ref(true), error = ref('')
 const edits = reactive({}), saving = ref(null), saveError = ref(''), saved = ref('')
 const monthName = computed(() => {
   const m = /^(\d{4})-(\d{2})$/.exec(data.value?.month || '')
@@ -72,7 +78,7 @@ function resetEdits() {
   for (const m of data.value?.members || []) edits[m.user.id] = { limit: m.monthly_limit_usd == null ? '' : String(Number(m.monthly_limit_usd)), paused: !!m.paused }
 }
 async function load() {
-  if (!workspaceId.value) { loading.value = false; return }
+  if (!workspaceId.value) { data.value = null; loading.value = false; return }
   loading.value = true; error.value = ''; saved.value = ''; saveError.value = ''
   try { data.value = (await sharing.memberSpend(workspaceId.value)).data; resetEdits() }
   catch (e) { data.value = null; error.value = errorText(e, 'Spend could not be loaded.') } finally { loading.value = false }
@@ -83,22 +89,17 @@ async function save(m) {
   try {
     const { data: row } = await sharing.setMemberSpend(workspaceId.value, m.user.id, { monthly_limit_usd: e.limit === '' ? null : Number(e.limit).toFixed(2), paused: !!e.paused })
     Object.assign(m, row); edits[m.user.id] = { limit: m.monthly_limit_usd == null ? '' : String(Number(m.monthly_limit_usd)), paused: !!m.paused }
-    saved.value = `Saved for ${m.user.name || m.user.email}.`
+    saved.value = isMe(m.user, me.value) ? 'Saved for you.' : `Saved for ${personName(m.user, me.value)}.`
   } catch (err) { saveError.value = errorText(err, 'The limit could not be saved.') } finally { saving.value = null }
 }
 onMounted(async () => {
-  try {
-    workspaces.value = await myWorkspaces()
-    let active = ''
-    try { active = localStorage.getItem('activeWorkspaceId') || '' } catch { /* works without storage */ }
-    workspaceId.value = String((workspaces.value.find(w => String(w.id) === active) || workspaces.value[0] || {}).id || '')
-  } catch { workspaces.value = [] }
+  await loadWorkspaces()
   await load()
 })
 </script>
 
 <style scoped>
-.vts{display:grid;gap:18px;align-content:start;padding:28px 32px 32px;color:var(--vm-ink)}
+.vts{display:grid;gap:18px;align-content:start;box-sizing:border-box;max-width:100%;min-width:0;padding:28px 32px 32px;color:var(--vm-ink)}.vts>*{min-width:0}
 .vts-head{display:grid;gap:8px;max-width:720px}.vts h1{margin:0;font-size:26px;font-weight:550;letter-spacing:-.03em}.vts-head p{margin:0;font-size:13px;line-height:1.7;color:var(--vm-ink-soft)}
 .vts-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px}.vts-field{display:grid;gap:5px;font-size:11.5px;color:var(--vm-ink-soft)}
 .vts select,.vts input[type=text]{min-height:40px;box-sizing:border-box;padding:0 10px;border:1px solid var(--vm-line);border-radius:6px;background:var(--vm-surface);color:var(--vm-ink);font:inherit;font-size:13px}
@@ -115,8 +116,18 @@ onMounted(async () => {
 .vts-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .vts :focus-visible{outline:2px solid var(--vs-accent-ink,var(--vm-link));outline-offset:2px}
 @media(max-width:1023px){.vts{padding-left:calc(16px + var(--vs-bar-inset, 0px))}}
+/* A phone (ISSUE-17): each member is a stacked card, every value on its own labelled line, nothing wider than the
+   screen, so the page never scrolls sideways. */
 @media(max-width:720px){.vts{padding:18px 16px}.vts h1{font-size:22px}.vts select,.vts input[type=text]{font-size:16px;min-height:44px}.vts-btn{min-height:44px}
+  .vts-field,.vts-field select{width:100%;max-width:100%}.vts-controls{display:grid;gap:10px}.vts-month{margin:0}
+  .vts-table,.vts-table tbody,.vts-table tr{display:block;width:100%;box-sizing:border-box}
   .vts-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-  .vts-table tr{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--vm-line-2)}.vts-table th,.vts-table td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;border:0}
-  .vts-table tbody th{display:grid}.vts-table td::before{content:attr(data-label);font-size:11.5px;color:var(--vm-ink-soft)}}
+  .vts-table tr{display:grid;gap:6px;padding:14px 0;border-bottom:1px solid var(--vm-line-2)}
+  .vts-table th,.vts-table td{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;min-width:0;padding:4px 0;border:0}
+  .vts-table tbody th{display:grid;gap:2px;overflow-wrap:anywhere}.vts-table tbody th small{overflow-wrap:anywhere}
+  .vts-table td::before{content:attr(data-label);font-size:11.5px;color:var(--vm-ink-soft)}
+  .vts-money{flex:0 1 auto;min-width:0}.vts-money input{width:min(140px,100%)}
+  .vts-meter{flex-basis:100%;width:100%}
+  .vts-table td.vts-save{display:grid;gap:6px}.vts-table td.vts-save::before{content:none}.vts-save .vts-btn{width:100%}
+  .vts-table tbody td[colspan]{display:block}.vts-table tbody td[colspan]::before{content:none}}
 </style>

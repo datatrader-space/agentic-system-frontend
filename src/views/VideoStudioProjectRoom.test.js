@@ -57,3 +57,19 @@ describe('VideoStudioProjectRoom', () => {
     expect(w.text()).toContain('you do not have access to it')
   })
 })
+
+// ISSUE-15: the Spend tab names the signed-in person "You", others by name, an email only as their second line.
+it('names people on the Spend tab: "You" for the signed-in person, a name before an email', async () => {
+  const { ref } = await import('vue')
+  api.get.mockImplementation(url => url.endsWith('/versions/') ? Promise.resolve({ data: { versions: [] } })
+    : url.endsWith('/usage/') ? Promise.resolve({ data: { members: [
+      { user: { id: 2, name: 'ben@acme.com' }, jobs: 3, spent_usd: '1.20' },
+      { user: { id: 3, name: 'Cy Lee', email: 'cy@acme.com' }, jobs: 1, spent_usd: '0.40' },
+      { user: { id: 4, name: 'dee@acme.com' }, jobs: 1, spent_usd: '0.10' }], total_usd: '1.70' } })
+      : Promise.resolve({ data: project({ view: true, usage: true }, { my_role: 'manager' }) }))
+  const w = mount(VideoStudioProjectRoom, { props: { projectId: 'p1', tab: 'usage' }, global: { stubs, provide: { studioUser: ref({ id: 2, email: 'ben@acme.com' }) } } }); await flushPromises()
+  const people = w.findAll('[data-test="usage-person"]').map(p => p.text())
+  expect(people).toEqual(['You', 'Cy Lee', 'dee@acme.com'])
+  expect(w.findAll('tbody th')[1].text()).toBe('Cy Leecy@acme.com')
+  expect(w.findAll('tbody th')[0].text()).toBe('You')
+})

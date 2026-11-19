@@ -51,3 +51,34 @@ describe('studioPresets', () => {
     expect(composePreset(presetsFor('image')[1], { subject: 'A teapot' })).toBe('Create a refined image of A teapot. Keep the prepared direction.')
   })
 })
+
+// ISSUE-6: a field whose default only stands for the person's own thing ("Your product") is a hint, never sent as if
+// the person had written it; the look's real directions ("Warm ivory") stay in the prompt.
+describe('a placeholder default never reaches the prompt', () => {
+  const look = { id: 'image-look-1', feature: 'image', title: 'Softbox product portrait', slots: [{ id: 'reference-0', label: 'Reference image', role: 'subject' }], settings: {}, clientOnly: true,
+    promptTemplate: 'Create a refined image of {Subject}. Use {Background} and {Lighting}.', variants: ['Keep the prepared direction.'],
+    variables: [{ id: 'subject', label: 'Subject', default: 'Your product' }, { id: 'background', label: 'Background', default: 'Warm ivory' }, { id: 'lighting', label: 'Lighting', default: 'Large softbox' }] }
+  it('tells a hint from a prepared direction', async () => {
+    const { isPlaceholderDefault, initialVariableValue } = await import('./studioPresets')
+    expect(isPlaceholderDefault({ default: 'Your product' })).toBe(true)
+    expect(isPlaceholderDefault({ default: 'your subject' })).toBe(true)
+    expect(isPlaceholderDefault({ default: 'Warm ivory' })).toBe(false)
+    expect(isPlaceholderDefault({ default: 'A little care makes all the difference.' })).toBe(false)
+    expect(isPlaceholderDefault({ default: 'Designed for your everyday' })).toBe(false)
+    expect(initialVariableValue(look.variables[0])).toBe('')
+    expect(initialVariableValue(look.variables[1])).toBe('Warm ivory')
+  })
+  it('prepares the prompt with only what was filled in and the look\'s own directions', () => {
+    const prompt = composePreset(look)
+    expect(prompt).not.toContain('Your product')
+    expect(prompt).toBe('Create a refined image of the subject described below. Use Warm ivory and Large softbox. Keep the prepared direction.')
+    expect(composePreset(look, { 'reference-0': [{ attachment_id: 'a1' }] })).toContain('of the subject in the supplied references.')
+    expect(composePreset(look, { subject: 'my blue teapot' })).toContain('Create a refined image of my blue teapot.')
+    expect(composePreset(look, { subject: '   ' })).not.toContain('Your product')
+  })
+  it('holds for every served and app look', () => {
+    for (const preset of [...studioLooks, look]) {
+      for (const variable of (preset.variables || []).filter(v => /^\s*your\b/i.test(v.default))) expect(composePreset(preset)).not.toContain(variable.default)
+    }
+  })
+})

@@ -29,7 +29,7 @@ describe('loadStudioFeatures', () => {
       { id: 'audio', status: 'live', ready: true, tasks: ['speech'] },
     ] } })
     await loadStudioFeatures({ force: true })
-    expect(getStudioFeature('motion')).toMatchObject({ status: 'live', ready: false, reason: 'No proven model.', route: '/video-studio/motion' })
+    expect(getStudioFeature('motion')).toMatchObject({ status: 'live', ready: false, reason: 'No proven model.', route: '/dashboard/video-studio/motion' })
     expect(getStudioFeature('audio')).toMatchObject({ status: 'live', ready: true, tasks: ['speech'] })
     expect(studioFeatures.value.some(f => f.status === 'soon')).toBe(false)
   })

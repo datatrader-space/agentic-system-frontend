@@ -163,7 +163,7 @@ describe('Ads Studio v2', () => {
     expect(w.get('[data-test="recipe-try-on"]').attributes('disabled')).toBeDefined()
     await w.get('[data-field="product_id"] select').setValue('prod-1')
     await click(w, 'recipe-ugc')
-    expect(push).toHaveBeenCalledWith({ path: '/video-studio/marketing', query: { recipe: 'ugc', product: 'prod-1' } })
+    expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio/marketing', query: { recipe: 'ugc', product: 'prod-1' } })
     w.unmount()
   })
 })

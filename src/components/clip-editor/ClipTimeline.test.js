@@ -15,6 +15,24 @@ const doc = () => ({ ...tl.newDoc('16:9', 25), tracks: [
 const mountIt = (props = {}) => mount(ClipTimeline, { attachTo: document.body, props: { doc: doc(), playhead: 1000, zoom: 100, names: { m1: 'beach.mp4' }, ...props } })
 
 describe('ClipTimeline', () => {
+  // ISSUE-11: a track's name is shown whole on its own line above its buttons, with the full name as its title, and the
+  // header is as wide at every screen size as the ruler and playhead assume.
+  it('shows each track name whole, with its full name on hover and focus', async () => {
+    const w = mountIt()
+    const names = w.findAll('[data-test="ct-track-name"]')
+    expect(names.map(n => n.text())).toEqual(['Video 1', 'Captions 1', 'Sound 1'])
+    expect(names.map(n => n.attributes('title'))).toEqual(['Video 1', 'Captions 1', 'Sound 1'])
+    w.unmount()
+    const src = (await import('./ClipTimeline.vue?raw')).default
+    const head = Number(/const HEAD = (\d+)/.exec(src)[1])
+    expect(head).toBeGreaterThanOrEqual(112)
+    expect(src).toContain(`width:${head}px`)
+    expect(src).toMatch(/\.ct-name\{flex:1 0 100%[^}]*overflow-wrap:anywhere/)
+    expect(src).not.toMatch(/\.ct-name\{[^}]*white-space:nowrap/)
+    // No narrower header on a phone: the ruler and the playhead are placed after HEAD.
+    expect(src.slice(src.indexOf('@media (max-width:767px)'))).not.toMatch(/\.ct-head\{[^}]*width:/)
+  })
+
   it('names each track and item, with its times, and marks the selection', () => {
     const w = mountIt({ selection: ['b'] })
     const lanes = w.findAll('[role="listbox"]').map(l => l.attributes('aria-label'))

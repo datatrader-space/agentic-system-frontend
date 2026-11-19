@@ -65,6 +65,28 @@ export async function myWorkspaces() {
   return Array.isArray(data) ? data : (data?.results || data?.workspaces || [])
 }
 
+// How a person is named in the Studio's project pages (ISSUE-15): "You" for the signed-in person, their display name
+// when the server sends one, and their email only as the secondary line. The server's `name` is the person's full
+// name, else their username, which is often their email address: an email in `name` is shown once, as the email.
+const EMAIL = /^[^\s@]+@[^\s@]+$/
+export function isMe(person, me) {
+  const mine = me?.id ?? me?.pk, theirs = person?.id ?? person?.user_id
+  return mine != null && theirs != null && String(mine) === String(theirs)
+}
+export function personName(person, me) {
+  if (!person) return 'Someone'
+  if (isMe(person, me)) return 'You'
+  const name = String(person.name || '').trim()
+  if (name && !EMAIL.test(name)) return name
+  return String(person.email || name || '').trim() || 'Someone'
+}
+/** The secondary line under a person's name: their email, when it is not already the name shown. */
+export function personDetail(person, me) {
+  if (!person || isMe(person, me)) return ''
+  const name = String(person.name || '').trim(), email = String(person.email || '').trim()
+  return email && name && !EMAIL.test(name) && email !== name ? email : ''
+}
+
 export function day(iso) {
   return iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 }

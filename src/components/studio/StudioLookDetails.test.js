@@ -74,3 +74,32 @@ describe('Save as my template', () => {
     w.unmount()
   })
 })
+
+// ISSUE-6 and ISSUE-7: "Make it yours" starts a hint field empty with the hint as its placeholder, the prepared
+// prompt carries only filled values, and the fields stack or wrap in a narrow panel instead of cutting their text.
+describe('Make it yours', () => {
+  const look = { id: 'image-look-1', feature: 'image', title: 'Softbox product portrait', slots: [], settings: {}, clientOnly: true,
+    promptTemplate: 'Create a refined image of {Subject}. Use {Background} and {Lighting}.', variants: ['Keep the prepared direction.'],
+    variables: [{ id: 'subject', label: 'Subject', default: 'Your product' }, { id: 'background', label: 'Background', default: 'Warm ivory' }, { id: 'lighting', label: 'Lighting', default: 'Large softbox' }] }
+  it('leaves a hint field empty, shows the hint as its placeholder and never applies the hint as text', async () => {
+    const w = mount(Details, { props: { look } })
+    const subject = w.get('[data-test="look-field-subject"]')
+    expect(subject.element.value).toBe('')
+    expect(subject.attributes('placeholder')).toBe('Your product')
+    expect(w.get('[data-test="look-field-background"]').element.value).toBe('Warm ivory')
+    expect(w.get('details p').text()).not.toContain('Your product')
+    await w.findAll('button').find(b => b.text().startsWith('Use this direction')).trigger('click')
+    const applied = w.emitted('apply')[0][0]
+    expect(applied.promptTemplate).not.toContain('Your product')
+    expect(applied.promptTemplate).toContain('Warm ivory')
+    expect(applied.variables.find(v => v.id === 'subject').default).toBe('')
+    await subject.setValue('My teapot')
+    expect(w.get('details p').text()).toContain('Create a refined image of My teapot.')
+    w.unmount()
+  })
+  it('lets its fields wrap to fit a narrow panel', async () => {
+    const src = (await import('./StudioLookDetails.vue?raw')).default
+    expect(src).toContain('.sld-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))')
+    expect(src).not.toContain('.sld-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))')
+  })
+})

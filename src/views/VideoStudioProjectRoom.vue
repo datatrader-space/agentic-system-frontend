@@ -34,7 +34,7 @@
           <p class="vpr-note">Each person pays for what they make on this project from their own balance.</p>
           <table class="vpr-table"><caption class="vpr-sr">Spend on this project by person</caption>
             <thead><tr><th scope="col">Person</th><th scope="col">Renders</th><th scope="col">Spent</th></tr></thead>
-            <tbody><tr v-for="m in usage.members" :key="m.user.id"><th scope="row">{{ m.user.name }}</th><td>{{ m.jobs }}</td><td>{{ money(m.spent_usd) }}</td></tr>
+            <tbody><tr v-for="m in usage.members" :key="m.user?.id"><th scope="row"><span data-test="usage-person">{{ personName(m.user, me) }}</span><small v-if="personDetail(m.user, me)" class="vpr-email">{{ personDetail(m.user, me) }}</small></th><td>{{ m.jobs }}</td><td>{{ money(m.spent_usd) }}</td></tr>
               <tr v-if="!usage.members.length"><td colspan="3">Nothing was spent on this project yet.</td></tr></tbody>
             <tfoot><tr><th scope="row">Total</th><td></td><td>{{ money(usage.total_usd) }}</td></tr></tfoot>
           </table>
@@ -46,18 +46,20 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import ProjectReviewPanel from '../components/studio/ProjectReviewPanel.vue'
 import ProjectShareDialog from '../components/studio/ProjectShareDialog.vue'
 import { lazyComponent } from '../utils/lazyComponent'
-import { REVIEW_LABELS, ROLE_LABELS, errorText, money, sharing } from '../services/studioSharing'
+import { REVIEW_LABELS, ROLE_LABELS, errorText, money, personDetail, personName, sharing } from '../services/studioSharing'
 // Yjs loads only with the canvas.
 const ProjectCanvas = lazyComponent(() => import('../components/studio/ProjectCanvas.vue'))
 
 const props = defineProps({ projectId: { type: String, required: true }, tab: { type: String, default: '' } })
 const route = useRoute()
+// The signed-in person (the Studio shell provides it): their own rows say "You".
+const me = inject('studioUser', ref(null))
 const project = ref(null), loading = ref(true), error = ref(''), shareOpen = ref(false)
 const versions = ref([]), usage = ref(null), usageError = ref(''), statusBusy = ref(false), statusError = ref('')
 const can = computed(() => project.value?.abilities || {})
@@ -115,7 +117,7 @@ watch(current, t => { if (t === 'usage') loadUsage() }, { immediate: true })
 .vpr-tab{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-bottom:2px solid transparent;color:var(--vm-ink-soft);font-size:13px;font-weight:500;text-decoration:none}.vpr-tab:hover{color:var(--vm-ink)}.vpr-tab.on{color:var(--vm-ink);border-bottom-color:var(--vm-violet)}
 .vpr-note{margin:0;font-size:13px;color:var(--vm-ink-soft)}.vpr-bad{margin:0;font-size:13px;color:var(--vs-bad-ink)}
 .vpr-usage{display:grid;gap:12px;max-width:640px}
-.vpr-table{width:100%;border-collapse:collapse;font-size:13px}.vpr-table th,.vpr-table td{padding:10px 8px;border-bottom:1px solid var(--vm-line-2);text-align:left}.vpr-table td:nth-child(n+2),.vpr-table thead th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}.vpr-table thead th{font-size:11.5px;font-weight:500;color:var(--vm-ink-soft)}.vpr-table tbody th{font-weight:500}.vpr-table tfoot th,.vpr-table tfoot td{font-weight:600;border-bottom:0}
+.vpr-table{width:100%;border-collapse:collapse;font-size:13px}.vpr-table th,.vpr-table td{padding:10px 8px;border-bottom:1px solid var(--vm-line-2);text-align:left}.vpr-table td:nth-child(n+2),.vpr-table thead th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}.vpr-table thead th{font-size:11.5px;font-weight:500;color:var(--vm-ink-soft)}.vpr-table tbody th{font-weight:500}.vpr-email{display:block;margin-top:2px;font-size:11.5px;font-weight:400;color:var(--vm-ink-soft);overflow-wrap:anywhere}.vpr-table tfoot th,.vpr-table tfoot td{font-weight:600;border-bottom:0}
 .vpr-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .vpr :focus-visible{outline:2px solid var(--vs-accent-ink,var(--vm-link));outline-offset:2px}
 @media(max-width:1023px){.vpr{padding-left:calc(16px + var(--vs-bar-inset, 0px))}}

@@ -144,8 +144,8 @@
             for example "Nova" or "Red sneaker". Select the files in the Library and save them as an ingredient. Use it in
             any video, or tell the agent its name, so the same product or person appears in every scene.</p>
           <p class="links">
-            <router-link to="/video-studio/library" class="text-link">Open the Library</router-link>
-            <router-link to="/video-studio/ingredients" class="text-link">Open Ingredients</router-link>
+            <router-link :to="studioPath('library')" class="text-link">Open the Library</router-link>
+            <router-link :to="studioPath('ingredients')" class="text-link">Open Ingredients</router-link>
           </p>
         </section>
 
@@ -167,7 +167,7 @@
           <p><strong>Export</strong> is free: choose the shapes and 720p or 1080p, and the result lands in your Library and
             the project. The monitor plays light copies, so it is close but not exact; <strong>Preview this part
             exactly</strong> renders a few seconds exactly as the export will. You may run two exports at a time.</p>
-          <p class="links"><router-link to="/video-studio/editor" class="text-link">Open the clip editor</router-link></p>
+          <p class="links"><router-link :to="studioPath('editor')" class="text-link">Open the clip editor</router-link></p>
         </section>
 
         <!-- Writing a prompt -->
@@ -257,12 +257,12 @@
 
 <script setup>
 const starterSteps=[
- {number:'01',title:'Choose your starting point',text:'Pick a creative tool from the sidebar, or start from a visual preset.',to:'/video-studio',link:'Explore tools'},
- {number:'02',title:'Make it yours',text:'Edit the creative direction, choose settings and add your references.',to:'/video-studio/dashboard',link:'Open Dashboard'},
- {number:'03',title:'Review with confidence',text:'Inspect compatible settings and the actual estimate before approving a generation.',to:'/video-studio/dashboard',link:'Start with your agent'},
- {number:'04',title:'Follow the process',text:'Follow current-conversation jobs from the header queue. Your conversation keeps the context.',to:'/video-studio/dashboard',link:'Continue creating'},
- {number:'05',title:'Recover and refine',text:'Review a result or failed job, keep useful work and ask your agent for the next change.',to:'/video-studio/projects',link:'Open projects'},
- {number:'06',title:'Carry it forward',text:'Use a result in another tool, reuse an Element or download completed media from Library.',to:'/video-studio/library',link:'Open Library'},
+ {number:'01',title:'Choose your starting point',text:'Pick a creative tool from the sidebar, or start from a visual preset.',to:studioPath(),link:'Explore tools'},
+ {number:'02',title:'Make it yours',text:'Edit the creative direction, choose settings and add your references.',to:studioPath('dashboard'),link:'Open Dashboard'},
+ {number:'03',title:'Review with confidence',text:'Inspect compatible settings and the actual estimate before approving a generation.',to:studioPath('dashboard'),link:'Start with your agent'},
+ {number:'04',title:'Follow the process',text:'Follow current-conversation jobs from the header queue. Your conversation keeps the context.',to:studioPath('dashboard'),link:'Continue creating'},
+ {number:'05',title:'Recover and refine',text:'Review a result or failed job, keep useful work and ask your agent for the next change.',to:studioPath('projects'),link:'Open projects'},
+ {number:'06',title:'Carry it forward',text:'Use a result in another tool, reuse an Element or download completed media from Library.',to:studioPath('library'),link:'Open Library'},
 ]
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -270,6 +270,7 @@ import { useRouter } from 'vue-router'
 import api from '../services/api'
 import { canFor, useVideoStore } from '../stores/useVideoStore'
 import { TASK_ART, STEP_ICON } from '../components/video/videoArt'
+import { studioPath } from '../services/studioPaths'
 
 const router = useRouter()
 const video = useVideoStore()

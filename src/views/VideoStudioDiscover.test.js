@@ -18,8 +18,8 @@ let wrapper
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => wrapper?.unmount())
 async function open() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/video-studio/:rest(.*)*', component: { template: '<div />' } }] })
-  await router.push('/video-studio')
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dashboard/video-studio/:rest(.*)*', component: { template: '<div />' } }] })
+  await router.push('/dashboard/video-studio')
   wrapper = mount(Discover, { global: { plugins: [router], stubs: { StudioLookMedia: true } } })
   await flushPromises()
   return router
@@ -40,22 +40,42 @@ describe('Discover is the goal-first Studio landing', () => {
     expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(74)          // the app's own, plus 6 served
     await wrapper.get('input[type="search"]').setValue('Softbox product portrait')
     expect(wrapper.findAll('[data-test^="discover-look-"]')).toHaveLength(1)
-    expect(wrapper.get('[data-test="discover-look-image-look-1"]').attributes('href')).toContain('/video-studio/image?preset=image-look-1&mode=agent')
+    expect(wrapper.get('[data-test="discover-look-image-look-1"]').attributes('href')).toContain('/dashboard/video-studio/image?preset=image-look-1&mode=agent')
     expect(api.post).not.toHaveBeenCalled()
   })
-  it('counts the tool filter from the catalogue and describes looks without promising stock examples', async () => {
+  it('names the look filter for the tools that have looks, so its number is not read as the All tools count (ISSUE-5)', async () => {
     await open()
+    const allTools = wrapper.findAll('[data-test^="discover-tool-"]').length
     await wrapper.findAll('.discover-views button')[1].trigger('click')
     const select = wrapper.get('select[aria-label="Filter looks by creative tool"]')
-    const toolOptions = select.findAll('option').length - 1
-    expect(select.get('option').text()).toBe(`All ${toolOptions} tools`)
+    const options = select.findAll('option').slice(1)
+    expect(select.get('option').text()).toBe(`All tools with looks (${options.length})`)
+    // Every tool listed has at least one look, and none without one is offered.
+    for (const option of options) {
+      await select.setValue(option.element.value)
+      expect(wrapper.findAll('[data-test^="discover-look-"]').length).toBeGreaterThan(0)
+    }
+    expect(options.length).toBeLessThan(allTools)
     expect(wrapper.text()).not.toContain('moving examples')
+  })
+  it('marks a tool the server says cannot run yet as "Not available yet", still linked to its page (ISSUE-8)', async () => {
+    const { studioFeatures } = await import('../services/studioFeatures')
+    const before = studioFeatures.value
+    studioFeatures.value = before.map(f => f.id === 'avatar' ? { ...f, ready: false, code: 'no_proven_model', reason: 'No model for this page has been proven yet.' } : f.id === 'video' ? { ...f, ready: true } : f)
+    try {
+      await open()
+      const avatar = wrapper.get('[data-test="discover-tool-avatar"]')
+      expect(wrapper.get('[data-test="discover-badge-avatar"]').text()).toBe('Not available yet')
+      expect(avatar.text()).toContain('See why it is not available')
+      expect(avatar.attributes('href')).toContain('/dashboard/video-studio/avatar')
+      expect(wrapper.find('[data-test="discover-badge-video"]').exists()).toBe(false)
+    } finally { studioFeatures.value = before }
   })
   it('preserves a legacy conversation bookmark by opening the existing Dashboard session path', async () => {
     const router = await open()
-    await router.replace('/video-studio?conversation=owned-fixture')
+    await router.replace('/dashboard/video-studio?conversation=owned-fixture')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/video-studio/dashboard')
+    expect(router.currentRoute.value.path).toBe('/dashboard/video-studio/dashboard')
     expect(router.currentRoute.value.query.conversation).toBe('owned-fixture')
     expect(api.post).not.toHaveBeenCalled()
   })
@@ -76,8 +96,8 @@ describe('My templates in Discover', () => {
   ]
   const refused = (status, code, message) => Object.assign(new Error(message), { response: { status, data: { error: { code, message, field: '' } } } })
   async function openSaved() {
-    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/video-studio/:rest(.*)*', component: { template: '<div />' } }] })
-    await router.push('/video-studio?view=looks&saved=1')
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dashboard/video-studio/:rest(.*)*', component: { template: '<div />' } }] })
+    await router.push('/dashboard/video-studio?view=looks&saved=1')
     const Host = defineComponent({ setup() { provideStudioTemplates(ref({ id: 'one' })); return () => h(Discover) } })
     wrapper = mount(Host, { global: { plugins: [router], stubs: { StudioLookMedia: true } } })
     await flushPromises()
@@ -91,7 +111,7 @@ describe('My templates in Discover', () => {
     expect(card.text()).toContain('Teapot portrait'); expect(card.text()).toContain('Image')
     expect(card.get('p').text().length).toBeLessThanOrEqual(141); expect(card.get('p').text()).toMatch(/…$/)
     const use = card.get('[data-test="my-template-use"]').attributes('href')
-    expect(use).toContain('/video-studio/image?'); expect(use).toContain('template=7'); expect(use).toMatch(/mode=(agent|manual)/)
+    expect(use).toContain('/dashboard/video-studio/image?'); expect(use).toContain('template=7'); expect(use).toMatch(/mode=(agent|manual)/)
     expect(wrapper.get('[data-test="my-template-3"] [data-test="my-template-use"]').attributes('href')).toContain('template=3')
     expect(wrapper.text()).toContain('Saved templates')
     expect(api.post).not.toHaveBeenCalled()

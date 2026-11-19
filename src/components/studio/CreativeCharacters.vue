@@ -34,7 +34,7 @@
       <MediaSlot v-model="keep" label="Images to keep" field="attachment_ids" :kinds="['image']" :limit="8" required hint="Your chosen portrait and its sheet. These become the character in Elements." />
       <ElementRightsFields v-model="rights" kind="character" :name="name.trim()" :schema="elementSchema" />
       <button type="button" class="st-button primary" :disabled="busy || !name.trim() || !keep.length || !hasTraits || !rightsReady" data-test="character-save" @click="save">{{ busy ? 'Saving…' : saved ? 'Save a new revision' : 'Save character' }}</button>
-      <p v-if="saved" class="st-status cc-saved" role="status">Saved {{ saved.name }} (revision {{ saved.revision }}<template v-if="saved.token">, token {{ saved.token }}</template>) to <RouterLink class="st-link" to="/video-studio/elements">Elements</RouterLink>.<template v-if="saved.status !== 'approved'"> It is a draft: approve it there to use it.</template></p>
+      <p v-if="saved" class="st-status cc-saved" role="status">Saved {{ saved.name }} (revision {{ saved.revision }}<template v-if="saved.token">, token {{ saved.token }}</template>) to <RouterLink class="st-link" :to="studioPath('elements')">Elements</RouterLink>.<template v-if="saved.status !== 'approved'"> It is a draft: approve it there to use it.</template></p>
     </section>
 
     <ConsentStep v-if="consent" :request="consent" @agreed="consent.retry()" @cancel="cancelConsent" />
@@ -55,6 +55,7 @@ import ElementRightsFields from '../video/ElementRightsFields.vue'
 import { emptyRights, rightsComplete, rightsPayload } from '../video/elementKinds'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useMediaJob } from '../../composables/useMediaJob'
+import { studioPath } from '../../services/studioPaths'
 const emit = defineEmits(['job'])
 const monitor = inject('studioMonitor', '')
 const steps = [{ id: 'describe', label: 'Describe' }, { id: 'portraits', label: 'Portraits' }, { id: 'sheet', label: 'Reference sheet' }, { id: 'save', label: 'Save' }]
