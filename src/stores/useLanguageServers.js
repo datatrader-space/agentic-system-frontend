@@ -160,8 +160,12 @@ const touches = (a, b) => before(a.end, b.start) >= 0 && before(a.start, b.end) 
 
 // Monaco's TypeScript support (`monaco.typescript` in Monaco 0.53 and later; `monaco.languages.typescript` before).
 function monacoTs(monaco) {
-  return monaco && ((monaco.typescript && monaco.typescript.typescriptDefaults ? monaco.typescript : null)
-    || (monaco.languages && monaco.languages.typescript)) || null
+  try {
+    return monaco && ((monaco.typescript && monaco.typescript.typescriptDefaults ? monaco.typescript : null)
+      || (monaco.languages && monaco.languages.typescript)) || null
+  } catch {
+    return null        // a namespace without a TypeScript part (a strict module mock throws on a missing export)
+  }
 }
 
 /** Called once Monaco has loaded, before it holds a TypeScript file: rename, code actions, inlay hints and formatting
