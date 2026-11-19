@@ -1,4 +1,4 @@
-<!-- Full-document cost gate (manual / plan-review): a complete-mode KB scope overflowed the model's
+<!-- Full-document cost gate (manual mode): a complete-mode KB scope overflowed the model's
      context window, so reading the whole document is a bigger, costlier operation. This card lets the user
      approve the full read, keep it cheap (targeted top-k on the original question), or ask something
      specific. Shown only when the store holds a fullDocCostGate; autonomous agents never see it. -->

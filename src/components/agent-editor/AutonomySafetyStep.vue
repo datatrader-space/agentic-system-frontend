@@ -329,7 +329,7 @@
         <div class="mt-5 space-y-4">
           <div class="field-row">
             <span>Planning gate
-              <small class="block text-[11px] font-normal text-[#94A3B8]">Plans tasks that meet the complexity threshold. Simpler tasks run directly; plan-review modes still pause when approval is required.</small>
+              <small class="block text-[11px] font-normal text-[#94A3B8]">Plans tasks that meet the complexity threshold. Simpler tasks run directly; in manual mode a risky step still asks first.</small>
             </span>
             <div class="flex shrink-0 items-center gap-3">
               <label v-if="planningGateEnabled" class="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-[#64748B]">
@@ -708,7 +708,7 @@ function _setLimit(key, value, max) {
 }
 // Planning gate — the admin switch (agent_policy.planning_gate_enabled). ON (default): a complex multi-step
 // task plans first; a simple task always runs straight through. OFF: every task runs straight through
-// (plan-review approval is independent and still applies). ON is the default, so it stores nothing.
+// (manual mode's approvals are independent and still apply). ON is the default, so it stores nothing.
 const planningGateEnabled = computed({
   get: () => policy.value.planning_gate_enabled !== false,
   set: (value) => {

@@ -160,8 +160,8 @@
       @stop="chat.stop"
     />
 
-    <!-- Full-document cost gate: appears when a complete-mode KB read overflows the model window (manual /
-         plan-review only). Approve to read it all, keep it targeted, or ask something specific. -->
+    <!-- Full-document cost gate: appears when a complete-mode KB read overflows the model window (manual
+         mode only). Approve to read it all, keep it targeted, or ask something specific. -->
     <FullDocCostCard />
 
     <!-- Share sheet: publishes a FROZEN snapshot of the thread at a private link (read-only, or

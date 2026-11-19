@@ -272,7 +272,7 @@ export const useChatStore = defineStore('chat', {
     // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
     // resume mechanic only and is removed when that loop is internalized into the coordinator.
     pendingPlan: null,
-    // Full-document cost gate (manual / plan-review): a complete-mode KB scope overflowed the model
+    // Full-document cost gate (manual mode): a complete-mode KB scope overflowed the model
     // window. Holds { conversationId, question, cost, actions } while the user decides; cleared on resolve.
     fullDocCostGate: null,
 
@@ -3083,7 +3083,7 @@ export const useChatStore = defineStore('chat', {
           this.pendingPlan = null
           this._resumeAfterRevise(msg.feedback)
           break
-        // ── Full-document cost gate (manual / plan-review): a complete-mode KB scope overflowed the model
+        // ── Full-document cost gate (manual mode): a complete-mode KB scope overflowed the model
         //    window. The backend already streamed the explanatory note (assistant_message_complete) and
         //    ended the turn; surface the cost card so the user can approve / reject / ask something focused.
         case 'full_doc_cost_approval': {
