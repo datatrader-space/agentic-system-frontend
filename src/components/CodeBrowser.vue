@@ -499,7 +499,7 @@ const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
 // From History, ``sha`` (and ``from`` for a rename): the file as that commit changed it, its own tab "app.py (abc1234)".
 async function openDiff({ path, sha = '', short = '', from = '' }) {
   showFilesInFront()
-  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha)
+  const existing = openTabs.value.find(t => t.type === 'diff' && !t.compare && t.path === path && (t.sha || '') === sha)
   if (existing) { activeTabId.value = existing.id; return }
   const tab = {
     id: nextTabId(), type: 'diff', path, sha, from, name: `${path.split('/').pop()} (${sha ? (short || sha.slice(0, 7)) : 'changes'})`,
@@ -510,6 +510,7 @@ async function openDiff({ path, sha = '', short = '', from = '' }) {
   await loadDiffInto(openTabs.value.find(t => t.id === tab.id))
 }
 async function loadDiffInto(live) {
+  if (live.compare) return            // a "Compare first" tab holds what was read then; nothing to fetch
   live.loading = true
   live.note = ''
   live.noteIcon = ''
@@ -541,20 +542,91 @@ function onEditorChange(value) {
   if (tab && tab.type === 'file') tab.content = value
 }
 
+// SAVE NEVER REPLACES A CHANGE UNSEEN (ADM-1323). Each file tab keeps `diskSha`, the sha256 of the file on disk as the
+// editor last read or wrote it (`tab.sha` is a diff tab's commit). Save sends it; a file the Coding Agent, a command
+// or the terminal changed since answers 409 CHANGED_ON_DISK, nothing is written, and the person chooses.
+// A tab whose unsaved edits started from a copy older than the file on disk, with no sha to say which: a well-formed
+// sha no file has, so its next Save is asked about instead of overwriting.
+const CHANGED_SINCE_OPENED = '0'.repeat(64)
+const compareName = (path) => `${path.split('/').pop()} (on disk ↔ yours)`
+
+async function writeTab(tab, sha) {
+  const text = tab.content
+  const { data } = await api.saveFileContent(props.systemId, props.repositoryId, tab.path, text, sha || undefined)
+  tab.original = text
+  tab.diskSha = data?.sha ?? null
+  projectCache.file.set(props.repositoryId, tab.path, text)
+  notify.success(`Saved ${tab.name}`)
+}
+
 async function saveActive() {
   const tab = openTabs.value.find(t => t.id === activeTabId.value)
-  if (!tab || !isDirty(tab)) return
+  if (!tab || !isDirty(tab) || saving.value) return
   saving.value = true
   try {
-    await api.saveFileContent(props.systemId, props.repositoryId, tab.path, tab.content)
-    tab.original = tab.content
-    projectCache.file.set(props.repositoryId, tab.path, tab.content)
-    notify.success(`Saved ${tab.name}`)
+    await writeTab(tab, tab.diskSha)
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to save file')
+    if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') await changedOnDisk(tab)
+    else notify.error(e?.response?.data?.error || 'Failed to save file')
   } finally {
     saving.value = false
   }
+}
+
+async function changedOnDisk(tab) {
+  const overwrite = await confirm({
+    title: `${tab.name} changed in the project`,
+    message: `The Coding Agent, a command or the terminal changed ${tab.path} after you opened it. `
+      + 'Overwrite it with your version, or compare the two first.',
+    confirmText: 'Overwrite with mine',
+    cancelText: 'Compare first',
+    danger: true,
+  })
+  if (!openTabs.value.some(t => t.id === tab.id)) return       // closed meanwhile
+  if (overwrite) {
+    try {
+      await writeTab(tab, null)                                // no sha: the person chose to replace it
+    } catch (e) {
+      notify.error(e?.response?.data?.error || 'Failed to save file')
+    }
+    return
+  }
+  await compareWithDisk(tab)
+}
+
+// "Compare first": the file as it is on disk now beside the person's unsaved text, in a read-only compare tab next to
+// the file's. Their text is not touched. The tab now names the version just read, so their next Save is a deliberate
+// overwrite of what they have seen; a file that changes again has another sha and is asked about again.
+async function compareWithDisk(tab) {
+  let data
+  try {
+    ({ data } = await whileSandboxStarts(() => api.getFileContent(props.systemId, props.repositoryId, tab.path), _wait))
+  } catch (e) {
+    notify.error(e?.response?.data?.error || `${tab.name} could not be read from the project.`)
+    return
+  }
+  const live = openTabs.value.find(t => t.id === tab.id)
+  if (!live) return
+  const disk = data.content
+  live.original = disk
+  live.diskSha = data.sha ?? null
+  projectCache.file.set(props.repositoryId, live.path, disk)
+  if (live.content === disk) {
+    notify.info(`${live.name} in the project is already the same as your version.`)
+    return
+  }
+  const sides = { originalText: disk, modified: live.content, loading: false, note: '', noteIcon: '' }
+  let cmp = openTabs.value.find(t => t.type === 'diff' && t.compare && t.path === live.path)
+  if (cmp) Object.assign(cmp, sides)
+  else {
+    cmp = {
+      id: nextTabId(), type: 'diff', compare: true, path: live.path, sha: '', from: '', name: compareName(live.path),
+      language: live.language, ...sides,
+    }
+    openTabs.value.splice(openTabs.value.findIndex(t => t.id === live.id) + 1, 0, cmp)
+  }
+  activeTabId.value = cmp.id
+  notify.info(`Your text in ${live.name} is unchanged. Saving it now will overwrite the version on disk.`)
 }
 
 function onKeydown(e) {
@@ -854,8 +926,8 @@ async function reloadOpenTabs() {
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
-      tab.content = data.content
-      tab.original = data.content
+      // Edits typed while it was read are never replaced.
+      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content; tab.diskSha = data.sha ?? null }
       projectCache.file.set(props.repositoryId, tab.path, data.content)
     } catch { /* a file the change removed keeps its last content in its tab */ }
   }
@@ -919,7 +991,7 @@ async function applyFileChanges() {
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
-      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content }
+      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content; tab.diskSha = data.sha ?? null }
       projectCache.file.set(props.repositoryId, tab.path, data.content)
     } catch { /* removed: its tab keeps its last content */ }
   }
@@ -1007,12 +1079,13 @@ async function openFile(filePath, { asCode = false } = {}) {
   }
 
   const repoId = props.repositoryId
-  const newTab = (content) => ({
+  const newTab = (content, diskSha = null) => ({
     id: nextTabId(),
     name: filePath.split('/').pop(),
     path: filePath,
     content,
     original: content,   // baseline for dirty tracking (editable mode)
+    diskSha,             // the version on disk `original` is (ADM-1323); a copy kept from before has none yet
     language: detectLanguage(filePath),
     type: 'file'
   })
@@ -1027,17 +1100,24 @@ async function openFile(filePath, { asCode = false } = {}) {
   try {
     const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, repoId, filePath), _wait)
     const content = response.data.content
+    const sha = response.data.sha ?? null
     projectCache.file.set(repoId, filePath, content)
     noteOpened(repoId, filePath)                        // Go to file lists it among the recently opened
     const live = id !== null ? openTabs.value.find(t => t.id === id) : null
     if (id === null) {
-      const tab = newTab(content)
+      const tab = newTab(content, sha)
       openTabs.value.push(tab)
       activeTabId.value = tab.id
-    } else if (live && live.original !== content) {
-      // Changed since it was last read. Unsaved edits are never replaced: the person is told instead.
-      if (!isDirty(live)) { live.content = content; live.original = content }
-      else notify.warning(`${live.name} changed in the project since you opened it. Save to keep your version.`)
+    } else if (live && live.original === content) {
+      live.diskSha = sha                                // the copy kept is the file on disk: edits start from it
+    } else if (live) {
+      // Changed since it was last read. Unsaved edits are never replaced: the person is told instead, and their
+      // Save asks which version to keep (never the new sha: that would overwrite a version they have not seen).
+      if (!isDirty(live)) { live.content = content; live.original = content; live.diskSha = sha }
+      else {
+        live.diskSha = live.diskSha || CHANGED_SINCE_OPENED
+        notify.warning(`${live.name} changed in the project since you opened it. Saving will ask which version to keep.`)
+      }
     }
   } catch (error) {
     console.error('Failed to load file:', error)
@@ -1284,7 +1364,8 @@ function retargetTabs(oldPath, newPath) {
     const moved = newPath + tab.path.slice(oldPath.length)
     projectCache.file.set(props.repositoryId, tab.path, null)
     tab.path = moved
-    tab.name = tab.type === 'diff' ? `${baseOf(moved)} (${tab.sha ? tab.sha.slice(0, 7) : 'changes'})` : baseOf(moved)
+    tab.name = tab.type !== 'diff' ? baseOf(moved)
+      : tab.compare ? compareName(moved) : `${baseOf(moved)} (${tab.sha ? tab.sha.slice(0, 7) : 'changes'})`
     if (tab.type === 'file') projectCache.file.set(props.repositoryId, moved, tab.original)
   }
 }

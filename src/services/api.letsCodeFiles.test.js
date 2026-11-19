@@ -60,6 +60,18 @@ describe('the other file calls', () => {
       ['/systems/5/repositories/4/files/delete/', { path: 'b.py' }],
     ])
   })
+
+  it('a save names the version it opened only when it has one (ADM-1323)', async () => {
+    const sha = 'a'.repeat(64)
+    await api.saveFileContent(5, 4, 'a.py', 'x = 1', sha)
+    await api.saveFileContent(5, 4, 'a.py', 'x = 2')
+    await api.saveFileContent(5, 4, 'a.py', 'x = 3', null)
+    expect(h.rawPost.mock.calls.map(([u, body]) => [u, body])).toEqual([
+      ['/systems/5/repositories/4/files/write/', { path: 'a.py', content: 'x = 1', sha }],
+      ['/systems/5/repositories/4/files/write/', { path: 'a.py', content: 'x = 2' }],
+      ['/systems/5/repositories/4/files/write/', { path: 'a.py', content: 'x = 3' }],
+    ])
+  })
 })
 
 describe('a file larger than an upload part (ADM-1269)', () => {

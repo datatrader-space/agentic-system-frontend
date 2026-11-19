@@ -545,8 +545,10 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/files/image/`, {
       params: { path: filePath }, responseType: 'blob', noCache: true,
     }),
-  saveFileContent: (systemId, repoId, path, content) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, { path, content }),
+  // `sha`: the version the editor opened (files/content's sha, ADM-1323). A file that changed since answers 409
+  // CHANGED_ON_DISK and nothing is written; without a sha the save overwrites what is there.
+  saveFileContent: (systemId, repoId, path, content, sha) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, sha ? { path, content, sha } : { path, content }),
   // The explorer's file actions (ADM-1205). Nothing is ever replaced unless `overwrite` says so.
   createRepositoryEntry: (systemId, repoId, path, type = 'file') =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/create/`, { path, type }),
