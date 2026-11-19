@@ -32,6 +32,9 @@
         <p v-if="allReviewed" class="rv-done" role="status" data-test="review-all-done">
           <Icon icon="lucide:check-check" aria-hidden="true" /> All changes reviewed
         </p>
+        <p v-else-if="!loading && !files.length" class="rv-done" role="status" data-test="review-nothing">
+          <Icon icon="lucide:check-check" aria-hidden="true" /> No files differ from before this message
+        </p>
         <ul class="rv-list">
           <li v-for="f in files" :key="f.path">
             <button type="button" class="rv-file" :class="{ active: f.path === selectedPath }" data-test="review-file"
@@ -43,7 +46,7 @@
             </button>
           </li>
         </ul>
-        <div class="rv-files-foot">
+        <div v-if="files.length" class="rv-files-foot">
           <button type="button" class="rv-btn" :disabled="allReviewed || !!busy" data-test="review-keep-all" @click="keepAll">
             <Icon icon="lucide:check-check" aria-hidden="true" /> Keep all
           </button>
@@ -142,6 +145,9 @@
             />
           </div>
         </template>
+        <div v-else-if="!files.length" class="rv-state">
+          <p>Nothing to review: every file is as it was before this message.</p>
+        </div>
         <div v-else class="rv-state"><p>Pick a file to see its changes.</p></div>
 
         <!-- ADM-1329: the comments, until they are sent to the chat that made the change. -->

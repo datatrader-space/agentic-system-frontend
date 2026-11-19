@@ -122,6 +122,17 @@ describe('ReviewChanges: the files and their sides', () => {
     expect(w.findAll('[data-test="review-file"]')).toHaveLength(5)
     w.unmount()
   })
+
+  it('when every file is as before the message it says so, with no Keep all (live, 2026-11-20)', async () => {
+    api.getLetsCodeMessageReview.mockResolvedValueOnce({ data: { message_id: 77, checkpoint: 'c1', files: [] } })
+    const w = await loaded()
+    expect(w.find('[data-test="review-nothing"]').text()).toContain('No files differ from before this message')
+    expect(w.text()).toContain('Nothing to review: every file is as it was before this message.')
+    expect(w.text()).not.toContain('Pick a file to see its changes.')
+    expect(w.find('[data-test="review-keep-all"]').exists()).toBe(false)
+    expect(w.find('[data-test="review-all-done"]').exists()).toBe(false)
+    w.unmount()
+  })
 })
 
 describe('ReviewChanges: Undo', () => {
