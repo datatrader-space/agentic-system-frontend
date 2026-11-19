@@ -159,11 +159,11 @@ test('a try on the person\'s own machine says that machine, never AADML\'s share
   const { readFile } = await import('node:fs/promises');
   const page = await readFile(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
   const machineReady = page.indexOf('<p v-if="ready&&state.machine" class="muted">');
-  const sharedReady = page.indexOf('Its GPU is running');
   assert.ok(machineReady > 0, 'the machine\'s ready line opens the chain');
-  assert.ok(sharedReady > machineReady, 'the shared GPU\'s words come only after the machine\'s line');
-  assert.match(page, /your photo on \{\{ state\.machine\.name \}\}, your own machine/);
-  assert.doesNotMatch(page.slice(machineReady, page.indexOf('</p>', machineReady)), /photos_tried/);
+  assert.match(page.slice(machineReady, page.indexOf('</p>', machineReady)), /goes to \{\{ state\.machine\.name \}\} and is not kept/);
+  assert.doesNotMatch(page.slice(machineReady, page.indexOf('</p>', machineReady)), /photos_tried|AADML's GPU server/);
+  // SAM 3 is hosted by AADML since 2026-11-19 (ADM-1182): no shared-GPU words are left on the Try panel.
+  assert.doesNotMatch(page, /Its GPU is running/);
   const result = await readFile(new URL('../src/components/PredictionResult.vue', import.meta.url), 'utf8');
   assert.match(result, /answer\.served_by==='machine' \? `on \$\{answer\.served_on \|\| 'your machine'\}`/);
 });

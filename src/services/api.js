@@ -971,6 +971,16 @@ export default {
   // What AWS charged both accounts in a month (?month=YYYY-MM); Refresh is rate-limited on the server (429).
   billingAdminInfraCost: (month) => api.get('/billing/admin/infra-cost/', { params: month ? { month } : {}, noCache: true }),
   billingAdminInfraCostRefresh: (month) => api.post('/billing/admin/infra-cost/refresh/', { month }),
+  // Ready-to-use models (SAM 3 ...) the platform admin starts, stops and prices (backend
+  // FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10.5). Platform administrators only; every other person gets 403.
+  readyModelsAdmin: () => api.get('/training-data/admin/ready-models/', { noCache: true }),
+  // body: {host: 'runpod'} or {host: 'machine', machine: <id>}
+  readyModelStart: (key, body) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/start/`, body),
+  readyModelStop: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/stop/`, {}),
+  // usdPerImage: '0.002', or null for not for sale (every paid call refused).
+  readyModelSetPrice: (key, usdPerImage) =>
+    api.patch(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`, { usd_per_image: usdPerImage }),
+  readyModelAcceptLicence: (machineId) => api.post('/training-data/admin/ready-models/licence/', { machine: machineId }),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),

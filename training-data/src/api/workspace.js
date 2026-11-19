@@ -302,13 +302,41 @@ console.log(await answer.json());`;
   -F "file=@room.jpg"`;
 }
 
+// A ready-to-use model AADML hosts (SAM 3: the Try state's ``hosted``, app_api; FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md
+// section 10): AADML alone starts and stops it, nobody chooses where it runs, Try is free up to ``free_per_day`` photos
+// a person a day, and use in a project is charged per image (``price_per_image``). Its Try panel in words, or null for
+// any other model: ``phase`` "Always on" / "Not running now: AADML starts it", ``free`` the tries left today, ``price``
+// what a photo costs in a project.
+export function hostedTry(state) {
+  if (!state?.hosted) return null;
+  const on = state.phase === 'ready';
+  const left = Number.isInteger(state.free_left) ? state.free_left : 0;
+  const perDay = Number.isInteger(state.free_per_day) ? state.free_per_day : 0;
+  return {
+    on,
+    phase: on ? 'Always on' : 'Not running now: AADML starts it',
+    free: `Free: ${left} of ${perDay} tries left today`,
+    price: state.price_per_image
+      ? `In a project it is ${state.price_per_image}, paid from your balance.`
+      : 'It has no price for use in a project yet, so it can only be tried here for now.',
+  };
+}
+
+// The tries left today a predict answer says (``free_left``), or ``before`` when it says none.
+export const freeLeftAfter = (answer, before) => (Number.isInteger(answer?.free_left) ? answer.free_left : before);
+
+// Whether a Try was refused because today's free tries are used (429 ``free_tries_used``): its words are the server's.
+export const freeTriesUsed = error => error?.status === 429 && error?.serverCode === 'free_tries_used';
+
 export const publishedApi = {
   state: key => apiFetch(`${APP}/published/${enc(key)}/`, { timeoutMs: SLOW }),
-  // ``machine``: the GPU and location chosen (MachinePicker); the server reads it again before starting.
+  // ``machine``: the GPU and location chosen (MachinePicker); the server reads it again before starting. Never called
+  // for a hosted model (it answers 403: AADML starts and stops it).
   act: (key, action, machine = '') => apiFetch(`${APP}/published/${enc(key)}/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: SLOW }),
   machines: key => apiFetch(`${APP}/published/${enc(key)}/machines/`, { timeoutMs: SLOW }),
   // A model on a CPU can take a while on a large photo.
-  // ``classes``: what SAM 3 is asked to find, by name (app_api._platform_try; the server's own when none).
+  // ``classes``: what SAM 3 is asked to find, by name (app_api._platform_try; the server's own when none). A hosted
+  // model's answer carries ``free_left``; with none left it is refused, 429 ``free_tries_used``.
   predict: (key, file, classes = []) => {
     const form = new FormData();
     form.append('file', file);

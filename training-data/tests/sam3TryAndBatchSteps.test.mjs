@@ -11,16 +11,19 @@ const result = read('../src/components/PredictionResult.vue');
 const api = read('../src/api/workspace.js');
 const auto = read('../src/components/AutoLabel.vue');
 
-test('Try SAM 3 on the GPU offers Stop when the server allows it, and says when others use it', () => {
-  assert.match(page, /onPlatform && !state\.machine \? 'Stop its GPU server'/);
-  assert.match(page, /v-else-if="ready&&onPlatform&&state\.used_by_others"/);
-  assert.match(page, /others are using it too, so it can't be stopped now/);
-  assert.match(page, /Nobody else is using it now: stop it when you are done/);
+// Since 2026-11-19 (ADM-1182) SAM 3 is hosted by AADML: the Try page offers no Start, Stop or machine for it (the
+// hosted panel, readyModelsHosted.test.mjs). Its old GPU words are gone.
+test('Try SAM 3 offers no Start or Stop of a GPU server, and never says the walls words', () => {
+  assert.doesNotMatch(page, /Start its GPU server|Stop its GPU server|Stop it on \$\{state\.machine\.name\}/);
+  assert.doesNotMatch(page, /used_by_others|others are using it too|Nobody else is using it now/);
   assert.doesNotMatch(page, /finds the walls, windows and doors of your photo/);
 });
 
 test('the person names what SAM 3 finds, and those names are sent with the photo', () => {
-  assert.match(page, /const DEFAULT_CLASSES = \['wall', 'window', 'door'\]/);
+  // Nothing is filled in (ADM-1182, 2026-11-19): the person names every thing to find.
+  assert.match(page, /const classes = ref\(\[\]\);/);
+  assert.doesNotMatch(page, /DEFAULT_CLASSES|\['wall', 'window', 'door'\]/);
+  assert.match(page, /Name at least one thing to find\./);
   assert.match(page, /const MAX_CLASSES = 8;/);
   assert.match(page, /findsByName = computed\(\(\) => onPlatform\.value && state\.value\?\.call === 'segment'\)/);
   assert.match(page, /publishedApi\.predict\(trying\.value\.key, picked, findsByName\.value \? classes\.value : \[\]\)/);

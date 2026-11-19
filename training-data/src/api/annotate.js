@@ -101,7 +101,7 @@ export function classesOf(rows) {
 }
 export async function loadClasses(store) {
   const body = await json(`${base(store.ref)}/classes/`);
-  store.classes = classesOf(body.classes); store.canChangeClasses = !!body.can_change;
+  store.classes = classesOf(body.classes); store.canChangeClasses = !!body.can_change; store.classesLocked = !!body.locked;
   return store.classes;
 }
 
@@ -181,16 +181,17 @@ export const api = {
   // One photo through a vision model and then SAM 3 takes longer than the usual 15 s (aadml.com, 2026-11-09: GPT-6.1
   // Terra + SAM 3 was cut off and the page said "took too long" while the server was still drawing). Under the site's
   // 300 s limit on a request; a model still being started answers "waiting" at once instead.
-  // ``where``: '' runs the model where it runs; ``machine:<id>`` runs SAM 3 on that machine of the workspace.
-  detect: (ref, photo, source, classes, where = '') => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`,
-    { method: 'POST', body: { source, ...(classes ? { classes } : {}), ...(where ? { where } : {}) }, timeoutMs: DETECT_MS }),
-  detectPreference: (ref, detect, where = '') => json(`${base(ref)}/detect-preference/`, 'POST', { detect, where }),
-  // Meta's SAM License, accepted once for the workspace before SAM 3 runs on any of its machines.
-  acceptSamLicence: ref => json(`${base(ref)}/sam-licence/`, 'POST', { accept: true }),
+  // Nobody chooses where a model runs (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10): no place is sent, here or in
+  // ``detectPreference`` (the backend refuses one).
+  // ``find``: {name, description} typed in Find Objects with AI (asked instead of the project's ``classes``).
+  detect: (ref, photo, source, classes, find = null) => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`,
+    { method: 'POST', body: { source, ...(find ? { find } : classes ? { classes } : {}) }, timeoutMs: DETECT_MS }),
+  detectPreference: (ref, detect) => json(`${base(ref)}/detect-preference/`, 'POST', { detect }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
-  segmentPoint: (ref, photo, name, points, where = '') => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
-    { method: 'POST', body: { class: name, points, where }, timeoutMs: DETECT_MS }),
+  // SAM 3 click-to-label: SAM 3 is hosted by AADML, so no place is sent (a call naming one is refused).
+  segmentPoint: (ref, photo, name, points) => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
+    { method: 'POST', body: { class: name, points }, timeoutMs: DETECT_MS }),
   updateClass: (ref, name, body) => json(`${base(ref)}/classes/${enc(name)}/`, 'PATCH', body),
   removeClass: (ref, name) => json(`${base(ref)}/classes/${enc(name)}/`, 'DELETE'),
   saveLabel: (ref, photo, body) => json(`${base(ref)}/photos/${enc(photo)}/label/`, 'POST', body),

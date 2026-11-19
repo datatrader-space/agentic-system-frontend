@@ -9,20 +9,19 @@
 // first. A photo opens in the editor as it is: the model is asked (and charged) only when the person presses Find
 // objects there (e6e32a1c took away the run on opening), and what it finds is a head start the person checks and sends
 // to review; a model never makes a label by itself.
-// A model with SAM 3 may run SAM 3 on one of the workspace's own machines (agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md):
-// the picker's "Where SAM 3 runs", the machine's fee, the SAM License accepted once, and the machine's own stage while
-// SAM 3 gets ready there ("Downloading SAM 3").
+// Nobody chooses where a model runs, and no place is sent or kept in a workflow. A ready-to-use model (SAM 3, a vision +
+// SAM 3 pair) is hosted by AADML: it is charged per image, and while AADML is not running it the page says so
+// (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, ArrowRight, ChevronRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Wallet, Maximize2, RotateCcw, SlidersHorizontal, PanelRight, Sparkles } from 'lucide-vue-next';
 import AutoLabelAgent from './AutoLabelAgent.vue';
 import LabelingWorkflow from './LabelingWorkflow.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { blockedAt, costAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
+import { costOf, sentence, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { api, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
-import { edgeApi } from '../api/edge.js';
 import { tidyUp } from '../geometry.js';
 
 const props = defineProps({ batch: Object, state: Object, media: Array, busy: Boolean, optionsOpen: Boolean });
@@ -34,17 +33,15 @@ function openAgent() { agentVisited.value = true; agentOpen.value = true; }
 function openWorkflow() { workflowVisited.value = true; tab.value = 'workflow'; }
 function back() { if (agentOpen.value) agentOpen.value = false; else emit('close'); }
 const choosing = ref(false); const confirmOpen = ref(false);
-const where = ref(''); const licenceBusy = ref(false); const placeError = ref('');     // where SAM 3 runs: '' or machine:<id>
 const showLabels = ref(true); const focus = ref(0); const canvas = ref(null);
 const picked = ref(props.media.slice(0, 1).map(m => m.id));
 const previews = ref([]);                      // [{image, state: 'asking'|'waiting'|'ready'|'refused', shapes, now, error, width, height}]
 let timers = []; let stopped = false;
 
 const current = computed(() => sources.value.find(s => s.id === chosen.value) || null);
-const place = computed(() => placeOf(current.value, where.value));
-const blocked = computed(() => blockedAt(current.value, place.value));
-const detail = computed(() => detailAt(current.value, place.value));
-const cost = computed(() => costAt(current.value, place.value));
+const blocked = computed(() => !current.value || !!current.value.unavailable);
+const detail = computed(() => current.value?.detail || '');
+const cost = computed(() => costOf(current.value));
 const shown = computed(() => previews.value[Math.min(focus.value, previews.value.length - 1)] || null);
 
 // What the bottom bar says the page is doing.
@@ -53,8 +50,6 @@ const stateWords = computed(() => {
   if (!current.value) return ['Choose a model', 'Pick the model that draws the head start.'];
   if (!asked.value.length) return ['Add your classes', 'Add a class or use a saved workflow before previewing.'];
   if (current.value.unavailable) return ['This model cannot be used now', current.value.unavailable];
-  if (place.value?.unavailable) return [`SAM 3 cannot run on ${place.value.name} now`, place.value.unavailable];
-  if (place.value?.state === 'licence') return ['Accept the SAM License', `SAM 3 runs on ${place.value.name} only under Meta's SAM License.`];
   if (generating.value) return ['Generating the preview', 'The model is looking at the preview photos.'];
   // The reason itself, not a pointer to it (live, 2026-11-16: the refusal sat below the photo, out of view).
   if (previews.value.some(p => p.state === 'refused')) return ['Preview needs attention', (shown.value?.state === 'refused' && shown.value.error) || previews.value.find(p => p.state === 'refused').error];
@@ -74,19 +69,19 @@ async function loadSources() {
     sources.value = body.sources;
     const usable = body.sources.filter(s => !s.unavailable);
     chosen.value = body.preference || usable.find(s => s.tidy)?.id || usable[0]?.id || '';
-    where.value = body.preference ? (body.where || '') : '';
   } catch (e) { error.value = `The models could not be loaded. ${e.message}`; } finally { loading.value = false; }
 }
 onMounted(loadSources);
 
 // Names and descriptions come from the project. Never seed domain-specific classes in the page.
-const canChange = computed(() => !!props.state.canChangeClasses);
+const canChange = computed(() => !!props.state.canChangeClasses && !props.state.classesLocked);
 // The classes the AI is asked for (owner, 2026-11-09): every class at first; unticked, the models do not look for it,
 // and it stays in the project. Kept per project in this browser; the editor reads the same choice.
 const classNames = computed(() => props.state.classes.map(c => c.name));
 const asked = ref(askedClasses(props.state.ref, classNames.value));
-const definition = computed(() => ({ schema: 'aadml.labeling-workflow.v1', source: chosen.value, where: where.value,
+const definition = computed(() => ({ schema: 'aadml.labeling-workflow.v1', source: chosen.value,
   classes: props.state.classes.filter(c => asked.value.includes(c.name)).map(c => ({ name: c.name, color: c.color, description: c.description || '' })) }));
+// Another model, another way of showing it, or other classes: the preview is of the one chosen before, so it goes.
 watch(definition, () => { previews.value = []; focus.value = 0; });
 const agentContext = computed(() => JSON.stringify({ project: props.state.ref, batch: { id: props.batch.id, source: props.batch.source },
   selected_image_ids: picked.value.slice(0, 4), configuration: definition.value }, null, 2));
@@ -94,7 +89,7 @@ async function applyWorkflow(body) {
   props.state.classes = classesOf(body.classes);
   await nextTick();
   const config = body.workflow.definition;
-  chosen.value = config.source; where.value = config.where;
+  chosen.value = config.source;
   asked.value = config.classes.map(c => c.name);
   keepAskedClasses(props.state.ref, classNames.value, asked.value);
   previews.value = []; tab.value = 'preview';
@@ -123,20 +118,6 @@ function saveClass(c, change) { return changeClasses(() => api.updateClass(props
 function removeClass(c) { return changeClasses(() => api.removeClass(props.state.ref, c.name)); }
 onUnmounted(() => { stopped = true; timers.forEach(clearTimeout); });
 
-// Another model, another way of showing it, or another place it runs: the preview is of the one chosen before, so it goes.
-watch([chosen, where], () => { previews.value = []; focus.value = 0; placeError.value = ''; });
-// The SAM License, accepted once for the workspace: every machine waiting for it can take SAM 3 now.
-async function acceptLicence() {
-  licenceBusy.value = true; placeError.value = '';
-  try { await api.acceptSamLicence(props.state.ref); licenceAccepted(sources.value); }
-  catch (e) { placeError.value = `The SAM License was not recorded. ${e.message}`; } finally { licenceBusy.value = false; }
-}
-// SAM 3 stopped on the machine at the person's word (its weights stay there for the next time).
-async function stopOnMachine(chosenPlace) {
-  placeError.value = '';
-  try { await edgeApi.stop(chosenPlace.running.job); chosenPlace.running = null; }
-  catch (e) { placeError.value = `SAM 3 was not stopped. ${e.message}`; }
-}
 function fullScreen() { canvas.value?.requestFullscreen?.(); }
 function toggle(image) {
   const at = picked.value.indexOf(image.id);
@@ -184,7 +165,7 @@ const stripImages = computed(() => (choosing.value ? props.media : previews.valu
 async function ask(preview) {
   while (!stopped) {
     try {
-      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value, where.value);
+      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value);
       if (body.state === 'waiting') {
         preview.state = 'waiting'; preview.now = `${body.title}: ${body.now}${body.seconds ? ` (${body.seconds} s)` : ''}`;
         await new Promise(resolve => timers.push(setTimeout(resolve, 4000)));
@@ -200,7 +181,7 @@ async function ask(preview) {
 function stop() { stopped = true; timers.forEach(clearTimeout); previews.value.forEach(p => { if (p.state !== 'ready') Object.assign(p, { state: 'refused', error: 'Stopped.' }); }); }
 function loaded(preview, event) { preview.width = event.target.naturalWidth; preview.height = event.target.naturalHeight; }
 function counts(shapes) { return props.state.classes.map(c => ({ ...c, n: shapes.filter(s => s.kind === c.name).length })).filter(c => c.n); }
-function start() { confirmOpen.value = false; emit('autolabel', chosen.value, where.value); }
+function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
 </script>
 
 <template>
@@ -210,7 +191,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
       <h2>Auto Label</h2>
       <nav class="auto-breadcrumb" aria-label="Auto Label navigation"><button @click="emit('annotate')">Annotate</button><ChevronRight :size="11" aria-hidden="true"/><span class="auto-batch-link" :title="batch.givenName || batch.name">{{ batch.givenName || batch.name }} · {{ media.length }} images</span></nav>
       <ol class="auto-progress" aria-label="Labeling progress"><li :aria-current="!previews.length && !confirmOpen ? 'step' : undefined"><span>1</span>Configure</li><li :aria-current="previews.length && !confirmOpen ? 'step' : undefined"><span>2</span>Preview</li><li :aria-current="confirmOpen ? 'step' : undefined"><span>3</span>Label batch</li></ol>
-      <div class="auto-header-actions"><UiButton class="auto-options-toggle" :aria-expanded="optionsOpen" :aria-controls="`labeling-options-${batch.id}`" @click="emit('options')"><PanelRight :size="14"/>Labeling options</UiButton><span v-if="current" class="auto-cost" :title="detail"><Wallet :size="14"/><span>{{ place ? place.price : 'Uses balance' }}</span></span>
+      <div class="auto-header-actions"><UiButton class="auto-options-toggle" :aria-expanded="optionsOpen" :aria-controls="`labeling-options-${batch.id}`" @click="emit('options')"><PanelRight :size="14"/>Labeling options</UiButton><span v-if="current" class="auto-cost" :title="detail"><Wallet :size="14"/><span>{{ current.hosted?.price || 'Uses balance' }}</span></span>
       <UiButton v-if="generating" @click="stop">Stop</UiButton>
       <UiButton v-else :variant="previews.some(p => p.state==='ready') ? 'secondary' : 'primary'" :disabled="blocked||!picked.length||!asked.length||classBusy||!!adding" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
       <UiButton :variant="previews.some(p => p.state==='ready') ? 'primary' : 'secondary'" :disabled="blocked||busy||!media.length||!asked.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>
@@ -219,8 +200,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
     <div class="auto-body">
       <aside v-show="!agentOpen" class="auto-side">
         <h3 class="auto-step-heading">Model</h3>
-        <ModelSourcePicker v-model="chosen" v-model:where="where" :sources="sources" :loading="loading" :disabled="generating||busy" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"
-                           :licence-busy="licenceBusy" :place-error="placeError" @accept-licence="acceptLicence" @stop-machine="stopOnMachine"/>
+        <ModelSourcePicker v-model="chosen" :sources="sources" :loading="loading" :disabled="generating||busy" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"/>
         <p v-if="error" class="field-error" role="alert">{{ error }} <UiButton @click="loadSources">Try again</UiButton></p>
         <p v-else-if="current?.unavailable" class="field-error" role="status">{{ current.unavailable }}</p>
 
@@ -252,7 +232,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
           <summary><SlidersHorizontal :size="16" aria-hidden="true"/> Model details &amp; usage</summary>
           <dl v-if="current">
             <dt>Model</dt><dd>{{ label(current) }}</dd><template v-if="current.what"><dt>About this model</dt><dd>{{ current.what }}</dd></template>
-            <dt>Where it runs and its cost</dt><dd>{{ detail }}.<template v-if="place"> SAM 3 is started on {{ place.name }} the first time and stopped after 15 minutes without a photo; its weights stay on the machine for the next time.</template><template v-else-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
+            <dt>Where it runs and its cost</dt><dd>{{ sentence(detail) }}<template v-if="current.hosted"> AADML starts and stops it; each photo it answers is charged as one image.</template><template v-else-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
             <template v-if="current.licence"><dt>Licence</dt><dd>{{ current.licence }}. A label started from its answer says so, so that it can be left out later.</dd></template>
           </dl>
           <p v-else class="auto-help">Choose a model to see where it runs and what it costs.</p>
@@ -309,7 +289,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
     <UiDialog :open="confirmOpen" title="Label this batch" @close="confirmOpen=false">
       <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every corner and send the photo to review.</p>
       <p class="dialog-description">{{ current ? label(current) : '' }} becomes the model “Find Objects with AI” offers you first in this project. You can change it there.</p>
-      <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ cost }}.</p>
+      <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ sentence(cost) }}</p>
       <p v-else-if="current&&detail" class="dialog-description">A model runs only when you ask it. {{ label(current) }}: {{ detail }}.</p>
       <p v-if="current?.research_only" class="dialog-description">This model is for research or evaluation use only. A label started from its answer says so, so that it can be left out later.</p>
       <div class="dialog-actions"><UiButton @click="confirmOpen=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="start"><Check :size="15"/> Start labelling</UiButton></div>

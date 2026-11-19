@@ -360,6 +360,9 @@ const router = createRouter({
         { path: 'oauth-providers/new', name: 'admin-oauth-provider-new', component: OAuthProviderRegistration },
         // The model every agent runs on for each job unless its owner picks another (PLATFORM_MODEL_DEFAULTS_PLAN.md).
         { path: 'model-defaults', name: 'admin-model-defaults', component: () => import('./views/admin/AdminModelDefaults.vue') },
+        // Ready-to-use models (SAM 3 ...): only the platform admin starts, stops and prices them; they run on RunPod or
+        // on one of his own GPU machines until he stops them (backend FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10).
+        { path: 'ready-models', name: 'admin-ready-models', component: () => import('./views/admin/AdminReadyModels.vue') },
         // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
         { path: 'billing', name: 'admin-billing', component: () => import('./views/admin/AdminBilling.vue') },
         // What AWS charged the AADML account and the ML account, by service and tag (backend billing/services/infra_cost.py).
