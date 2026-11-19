@@ -119,12 +119,13 @@ export function formFromScan(raw) {
 // The workspace's kept recordings, newest first, each with signed links to play and download it (15 minutes).
 const RECORDINGS = `${APP}/workspace/recordings/`;
 export const recordingsApi = {
-  list: ({ source = '', from = '', to = '', limit = 100 } = {}) => {
+  list: ({ source = '', from = '', to = '', limit = 100, offset = 0 } = {}) => {
     const query = new URLSearchParams();
     if (source !== '' && source !== null && source !== undefined) query.set('source', String(source));
     if (from) query.set('from', from);
     if (to) query.set('to', to);
     if (limit) query.set('limit', String(limit));
+    if (offset) query.set('offset', String(offset));
     return apiFetch(`${RECORDINGS}?${query.toString()}`, { timeoutMs: SLOW });
   },
   remove: id => apiFetch(`${RECORDINGS}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
@@ -145,6 +146,40 @@ export function windowText(recording) {
   const t = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '');
   return `${t(recording?.started_at)} to ${t(recording?.ended_at)} UTC`;
 }
+// ── the Recordings tab (CameraRecordings.vue): every kept recording of the workspace, a removed camera's too ────────
+// A recording's links are signed for 15 minutes (backend storage.url): a list older than this asks for new ones first
+// (live, 2026-11-19: a recording that would not play).
+export const LINKS_FRESH_MS = 10 * 60 * 1000;
+export function linksFresh(loadedAt, now = Date.now()) {
+  return Number.isFinite(loadedAt) && loadedAt > 0 && now - loadedAt < LINKS_FRESH_MS;
+}
+const DAY = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
+// "18 Nov 2026, 14:10 to 14:15 UTC".
+export function recordingWhen(recording) {
+  const start = new Date(recording?.started_at || '');
+  if (Number.isNaN(start.getTime())) return windowText(recording);
+  return `${start.toLocaleDateString('en-GB', DAY)}, ${windowText(recording)}`;
+}
+// "Kept until 25 Nov 2026" ('' when unknown): the nightly clean-up deletes it after this.
+export function keptUntilText(iso) {
+  const until = new Date(iso || '');
+  return Number.isNaN(until.getTime()) ? '' : `Kept until ${until.toLocaleDateString('en-GB', DAY)}`;
+}
+// The camera filter: every camera with kept recordings, a removed one said as removed. A recording whose camera row is
+// gone altogether (id null) cannot be filtered on, so it is in "All cameras" only.
+export function cameraChoices(cameras) {
+  const rows = (Array.isArray(cameras) ? cameras : []).filter(c => c && c.id !== null && c.id !== undefined);
+  return [{ value: '', label: 'All cameras' }, ...rows.map(c => {
+    const n = Number(c.recordings) || 0;
+    return { value: String(c.id), label: `${c.name || 'Camera'}${c.removed ? ' (removed)' : ''}: ${n} recording${n === 1 ? '' : 's'}` };
+  })];
+}
+// "1.2 GB of 50.0 GB kept" ('' when the server did not say).
+export function storageText(stored, limit) {
+  if (!Number.isFinite(Number(stored)) || !Number(limit)) return '';
+  return `${sizeText(stored)} of ${sizeText(limit)} kept`;
+}
+
 export function sizeText(bytes) {
   const n = Number(bytes) || 0;
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
@@ -729,7 +764,13 @@ export function monthText(month) {
 // What the camera cost this workspace this month: its streams' answered frames, its kept recordings, and the total.
 export function spendItems(spend) {
   if (!spend || typeof spend !== 'object') return [];
-  const money = v => usdText(Number(v) || 0) || '$0.00';
+  // Under a cent is said as it is (live, 2026-11-19: a day of 200 MB kept, $0.0002, showed as $0.00, as if not charged).
+  const money = v => {
+    const n = Number(v) || 0;
+    if (n > 0 && n < 0.0001) return 'under $0.0001';
+    if (n > 0 && n < 0.01) return `$${n.toFixed(4)}`;
+    return usdText(n) || '$0.00';
+  };
   const frames = Number(spend.frames) || 0; const days = Number(spend.recording_days) || 0;
   return [
     { key: 'frames', label: 'Frames answered', value: money(spend.frames_usd), hint: `${frames.toLocaleString('en-US')} frame${frames === 1 ? '' : 's'}` },

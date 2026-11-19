@@ -30,7 +30,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -189,17 +189,31 @@ const tab = ref('results');                                            // result
 const today = new Date().toISOString().slice(0, 10);
 const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
-const playing = ref(null);
+const playing = ref(null); const playError = ref(''); let recLoadedAt = 0;
 async function loadRecordings() {
   recLoading.value = true; recListError.value = '';
   try {
     const answer = await recordingsApi.list({ source: props.source.id, ...dayRange(recDay.value) });
-    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete;
+    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete; recLoadedAt = Date.now();
     if (playing.value && !recRows.value.some(r => r.id === playing.value.id)) playing.value = null;
   } catch (e) { recListError.value = e.message; }
   finally { recLoading.value = false; }
 }
 watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); });
+// The links are signed for 15 minutes: a list older than 10 asks for new ones before playing (live, 2026-11-19: a
+// recording that kept loading), and one the browser cannot play says so, with its download.
+async function playRecording(row) {
+  playError.value = '';
+  if (!linksFresh(recLoadedAt)) {
+    await loadRecordings();
+    row = recRows.value.find(r => r.id === row.id) || null;
+    if (!row) return;
+  }
+  playing.value = row;
+}
+function cannotPlay() {
+  playError.value = 'This recording could not be played in this browser. Download it to watch it, or try again.';
+}
 // ── management (CLOUD_STREAMING_PLAN.md §3.6): this month's spend and the state history ─────────────────────────────
 const spend = computed(() => spendItems(props.source.spend_month));
 const spendMonth = computed(() => monthText(props.source.spend_month?.month));
@@ -527,7 +541,8 @@ watch(tab, now => {
         </div>
         <!-- Recordings -->
         <div v-else-if="tab === 'recordings'" class="sp-recs">
-          <video v-if="playing" :key="playing.id" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`"></video>
+          <video v-if="playing" :key="playing.id + ':' + playing.play_url" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`" @error="cannotPlay"></video>
+          <p v-if="playing && playError" class="field-error" role="alert">{{ playError }} <a v-if="playing.download_url" :href="playing.download_url" rel="noopener">Download it</a></p>
           <p v-if="recListError" class="field-error" role="alert">{{ recListError }}</p>
           <p v-else-if="recLoading" class="sp-muted" role="status">Loading the recordings…</p>
           <div v-else-if="!recRows.length" class="sp-results-empty" role="status">
@@ -539,7 +554,7 @@ watch(tab, now => {
             <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
               <span><strong>{{ windowText(r) }}</strong><small>{{ sizeText(r.bytes) }}</small></span>
               <span class="sp-rec-acts">
-                <UiButton class="small" :disabled="!r.play_url" @click="playing = r"><Play :size="13" aria-hidden="true"/> Play</UiButton>
+                <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
                 <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
                 <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
                 <UiButton v-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)}`" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>

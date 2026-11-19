@@ -10,6 +10,7 @@ import {
   notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
+  linksFresh, LINKS_FRESH_MS, recordingWhen, keptUntilText, cameraChoices, storageText,
   streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT, isPairingLink, PAIRING_SCANNED,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
@@ -776,4 +777,35 @@ test('a stream key is rotated on the camera\'s own path, and a live view asked a
   assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/');
   seen = await asked(() => videoSources.live(12, 5, { again: true }));
   assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/?job=5');
+});
+
+test('spend under a cent is said as it is, not as $0.00', () => {
+  const items = spendItems({ month: '2026-11', frames: 0, frames_usd: '0.0000', recording_days: 1, recording_usd: '0.0002', total_usd: '0.0002' });
+  assert.deepEqual(items.map(i => i.value), ['$0.00', '$0.0002', '$0.0002']);
+  assert.equal(items[1].hint, '1 day charged');
+  assert.equal(spendItems({ recording_usd: '0.00004', total_usd: '0.00004' })[1].value, 'under $0.0001');
+});
+
+test('the Recordings tab: fresh links, when, kept until, the camera filter and the storage line', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(linksFresh(now - 60_000, now), true);
+  assert.equal(linksFresh(now - LINKS_FRESH_MS - 1, now), false);
+  assert.equal(linksFresh(0, now), false);
+  assert.equal(linksFresh(undefined, now), false);
+  assert.equal(recordingWhen({ started_at: '2026-11-18T14:10:00+00:00', ended_at: '2026-11-18T14:15:00+00:00' }), '18 Nov 2026, 14:10 to 14:15 UTC');
+  assert.equal(keptUntilText('2026-11-25T14:10:00+00:00'), 'Kept until 25 Nov 2026');
+  assert.equal(keptUntilText(''), '');
+  const choices = cameraChoices([
+    { id: 9, name: 'Dock', removed: false, recordings: 3 },
+    { id: 4, name: 'Gate', removed: true, recordings: 1 },
+    { id: null, name: 'Old', removed: true, recordings: 2 },
+  ]);
+  assert.deepEqual(choices, [
+    { value: '', label: 'All cameras' },
+    { value: '9', label: 'Dock: 3 recordings' },
+    { value: '4', label: 'Gate (removed): 1 recording' },
+  ]);
+  assert.deepEqual(cameraChoices(null), [{ value: '', label: 'All cameras' }]);
+  assert.equal(storageText(1.5 * 1024 ** 3, 50 * 1024 ** 3), '1.5 GB of 50.0 GB kept');
+  assert.equal(storageText(5, 0), '');
 });
