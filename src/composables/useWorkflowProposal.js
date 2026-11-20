@@ -176,8 +176,7 @@ export function useWorkflowProposal(doc, history, { confirm = askConfirm, notify
       case 'add_node': {
         if (hasRedactionMarker(op.node)) throw new HiddenValueError('node')
         if (hasNode(op.node.id)) throw new Error(`A step “${op.node.id}” is already in the workflow.`)
-        const position = Number.isFinite(op.node.position?.x) && Number.isFinite(op.node.position?.y) ? op.node.position : hunk.position
-        return [{ op: 'add_node', node: doc.toEditableNode({ ...clone(op.node), position }) }]
+        return [{ op: 'add_node', node: doc.toEditableNode({ ...clone(op.node), position: placedAt(hunk) }) }]
       }
       case 'update_node': {
         const node = state.nodes.find((n) => n.id === op.id)
@@ -306,20 +305,24 @@ export function useWorkflowProposal(doc, history, { confirm = askConfirm, notify
     issues.value = []
   }
 
-  // Where each new step without a position goes: after the step that connects to it, else right of the graph.
+  // The canvas position of a proposed step: the free spot `placeNewSteps` chose, else the agent's own.
+  const placedAt = (hunk) => hunk.position || hunk.op.node?.position || { x: 0, y: 0 }
+
+  // Where each new step goes. The agent's position, when it gives one, is only where it would LIKE the step: a new step
+  // never lands on one already on the canvas (live 2026-11-20: a delay put "between" two steps 300 px apart covered
+  // both, the cards being 200 px wide). Without a position: after the step that connects to it, else right of the
+  // graph. The person's existing steps are never moved.
   function placeNewSteps(ops, list) {
     const placed = []
     const positionOf = (id) => doc.nodes.value.find((n) => n.id === id)?.position || placed.find((n) => n.id === id)?.position
     for (const hunk of list) {
       if (hunk.op.op !== 'add_node' || hunk.state !== 'pending') continue
       const node = hunk.op.node
-      if (Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y)) {
-        placed.push({ id: node.id, position: node.position })
-        continue
-      }
       const from = ops.find((o) => o?.op === 'add_edge' && o.edge?.target === node.id && positionOf(o.edge.source))
       let preferred
-      if (from) {
+      if (Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y)) {
+        preferred = { x: node.position.x, y: node.position.y }
+      } else if (from) {
         const p = positionOf(from.edge.source)
         preferred = { x: p.x + NEXT_STEP_DX, y: p.y }
       } else {
@@ -421,9 +424,7 @@ export function useWorkflowProposal(doc, history, { confirm = askConfirm, notify
   const ghostNodes = computed(() => pending.value
     .filter((h) => h.op.op === 'add_node' && !doc.nodes.value.some((n) => n.id === h.op.node.id))
     .map((h) => {
-      const node = h.op.node
-      const position = Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y) ? node.position : h.position
-      return { ...doc.toEditableNode({ ...node, position }), hunkIndex: h.index }
+      return { ...doc.toEditableNode({ ...h.op.node, position: placedAt(h) }), hunkIndex: h.index }
     }))
 
   const ghostEdges = computed(() => {

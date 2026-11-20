@@ -87,6 +87,32 @@ describe('useWorkflowProposal', () => {
     expect(proposal.pendingCount.value).toBe(6)
   })
 
+  // Live check 2026-11-20: the agent put a delay "between" two steps 300 px apart (x 150); accepted, it covered both.
+  it('a step the agent places on top of others lands in free space; the existing steps never move', async () => {
+    const { doc, proposal } = setup()
+    const before = doc.nodes.value.map((n) => ({ id: n.id, ...n.position }))
+    await proposal.receive(frame([
+      { op: 'add_node', node: { id: 'wait', type: 'logic.delay', position: { x: 150, y: 0 }, data: { seconds: 1 } } },
+    ]))
+    const ghost = proposal.ghostNodes.value[0]
+    const W = 230, H = 110   // the room an unmeasured step is given (workflowNodePlacement.js)
+    const overlaps = (p, q) => p.x < q.x + W && q.x < p.x + W && p.y < q.y + H && q.y < p.y + H
+    expect(doc.nodes.value.some((n) => overlaps(ghost.position, n.position))).toBe(false)
+    expect(proposal.acceptAll()).toBe(1)
+    expect(node(doc, 'wait').position).toEqual(ghost.position)
+    expect(doc.nodes.value.filter((n) => n.id !== 'wait').map((n) => ({ id: n.id, ...n.position }))).toEqual(before)
+  })
+
+  it('a position the agent gives in free space is kept exactly', async () => {
+    const { doc, proposal } = setup()
+    await proposal.receive(frame([
+      { op: 'add_node', node: { id: 'far', type: 'logic.delay', position: { x: 0, y: 600 }, data: { seconds: 1 } } },
+    ]))
+    expect(proposal.ghostNodes.value[0].position).toEqual({ x: 0, y: 600 })
+    proposal.acceptAll()
+    expect(node(doc, 'far').position).toEqual({ x: 0, y: 600 })
+  })
+
   it('keeps hidden values: an exact __redacted__ keeps what is stored and is never written', async () => {
     const { doc, proposal } = setup()
     await proposal.receive(frame([
