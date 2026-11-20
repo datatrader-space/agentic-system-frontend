@@ -158,7 +158,8 @@ function trap(e) {
 .cx-missing li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .cx-group legend{padding:0 4px;font-size:12px;color:var(--vm-ink-soft)}
 .cx-inline{flex-direction:column}
-.cx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:start}
+/* 180 px: three settings fit a row only when "30 a second (the timeline's)" is not cut; otherwise they wrap. */
+.cx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:start}
 .cx-check{display:flex;align-items:flex-start;gap:6px;min-height:32px;font-size:13px;line-height:1.4}.cx-check input{flex:none;margin-top:1px;accent-color:var(--vm-primary);width:18px;height:18px}
 .cx-check.is-off{color:var(--vm-ink-faint)}
 .cx-why{display:block;font-size:11px;color:var(--vm-ink-faint)}

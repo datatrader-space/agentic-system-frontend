@@ -24,10 +24,11 @@ const ariaKeys = computed(() => (props.shortcut ? props.shortcut.split(/\+(?!$)/
 .ib.is-on{border-color:var(--vm-primary);background:var(--vm-primary-soft)}
 .ib.is-primary{border-color:var(--vm-violet);background:var(--vm-violet-soft)}
 .ib:focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}
-/* The name and shortcut as a tooltip, on hover and on keyboard focus (a native title shows on hover only). */
+/* The name and shortcut as a tooltip, on hover and on keyboard focus (a native title shows on hover only). It is laid
+   out only while shown: a hidden one still took space past its container's edge, so a button at the right of a
+   scrolling box (the export dialog's Close) gave that box a horizontal scrollbar (live, 2026-11-20). */
 .ib{position:relative}
-.ib::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;translate:-50% 0;z-index:30;padding:4px 8px;border-radius:5px;background:var(--vm-ink);color:var(--vm-surface);font:500 12px/1.3 var(--vm-font-sans);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s}
-.ib:hover::after,.ib:focus-visible::after{opacity:1}
-@media (prefers-reduced-motion:reduce){.ib::after{transition:none}}
+.ib::after{content:attr(data-tip);display:none;position:absolute;bottom:calc(100% + 6px);left:50%;translate:-50% 0;z-index:30;padding:4px 8px;border-radius:5px;background:var(--vm-ink);color:var(--vm-surface);font:500 12px/1.3 var(--vm-font-sans);white-space:nowrap;pointer-events:none}
+.ib:hover::after,.ib:focus-visible::after{display:block}
 @media (max-width:767px){.ib{min-width:44px;min-height:44px}}
 </style>
