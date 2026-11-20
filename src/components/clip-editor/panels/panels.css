@@ -1,0 +1,48 @@
+/* The inspector panels (VIDEO_EDITOR_PRO_PLAN.md section 6): the Studio's grading-suite theme (--vm-* and --vs-*
+   tokens). One shared sheet, so every panel's rows, groups and keyframe diamonds look and behave the same. The one
+   bold element is the amber keyframe diamond; everything else stays quiet. */
+.pn{display:grid;gap:12px;align-content:start;min-width:0}
+.pn-group{display:grid;gap:8px;margin:0;padding:10px;border:1px solid var(--vm-line-2);border-radius:7px;min-width:0}
+.pn-group > legend,.pn-legend{padding:0 4px;font-size:12px;color:var(--vm-ink-soft)}
+.pn-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pn-row{display:grid;grid-template-columns:minmax(64px,82px) minmax(0,1fr) 62px auto;align-items:center;gap:6px;font-size:12px;color:var(--vm-ink-soft)}
+.pn-row > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn-row input[type=range]{width:100%;min-width:0;min-height:24px;accent-color:var(--vm-primary)}
+.pn-num{width:100%;min-width:0;min-height:28px;padding:2px 6px;border:1px solid var(--vm-line);border-radius:5px;background:var(--vm-bg);color:var(--vm-ink);font:inherit;font-variant-numeric:tabular-nums;text-align:right}
+.pn-check{display:flex;align-items:center;gap:8px;min-height:32px;font-size:13px;color:var(--vm-ink)}
+.pn-check input{width:18px;height:18px;accent-color:var(--vm-primary)}
+.pn-color{width:100%;height:36px;padding:2px;border:1px solid var(--vm-line);border-radius:6px;background:var(--vm-surface)}
+.pn-note{font-size:12px;line-height:1.5;color:var(--vm-ink-soft);margin:0}
+.pn-error{font-size:12px;line-height:1.5;color:var(--vs-bad-ink);margin:0}
+.pn-seg{display:flex;flex-wrap:wrap;gap:4px}
+.pn-seg button,.pn-chip{min-height:30px;padding:4px 10px;border:1px solid var(--vm-line);border-radius:6px;background:var(--vm-surface);color:var(--vm-ink);font:500 12px/1.3 var(--vm-font-sans);cursor:pointer}
+.pn-seg button[aria-pressed="true"],.pn-chip[aria-pressed="true"]{border-color:var(--vm-primary);background:var(--vm-primary-soft)}
+.pn-seg button:hover,.pn-chip:hover{background:var(--vm-surface-2)}
+.pn-small{min-height:30px !important;padding:4px 10px !important;font-size:12px !important}
+.pn-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.pn :is(button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}
+
+/* A row of icon buttons. */
+.pn-icons{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+
+/* Keyframe controls: previous, the diamond, next. Filled amber = a keyframe at the playhead; amber outline = the
+   value is animated; grey outline = not animated. The state is also in the button's name, never colour alone. */
+.kf{display:inline-flex;align-items:center;gap:1px}
+.kf button{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:none;color:var(--vm-ink-faint);cursor:pointer}
+.kf button:hover:not(:disabled){background:var(--vm-surface-2);color:var(--vm-ink)}
+.kf button:disabled{opacity:.35;cursor:not-allowed}
+.kf svg{width:14px;height:14px}
+.kf button:focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:1px}
+.kf-diamond.is-animated{color:var(--vm-amber)}
+.kf-diamond.is-on{color:var(--vm-amber)}.kf-diamond.is-on svg{fill:var(--vm-amber)}
+.kf-ease{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;align-items:center;grid-column:1/-1;padding-left:4px;font-size:11px;color:var(--vm-ink-faint)}
+.kf-ease select{min-height:26px;font-size:12px}
+.kf-bez{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+
+@media (max-width:767px){
+  .pn-row{grid-template-columns:minmax(60px,72px) minmax(0,1fr) 58px auto}
+  .pn-row input[type=range],.pn-check,.pn-num{min-height:44px}
+  .kf button{width:44px;height:44px}
+  .pn-seg button,.pn-chip,.pn-small{min-height:44px !important}
+}
+@media (prefers-reduced-motion:reduce){.pn *{transition:none !important;animation:none !important}}

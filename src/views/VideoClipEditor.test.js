@@ -15,12 +15,16 @@ vi.mock('vue-router', () => ({ useRoute: () => routeState, useRouter: () => ({ r
 vi.mock('../services/studioFeatures', () => ({ loadStudioFeatures: vi.fn(async () => []), getStudioFeature: vi.fn(() => ({ id: 'editor', ready: true })) }))
 import VideoClipEditor from './VideoClipEditor.vue'
 import { useVideoStore } from '../stores/useVideoStore'
+import { resetRegistry } from '../components/clip-editor/registry'
+// The registry as the server serves it (written by `manage.py editor_registry_export`).
+import registryFixture from '../components/clip-editor/__fixtures__/registry.json'
 
 const clip = (id, start) => ({ type: 'clip', id, media: 'm1', start_ms: start, source_in_ms: 0, source_out_ms: 2000, speed: 1, fit: 'contain', transform: { x: 0.5, y: 0.5, scale: 1, opacity: 1 } })
-const timeline = (revision = 2) => ({ revision, revision_id: 40 + revision, edl: { ...tl.newDoc('9:16'), tracks: [{ id: 'v1', kind: 'video', items: [clip('a', 0)] }, { id: 't1', kind: 'text', captions: true, items: [] }, { id: 'a1', kind: 'audio', items: [] }] } })
+const timeline = (revision = 2) => ({ revision, revision_id: 40 + revision, edl: { ...tl.newDoc('9:16'), settings: { magnet: false }, tracks: [{ id: 'v1', kind: 'video', items: [clip('a', 0)] }, { id: 't1', kind: 'text', captions: true, items: [] }, { id: 'a1', kind: 'audio', items: [] }] } })
 
 function stubApi() {
   api.get.mockImplementation(async (url) => {
+    if (url === '/video/editor/registry/') return { data: registryFixture }
     if (url === '/video/projects/') return { data: { projects: [{ project_id: 'p1', title: 'Launch' }] } }
     if (url === '/video/projects/p1/') return { data: { project_id: 'p1', title: 'Launch', aspect_ratio: '9:16', assets: [{ attachment_id: 'm1', media_type: 'video', role: 'edit_source' }] } }
     if (url === '/video/projects/p1/timeline/') return { data: timeline() }
@@ -38,7 +42,7 @@ async function open() {
 }
 const button = text => w.findAll('button').find(b => b.text() === text)
 
-beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); stubApi(); routeState.query = { project_id: 'p1' } })
+beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); resetRegistry(); stubApi(); routeState.query = { project_id: 'p1' } })
 afterEach(() => { w?.unmount(); vi.useRealTimers() })
 
 describe('VideoClipEditor', () => {
@@ -51,49 +55,68 @@ describe('VideoClipEditor', () => {
     expect(w.findAll('.cb-file').map(f => f.text())).toEqual([expect.stringContaining('beach.mp4')])
   })
 
-  it('splits at the playhead from the toolbar and from the keyboard, and undoes', async () => {
+  it('the toolbar is icon buttons, each named with its shortcut in its tooltip; Delete and Undo edit the timeline', async () => {
     await open()
+    const del = w.get('[data-test="ve-delete"]')
+    expect([del.attributes('aria-label'), del.attributes('data-tip'), del.attributes('aria-keyshortcuts')]).toEqual(['Delete', 'Delete (Delete)', 'Delete'])
+    expect(w.get('[data-test="ve-undo"]').attributes('data-tip')).toBe('Undo (Ctrl+Z)')
+    expect(w.get('[data-test="ve-undo"]').attributes('aria-keyshortcuts')).toBe('Control+Z')
+    expect(w.get('[data-test="ve-duplicate"]').attributes('data-tip')).toBe('Duplicate (D)')
+    // One Split, one Snap, one Loop: Split and Snap on the timeline's tools bar, Loop on the monitor.
+    expect(w.find('[data-test="ve-split"]').exists()).toBe(false)
+    expect(w.findAll('[data-test="ct-split"]')).toHaveLength(1)
+    expect(w.findAll('[data-test="ct-snap"]')).toHaveLength(1)
+    expect(w.findAll('button[aria-label="Loop"]')).toHaveLength(1)
     await w.get('[data-id="a"]').trigger('keydown', { key: 'Enter' })
-    await w.get('.ct-slider').setValue('1000')
-    await button('Split').trigger('click')
-    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(2)
-    expect(w.text()).toContain('Unsaved changes')
-    await button('Undo').trigger('click')
+    await del.trigger('click')
+    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(0)
+    await w.get('[data-test="ve-undo"]').trigger('click')
     expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(1)
-    w.get('[data-id="a"]').element.focus()
-    await w.get('[data-id="a"]').trigger('keydown', { key: 's' })
+  })
+
+  it('adds a file from the bin through the editor, in the way chosen there', async () => {
+    await open()
+    const main = () => w.findAll('.ct-row')[0].findAll('[role="option"]').map(o => o.attributes('data-id'))
+    await w.get('.cb-file button').trigger('click')                               // insert at the playhead (0)
+    expect(main()).toHaveLength(2)
+    expect(w.get('.st-sr[aria-live="polite"]').exists()).toBe(true)
+    await w.get('[data-test="bin-mode"]').setValue('append')
+    await w.get('.cb-file button').trigger('click')
+    expect(main()).toHaveLength(3)
+  })
+
+  it('takes a file dropped from the bin onto a track, at the drop time', async () => {
+    await open()
+    const lane = w.findAll('.ct-row')[0].get('.ct-lane')
+    const payload = JSON.stringify({ kind: 'media', id: 'm1' })
+    const dataTransfer = { types: ['application/x-aadml-editor'], getData: () => payload, dropEffect: '' }
+    await lane.trigger('dragover', { dataTransfer })
+    expect(lane.classes()).toContain('ct-drop')
+    await lane.trigger('drop', { dataTransfer, clientX: 0 })
+    expect(lane.classes()).not.toContain('ct-drop')
     expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(2)
   })
 
-  // ISSUE-13: Split with the playhead where nothing can be cut says why, on screen, and changes nothing.
-  it('says why Split cannot cut when the playhead is not inside a selected clip', async () => {
+  it('plays through the editor: the monitor reports time, the editor owns play, pause and loop', async () => {
     await open()
-    await w.get('[data-id="a"]').trigger('keydown', { key: 'Enter' })
-    await w.get('.ct-slider').setValue('0')
-    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
-    await button('Split').trigger('click')
-    expect(w.get('[data-test="ve-split-note"]').text()).toBe('Move the playhead inside a selected clip to split it.')
-    expect(w.get('[data-test="ve-split"]').attributes('aria-describedby')).toBe('ve-split-note')
-    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(1)
-    expect(w.get('[aria-live="polite"]').text()).toBe('Move the playhead inside a selected clip to split it.')
-    // Moving the playhead clears the note; a cut inside the clip works.
-    await w.get('.ct-slider').setValue('1000')
-    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
-    await button('Split').trigger('click')
-    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(2)
-    expect(w.find('[data-test="ve-split-note"]').exists()).toBe(false)
+    const play = w.get('[aria-label="Monitor"] button[aria-label="Play"]')
+    await play.trigger('click')
+    expect(w.find('[aria-label="Monitor"] button[aria-label="Pause"]').exists()).toBe(true)
+    const loop = w.get('[aria-label="Monitor"] button[aria-label="Loop"]')
+    await loop.trigger('click')
+    expect(loop.attributes('aria-pressed')).toBe('true')
   })
 
-  it('single-key shortcuts work only with the timeline focused and can be switched off', async () => {
+  it('says when the registry cannot be read, and reads it again on Try again', async () => {
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation(async url => { if (url === '/video/editor/registry/') throw new Error('down'); return base(url) })
     await open()
-    await w.get('[data-id="a"]').trigger('keydown', { key: 'Enter' })
-    await w.get('.ct-slider').setValue('1000')
-    await w.get('.ve-tools').trigger('keydown', { key: 's' })                            // not the timeline
-    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(1)
-    await w.get('.ve-keys input').setValue(false)
-    await w.get('[data-id="a"]').trigger('keydown', { key: 's' })
-    expect(w.findAll('.ct-row')[0].findAll('[role="option"]')).toHaveLength(1)
-    expect(localStorage.getItem('aadml.clipEditor.shortcuts')).toBe('off')
+    expect(w.get('[data-test="ve-registry-error"]').text()).toContain('could not be read')
+    expect(w.find('.ct').exists()).toBe(false)
+    api.get.mockImplementation(base)
+    await w.get('[data-test="ve-registry-error"] button').trigger('click')
+    await flushPromises()
+    expect(w.find('.ct').exists()).toBe(true)
   })
 
   it('a change saved in another tab or by the agent stops saving and offers the newest timeline', async () => {
@@ -114,19 +137,45 @@ describe('VideoClipEditor', () => {
     expect(w.find('.ve-conflict').exists()).toBe(false)
   })
 
-  it('exports the saved revision in the shapes and resolution chosen', async () => {
+  it('exports the saved revision with the shapes, resolution, rate, quality, outputs and loudness chosen', async () => {
     await open()
     api.post.mockResolvedValueOnce({ data: { job_id: 'e1', state: 'queued', operation: 'export' } })
     await button('Export').trigger('click')
     const dialog = w.get('[role="dialog"]')
-    await dialog.findAll('input[type="checkbox"]').find(i => i.element.value === '16:9').setValue(true)
-    await dialog.findAll('input[type="radio"]').find(i => i.element.value === '720p').setValue(true)
-    await dialog.findAll('button').find(b => b.text() === 'Export').trigger('click')
+    await dialog.get('[data-test="cx-shape-16:9"]').setValue(true)
+    await dialog.get('[data-test="cx-resolution"]').setValue('720p')
+    expect(dialog.findAll('[data-test="cx-resolution"] option').map(o => o.element.value)).toEqual(['720p', '1080p'])   // no source above 1080p
+    await dialog.get('[data-test="cx-rate"]').setValue('60')
+    await dialog.get('[data-test="cx-quality"]').setValue('high')
+    await dialog.get('[data-test="cx-out-audio_mp3"]').setValue(true)
+    await dialog.get('[data-test="cx-loudness"]').setValue('-14')
+    await dialog.get('[data-test="cx-export"]').trigger('click')
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith('/video/jobs/', { operation: 'export', project_id: 'p1',
-      params: { timeline_revision_id: 42, title: 'Launch', aspects: ['9:16', '16:9'], resolution: '720p' } })
+      params: { timeline_revision_id: 42, title: 'Launch', aspects: ['9:16', '16:9'], resolution: '720p', rate: 60, quality: 'high', outputs: ['video', 'audio_mp3'], loudness: '-14' } })
     expect(useVideoStore().jobs.e1).toBeTruthy()
     expect(w.get('[role="dialog"] .job').text()).toBe('queued')
+  })
+
+  it('an export refused for helper files not made yet lists each one with the way to make it', async () => {
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation(async url => {
+      if (url === '/video/projects/p1/timeline/') { const t = timeline(); t.edl.tracks[0].items[0].reverse = true; return { data: t } }
+      return base(url)
+    })
+    await open()
+    api.post.mockRejectedValueOnce({ response: { status: 409, data: { error: { code: 'derived_missing', message: 'These are not made yet: the reversed copy of clip a. Make them in the editor (each is kept once made), then export.' } } } })
+    await button('Export').trigger('click')
+    await w.get('[data-test="cx-export"]').trigger('click')
+    await flushPromises()
+    const dialog = w.get('[role="dialog"]')
+    expect(dialog.text()).toContain('These are not made yet: the reversed copy of clip a.')
+    expect(dialog.get('[data-test="cx-missing"]').text()).toContain('The reversed copy of beach.mp4')
+    api.post.mockResolvedValueOnce({ data: { id: 'r1', op: 'reverse', state: 'running', progress: 0.1 } })
+    await dialog.get('[data-test="cx-make-reverse"]').trigger('click')
+    await flushPromises()
+    expect(api.post).toHaveBeenLastCalledWith('/video/editor/derive/', { media: 'm1', op: 'reverse', params: {} })
+    expect(w.get('[data-test="cx-make-reverse"]').text()).toContain('Making the reversed copy')
   })
 
   it('downloads the saved revision as Lottie from Export and says what Lottie cannot hold', async () => {

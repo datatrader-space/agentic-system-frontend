@@ -9,6 +9,7 @@
     "test": "vitest run && node --test \"training-data/tests/*.test.mjs\"",
     "test:watch": "vitest",
     "test:workflow:e2e": "node scripts/test-workflow-e2e.mjs",
+    "test:editor-golden": "playwright test -c tests/editor-golden/playwright.config.mjs",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "chart.js": "^4.5.1",
     "highlight.js": "^11.11.1",
     "hls.js": "1.5.20",
+    "jassub": "2.5.23",
     "katex": "0.18.11",
     "lucide-vue-next": "^1.0.0",
     "marked": "^17.0.1",

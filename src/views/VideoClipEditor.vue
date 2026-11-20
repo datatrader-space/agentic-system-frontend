@@ -1,8 +1,10 @@
 <template>
-  <!-- The clip editor (agentic-docs/VIDEO_CLIP_EDITOR_PLAN.md, ADM-1199), under Edit & enhance. Desktop: files, monitor
-       and settings side by side over the timeline. Tablet: files and settings open from the toolbar. Phone: the
-       monitor, a short timeline that scrolls sideways in its own box, and a toolbar; every gesture has a button. -->
-  <div class="ve" :class="{ 'is-phone': phone }" @keydown="shortcut">
+  <!-- The clip editor (agentic-docs/VIDEO_CLIP_EDITOR_PLAN.md and VIDEO_EDITOR_PRO_PLAN.md section 6, ADM-1199), under
+       Edit & enhance. Desktop (1280 px and wider): the bin, the monitor and the inspector side by side over the
+       full-width timeline. Tablet (768 to 1279 px): the monitor full width, the bin and the inspector open as panels
+       from the buttons under it. Phone (below 768 px): the reduced editor; the monitor, a short timeline that scrolls
+       sideways in its own box, a toolbar, and bottom sheets; 44 px targets; every gesture has a button. -->
+  <div class="ve" :class="{ 'is-phone': phone }">
     <header class="ve-head">
       <h1 class="ve-title">{{ editor.project.value?.title || 'Clip editor' }}</h1>
       <label class="ve-project"><span class="st-sr">Project</span>
@@ -34,56 +36,60 @@
 
     <p v-else-if="editor.state.loading" class="st-status" role="status">Opening the project…</p>
     <div v-else-if="editor.state.error" class="st-error" role="alert">{{ editor.state.error }} <button type="button" class="st-button" @click="openProject(projectId)">Try again</button></div>
+    <!-- The editor's registry (effects, transitions, fonts and their ranges) comes from the server once; the panels
+         wait for it, and a failed read says so with a way to ask again. -->
+    <div v-else-if="registryError" class="st-error" role="alert" data-test="ve-registry-error">{{ registryError }} <button type="button" class="st-button" @click="readRegistry">Try again</button></div>
+    <p v-else-if="!registryReady" class="st-status" role="status">Opening the editor…</p>
 
     <template v-else-if="editor.doc.value">
       <div class="ve-top">
-        <BottomSheet label="Files" :summary="`${(editor.project.value?.assets || []).length}`" test-id="ve-bin" :breakpoint="1024" class="ve-bin">
-          <ClipMediaBin :project-id="projectId" :project="editor.project.value" :media="editor.media" @add="addFile" @files-changed="editor.refreshProject" />
+        <BottomSheet label="Media and catalogues" :summary="`${(editor.project.value?.assets || []).length} files`" test-id="ve-bin" :breakpoint="DESKTOP" class="ve-bin">
+          <ClipMediaBin :project-id="projectId" :project="editor.project.value" :media="editor.media" :can-apply="!!effectTarget" :can-join="canJoin"
+                        @add="addFile" @add-text="addTemplate" @add-effect="addEffect" @add-transition="addTransition" @files-changed="editor.refreshProject" />
         </BottomSheet>
-        <ClipMonitor class="ve-monitor" :doc="editor.doc.value" :playhead="editor.playhead.value" :playing="playing" :media="editor.media"
-                     :preview-busy="!!previewJob && !finished(previewJob)" @tick="editor.playhead.value = $event" @toggle="playing = !playing"
-                     @ended="playing = false" @seek="seek" @preview-exact="previewExact" />
-        <BottomSheet label="Settings" :summary="selectedLabel" test-id="ve-inspector" :breakpoint="1024" class="ve-inspector">
-          <ClipInspector :doc="editor.doc.value" :selected-id="editor.selection.value[0] || ''" :media="editor.media" @ops="apply($event.ops, $event.label)" @select="id => editor.select(id)" />
-          <ClipCaptions v-if="captionSource" :project-id="projectId" :clip="captionSource" :rate="editor.rate.value" @captions="addCaptions" />
+        <ClipMonitor v-model:safe-area="safeArea" class="ve-monitor" :doc="editor.view.value" :playhead="editor.playhead.value" :playing="editor.playing.value"
+                     :playback="editor.playback" :media="editor.media" :preview-busy="!!previewJob && !finished(previewJob)"
+                     @tick="editor.tick" @toggle="editor.togglePlay()" @toggle-loop="editor.toggleLoop()" @seek="seek" @preview-exact="previewExact" />
+        <BottomSheet label="Settings" :summary="selectedLabel" test-id="ve-inspector" :breakpoint="DESKTOP" class="ve-inspector">
+          <ClipInspector :doc="editor.view.value" :selected-id="editor.selection.value[0] || ''" :media="editor.media" :playhead="editor.playhead.value"
+                         :project-id="projectId" :names="names" :compact="phone" :request-tab="requestTab"
+                         @ops="apply($event.ops, $event.label)" @select="id => editor.select(id)" @seek="seek" @refresh-media="id => editor.loadMedia(id)" />
+          <ClipCaptions :project-id="projectId" :doc="editor.view.value" :clip="captionSource" :rate="editor.rate.value" @captions="addCaptions" @ops="apply($event.ops, $event.label)" />
+          <ClipHelpers :doc="editor.view.value" :clip="selectedClip" :selection="editor.selection.value" :media="editor.media" @ops="apply($event.ops, $event.label)" />
         </BottomSheet>
       </div>
       <div v-if="previewJob" class="ve-preview" role="status">
         <VideoJobCard :job="video.jobs[previewJob] || { job_id: previewJob, state: 'queued' }" in-studio />
-        <button type="button" class="st-button" @click="previewJob = ''">Close the preview</button>
+        <IconButton :icon="X" label="Close the preview" @click="previewJob = ''" />
       </div>
 
+      <!-- The page's own toolbar: icon buttons (owner's rule, 2026-11-19), each named and with its shortcut in its
+           tooltip. Split, Snap and the other cutting tools are on the timeline's own tools bar (ClipTimeline). -->
       <div class="ve-tools" role="toolbar" aria-label="Edit">
-        <button type="button" class="st-button" :disabled="!editor.selection.value.length" :aria-describedby="splitNote ? 've-split-note' : undefined" data-test="ve-split" @click="split">Split</button>
-        <button type="button" class="st-button" :disabled="!editor.selection.value.length" @click="remove(false)">Delete</button>
-        <button type="button" class="st-button" :disabled="!editor.selection.value.length" @click="remove(true)">Delete and close the gap</button>
-        <button type="button" class="st-button" :disabled="editor.selection.value.length !== 1" @click="duplicate">Duplicate</button>
-        <button type="button" class="st-button" :disabled="editor.selection.value.length !== 1" aria-label="Move earlier by one second" @click="nudge(-1000)">Earlier</button>
-        <button type="button" class="st-button" :disabled="editor.selection.value.length !== 1" aria-label="Move later by one second" @click="nudge(1000)">Later</button>
-        <button type="button" class="st-button" :disabled="!editor.canUndo.value" @click="editor.undo()">Undo</button>
-        <button type="button" class="st-button" :disabled="!editor.canRedo.value" @click="editor.redo()">Redo</button>
+        <IconButton :icon="Trash2" label="Delete" shortcut="Delete" :disabled="!editor.selection.value.length" data-test="ve-delete" @click="editor.removeSelected(false)" />
+        <IconButton :icon="ArrowLeftToLine" label="Delete and close the gap" shortcut="Shift+Delete" :disabled="!editor.selection.value.length" data-test="ve-ripple" @click="editor.removeSelected(true)" />
+        <IconButton :icon="CopyPlus" label="Duplicate" shortcut="D" :disabled="editor.selection.value.length !== 1" data-test="ve-duplicate" @click="editor.duplicateSelected()" />
+        <IconButton :icon="MoveLeft" label="Move earlier by one second" shortcut="Alt+Shift+Left" :disabled="editor.selection.value.length !== 1" @click="nudge(-1000)" />
+        <IconButton :icon="MoveRight" label="Move later by one second" shortcut="Alt+Shift+Right" :disabled="editor.selection.value.length !== 1" @click="nudge(1000)" />
+        <IconButton :icon="Undo2" label="Undo" shortcut="Ctrl+Z" :disabled="!editor.canUndo.value" data-test="ve-undo" @click="editor.undo()" />
+        <IconButton :icon="Redo2" label="Redo" shortcut="Ctrl+Shift+Z" :disabled="!editor.canRedo.value" data-test="ve-redo" @click="editor.redo()" />
         <span class="ve-sep" aria-hidden="true" />
-        <button type="button" class="st-button" @click="addText(false)">Add text</button>
-        <button type="button" class="st-button" @click="addText(true)">Add caption</button>
-        <button type="button" class="st-button" :disabled="!canAddVideoTrack" @click="addTrack('video')">Add video track</button>
-        <button type="button" class="st-button" @click="addTrack('audio')">Add sound track</button>
+        <IconButton :icon="Type" label="Add text at the playhead" data-test="ve-add-text" @click="addText(false)" />
+        <IconButton :icon="Captions" label="Add a caption at the playhead" data-test="ve-add-caption" @click="addText(true)" />
+        <IconButton :icon="Film" label="Add a video track" :disabled="!canAddVideoTrack" @click="addTrack('video')" />
+        <IconButton :icon="AudioLines" label="Add a sound track" @click="addTrack('audio')" />
         <span class="ve-sep" aria-hidden="true" />
-        <button type="button" class="st-button" :aria-pressed="editor.snapping.value ? 'true' : 'false'" @click="editor.snapping.value = !editor.snapping.value">Snap</button>
-        <button type="button" class="st-button" aria-label="Zoom out" @click="zoomBy(1 / 1.5)">−</button>
-        <button type="button" class="st-button" aria-label="Zoom in" @click="zoomBy(1.5)">+</button>
+        <IconButton :icon="ZoomOut" label="Zoom out" shortcut="-" @click="editor.zoomBy(1 / 1.5)" />
+        <IconButton :icon="ZoomIn" label="Zoom in" shortcut="+" @click="editor.zoomBy(1.5)" />
         <label class="ve-keys"><input type="checkbox" :checked="editor.shortcuts.value" @change="editor.setShortcuts($event.target.checked)" /> Keyboard shortcuts</label>
         <button type="button" class="st-button primary ve-export" :disabled="!editor.total.value" @click="exportOpen = true">Export</button>
       </div>
-      <p v-if="splitNote" id="ve-split-note" class="ve-split-note" data-test="ve-split-note">{{ splitNote }}</p>
 
-      <ClipTimeline ref="timelineEl" :doc="editor.doc.value" :selection="editor.selection.value" :playhead="editor.playhead.value" :zoom="editor.zoom.value"
-                    :snapping="editor.snapping.value" :media="editor.media" :names="names"
-                    @select="e => editor.select(e.id, { add: e.add })" @seek="seek" @move="move" @trim="trim" @track="e => apply(tl.setTrackOps(editor.doc.value, e.id, e.changes), 'Track changed')"
-                    @touchstart.passive="pinchStart" @touchmove.passive="pinchMove" />
-      <p v-if="editor.shortcuts.value" class="ve-hint st-muted">With the timeline focused: Space plays, S splits at the playhead, Delete deletes (Shift+Delete closes the gap), D duplicates, Alt+arrows move a clip, Ctrl+Z undoes and Ctrl+Shift+Z redoes.</p>
+      <!-- With the editor passed in, the timeline edits, selects, seeks and takes drops from the bin through it. -->
+      <ClipTimeline ref="timelineEl" :editor="editor" :media="editor.media" :names="names" @touchstart.passive="pinchStart" @touchmove.passive="pinchMove" />
     </template>
 
-    <ClipExportDialog v-if="exportOpen" :doc="editor.doc.value" :busy="exporting" :job="exportJob ? (video.jobs[exportJob] || null) : null" :error="exportError"
+    <ClipExportDialog v-if="exportOpen" :doc="editor.doc.value" :missing="missingHelpers" :helper="helper.state.status === 'idle' ? '' : helper.state.status" @make-helper="makeHelper" :media="editor.media" :selection-range="selectionRange" :playhead="editor.playhead.value" :busy="exporting" :job="exportJob ? (video.jobs[exportJob] || null) : null" :error="exportError"
                       :note="downloadNote" @close="exportOpen = false" @export="runExport" @lottie="downloadLottie" @webpage="downloadWebPage" />
     <div class="st-sr" aria-live="polite">{{ editor.announcement.value }}</div>
   </div>
@@ -105,6 +111,14 @@ import ClipInspector from '../components/clip-editor/ClipInspector.vue'
 import ClipMediaBin from '../components/clip-editor/ClipMediaBin.vue'
 import ClipCaptions from '../components/clip-editor/ClipCaptions.vue'
 import ClipExportDialog from '../components/clip-editor/ClipExportDialog.vue'
+import ClipHelpers from '../components/clip-editor/panels/ClipHelpers.vue'
+import * as br from '../components/clip-editor/panels/bridge'
+import { COLOUR_KINDS } from '../components/clip-editor/panels/panelModel'
+import { applyTemplateChanges } from '../components/clip-editor/panels/textTemplates'
+import { onGrid } from '../components/clip-editor/panels/subtitles'
+import { useDerive } from '../components/clip-editor/panels/useDerive'
+import IconButton from '../components/clip-editor/panels/IconButton.vue'
+import { ArrowLeftToLine, AudioLines, Captions, CopyPlus, Film, MoveLeft, MoveRight, Redo2, Trash2, Type, Undo2, X, ZoomIn, ZoomOut } from 'lucide-vue-next'
 import BottomSheet from '../components/video/BottomSheet.vue'
 import VideoJobCard from '../components/video/VideoJobCard.vue'
 
@@ -113,16 +127,28 @@ const route = useRoute(), router = useRouter(), video = useVideoStore()
 const editor = useClipEditor()
 const projects = ref([]), projectId = ref(String(route.query.project_id || route.query.project || ''))
 const newTitle = ref(''), newAspect = ref('9:16'), creating = ref(false), startError = ref('')
-const playing = ref(false), timelineEl = ref(null)
+const timelineEl = ref(null)
 const exportOpen = ref(false), exporting = ref(false), exportJob = ref(''), exportError = ref(''), previewJob = ref('')
+// The layouts of VIDEO_EDITOR_PRO_PLAN.md section 6: desktop from 1280 px; tablet 768 to 1279 px; phone below 768 px.
+const DESKTOP = 1280
+const safeArea = ref('')                 // a monitor-only guide (TikTok, Reels, Shorts, YouTube); never exported
+const requestTab = ref(null)             // {tab, n}: the inspector opens that tab (a catalogue's Add that needs it)
 const phoneQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 767px)') : null
 const phone = ref(!!phoneQuery?.matches)
 const onPhone = e => { phone.value = e.matches }
 
+// The editor registry (contract section 3): read once from the server before the panels show.
+const registryReady = ref(!!br.registry()), registryError = ref('')
+async function readRegistry() {
+  registryError.value = ''
+  try { await br.loadRegistry(); registryReady.value = true }
+  catch (e) { registryError.value = e?.response?.data?.error?.message || "The editor's list of effects, transitions and fonts could not be read." }
+}
 // The server's word on this page (ffmpeg present on its workers): when it cannot export, the editor says so up front.
 const notReady = ref('')
 onMounted(async () => {
   phoneQuery?.addEventListener?.('change', onPhone)
+  if (!registryReady.value) readRegistry()
   loadStudioFeatures().then(() => { const f = getStudioFeature('editor'); if (f && f.ready === false) notReady.value = f.reason || 'Export is not available on this server right now.' }).catch(() => {})
   try { projects.value = (await api.get('/video/projects/')).data.projects || [] } catch { projects.value = [] }
   if (projectId.value) await editor.load(projectId.value)
@@ -132,7 +158,7 @@ onBeforeUnmount(() => { phoneQuery?.removeEventListener?.('change', onPhone); ed
 async function openProject(id) {
   if (editor.state.dirty) await editor.save()
   projectId.value = id
-  playing.value = false
+  if (editor.playing.value) editor.togglePlay()
   router.replace({ query: { ...route.query, project_id: id || undefined, project: undefined } })
   if (id) await editor.load(id)
 }
@@ -156,7 +182,7 @@ const saveLabel = computed(() => {
 })
 const names = computed(() => Object.fromEntries(Object.entries(editor.media).map(([id, m]) => [id, m.name || ({ video: 'Video', image: 'Picture', audio: 'Sound' })[m.media_type] || 'Clip'])))
 const selectedLabel = computed(() => { const s = editor.selected.value[0]; return s ? (s.item.type === 'text' ? 'Text' : s.item.type === 'transition' ? 'Transition' : 'Clip') : 'Video' })
-const canAddVideoTrack = computed(() => editor.doc.value.tracks.filter(t => t.kind === 'video').length < (phone.value ? 2 : 4))
+const canAddVideoTrack = computed(() => editor.view.value.tracks.filter(t => t.kind === 'video').length < (phone.value ? 2 : 4))
 // "Make captions from speech" offers itself for a selected clip that has sound.
 const captionSource = computed(() => {
   const s = editor.selected.value[0]
@@ -165,102 +191,90 @@ const captionSource = computed(() => {
   return m && (m.has_audio || m.media_type === 'audio') ? s.item : null
 })
 
+// The selected clip for helpers and effects, the selection's time span for "export the selection".
+const selectedClip = computed(() => { const s = editor.selected.value.find(x => x.item.type === 'clip'); return s ? s.item : null })
+const effectTarget = computed(() => { const s = editor.selected.value[0]; return s && s.item.type === 'clip' && s.track.kind === 'video' ? s.item : null })
+const canJoin = computed(() => {
+  const s = editor.selected.value[0]
+  if (!s || s.item.type !== 'clip' || s.track.kind !== 'video') return false
+  const list = tl.ordered(s.track), next = list[list.findIndex(i => i.id === s.item.id) + 1]
+  return !!next && next.start_ms === tl.itemEnd(s.item, editor.rate.value) && !tl.transitionInto(s.track, next.id)
+})
+const selectionRange = computed(() => {
+  const timed = editor.selected.value.filter(x => tl.isTimed(x.item))
+  if (!timed.length) return null
+  return [Math.min(...timed.map(x => x.item.start_ms)), Math.max(...timed.map(x => tl.itemEnd(x.item, editor.rate.value)))]
+})
+
 function apply(ops, label) { return editor.edit(ops, label) }
+function openTab(tab) { requestTab.value = { tab, n: (requestTab.value?.n || 0) + 1 } }
+// From the bin: a text template at the playhead, an effect on the selected clip, a transition after it.
+function addTemplate(t) {
+  addText(false)
+  const s = editor.selected.value[0]
+  if (s?.item.type === 'text') apply(tl.setOps(editor.view.value, s.item.id, applyTemplateChanges(t, { keepText: false })), `${t.name} added`)
+}
+function addEffect(kind) {
+  const clip = effectTarget.value
+  if (!clip) { editor.announce('Select a video clip or picture first.'); return }
+  // Background removal is paid: it opens where its price card is, and nothing runs before Generate.
+  const reg = br.registry()
+  if (br.effectPaid(reg, kind)) { openTab('effects'); editor.announce('Background removal shows its price in Settings, Effects, before it runs.'); return }
+  if (apply(br.addEffectOps(editor.view.value, clip.id, kind, { registry: reg }), `${reg.effects[kind]?.label || kind} added`)) openTab(COLOUR_KINDS.includes(kind) ? 'colour' : 'effects')
+  else editor.announce(`That effect could not be added: a clip holds at most ${reg.limits.effects_per_clip} effects.`)
+}
+function addTransition(kind) {
+  const s = editor.selected.value[0]
+  const label = br.transitionLabel(br.registry(), kind)
+  if (!s || !apply(tl.addTransitionOps(editor.view.value, s.item.id, kind, 500), `${label} added`)) editor.announce('Select a video clip whose next clip starts where it ends.')
+}
 function seek(ms) { editor.seek(tl.toFrame(ms, editor.rate.value)) }
-function firstTrack(kind) { return editor.doc.value.tracks.find(t => t.kind === kind) }
-function trackFor(kind) {
-  if (!firstTrack(kind)) apply(tl.addTrackOps(editor.doc.value, kind), '')
-  return firstTrack(kind)
-}
-// A file goes at the playhead on the first track of its kind when that space is free, else after that track's last item.
-function addFile(file) {
-  const kind = file.media_type === 'audio' ? 'audio' : 'video'
-  const track = trackFor(kind)
-  const len = file.media_type === 'image' ? 3000 : file.duration_ms || 5000, at = editor.playhead.value
-  const free = !tl.ordered(track).some(i => i.start_ms < at + len && tl.itemEnd(i) > at)
-  apply(tl.addClipOps(editor.doc.value, track.id, file.attachment_id, { start: free ? at : null, info: file }), `${file.name} added`)
-}
+// A file from the bin, placed as the person chose there (insert, append, overwrite or connect): the editor's edit.
+function addFile(file, mode = 'insert') { editor.insertMedia(file, mode) }
 function addText(captions) {
-  let track = editor.doc.value.tracks.find(t => t.kind === 'text' && !!t.captions === captions)
-  if (!track) { apply([...tl.addTrackOps(editor.doc.value, 'text')], ''); track = editor.doc.value.tracks.filter(t => t.kind === 'text').pop(); if (captions) apply(tl.setTrackOps(editor.doc.value, track.id, { captions: true }), '') }
+  const V = () => editor.view.value
+  let track = V().tracks.find(t => t.kind === 'text' && !!t.captions === captions)
+  if (!track) { apply([...tl.addTrackOps(V(), 'text')], ''); track = V().tracks.filter(t => t.kind === 'text').pop(); if (captions) apply(tl.setTrackOps(V(), track.id, { captions: true }), '') }
   const at = editor.playhead.value
-  const free = !tl.ordered(track).some(i => i.start_ms < at + 3000 && tl.itemEnd(i) > at)
-  const start = free ? at : tl.ordered(track).reduce((e, i) => Math.max(e, tl.itemEnd(i)), 0)
-  if (apply(tl.addTextOps(editor.doc.value, track.id, { start, captions, text: captions ? 'Caption' : 'Your text' }), captions ? 'Caption added' : 'Text added')) {
-    const t = editor.doc.value.tracks.find(x => x.id === track.id)
+  const free = !tl.ordered(track).some(i => i.start_ms < at + 3000 && tl.itemEnd(i, editor.rate.value) > at)
+  const start = free ? at : tl.ordered(track).reduce((e, i) => Math.max(e, tl.itemEnd(i, editor.rate.value)), 0)
+  if (apply(tl.addTextOps(V(), track.id, { start, captions, text: captions ? 'Caption' : 'Your text' }), captions ? 'Caption added' : 'Text added')) {
+    const t = V().tracks.find(x => x.id === track.id)
     editor.select(t.items[t.items.length - 1].id)
   }
 }
-function addTrack(kind) { apply(tl.addTrackOps(editor.doc.value, kind), `${kind === 'video' ? 'Video' : 'Sound'} track added`) }
-// Split cuts each selected clip at the playhead. With the playhead outside every selected clip (at 0:00, or past its
-// end) nothing can be cut, and the page says why, on screen and to a screen reader (ISSUE-13).
-const SPLIT_REASON = 'Move the playhead inside a selected clip to split it.'
-const splitNote = ref('')
-let splitNoteTimer = null
-function showSplitNote() { splitNote.value = SPLIT_REASON; editor.announce(SPLIT_REASON); clearTimeout(splitNoteTimer); splitNoteTimer = setTimeout(() => { splitNote.value = '' }, 6000) }
-watch(() => [editor.playhead.value, editor.selection.value], () => { if (splitNote.value) { splitNote.value = ''; clearTimeout(splitNoteTimer) } })
-onBeforeUnmount(() => clearTimeout(splitNoteTimer))
-function split() {
-  const at = editor.playhead.value
-  const ids = editor.selection.value.filter(id => { const f = tl.find(editor.doc.value, id); return f && tl.isTimed(f.item) && f.item.start_ms < at && at < tl.itemEnd(f.item) })
-  if (!ids.length) { showSplitNote(); return }
-  splitNote.value = ''; clearTimeout(splitNoteTimer)
-  let doc = editor.doc.value
-  const ops = []
-  for (const id of ids) { const o = tl.splitOps(doc, id, at, { rate: editor.rate.value }); ops.push(...o); doc = tl.applyOps(doc, o).doc }
-  apply(ops, `Split at ${tl.timecode(at, editor.rate.value)}`)
+function addTrack(kind) { apply(tl.addTrackOps(editor.view.value, kind), `${kind === 'video' ? 'Video' : 'Sound'} track added`) }
+// The toolbar's move by a second (the same as Alt+Shift+arrow on a focused item, with the Select tool).
+function nudge(by) {
+  const f = tl.find(editor.view.value, editor.selection.value[0])
+  if (!f || !tl.isTimed(f.item)) return
+  if (editor.moveItem({ id: f.item.id, start: tl.toFrame(f.item.start_ms + by, editor.rate.value) })) requestAnimationFrame(() => timelineEl.value?.focusItem(f.item.id))
 }
-function remove(ripple) { apply(tl.deleteOps(editor.doc.value, editor.selection.value, { ripple }), ripple ? 'Deleted and closed the gap' : 'Deleted'); editor.select(null) }
-function duplicate() { apply(tl.duplicateOps(editor.doc.value, editor.selection.value[0]), 'Duplicated') }
-function nudge(by) { const f = tl.find(editor.doc.value, editor.selection.value[0]); if (f && tl.isTimed(f.item)) move({ id: f.item.id, start: f.item.start_ms + by }) }
-function move({ id, start, track = null }) {
-  const ok = apply(tl.moveOps(editor.doc.value, id, tl.toFrame(start, editor.rate.value), track), `Moved to ${tl.timecode(start, editor.rate.value)}`)
-  if (ok) requestAnimationFrame(() => timelineEl.value?.focusItem(id))
-}
-function trim({ id, edge, at }) {
-  const f = tl.find(editor.doc.value, id)
-  apply(tl.trimOps(editor.doc.value, id, edge, at, { durationMs: editor.media[f?.item.media]?.duration_ms, rate: editor.rate.value }), `Trimmed the ${edge} to ${tl.timecode(at, editor.rate.value)}`)
-}
-function zoomBy(f) { editor.zoom.value = Math.min(Math.max(editor.zoom.value * f, 4), 400) }
 let pinch = 0
 function pinchStart(e) { if (e.touches.length === 2) pinch = Math.abs(e.touches[0].clientX - e.touches[1].clientX) }
 function pinchMove(e) {
   if (e.touches.length !== 2 || !pinch) return
   const d = Math.abs(e.touches[0].clientX - e.touches[1].clientX)
-  if (Math.abs(d - pinch) > 12) { zoomBy(d / pinch); pinch = d }
+  if (Math.abs(d - pinch) > 12) { editor.zoomBy(d / pinch); pinch = d }
 }
 function addCaptions(items) {
-  let track = editor.doc.value.tracks.find(t => t.kind === 'text' && t.captions)
-  if (!track) { apply(tl.addTrackOps(editor.doc.value, 'text'), ''); track = editor.doc.value.tracks.filter(t => t.kind === 'text').pop(); apply(tl.setTrackOps(editor.doc.value, track.id, { captions: true }), '') }
+  const V = () => editor.view.value
+  let track = V().tracks.find(t => t.kind === 'text' && t.captions)
+  if (!track) { apply(tl.addTrackOps(V(), 'text'), ''); track = V().tracks.filter(t => t.kind === 'text').pop(); apply(tl.setTrackOps(V(), track.id, { captions: true }), '') }
   // Captions that would overlap ones already there are left out; the person sees how many were added.
-  let doc = editor.doc.value
+  let doc = V()
   const ops = []
   for (const c of items) {
     const t = doc.tracks.find(x => x.id === track.id)
-    if (tl.ordered(t).some(i => i.start_ms < c.end_ms && tl.itemEnd(i) > c.start_ms)) continue
+    if (tl.ordered(t).some(i => i.start_ms < c.end_ms && tl.itemEnd(i, editor.rate.value) > c.start_ms)) continue
     const o = tl.addTextOps(doc, track.id, { start: c.start_ms, length: c.end_ms - c.start_ms, text: c.text, captions: true })
+    // Word times and the caption style come with captions made from speech (contract section 1, caption items); the
+    // words stay inside the caption once its edges are on the frame grid.
+    if (c.words?.length) o[0].value = { ...o[0].value, words: onGrid({ ...o[0].value, words: c.words }, editor.rate.value).words }
+    if (c.caption_style) o[0].value = { ...o[0].value, caption_style: c.caption_style }
     ops.push(...o); doc = tl.applyOps(doc, o).doc
   }
-  apply(ops, `${ops.length} caption${ops.length === 1 ? '' : 's'} added from speech`)
-}
-
-// ── keyboard shortcuts (WCAG 2.1.4): only while the timeline or the editor's own controls have focus, never while
-// typing, and switched off by the setting ───────────────────────────────────────────────────────────────────────
-function shortcut(e) {
-  if (!editor.shortcuts.value || !editor.doc.value) return
-  const tag = e.target?.tagName
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) && !(tag === 'INPUT' && e.target.type === 'range')) return
-  const inTimeline = !!e.target?.closest?.('.ct')
-  const mod = e.ctrlKey || e.metaKey
-  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return }
-  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); editor.redo(); return }
-  if (!inTimeline || mod || e.altKey) return
-  if (e.key === ' ' && !e.target.closest('.ct-item')) { e.preventDefault(); playing.value = !playing.value }
-  else if (e.key === 's' || e.key === 'S') { e.preventDefault(); split() }
-  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(e.shiftKey) }
-  else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); duplicate() }
-  else if (e.key === '+' || e.key === '=') zoomBy(1.5)
-  else if (e.key === '-') zoomBy(1 / 1.5)
+  apply(ops, `${ops.length} caption${ops.length === 1 ? '' : 's'} added`)
 }
 
 // ── export and "Preview this part exactly": the existing free export job (E10, P4) ──────────────────────────────
@@ -303,24 +317,59 @@ async function downloadWebPage() {
     saveBlob(data, 'video-page.zip'); downloadNote.value = 'Web page downloaded.'
   } catch (e) { downloadNote.value = e?.response?.data?.error || e?.message || 'The web page could not be made.' }
 }
-async function runExport({ aspects, resolution }) {
+// The helper files an export needs (contract section 7): a reversed clip's reversed copy, a background removal's matte.
+// The server refuses an export without them (409 derived_missing, its message naming each); the dialog lists them here,
+// read from the timeline and the media views, each with the way to make it.
+const missingHelpers = ref([])
+const helper = useDerive()
+function helpersMissing() {
+  const out = [], root = editor.doc.value
+  const walk = tracks => { for (const t of tracks || []) for (const i of t.items) {
+    if (i.type !== 'clip' || !i.media) continue
+    const m = editor.media[i.media] || {}
+    if (i.reverse && !m.reversed_url) out.push({ clip: i.id, media: i.media, op: 'reverse', name: names.value[i.media] })
+    if ((i.effects || []).some(e => e.kind === 'bg_removal' && e.enabled !== false) && !m.matte_url) out.push({ clip: i.id, media: i.media, op: 'bg_removal', name: names.value[i.media] })
+  } }
+  walk(root?.tracks)
+  for (const c of Object.values(root?.compounds || {})) walk(c.tracks)
+  return out
+}
+function makeHelper(m) {
+  if (m.op === 'reverse') { helper.start(m.media, 'reverse', {}); return }
+  // Background removal is paid: its price card is in Settings, Effects, on that clip.
+  exportOpen.value = false
+  editor.select(m.clip)
+  openTab('effects')
+}
+watch(() => helper.state.status, async s => {
+  if (s !== 'ready') return
+  await Promise.all([...new Set(missingHelpers.value.map(m => m.media))].map(id => editor.loadMedia(id)))
+  missingHelpers.value = helpersMissing()
+  if (!missingHelpers.value.length) exportError.value = ''
+})
+// The dialog's choices are the export job's params (contract section 9).
+async function runExport(params) {
   exporting.value = true; exportError.value = ''
-  try { exportJob.value = await startExport({ aspects, resolution }); editor.announce('Export started. It lands in your Library and this project.') }
-  catch (e) { exportError.value = e?.response?.data?.error?.message || e.message || 'The export could not start.' }
+  try { exportJob.value = await startExport(params); editor.announce('Export started. It lands in your Library and this project.') }
+  catch (e) {
+    exportError.value = e?.response?.data?.error?.message || e.message || 'The export could not start.'
+    missingHelpers.value = e?.response?.status === 409 && e.response.data?.error?.code === 'derived_missing' ? helpersMissing() : []
+  }
   finally { exporting.value = false }
 }
 // The selected clip's time, or ten seconds around the playhead, rendered exactly as the export draws it (720p).
 async function previewExact() {
   const s = editor.selected.value.find(x => tl.isTimed(x.item))
   const a = s ? s.item.start_ms : Math.max(0, editor.playhead.value - 5000)
-  const b = s ? tl.itemEnd(s.item) : Math.min(editor.total.value, a + 10000)
+  const b = s ? tl.itemEnd(s.item, editor.rate.value) : Math.min(editor.total.value, a + 10000)
   try { previewJob.value = await startExport({ range_ms: [Math.round(a), Math.round(b)], resolution: '720p' }) }
   catch (e) { editor.announce(e?.response?.data?.error?.message || e.message) ; editor.state.saveError = e?.response?.data?.error?.message || e.message }
 }
 watch(() => route.query.project_id, id => { if (id && String(id) !== projectId.value) openProject(String(id)) })
 </script>
 <style scoped>
-.ve{display:grid;gap:12px;align-content:start;min-width:0;padding:16px 20px 28px;color:var(--vm-ink)}
+.ve{display:grid;gap:12px;align-content:start;min-width:0;max-width:100%;overflow-x:clip;padding:16px 20px 28px;color:var(--vm-ink)}
+.ve :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}
 .ve-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .ve-title{font-size:18px;font-weight:600;margin:0;min-width:0;overflow-wrap:anywhere}
 .ve-project{min-width:200px}.ve-save{margin-left:auto;font-size:12px;color:var(--vm-ink-soft)}
@@ -328,8 +377,8 @@ watch(() => route.query.project_id, id => { if (id && String(id) !== projectId.v
 .ve-conflict p{flex:1 1 320px;margin:0}.ve-conflict strong{color:var(--vm-ink)}
 .ve-start{display:grid;gap:12px;max-width:560px;padding:24px;border:1px dashed var(--vm-line);border-radius:10px}
 .ve-start h2{font-size:17px;font-weight:600}.ve-new{display:grid;gap:10px}
-.ve-top{display:grid;grid-template-columns:minmax(220px,260px) minmax(0,1fr) minmax(240px,300px);gap:12px;align-items:start;min-width:0}
-.ve-top > :deep(.bs-host){min-width:0;max-height:min(62vh,640px);overflow:auto;padding:10px;border:1px solid var(--vm-line-2);border-radius:8px;background:var(--vm-surface)}
+.ve-top{display:grid;grid-template-columns:minmax(240px,280px) minmax(0,1fr) minmax(300px,340px);gap:12px;align-items:start;min-width:0}
+.ve-top > :deep(.bs-host){min-width:0;max-height:min(66vh,720px);overflow:auto;overscroll-behavior:contain;padding:10px;border:1px solid var(--vm-line-2);border-radius:8px;background:var(--vm-surface)}
 .ve-preview{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}.ve-preview > :first-child{flex:1 1 320px}
 .ve-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .ve-tools .st-button{min-height:34px;padding:6px 10px;font-size:12px}
@@ -337,12 +386,12 @@ watch(() => route.query.project_id, id => { if (id && String(id) !== projectId.v
 .ve-sep{width:1px;height:22px;background:var(--vm-line)}
 .ve-keys{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--vm-ink-soft)}
 .ve-export{margin-left:auto}
-.ve-hint{font-size:12px;line-height:1.5}
-.ve-split-note{margin:0;padding:8px 10px;border:1px solid var(--vs-warn-line);border-radius:6px;background:var(--vs-warn-bg);color:var(--vs-warn-ink);font-size:12px;line-height:1.5}
-@media (max-width:1023px){
-  .ve-top{grid-template-columns:1fr}
+/* Tablet: the monitor across the top, the bin and the inspector as two panel buttons under it. */
+@media (max-width:1279px){
+  .ve-top{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ve-top > :deep(.bs-host){max-height:none;overflow:visible;padding:0;border:0;background:none}
-  .ve-monitor{order:-1}
+  .ve-top > :deep(.bs-host .bs-trigger){width:100%;min-height:44px}
+  .ve-monitor{order:-1;grid-column:1/-1}
 }
 @media (max-width:767px){
   .ve{padding:12px 16px 20px;gap:10px}
@@ -350,7 +399,7 @@ watch(() => route.query.project_id, id => { if (id && String(id) !== projectId.v
   .ve-top{display:flex;flex-direction:column}
   .ve-tools{position:sticky;bottom:0;z-index:5;padding:8px 0;background:var(--vm-bg);overflow-x:auto;flex-wrap:nowrap}
   .ve-tools .st-button{min-height:44px;flex:none}
-  .ve-sep,.ve-keys,.ve-hint{display:none}
+  .ve-sep,.ve-keys{display:none}
   .ve-export{margin-left:0}
 }
 </style>

@@ -1,0 +1,1376 @@
+{
+  "background_kinds": [
+    "color",
+    "blur",
+    "image"
+  ],
+  "blend_modes": [
+    {
+      "ffmpeg": "normal",
+      "id": "normal",
+      "label": "Normal"
+    },
+    {
+      "ffmpeg": "multiply",
+      "id": "multiply",
+      "label": "Multiply"
+    },
+    {
+      "ffmpeg": "screen",
+      "id": "screen",
+      "label": "Screen"
+    },
+    {
+      "ffmpeg": "overlay",
+      "id": "overlay",
+      "label": "Overlay"
+    },
+    {
+      "ffmpeg": "darken",
+      "id": "darken",
+      "label": "Darken"
+    },
+    {
+      "ffmpeg": "lighten",
+      "id": "lighten",
+      "label": "Lighten"
+    },
+    {
+      "ffmpeg": "addition",
+      "id": "add",
+      "label": "Add"
+    },
+    {
+      "ffmpeg": "difference",
+      "id": "difference",
+      "label": "Difference"
+    }
+  ],
+  "derive_ops": {
+    "beats": {
+      "kinds": [
+        "video",
+        "audio"
+      ],
+      "needs_sound": true,
+      "paid": false,
+      "params": {},
+      "version": 1
+    },
+    "bg_removal": {
+      "kinds": [
+        "video"
+      ],
+      "needs_sound": false,
+      "paid": true,
+      "params": {},
+      "version": 1
+    },
+    "loudness": {
+      "kinds": [
+        "video",
+        "audio"
+      ],
+      "needs_sound": true,
+      "paid": false,
+      "params": {},
+      "version": 1
+    },
+    "reframe": {
+      "kinds": [
+        "video"
+      ],
+      "needs_sound": false,
+      "paid": false,
+      "params": {
+        "aspect": {
+          "choices": [
+            "9:16",
+            "1:1",
+            "4:5",
+            "16:9",
+            "4:3",
+            "3:4"
+          ],
+          "default": "9:16",
+          "type": "choice"
+        },
+        "smooth_ms": {
+          "default": 800,
+          "max": 5000,
+          "min": 0,
+          "type": "int"
+        }
+      },
+      "version": 1
+    },
+    "reverse": {
+      "kinds": [
+        "video",
+        "audio"
+      ],
+      "needs_sound": false,
+      "paid": false,
+      "params": {},
+      "version": 1
+    },
+    "scene_cuts": {
+      "kinds": [
+        "video"
+      ],
+      "needs_sound": false,
+      "paid": false,
+      "params": {
+        "min_gap_ms": {
+          "default": 500,
+          "max": 10000,
+          "min": 0,
+          "type": "int"
+        },
+        "threshold": {
+          "default": 10,
+          "max": 50,
+          "min": 1,
+          "type": "number"
+        }
+      },
+      "version": 1
+    },
+    "silences": {
+      "kinds": [
+        "video",
+        "audio"
+      ],
+      "needs_sound": true,
+      "paid": false,
+      "params": {
+        "fillers": {
+          "default": true,
+          "type": "bool"
+        },
+        "keep_ms": {
+          "default": 150,
+          "max": 1000,
+          "min": 0,
+          "type": "int"
+        },
+        "min_ms": {
+          "default": 600,
+          "max": 10000,
+          "min": 200,
+          "type": "int"
+        },
+        "noise_db": {
+          "default": -35,
+          "max": -10,
+          "min": -80,
+          "type": "number"
+        }
+      },
+      "version": 1
+    },
+    "stabilize": {
+      "kinds": [
+        "video"
+      ],
+      "needs_sound": false,
+      "paid": false,
+      "params": {
+        "shakiness": {
+          "default": 5,
+          "max": 10,
+          "min": 1,
+          "type": "int"
+        },
+        "smoothing": {
+          "default": 15,
+          "max": 60,
+          "min": 1,
+          "type": "int"
+        }
+      },
+      "version": 1
+    }
+  },
+  "easings": [
+    {
+      "bezier": null,
+      "id": "linear",
+      "label": "Linear"
+    },
+    {
+      "bezier": [
+        0.42,
+        0,
+        1,
+        1
+      ],
+      "id": "ease_in",
+      "label": "Ease in"
+    },
+    {
+      "bezier": [
+        0,
+        0,
+        0.58,
+        1
+      ],
+      "id": "ease_out",
+      "label": "Ease out"
+    },
+    {
+      "bezier": [
+        0.42,
+        0,
+        0.58,
+        1
+      ],
+      "id": "ease_in_out",
+      "label": "Ease in and out"
+    },
+    {
+      "bezier": null,
+      "id": "hold",
+      "label": "Hold"
+    },
+    {
+      "bezier": null,
+      "id": "bezier",
+      "label": "Custom curve"
+    }
+  ],
+  "effects": {
+    "adjust": {
+      "ffmpeg": [
+        "eq",
+        "colortemperature",
+        "vibrance",
+        "curves"
+      ],
+      "label": "Adjust",
+      "params": {
+        "contrast": {
+          "animatable": true,
+          "default": 1,
+          "label": "Contrast",
+          "max": 2,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "exposure": {
+          "animatable": true,
+          "default": 0,
+          "label": "Exposure",
+          "max": 2,
+          "min": -2,
+          "step": 0.01,
+          "type": "number"
+        },
+        "highlights": {
+          "animatable": true,
+          "default": 0,
+          "label": "Highlights",
+          "max": 1,
+          "min": -1,
+          "step": 0.01,
+          "type": "number"
+        },
+        "saturation": {
+          "animatable": true,
+          "default": 1,
+          "label": "Saturation",
+          "max": 2,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "shadows": {
+          "animatable": true,
+          "default": 0,
+          "label": "Shadows",
+          "max": 1,
+          "min": -1,
+          "step": 0.01,
+          "type": "number"
+        },
+        "temperature": {
+          "animatable": true,
+          "default": 0,
+          "label": "Temperature",
+          "max": 1,
+          "min": -1,
+          "step": 0.01,
+          "type": "number"
+        },
+        "tint": {
+          "animatable": true,
+          "default": 0,
+          "label": "Tint",
+          "max": 1,
+          "min": -1,
+          "step": 0.01,
+          "type": "number"
+        },
+        "vibrance": {
+          "animatable": true,
+          "default": 0,
+          "label": "Vibrance",
+          "max": 1,
+          "min": -1,
+          "step": 0.01,
+          "type": "number"
+        }
+      }
+    },
+    "bg_removal": {
+      "ffmpeg": [
+        "alphamerge"
+      ],
+      "label": "Background removal",
+      "needs_derived": "bg_removal",
+      "params": {}
+    },
+    "blur": {
+      "ffmpeg": [
+        "gblur"
+      ],
+      "label": "Blur",
+      "params": {
+        "radius": {
+          "animatable": true,
+          "default": 10,
+          "label": "Radius",
+          "max": 50,
+          "min": 0,
+          "step": 0.5,
+          "type": "number"
+        }
+      }
+    },
+    "chroma_key": {
+      "ffmpeg": [
+        "chromakey",
+        "despill"
+      ],
+      "label": "Chroma key",
+      "params": {
+        "color": {
+          "animatable": false,
+          "default": "#00FF00",
+          "label": "Key colour",
+          "type": "color"
+        },
+        "similarity": {
+          "animatable": true,
+          "default": 0.1,
+          "label": "Similarity",
+          "max": 0.5,
+          "min": 0.01,
+          "step": 0.01,
+          "type": "number"
+        },
+        "smoothness": {
+          "animatable": true,
+          "default": 0.08,
+          "label": "Smoothness",
+          "max": 0.5,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "spill": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Spill removal",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        }
+      }
+    },
+    "curves": {
+      "ffmpeg": [
+        "curves"
+      ],
+      "label": "Curves",
+      "params": {
+        "b": {
+          "animatable": false,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "label": "Blue",
+          "type": "curve"
+        },
+        "g": {
+          "animatable": false,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "label": "Green",
+          "type": "curve"
+        },
+        "master": {
+          "animatable": false,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "label": "RGB",
+          "type": "curve"
+        },
+        "r": {
+          "animatable": false,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "label": "Red",
+          "type": "curve"
+        }
+      }
+    },
+    "hsl": {
+      "ffmpeg": [
+        "huesaturation"
+      ],
+      "label": "HSL",
+      "params": {
+        "blue": {
+          "animatable": true,
+          "label": "Blue",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        },
+        "cyan": {
+          "animatable": true,
+          "label": "Cyan",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        },
+        "green": {
+          "animatable": true,
+          "label": "Green",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        },
+        "magenta": {
+          "animatable": true,
+          "label": "Magenta",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        },
+        "red": {
+          "animatable": true,
+          "label": "Red",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        },
+        "yellow": {
+          "animatable": true,
+          "label": "Yellow",
+          "params": {
+            "h": {
+              "animatable": true,
+              "default": 0,
+              "label": "Hue",
+              "max": 30,
+              "min": -30,
+              "step": 1,
+              "type": "number"
+            },
+            "l": {
+              "animatable": true,
+              "default": 0,
+              "label": "Lightness",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            },
+            "s": {
+              "animatable": true,
+              "default": 0,
+              "label": "Saturation",
+              "max": 1,
+              "min": -1,
+              "step": 0.01,
+              "type": "number"
+            }
+          },
+          "type": "group"
+        }
+      }
+    },
+    "lut": {
+      "ffmpeg": [
+        "lut3d",
+        "blend"
+      ],
+      "label": "LUT",
+      "params": {
+        "intensity": {
+          "animatable": true,
+          "default": 1,
+          "label": "Intensity",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "media": {
+          "accept": ".cube",
+          "animatable": false,
+          "default": null,
+          "label": "Look",
+          "type": "media"
+        }
+      }
+    },
+    "mask": {
+      "ffmpeg": [
+        "geq",
+        "alphamerge"
+      ],
+      "label": "Mask",
+      "params": {
+        "feather": {
+          "animatable": true,
+          "default": 0,
+          "label": "Feather",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "h": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Height",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "invert": {
+          "animatable": false,
+          "default": false,
+          "label": "Invert",
+          "type": "bool"
+        },
+        "rotation": {
+          "animatable": true,
+          "default": 0,
+          "label": "Rotation",
+          "max": 180,
+          "min": -180,
+          "step": 1,
+          "type": "number"
+        },
+        "shape": {
+          "animatable": false,
+          "choices": [
+            "rect",
+            "ellipse",
+            "linear",
+            "mirror"
+          ],
+          "default": "rect",
+          "label": "Shape",
+          "type": "enum"
+        },
+        "w": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Width",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "x": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "X",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "y": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Y",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        }
+      }
+    },
+    "sharpen": {
+      "ffmpeg": [
+        "unsharp"
+      ],
+      "label": "Sharpen",
+      "params": {
+        "amount": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Amount",
+          "max": 2,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        }
+      }
+    },
+    "vignette": {
+      "ffmpeg": [
+        "vignette"
+      ],
+      "label": "Vignette",
+      "params": {
+        "amount": {
+          "animatable": true,
+          "default": 0.5,
+          "label": "Amount",
+          "max": 1,
+          "min": 0,
+          "step": 0.01,
+          "type": "number"
+        },
+        "size": {
+          "animatable": true,
+          "default": 0.7,
+          "label": "Size",
+          "max": 1,
+          "min": 0.2,
+          "step": 0.01,
+          "type": "number"
+        }
+      }
+    }
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "file": "Inter-Variable.ttf",
+      "files": [
+        "Inter-Variable.ttf"
+      ],
+      "id": "inter",
+      "label": "Inter",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "inter/OFL.txt"
+    },
+    {
+      "family": "Roboto",
+      "file": "Roboto-Variable.ttf",
+      "files": [
+        "Roboto-Variable.ttf"
+      ],
+      "id": "roboto",
+      "label": "Roboto",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "roboto/OFL.txt"
+    },
+    {
+      "family": "Montserrat",
+      "file": "Montserrat-Regular.ttf",
+      "files": [
+        "Montserrat-Regular.ttf",
+        "Montserrat-Bold.ttf"
+      ],
+      "id": "montserrat",
+      "label": "Montserrat",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "montserrat/OFL.txt"
+    },
+    {
+      "family": "Poppins",
+      "file": "Poppins-Regular.ttf",
+      "files": [
+        "Poppins-Regular.ttf",
+        "Poppins-Bold.ttf"
+      ],
+      "id": "poppins",
+      "label": "Poppins",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "poppins/OFL.txt"
+    },
+    {
+      "family": "Oswald",
+      "file": "Oswald-Variable.ttf",
+      "files": [
+        "Oswald-Variable.ttf"
+      ],
+      "id": "oswald",
+      "label": "Oswald",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "oswald/OFL.txt"
+    },
+    {
+      "family": "Bebas Neue",
+      "file": "BebasNeue-Regular.ttf",
+      "files": [
+        "BebasNeue-Regular.ttf"
+      ],
+      "id": "bebas-neue",
+      "label": "Bebas Neue",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "bebasneue/OFL.txt"
+    },
+    {
+      "family": "Anton",
+      "file": "Anton-Regular.ttf",
+      "files": [
+        "Anton-Regular.ttf"
+      ],
+      "id": "anton",
+      "label": "Anton",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "anton/OFL.txt"
+    },
+    {
+      "family": "Playfair Display",
+      "file": "PlayfairDisplay-Variable.ttf",
+      "files": [
+        "PlayfairDisplay-Variable.ttf"
+      ],
+      "id": "playfair-display",
+      "label": "Playfair Display",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "playfairdisplay/OFL.txt"
+    },
+    {
+      "family": "Lora",
+      "file": "Lora-Variable.ttf",
+      "files": [
+        "Lora-Variable.ttf"
+      ],
+      "id": "lora",
+      "label": "Lora",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "lora/OFL.txt"
+    },
+    {
+      "family": "Merriweather",
+      "file": "Merriweather-Regular.ttf",
+      "files": [
+        "Merriweather-Regular.ttf",
+        "Merriweather-Bold.ttf"
+      ],
+      "id": "merriweather",
+      "label": "Merriweather",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "merriweather/OFL.txt"
+    },
+    {
+      "family": "DM Serif Display",
+      "file": "DMSerifDisplay-Regular.ttf",
+      "files": [
+        "DMSerifDisplay-Regular.ttf"
+      ],
+      "id": "dm-serif-display",
+      "label": "DM Serif Display",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "dmserifdisplay/OFL.txt"
+    },
+    {
+      "family": "Source Code Pro",
+      "file": "SourceCodePro-Regular.ttf",
+      "files": [
+        "SourceCodePro-Regular.ttf",
+        "SourceCodePro-Bold.ttf"
+      ],
+      "id": "source-code-pro",
+      "label": "Source Code Pro",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "sourcecodepro/OFL.txt"
+    },
+    {
+      "family": "Pacifico",
+      "file": "Pacifico-Regular.ttf",
+      "files": [
+        "Pacifico-Regular.ttf"
+      ],
+      "id": "pacifico",
+      "label": "Pacifico",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "pacifico/OFL.txt"
+    },
+    {
+      "family": "Permanent Marker",
+      "file": "PermanentMarker-Regular.ttf",
+      "files": [
+        "PermanentMarker-Regular.ttf"
+      ],
+      "id": "permanent-marker",
+      "label": "Permanent Marker",
+      "legacy": false,
+      "licence": "Apache-2.0",
+      "licence_file": "permanentmarker/LICENSE.txt"
+    },
+    {
+      "family": "Caveat",
+      "file": "Caveat-Variable.ttf",
+      "files": [
+        "Caveat-Variable.ttf"
+      ],
+      "id": "caveat",
+      "label": "Caveat",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "caveat/OFL.txt"
+    },
+    {
+      "family": "Noto Sans",
+      "file": "NotoSans-Variable.ttf",
+      "files": [
+        "NotoSans-Variable.ttf"
+      ],
+      "id": "noto-sans",
+      "label": "Noto Sans",
+      "legacy": false,
+      "licence": "OFL-1.1",
+      "licence_file": "notosans/OFL.txt"
+    },
+    {
+      "family": "DejaVu Sans",
+      "file": "DejaVuSans.ttf",
+      "files": [
+        "DejaVuSans.ttf",
+        "DejaVuSans-Bold.ttf"
+      ],
+      "id": "sans",
+      "label": "DejaVu Sans",
+      "legacy": true,
+      "licence": "Bitstream-Vera",
+      "licence_file": "dejavu/LICENSE"
+    },
+    {
+      "family": "DejaVu Sans",
+      "file": "DejaVuSans-Bold.ttf",
+      "files": [
+        "DejaVuSans-Bold.ttf"
+      ],
+      "id": "sans-bold",
+      "label": "DejaVu Sans Bold",
+      "legacy": true,
+      "licence": "Bitstream-Vera",
+      "licence_file": "dejavu/LICENSE"
+    },
+    {
+      "family": "DejaVu Serif",
+      "file": "DejaVuSerif.ttf",
+      "files": [
+        "DejaVuSerif.ttf",
+        "DejaVuSerif-Bold.ttf"
+      ],
+      "id": "serif",
+      "label": "DejaVu Serif",
+      "legacy": true,
+      "licence": "Bitstream-Vera",
+      "licence_file": "dejavu/LICENSE"
+    },
+    {
+      "family": "DejaVu Sans Mono",
+      "file": "DejaVuSansMono.ttf",
+      "files": [
+        "DejaVuSansMono.ttf",
+        "DejaVuSansMono-Bold.ttf"
+      ],
+      "id": "mono",
+      "label": "DejaVu Sans Mono",
+      "legacy": true,
+      "licence": "Bitstream-Vera",
+      "licence_file": "dejavu/LICENSE"
+    }
+  ],
+  "keyframe_paths": {
+    "audio_clip": [
+      "volume_db",
+      "pan"
+    ],
+    "clip": {
+      "crop.h": [
+        0.05,
+        1
+      ],
+      "crop.w": [
+        0.05,
+        1
+      ],
+      "crop.x": [
+        0,
+        1
+      ],
+      "crop.y": [
+        0,
+        1
+      ],
+      "pan": [
+        -1,
+        1
+      ],
+      "transform.opacity": [
+        0,
+        1
+      ],
+      "transform.rotation": [
+        -360,
+        360
+      ],
+      "transform.scale": [
+        0.05,
+        4
+      ],
+      "transform.x": [
+        0,
+        1
+      ],
+      "transform.y": [
+        0,
+        1
+      ],
+      "volume_db": [
+        -60,
+        12
+      ]
+    },
+    "text": {
+      "opacity": [
+        0,
+        1
+      ],
+      "x": [
+        0,
+        1
+      ],
+      "y": [
+        0,
+        1
+      ]
+    }
+  },
+  "limits": {
+    "active_derives": 3,
+    "bg_removal_seconds": 300,
+    "blur_strength": [
+      1,
+      4
+    ],
+    "compound_name": 60,
+    "compounds": 8,
+    "curve_points": [
+      2,
+      16
+    ],
+    "effects_per_clip": 20,
+    "keyframes_per_clip": 200,
+    "length_ms": 1800000,
+    "lut_bytes": 10485760,
+    "marker_name": 80,
+    "markers": 64,
+    "media_items": 60,
+    "speed": [
+      0.25,
+      4.0
+    ],
+    "speed_curve_points": [
+      2,
+      16
+    ],
+    "speed_curve_y": [
+      0.1,
+      10.0
+    ],
+    "text_anim_ms": [
+      100,
+      3000
+    ],
+    "text_chars": 500,
+    "text_items": 400,
+    "text_templates": 50,
+    "track_height": [
+      32,
+      160
+    ],
+    "track_name": 40,
+    "tracks": 12,
+    "transition_ms": [
+      100,
+      2000
+    ],
+    "video_tracks": 4
+  },
+  "lut_looks": [
+    {
+      "id": "look:warm",
+      "label": "Warm"
+    },
+    {
+      "id": "look:cool",
+      "label": "Cool"
+    },
+    {
+      "id": "look:teal_orange",
+      "label": "Teal and orange"
+    },
+    {
+      "id": "look:mono",
+      "label": "Black and white"
+    },
+    {
+      "id": "look:faded",
+      "label": "Faded film"
+    },
+    {
+      "id": "look:vivid",
+      "label": "Vivid"
+    }
+  ],
+  "preview_only": {
+    "track_flags": [
+      "solo"
+    ]
+  },
+  "rates": [
+    24,
+    25,
+    30,
+    60
+  ],
+  "roles": [
+    {
+      "id": "dialogue",
+      "label": "Dialogue"
+    },
+    {
+      "id": "music",
+      "label": "Music"
+    },
+    {
+      "id": "effects",
+      "label": "Effects"
+    }
+  ],
+  "text_anims": {
+    "in": [
+      "fade",
+      "slide_up",
+      "slide_down",
+      "slide_left",
+      "slide_right",
+      "pop",
+      "zoom",
+      "rise",
+      "typewriter"
+    ],
+    "loop": [
+      "none",
+      "pulse",
+      "float"
+    ],
+    "out": [
+      "fade",
+      "slide_up",
+      "slide_down",
+      "slide_left",
+      "slide_right",
+      "pop",
+      "zoom",
+      "rise",
+      "typewriter"
+    ]
+  },
+  "transition_aliases": {
+    "slide": "slide_left",
+    "wipe": "wipe_left"
+  },
+  "transitions": [
+    {
+      "ffmpeg": "fade",
+      "id": "crossfade",
+      "label": "Crossfade"
+    },
+    {
+      "ffmpeg": "dissolve",
+      "id": "dissolve",
+      "label": "Dissolve"
+    },
+    {
+      "ffmpeg": "fadeblack",
+      "id": "fade_black",
+      "label": "Fade to black"
+    },
+    {
+      "ffmpeg": "fadewhite",
+      "id": "fade_white",
+      "label": "Fade to white"
+    },
+    {
+      "ffmpeg": "wipeleft",
+      "id": "wipe_left",
+      "label": "Wipe left"
+    },
+    {
+      "ffmpeg": "wiperight",
+      "id": "wipe_right",
+      "label": "Wipe right"
+    },
+    {
+      "ffmpeg": "wipeup",
+      "id": "wipe_up",
+      "label": "Wipe up"
+    },
+    {
+      "ffmpeg": "wipedown",
+      "id": "wipe_down",
+      "label": "Wipe down"
+    },
+    {
+      "ffmpeg": "slideleft",
+      "id": "slide_left",
+      "label": "Slide left"
+    },
+    {
+      "ffmpeg": "slideright",
+      "id": "slide_right",
+      "label": "Slide right"
+    },
+    {
+      "ffmpeg": "slideup",
+      "id": "slide_up",
+      "label": "Slide up"
+    },
+    {
+      "ffmpeg": "slidedown",
+      "id": "slide_down",
+      "label": "Slide down"
+    },
+    {
+      "ffmpeg": "smoothleft",
+      "id": "smooth_left",
+      "label": "Smooth left"
+    },
+    {
+      "ffmpeg": "smoothright",
+      "id": "smooth_right",
+      "label": "Smooth right"
+    },
+    {
+      "ffmpeg": "circleopen",
+      "id": "circle_open",
+      "label": "Circle open"
+    },
+    {
+      "ffmpeg": "circleclose",
+      "id": "circle_close",
+      "label": "Circle close"
+    },
+    {
+      "ffmpeg": "radial",
+      "id": "radial",
+      "label": "Radial"
+    },
+    {
+      "ffmpeg": "pixelize",
+      "id": "pixelize",
+      "label": "Pixelize"
+    },
+    {
+      "ffmpeg": "zoomin",
+      "id": "zoom_in",
+      "label": "Zoom in"
+    },
+    {
+      "ffmpeg": "hblur",
+      "id": "blur",
+      "label": "Blur"
+    }
+  ],
+  "version": 1
+}
