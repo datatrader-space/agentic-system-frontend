@@ -24,6 +24,7 @@
         v-bind="description ? {} : { 'aria-describedby': undefined }"
         @open-auto-focus="onOpenAutoFocus"
         @close-auto-focus="onCloseAutoFocus"
+        @interact-outside="onInteractOutside"
       >
         <header class="app-dialog__head">
           <div class="app-dialog__titles">
@@ -57,7 +58,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:open'])
 
-const { remember, onOpenAutoFocus, onCloseAutoFocus } = useOpenerFocus(() => props.initialFocus)
+const { remember, onOpenAutoFocus, onCloseAutoFocus, onInteractOutside } = useOpenerFocus(() => props.initialFocus)
 watch(() => props.open, (now) => { if (now) remember() }, { immediate: true, flush: 'sync' })
 
 function setOpen(value) { emit('update:open', value) }

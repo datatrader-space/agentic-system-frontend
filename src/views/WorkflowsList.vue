@@ -33,13 +33,27 @@
         </div>
       </div>
 
-      <!-- The real control the archive confirmation names: archived workflows come back here, with Restore. -->
-      <label class="wf-list__toggle mb-4">
-        <input type="checkbox" v-model="showArchived" @change="load" />
-        Show archived
-      </label>
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mb-4">
+        <!-- Whose workflows (ADM-1339): the server lists owned and shared ones; `?shared=` narrows it. -->
+        <fieldset class="wf-seg">
+          <legend class="wf-sr">Show workflows</legend>
+          <label v-for="o in SCOPES" :key="o.value" class="wf-seg__opt">
+            <input v-model="scope" type="radio" name="wf-scope" :value="o.value" @change="load" />
+            <span>{{ o.label }}</span>
+          </label>
+        </fieldset>
+        <!-- The real control the archive confirmation names: archived workflows come back here, with Restore. -->
+        <label class="wf-list__toggle">
+          <input type="checkbox" v-model="showArchived" @change="load" />
+          Show archived
+        </label>
+      </div>
 
       <PageLoader v-if="loading" label="Loading workflows…" />
+      <div v-else-if="!graphs.length && scope === 'me'" class="wf-list__empty rounded-[10px] py-16 text-center">
+        <p class="wf-list__soft text-sm font-medium">Nothing is shared with you yet</p>
+        <p class="wf-list__faint text-xs mt-1">When someone shares a workflow with you, it shows here with your role.</p>
+      </div>
       <div v-else-if="!graphs.length" class="wf-list__empty rounded-[10px] py-16 text-center">
         <p class="wf-list__soft text-sm font-medium">No workflows yet</p>
         <p class="wf-list__faint text-xs mt-1">Build your first graph: a trigger → an agent → an action.</p>
@@ -65,6 +79,11 @@
                 <span v-if="g.is_active === false" class="wf-chip wf-chip--muted">archived</span>
               </span>
             </div>
+            <p v-if="!isOwner(g)" class="wf-card__shared mt-2 text-[11px]">
+              <Users :size="12" :stroke-width="2" aria-hidden="true" />
+              <span class="truncate">Shared by {{ ownerName(g) }}</span>
+              <span class="wf-chip wf-chip--role">{{ roleLabel(g) }}</span>
+            </p>
             <p v-if="g.description" class="wf-list__soft mt-2 text-[12px] line-clamp-2">{{ g.description }}</p>
             <div v-if="g.last_run" class="mt-3 flex items-center gap-1.5 text-[11px]">
               <span class="wf-dot" :class="dotClass(g.last_run.status)" aria-hidden="true"></span>
@@ -81,10 +100,11 @@
               <button type="button" class="wf-card__act" :aria-label="`Export ${g.name}`" @click="exportGraph(g)">
                 <Download :size="13" :stroke-width="2" aria-hidden="true" /> Export
               </button>
-              <button v-if="g.is_active === false" type="button" class="wf-card__act" :aria-label="`Restore ${g.name}`" @click="restore(g)">
+              <!-- Archive and Restore are the owner's; the server refuses them for anyone else. -->
+              <button v-if="isOwner(g) && g.is_active === false" type="button" class="wf-card__act" :aria-label="`Restore ${g.name}`" @click="restore(g)">
                 <ArchiveRestore :size="13" :stroke-width="2" aria-hidden="true" /> Restore
               </button>
-              <button v-else type="button" class="wf-card__act wf-card__act--danger" :aria-label="`Archive ${g.name}`" @click="remove(g)">
+              <button v-else-if="isOwner(g)" type="button" class="wf-card__act wf-card__act--danger" :aria-label="`Archive ${g.name}`" @click="remove(g)">
                 <Archive :size="13" :stroke-width="2" aria-hidden="true" /> Archive
               </button>
             </div>
@@ -133,7 +153,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Activity, Archive, ArchiveRestore, ArrowRight, Copy, Download, LayoutTemplate, Plus, Upload, Workflow,
+  Activity, Archive, ArchiveRestore, ArrowRight, Copy, Download, LayoutTemplate, Plus, Upload, Users, Workflow,
 } from 'lucide-vue-next'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
@@ -142,6 +162,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { saveBlob } from '../utils/saveBlob'
 import { cameraStarter, cameraWorkflow, NO_CAMERA_WORKSPACE } from '../utils/cameraWorkflow'
+import { ROLE_LABELS, personName, workflowRole } from '../utils/workflowAccess'
 
 const router = useRouter()
 const route = useRoute()
@@ -159,6 +180,14 @@ const templatesError = ref('')
 const fileInput = ref(null)
 // Archived workflows are hidden unless the person asks for them (the list's ?include_archived=true).
 const showArchived = ref(false)
+// Whose workflows: every one I can see, only mine, or only the ones shared with me (`?shared=mine|me`).
+const SCOPES = [{ value: 'all', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'me', label: 'Shared with me' }]
+const scope = ref('all')
+
+// The role the server sends for each row (`my_role`); the server enforces it, the card only hides what it refuses.
+const isOwner = (g) => workflowRole(g.my_role) === 'owner'
+const roleLabel = (g) => ROLE_LABELS[workflowRole(g.my_role)]
+const ownerName = (g) => personName(g.owner) || 'another person'
 
 const dotClass = (s) => ({ success: 'wf-dot--ok', failed: 'wf-dot--bad', running: 'wf-dot--busy' }[s] || 'wf-dot--muted')
 const statusClass = (s) => ({ published: 'wf-chip--ok', paused: 'wf-chip--wait', retired: 'wf-chip--bad' }[s] || 'wf-chip--muted')
@@ -166,6 +195,7 @@ const statusClass = (s) => ({ published: 'wf-chip--ok', paused: 'wf-chip--wait',
 function listParams(offset) {
   const params = { limit: PAGE_SIZE, offset }
   if (showArchived.value) params.include_archived = 'true'
+  if (scope.value !== 'all') params.shared = scope.value
   return params
 }
 
@@ -388,6 +418,19 @@ onMounted(() => {
   font-size: 13px; font-weight: 600; color: var(--vm-ink-soft); cursor: pointer;
 }
 .wf-list__toggle input { accent-color: var(--vm-primary); width: 16px; height: 16px; }
+.wf-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* A segmented choice made of real radio buttons (keyboard: Tab in, arrow keys between). */
+.wf-seg { display: inline-flex; margin: 0; padding: 2px; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); }
+.wf-seg__opt { position: relative; display: inline-flex; }
+.wf-seg__opt input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.wf-seg__opt span {
+  display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; color: var(--vm-ink-soft); pointer-events: none;
+}
+.wf-seg__opt input:checked + span { background: var(--vm-primary-soft); color: var(--vm-link); }
+.wf-seg__opt input:focus-visible + span { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.wf-card__shared { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--vm-ink-soft); }
+.wf-chip--role { flex-shrink: 0; background: var(--vm-primary-soft); color: var(--vm-link); }
 .wf-list__empty { border: 1px dashed var(--vm-line-2); background: var(--vm-surface); box-shadow: var(--vm-shadow-m); }
 
 .wf-btn {
@@ -458,6 +501,7 @@ onMounted(() => {
   .wf-card__act { min-height: 44px; padding: 0 10px; }
   .wf-btn { height: 44px; }
   .wf-list__toggle { min-height: 44px; }
+  .wf-seg__opt span { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .wf-btn, .wf-card, .wf-card__act, .wf-card__open { transition: none; }

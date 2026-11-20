@@ -6,7 +6,8 @@
 
   Props: open, nodeId, doc (useWorkflowDoc), history (useWorkflowHistory), run (useWorkflowRun), catalog
   (useWorkflowCatalog); optional `validation` = the last Validate answer { errors, warnings }, shown beside the fields
-  it names. Emits only update:open.
+  it names; `readOnly` (a viewer or runner: the settings are shown, never changed) and `canRun` (false hides the tests
+  of the draft). Emits only update:open.
 
   - Every edit is history.run('Edit <field>', [{ op: 'update_node', … }]); typing in one field is one entry (D1 rule 1).
   - Each pane's width is remembered in this browser (localStorage, every access in try/catch). The dividers are
@@ -78,7 +79,7 @@
     <template #footer>
       <p class="wfm-run" role="status">{{ runStatus }}</p>
       <button
-        v-if="editor.node.value" type="button" class="wfm-btn wfm-btn--primary"
+        v-if="editor.node.value && canRun" type="button" class="wfm-btn wfm-btn--primary"
         :disabled="run.running.value || run.starting.value" @click="testThisStep"
       >
         <Icon :icon="run.starting.value ? 'lucide:loader-circle' : 'lucide:flask-conical'" :class="{ 'wfm-spin': run.starting.value }" aria-hidden="true" />
@@ -108,6 +109,8 @@ const props = defineProps({
   run: { type: Object, required: true },
   catalog: { type: Object, default: null },
   validation: { type: Object, default: null },
+  readOnly: { type: Boolean, default: false },
+  canRun: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:open'])
 
@@ -115,7 +118,7 @@ const PANES = [{ id: 'input', label: 'Input' }, { id: 'settings', label: 'Settin
 
 const editor = createNodeEditor({
   nodeId: toRef(props, 'nodeId'), doc: props.doc, history: props.history, run: props.run, catalog: props.catalog,
-  validation: () => props.validation,
+  validation: () => props.validation, readOnly: () => props.readOnly, canRun: () => props.canRun,
 })
 provideNodeEditor(editor)
 const run = props.run
@@ -127,8 +130,9 @@ const description = computed(() => (editor.node.value
 const icon = computed(() => wfIcon(editor.type.value))
 // The category colour token, with the app's ink when the builder's tokens are not in scope.
 const accent = computed(() => `var(${WF_CATEGORIES[wfCategory(editor.type.value)].token}, var(--vm-ink-soft))`)
+// The channel secret's and the approvers' findings are shown beside their own fields instead.
 const topIssues = computed(() => editor.issues.value.filter((i) => i.path !== 'data.secret_var'
-  && i.code !== 'config.secret_missing' && i.code !== 'config.secret_var_unknown'))
+  && i.code !== 'config.secret_missing' && i.code !== 'config.secret_var_unknown' && !String(i.code || '').startsWith('approvers.')))
 
 function setOpen(value) {
   if (!value) editor.end()

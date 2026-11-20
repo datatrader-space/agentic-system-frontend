@@ -1367,6 +1367,13 @@ export default {
   getWorkflowMcpCatalog: () => api.get('/workflow-graphs/mcp-catalog/'),
   createWorkflowGraphFromTemplate: (key, name) =>
     api.post('/workflow-graph-templates/create/', name ? { key, name } : { key }),
+  // Sharing a workflow with named people (ADM-1339). Owner only; the server refuses anyone else (403) and decides
+  // every ability. `role` is 'viewer' | 'runner' | 'editor'. People = the owner plus every share (approvers picker).
+  getWorkflowShares: (id) => api.get(`/workflow-graphs/${id}/shares/`),
+  addWorkflowShare: (id, { email, role }) => api.post(`/workflow-graphs/${id}/shares/`, { email, role }),
+  updateWorkflowShare: (id, userId, role) => api.patch(`/workflow-graphs/${id}/shares/${userId}/`, { role }),
+  removeWorkflowShare: (id, userId) => api.delete(`/workflow-graphs/${id}/shares/${userId}/`),
+  getWorkflowPeople: (id) => api.get(`/workflow-graphs/${id}/people/`),
 
   // ── Workflow operations (ADM-278 / P7) ───────────────────────────────────
   // Cross-workflow, unlike getWorkflowGraphRuns(id) which serves the builder for ONE workflow. An

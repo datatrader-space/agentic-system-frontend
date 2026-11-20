@@ -7,6 +7,9 @@
 // history entry: the field opens a batch on focus (history.begin) and closes it on blur (history.end); a select or a
 // button writes one entry per change.
 //
+// READ ONLY (ADM-1339). A person shared the workflow as viewer or runner sees the settings but cannot change them:
+// NodeSettings disables its fields, and `patch` writes nothing. The server refuses such a save anyway.
+//
 // KEYBOARD PICK (WCAG 2.5.7). The text field focused last registers itself here; Enter on a key in the Input pane
 // inserts that key's token into it at the caret it had.
 import { computed, inject, provide, ref, shallowRef } from 'vue'
@@ -16,7 +19,9 @@ import { buildSources, mergeNodeStates, pickerItems, secretVarNames, tokenResolv
 
 const NODE_EDITOR = Symbol('wfNodeEditor')
 
-export function createNodeEditor({ nodeId, doc, history, run, catalog = null, validation = () => null }) {
+export function createNodeEditor({ nodeId, doc, history, run, catalog = null, validation = () => null, readOnly = () => false, canRun = () => true }) {
+  const isReadOnly = computed(() => !!readOnly())
+  const mayRun = computed(() => !!canRun())
   const node = computed(() => doc.nodes.value.find((n) => n.id === nodeId.value) || null)
   const data = computed(() => node.value?.data || {})
   const type = computed(() => node.value?.type || '')
@@ -25,7 +30,7 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   // ── writing ──
   let batchOpen = false
   function patch(values, title) {
-    if (!node.value) return
+    if (!node.value || isReadOnly.value) return
     history.run(`Edit ${title}`, [{ op: 'update_node', id: node.value.id, data: values }])
   }
   function set(key, value, title = key) { patch({ [key]: value }, title) }
@@ -128,11 +133,12 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   function testPayload() { return Object.fromEntries(manualInputs.value.map((i) => [i.key, i.default ?? ''])) }
   function testUpTo(untilNode) {
     end()
+    if (!mayRun.value) return Promise.resolve({ ok: false, reason: 'not_allowed' })
     return run.start({ dryRun: true, untilNode, payload: testPayload() })
   }
 
   return {
-    node, data, type, def, manualInputs, testUpTo, states, sources, varKeys, checkContext, checkText, tokenState,
+    node, data, type, def, manualInputs, testUpTo, readOnly: isReadOnly, canRun: mayRun, states, sources, varKeys, checkContext, checkText, tokenState,
     set, patch, begin, end, bindText, bindCustom,
     activeField, registerField, unregisterField, insertIntoActive, announce, announcement,
     issues, issuesAt, lists, doc, history, run, catalog,

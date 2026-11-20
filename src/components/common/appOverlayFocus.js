@@ -5,6 +5,7 @@
 // and focused again when it closes. `initialFocus` (an element, a component, a ref, or a function returning one)
 // picks where focus lands on open; without it Reka focuses the first focusable element.
 import { unref } from 'vue'
+import { confirmState } from '@/composables/useConfirm'
 
 function asElement(target) {
   const value = unref(typeof target === 'function' ? target() : target)
@@ -37,5 +38,12 @@ export function useOpenerFocus(getInitialFocus = () => null) {
     el.focus()
   }
 
-  return { remember, onOpenAutoFocus, onCloseAutoFocus }
+  // The app's confirm (ConfirmDialog) is asked from inside a dialog or sheet (remove a person, restore a version): a
+  // press or focus in it is outside this dialog's layer, which would close the dialog under the question. While the
+  // confirm is open, such an interaction is not a dismissal.
+  function onInteractOutside(event) {
+    if (confirmState.open) event.preventDefault()
+  }
+
+  return { remember, onOpenAutoFocus, onCloseAutoFocus, onInteractOutside }
 }

@@ -27,6 +27,7 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { WorkflowInputError } from '@/utils/workflowInput'
 import { isValidNodeId } from '@/utils/wfVarExpr'
 import { fetchAllAgents } from '@/utils/workflowRunPolling'
+import { workflowRole } from '@/utils/workflowAccess'
 
 export const WORKFLOW_LEAVE_QUESTION = {
   title: 'Leave with unsaved changes?',
@@ -182,7 +183,11 @@ export function useWorkflowDoc(graphId, {
   const viewport = shallowRef(null)      // { x, y, zoom } or null: canvas state, saved but never "unsaved"
   let graphRest = {}                     // every other key of the stored graph (input_schema, output_schema, ...)
 
-  const meta = reactive({ id: null, publicId: null, version: 1, etag: '', status: 'draft', triggers: [], lastRun: null, publishedVersionId: null })
+  // `myRole` and `owner` come from the server (ADM-1339): what the page offers follows the role; the server enforces it.
+  const meta = reactive({
+    id: null, publicId: null, version: 1, etag: '', status: 'draft', triggers: [], lastRun: null, publishedVersionId: null,
+    myRole: 'viewer', owner: null,
+  })
   const agents = shallowRef([])
   const agentsError = ref('')
   const allGraphs = shallowRef([])
@@ -236,6 +241,8 @@ export function useWorkflowDoc(graphId, {
     if (data.status) meta.status = data.status
     if (Array.isArray(data.triggers)) meta.triggers = data.triggers
     if ('published_version_id' in data) meta.publishedVersionId = data.published_version_id
+    if ('my_role' in data) meta.myRole = workflowRole(data.my_role)
+    if (data.owner) meta.owner = data.owner
   }
 
   async function load() {
@@ -252,6 +259,8 @@ export function useWorkflowDoc(graphId, {
       meta.triggers = g.triggers || []
       meta.lastRun = g.last_run || null
       meta.publishedVersionId = g.published_version_id ?? null
+      meta.myRole = workflowRole(g.my_role)
+      meta.owner = g.owner || null
       allGraphs.value = data.all_graphs?.results || data.all_graphs || []
       scripts.value = data.scripts?.results || data.scripts || []
       agentsError.value = ''

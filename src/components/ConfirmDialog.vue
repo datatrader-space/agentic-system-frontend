@@ -2,6 +2,11 @@
   Global confirm dialog host. Mounted ONCE in app.vue. Reads the shared
   confirmState singleton from useConfirm.js and resolves the pending promise
   when the user chooses. Replaces every native window.confirm() in the app.
+
+  It may be asked from inside an open AppDialog or AppSheet (Reka). Those keep the page behind them inert (body
+  pointer-events: none) and trap focus, so this host takes pointer events back for itself and joins Reka's focus-scope
+  stack (FocusScope, trapped): the dialog underneath pauses while the question is open and gets focus back after.
+  The dialog underneath also ignores a press in here (appOverlayFocus onInteractOutside).
 -->
 <template>
   <Teleport to="body">
@@ -9,13 +14,14 @@
       <div
         v-if="state.open"
         class="fixed inset-0 flex items-center justify-center p-4"
-        style="z-index: 10000"
+        style="z-index: 10000; pointer-events: auto"
         @keydown.esc.prevent="cancel"
       >
         <!-- backdrop -->
         <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-[1px]" @click="cancel"></div>
 
         <!-- dialog -->
+        <FocusScope as-child trapped loop @mount-auto-focus.prevent>
         <div
           ref="panel"
           class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
@@ -65,6 +71,7 @@
             </button>
           </div>
         </div>
+        </FocusScope>
       </div>
     </Transition>
   </Teleport>
@@ -72,6 +79,7 @@
 
 <script setup>
 import { watch, nextTick, ref, onMounted, onBeforeUnmount } from 'vue'
+import { FocusScope } from 'reka-ui'
 import { confirmState, _settleConfirm } from '../composables/useConfirm'
 
 const state = confirmState

@@ -208,8 +208,8 @@ export const WF_NODE_DEFS = {
     category: 'logic', icon: 'lucide:badge-check', label: 'Approval', sub: 'Wait for human OK',
     defaults: { message: 'Approve to continue?' },
     fields: [
-      // No approvers field: the engine does not enforce one yet (ADM-1339), and the builder must not suggest a
-      // control that is not there. The workflow's owner approves.
+      // `approvers` (user ids; empty = the owner decides) is not a schema field: settings/ApproversField.vue picks
+      // them from the people who can see the workflow, and the server enforces who may decide (ADM-1339).
       { key: 'message', type: 'textarea', rows: 3, title: 'Approval message', placeholder: 'What needs approval? Shown to the approver.' },
     ],
     hint: 'The run pauses here until approved. Connect the normal handle for approve, the on-error handle for reject.',

@@ -1,32 +1,38 @@
 <!--
   Approve or reject an approval step while the live run waits on it (ADM-1333). It acts on the LIVE run only
-  (useWorkflowRun.decide), never on a past run being viewed. There is no approvers field (plan §9, ADM-1339): the
-  engine does not enforce one yet, so the window does not suggest a control that is not there.
+  (useWorkflowRun.decide), never on a past run being viewed. Approve and Reject are offered only when the server says
+  this person may decide (the waiting node's output `can_decide: true`, ADM-1339); anyone else is told who decides.
+  The server refuses a decision from anyone else in any case.
 -->
 <template>
   <div v-if="waiting" class="ad" role="group" aria-label="Approval decision">
-    <p class="ad-q"><Icon icon="lucide:hand" aria-hidden="true" />The run is waiting for your decision on this step.</p>
-    <div class="ad-btns">
-      <button type="button" class="ad-btn ad-btn--yes" :disabled="run.deciding.value" @click="run.decide(nodeId, 'approve')">
-        <Icon icon="lucide:check" aria-hidden="true" />Approve
-      </button>
-      <button type="button" class="ad-btn ad-btn--no" :disabled="run.deciding.value" @click="run.decide(nodeId, 'reject')">
-        <Icon icon="lucide:x" aria-hidden="true" />Reject
-      </button>
-    </div>
+    <template v-if="decider.canDecide">
+      <p class="ad-q"><Icon icon="lucide:hand" aria-hidden="true" />The run is waiting for your decision on this step.</p>
+      <div class="ad-btns">
+        <button type="button" class="ad-btn ad-btn--yes" :disabled="run.deciding.value" @click="run.decide(nodeId, 'approve')">
+          <Icon icon="lucide:check" aria-hidden="true" />Approve
+        </button>
+        <button type="button" class="ad-btn ad-btn--no" :disabled="run.deciding.value" @click="run.decide(nodeId, 'reject')">
+          <Icon icon="lucide:x" aria-hidden="true" />Reject
+        </button>
+      </div>
+    </template>
+    <p v-else class="ad-q"><Icon icon="lucide:hourglass" aria-hidden="true" />{{ decider.text }}</p>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import { approvalDecider } from '@/utils/workflowAccess'
 import { useNodeEditor } from './nodeEditor'
 
 const editor = useNodeEditor()
 const run = editor.run
 const nodeId = computed(() => editor.node.value?.id)
-const waiting = computed(() => !!run.live.value && !run.viewingPast.value
-  && run.nodeStates.value?.[nodeId.value]?.status === 'waiting')
+const state = computed(() => run.nodeStates.value?.[nodeId.value])
+const waiting = computed(() => !!run.live.value && !run.viewingPast.value && state.value?.status === 'waiting')
+const decider = computed(() => approvalDecider(state.value?.output, editor.doc.meta?.owner))
 </script>
 
 <style scoped>

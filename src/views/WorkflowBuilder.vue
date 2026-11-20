@@ -10,6 +10,11 @@
 
   The canvas fills the page: the shell hides its breadcrumbs and help button and collapses its sidebar on this route
   (AppShell), so the page never scrolls (F1).
+
+  ROLES (ADM-1339). The server sends the person's role on the workflow (`my_role`) and enforces it on every request.
+  The page only follows it: a viewer sees the workflow read-only (no edit, no add step, no Save or Publish, no Test or
+  Run); a runner sees it read-only but may Test and Run; an editor has everything but Share and Archive, which are the
+  owner's (WfShareDialog). A refusal the server still sends (403 forbidden_role) is shown in its own words.
 -->
 <template>
   <div class="wfb-root" :class="{ 'is-compact': compact }">
@@ -21,7 +26,8 @@
         :history="history"
         :run="run"
         :proposal="proposal"
-        :read-only="locked"
+        :read-only="editLocked"
+        :can-run="can.run"
         @open="openNode"
         @pick="openPicker"
         @test-until="(id) => startRun({ dryRun: true, untilNode: id })"
@@ -49,6 +55,7 @@
         :stopping="run.stopping.value"
         :compact="compact"
         :mod="mod"
+        :role="toolbarRole"
         @back="goBack"
         @rename="renameWorkflow"
         @save="doc.save()"
@@ -71,6 +78,7 @@
         @shortcuts="shortcutsOpen = true"
         @help="openAssistant()"
         @archive="archiveWorkflow"
+        @share="shareOpen = true"
       />
 
       <div v-if="doc.loadError.value" class="wfb-overlay" role="alert">
@@ -82,6 +90,13 @@
       </div>
       <div v-else-if="doc.loading.value" class="wfb-overlay" role="status" aria-live="polite">
         <span class="wfb-card is-quiet"><Icon icon="lucide:loader-circle" class="wf-spin" aria-hidden="true" />Loading workflow…</span>
+      </div>
+      <div v-else-if="!doc.nodes.value.length && !can.edit" class="wfb-overlay is-passive">
+        <div class="wfb-card">
+          <Icon icon="lucide:workflow" class="wfb-card__icon" aria-hidden="true" />
+          <h2 class="wfb-card__title">No steps yet</h2>
+          <p class="wfb-card__text">The people who can edit this workflow have not added any steps.</p>
+        </div>
       </div>
       <div v-else-if="!doc.nodes.value.length" class="wfb-overlay is-passive">
         <div class="wfb-card">
@@ -97,7 +112,7 @@
         </div>
       </div>
 
-      <WfAgentBar v-if="doc.meta.id != null" :doc="doc" :history="history" :proposal="proposal" :graph-id="doc.meta.id" />
+      <WfAgentBar v-if="doc.meta.id != null && can.edit" :doc="doc" :history="history" :proposal="proposal" :graph-id="doc.meta.id" />
     </div>
 
     <WfConsole
@@ -109,14 +124,16 @@
       :doc="doc"
       :graph-id="graphId"
       :sheet="consoleAsSheet"
+      :can-run="can.run"
       @focus-node="focusNode"
       @rerun="rerunFailed"
     />
 
     <WfNodePicker v-model:open="pickerOpen" :ctx="pickerCtx" :catalog="catalog" :agents="doc.agents.value" @choose="addFromPicker" />
-    <WfNodeModal v-model:open="modalOpen" :node-id="modalNodeId" :doc="doc" :history="history" :run="run" :catalog="catalog" :validation="validation.data || null" />
+    <WfNodeModal v-model:open="modalOpen" :node-id="modalNodeId" :doc="doc" :history="history" :run="run" :catalog="catalog" :validation="validation.data || null" :read-only="editLocked" :can-run="can.run" />
     <WfOutline v-model:open="outlineOpen" :doc="doc" :run="run" @open-node="(id) => { outlineOpen = false; openNode(id) }" @focus-node="(id) => { outlineOpen = false; focusNode(id) }" />
     <WfShortcuts v-model:open="shortcutsOpen" :mod="mod" />
+    <WfShareDialog v-if="can.share" v-model:open="shareOpen" :graph-id="graphId" :name="doc.name.value" />
 
     <AppDialog v-model:open="inputsOpen" title="Run with inputs" description="Values for this run only. The defaults come from the manual trigger." size="sm">
       <form id="wfb-run-inputs" class="wfb-root wfb-layer wfb-form" @submit.prevent="submitInputs">
@@ -200,7 +217,7 @@
             <span class="wfb-version__num">v{{ v.version }}</span>
             <span class="wfb-version__label">{{ v.label || 'Published' }}</span>
             <time class="wfb-version__time" :datetime="v.created_at">{{ fmtDate(v.created_at) }}</time>
-            <button type="button" class="wfb-btn is-small" :disabled="doc.saving.value" :aria-label="`Restore version ${v.version}`" @click="restore(v)">Restore</button>
+            <button v-if="can.edit" type="button" class="wfb-btn is-small" :disabled="doc.saving.value" :aria-label="`Restore version ${v.version}`" @click="restore(v)">Restore</button>
           </li>
         </ul>
         <button v-if="versions.more" type="button" class="wfb-btn is-small" :disabled="versions.loading" @click="loadVersions({ more: true })">{{ versions.loading ? 'Loading…' : 'Load more versions' }}</button>
@@ -224,6 +241,7 @@ import WfOutline from '@/components/workflows/WfOutline.vue'
 import WfShortcuts from '@/components/workflows/WfShortcuts.vue'
 import WfAgentBar from '@/components/workflows/WfAgentBar.vue'
 import WfNodeModal from '@/components/workflows/WfNodeModal.vue'
+import WfShareDialog from '@/components/workflows/WfShareDialog.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 import AppSheet from '@/components/common/AppSheet.vue'
 import { useWorkflowDoc } from '@/composables/useWorkflowDoc'
@@ -237,6 +255,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import api from '@/services/api'
 import { wfDef, wfIcon } from '@/config/wfNodeDefinitions'
+import { serverSentence, workflowAbilities } from '@/utils/workflowAccess'
 import { deleteSelection } from '@/utils/wfFlow'
 import { WorkflowInputError } from '@/utils/workflowInput'
 import { freeWorkflowPosition } from '@/utils/workflowNodePlacement'
@@ -272,6 +291,13 @@ const consoleAsSheet = computed(() => width.value < 1024)
 
 // ── state shown in the toolbar ──
 const locked = computed(() => doc.loading.value || !!doc.loadError.value)
+// What the person's role allows (the server's `my_role`; the server enforces it). Nothing is editable while the page
+// is loading or failed to load, nor for a viewer or runner.
+const can = computed(() => workflowAbilities(doc.meta.myRole))
+const editLocked = computed(() => locked.value || !can.value.edit)
+// Until the workflow is loaded the toolbar keeps its full (disabled) row; then it shows what the role allows.
+const toolbarRole = computed(() => (locked.value ? 'owner' : doc.meta.myRole))
+const shareOpen = ref(false)
 const actionsDisabled = computed(() => locked.value || doc.saving.value || run.starting.value)
 const saveState = computed(() => {
   if (doc.loading.value) return 'loading'
@@ -323,6 +349,19 @@ async function load() {
   run.attach(doc.meta.lastRun)
   // Never as a sheet on load: below 1024 px the console is a dialog, opened only by the person.
   consoleOpen.value = hasRun.value && consoleChoice.value === 'open' && !consoleAsSheet.value
+  await openLinkedRun()
+}
+
+// A link with ?run=<id> (the bell notification of an approval waiting on this person, ADM-1339) opens that run: a run
+// still waiting is followed live, so its Approve and Reject are here; a finished one is shown in the Timeline.
+async function openLinkedRun() {
+  const id = Number(route.query?.run)
+  if (!Number.isInteger(id) || id <= 0) return
+  if (!(await run.openRun(id))) return
+  if (consoleAsSheet.value) setConsoleOpen(true)
+  else consoleOpen.value = true
+  await nextTick()
+  consoleEl.value?.showTab('timeline')
 }
 
 // ── editing through the history ──
@@ -335,13 +374,14 @@ function apply(label, ops) {
     return false
   }
 }
-function undo() { if (history.undo()) announce('Undone.') }
-function redo() { if (history.redo()) announce('Redone.') }
+function undo() { if (!editLocked.value && history.undo()) announce('Undone.') }
+function redo() { if (!editLocked.value && history.redo()) announce('Redone.') }
 function renameWorkflow(name) { apply('Rename workflow', [{ op: 'set_name', name }]) }
 const hasNode = (id) => doc.nodes.value.some((n) => n.id === id)
 const titleOf = (id) => { const n = doc.nodes.value.find((x) => x.id === id); return n ? nodeTitle(n.type, n.data) : id }
 
 function tidy() {
+  if (editLocked.value) return
   const n = canvas.value?.tidy() || 0
   announce(n ? `Tidied ${n === 1 ? '1 step' : `${n} steps`}.` : 'The workflow is already tidy.')
 }
@@ -350,7 +390,7 @@ function tidy() {
 const pickerOpen = ref(false)
 const pickerCtx = ref(null)
 function openPicker(ctx) {
-  if (locked.value) return
+  if (editLocked.value) return
   let next = ctx
   if (!next) {
     // With one step selected, a step added from the keyboard or the toolbar follows it (and is connected).
@@ -405,7 +445,7 @@ const renameInput = ref(null)
 const renamePlaceholder = computed(() => { const n = doc.nodes.value.find((x) => x.id === renameId.value); return n ? (wfDef(n.type)?.label || n.type) : '' })
 function renameNode(id) {
   const n = doc.nodes.value.find((x) => x.id === id)
-  if (!n || locked.value) return
+  if (!n || editLocked.value) return
   renameId.value = id
   renameValue.value = n.data?.label || ''
   renameOpen.value = true
@@ -423,7 +463,7 @@ function submitRename() {
 // ── delete, copy, paste, duplicate (D1 rule 7: every delete goes through deleteSelection) ──
 async function remove(target) {
   const flow = canvas.value?.flow
-  if (!flow || locked.value) return
+  if (!flow || editLocked.value) return
   const set = await deleteSelection(flow, {
     apply: (ops) => history.run('Delete', ops),
     target: target || canvas.value.selectedIds(),
@@ -470,7 +510,7 @@ function offsetFor(clip, step) {
   return { x: at.x - left, y: at.y - top }
 }
 async function paste() {
-  if (locked.value) return
+  if (editLocked.value) return
   let text
   try {
     text = await navigator.clipboard.readText()
@@ -486,7 +526,7 @@ async function paste() {
   placeClip(ops, nodeIds, 'Paste')
 }
 function duplicate(ids = targetIds()) {
-  if (locked.value) return
+  if (editLocked.value) return
   const text = copyText(doc.nodes.value, doc.edges.value, ids, { keepSecrets: true })
   if (!text) return
   const clip = parseClip(text)
@@ -495,7 +535,7 @@ function duplicate(ids = targetIds()) {
 }
 function nudge(dir) {
   const ids = targetIds()
-  if (!ids.length || locked.value) return
+  if (!ids.length || editLocked.value) return
   const [dx, dy] = NUDGE[dir]
   const ops = doc.nodes.value.filter((n) => ids.includes(n.id)).map((n) => ({ op: 'move_node', id: n.id, position: { x: n.position.x + dx, y: n.position.y + dy } }))
   if (apply('Move', ops)) announce(`Moved ${ids.length === 1 ? titleOf(ids[0]) : `${ids.length} steps`} ${dir}.`)
@@ -515,7 +555,7 @@ function manualInputs() {
   return (Array.isArray(t?.data?.inputs) ? t.data.inputs : []).filter((i) => i && i.key)
 }
 function startRun(opts) {
-  if (actionsDisabled.value || run.running.value) return
+  if (actionsDisabled.value || run.running.value || !can.value.run) return
   const inputs = manualInputs()
   if (inputs.length) {
     for (const k of Object.keys(inputValues)) delete inputValues[k]
@@ -540,10 +580,11 @@ async function launch({ dryRun, untilNode = null, payload }) {
   }
   if (res.ok && !consoleAsSheet.value && consoleChoice.value !== 'closed') consoleOpen.value = true
 }
-async function rerunFailed() { await run.rerun() }
+async function rerunFailed() { if (can.value.run) await run.rerun() }
 
 // ── lifecycle ──
 async function setLifecycle(next) {
+  if (!can.value.edit) return
   if (await doc.setStatus(next)) notify.success(next === 'paused' ? 'Paused: no new triggered runs start.' : 'Resumed: triggers run the published version again.')
 }
 async function duplicateWorkflow() {
@@ -559,7 +600,7 @@ async function duplicateWorkflow() {
   }
 }
 async function archiveWorkflow() {
-  if (actionsDisabled.value) return
+  if (actionsDisabled.value || !can.value.archive) return
   if (doc.dirty.value) { notify.info('Save or discard your changes before archiving this workflow.'); return }
   const ok = await confirm({
     title: 'Archive workflow?', message: `Archive "${doc.name.value}"? Its triggers stop. Run history and spend are kept.`,
@@ -589,6 +630,7 @@ const validationSummary = computed(() => {
   return ''
 })
 async function validate() {
+  if (!can.value.edit) return
   validateOpen.value = true
   validation.value = { loading: true }
   let graph
@@ -630,7 +672,7 @@ async function loadVersions({ more = false } = {}) {
     versions.more = !!data.has_more
     versions.loaded = true
   } catch (e) {
-    versions.error = e?.response ? `Could not load the versions (error ${e.response.status}).` : (e?.message || 'Could not load the versions.')
+    versions.error = e?.response ? serverSentence(e, 'Could not load the versions') : (e?.message || 'Could not load the versions.')
   } finally {
     versions.loading = false
   }
@@ -640,6 +682,7 @@ function openVersions() {
   loadVersions()
 }
 async function restore(v) {
+  if (!can.value.edit) return
   const ok = await confirm({
     title: `Restore version ${v.version}?`,
     message: doc.dirty.value ? 'Your unsaved changes are replaced by this version.' : 'The draft is replaced by this version. Publish to make it live.',
@@ -674,7 +717,7 @@ function onKeydown(e) {
   e.preventDefault()
   if (action === 'save' || action === 'add') e.stopImmediatePropagation()   // never the shell's own Ctrl+K as well
   switch (action) {
-    case 'save': if (!actionsDisabled.value && doc.dirty.value) doc.save(); break
+    case 'save': if (!actionsDisabled.value && !editLocked.value && doc.dirty.value) doc.save(); break
     case 'add': if (!layerOpen()) openPicker(null); break
     case 'run': startRun({ dryRun: false }); break
     case 'escape': canvas.value?.clearSelection(); break
