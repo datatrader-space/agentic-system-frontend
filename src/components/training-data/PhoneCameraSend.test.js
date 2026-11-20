@@ -6,7 +6,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const SECRET = 'Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRSTUV';
-const calls = { publish: [], stop: 0, record: [], replaced: [] };
+const calls = { publish: [], stop: 0, record: [], replaced: [], sound: [] };
 let refuse = false; let lastOnState = null; let linkGone = false; let recording = null; let recordRefusal = null;
 vi.mock('../../../training-data/src/api/phone.js', async (real) => ({
   ...(await real()),
@@ -14,6 +14,10 @@ vi.mock('../../../training-data/src/api/phone.js', async (real) => ({
     info: vi.fn(async () => {
       if (linkGone) throw Object.assign(new Error('This phone link has ended. Make a new one on the camera page in AADML.'), { status: 403 });
       return { name: 'Dock phone', expires_at: '2026-11-25T12:00:00+00:00', whip: '/live-publish/src14/whip', ...(recording ? { recording } : {}) };
+    }),
+    sound: vi.fn(async (secret, microphone) => {
+      calls.sound.push(microphone);
+      return { has_sound: microphone, sound_whip: microphone ? '/live-publish/src14a/whip' : '' };
     }),
     record: vi.fn(async (secret, on) => {
       calls.record.push([secret, on]);
@@ -32,6 +36,7 @@ vi.mock('../../../training-data/src/api/phoneCamera.js', async (real) => {
       lastOnState = options.onState;
       if (refuse === 'relay') throw new actual.PublishError('relay', actual.RELAY_TEXT, 400);
       if (refuse) throw new actual.PublishError('refused', actual.REFUSED_TEXT);
+      if (options.sound) return { pc: { connectionState: 'connecting' }, sender: {}, codec: 'OPUS', stop: () => { calls.soundStops = (calls.soundStops || 0) + 1; } };
       return { pc: { connectionState: 'connecting' }, sender: { track: options.stream.getVideoTracks()[0], replaceTrack: vi.fn(async t => { calls.replaced.push(t); }) }, codec: 'H264', stop: () => { calls.stop += 1; } };
     }),
   };
@@ -39,9 +44,14 @@ vi.mock('../../../training-data/src/api/phoneCamera.js', async (real) => {
 import PhoneCameraSend from '../../../training-data/src/components/PhoneCameraSend.vue';
 
 // A phone that opens one camera at a time, as phones do: a second one asked for while one is open is "in use".
-function phoneBrowser({ noFront = false } = {}) {
+function phoneBrowser({ noFront = false, microphone = false, micRefused = false } = {}) {
   const stopped = []; const open = new Set(); const asked = [];
   const getUserMedia = vi.fn(async constraints => {
+    if (!constraints.video) {                                    // the microphone, asked for on its own
+      if (micRefused) throw Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' });
+      const mic = { kind: 'audio', stop: () => { stopped.push(mic); } };
+      return { getAudioTracks: () => [mic], getVideoTracks: () => [], getTracks: () => [mic] };
+    }
     const facing = constraints.video.facingMode.ideal;
     asked.push([facing, open.size]);
     if (open.size) throw Object.assign(new Error('Could not start video source'), { name: 'NotReadableError' });
@@ -51,14 +61,15 @@ function phoneBrowser({ noFront = false } = {}) {
     return { getVideoTracks: () => [track], getTracks: () => [track] };
   });
   globalThis.RTCPeerConnection = function RTCPeerConnection() {};
-  Object.defineProperty(globalThis.navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+  const enumerateDevices = async () => [{ kind: 'videoinput' }, ...(microphone ? [{ kind: 'audioinput' }] : [])];
+  Object.defineProperty(globalThis.navigator, 'mediaDevices', { value: { getUserMedia, enumerateDevices }, configurable: true });
   window.HTMLMediaElement.prototype.play = vi.fn(async () => {});
   return { getUserMedia, stopped, open, asked };
 }
 const button = (w, text) => w.findAll('button').find(b => b.text().includes(text));
 
 afterEach(() => {
-  calls.publish = []; calls.stop = 0; calls.record = []; calls.replaced = [];
+  calls.publish = []; calls.stop = 0; calls.record = []; calls.replaced = []; calls.sound = []; calls.soundStops = 0;
   refuse = false; lastOnState = null; linkGone = false; recording = null; recordRefusal = null;
   sessionStorage.clear();
 });
@@ -334,4 +345,60 @@ describe('the phone camera page', () => {
     w.unmount();
     delete document.documentElement.requestFullscreen; delete document.exitFullscreen;
   });
+
+  it('finds the microphone by itself and sends its sound on its own path beside the video; Stop ends both', async () => {
+    const { getUserMedia } = phoneBrowser({ microphone: true });
+    const w = mount(PhoneCameraSend, { props: { secret: SECRET } });
+    await flushPromises();
+    expect(w.get('[data-test="pc-sound-text"]').text()).toContain('sound is sent too');
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    expect(getUserMedia.mock.calls.map(c => !!c[0].video)).toEqual([true, false]);   // the camera, then the microphone alone
+    expect(calls.sound).toEqual([true]);
+    expect(calls.publish.map(p => [p.whipUrl, !!p.sound])).toEqual([['/live-publish/src14/whip', false], ['/live-publish/src14a/whip', true]]);
+    expect(w.get('[data-test="pc-sound-text"]').text()).toBe('Sending sound too.');
+    await button(w, 'Stop sending').trigger('click');
+    await flushPromises();
+    expect([calls.stop, calls.soundStops]).toEqual([1, 1]);
+    w.unmount();
+  });
+
+  it('turns the sound off on the switch and tells AADML, and the video goes on', async () => {
+    phoneBrowser({ microphone: true });
+    const w = mount(PhoneCameraSend, { props: { secret: SECRET } });
+    await flushPromises();
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    await w.get('[data-test="pc-sound-toggle"]').trigger('click');
+    await flushPromises();
+    expect(calls.soundStops).toBe(1);
+    expect(calls.sound).toEqual([true, false]);
+    expect(calls.stop).toBe(0);                                         // the video was not touched
+    expect(w.get('[data-test="pc-sound-text"]').text()).toContain('Sound is off');
+    w.unmount();
+  });
+
+  it('says a phone with no microphone, or a refused one, sends video only, and tells AADML', async () => {
+    phoneBrowser({ microphone: false });
+    let w = mount(PhoneCameraSend, { props: { secret: SECRET } });
+    await flushPromises();
+    expect(w.get('[data-test="pc-sound-text"]').text()).toContain('has no microphone');
+    expect(w.find('[data-test="pc-sound-toggle"]').exists()).toBe(false);
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    expect(calls.sound).toEqual([false]);
+    expect(calls.publish).toHaveLength(1);
+    w.unmount();
+    calls.sound = []; calls.publish = []; sessionStorage.clear();
+    phoneBrowser({ microphone: true, micRefused: true });
+    w = mount(PhoneCameraSend, { props: { secret: SECRET } });
+    await flushPromises();
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    expect(calls.sound).toEqual([false]);
+    expect(calls.publish).toHaveLength(1);                              // the video goes on
+    expect(w.get('[data-test="pc-sound-text"]').text()).toContain('not allowed to use the microphone');
+    w.unmount();
+  });
 });
+

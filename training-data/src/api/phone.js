@@ -91,6 +91,8 @@ export const phoneApi = {
 export const phoneCameraApi = {
   info: (secret, opts) => phoneFetch('phone-camera/', secret, { timeoutMs: 30000, ...opts }),
   record: (secret, on, opts) => phoneFetch('phone-camera/recording/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: { on: on === true } }),
+  // Whether this phone has a microphone it may use; with one, the answer says where to send its sound (sound_whip).
+  sound: (secret, microphone, opts) => phoneFetch('phone-camera/sound/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: { microphone: microphone === true } }),
 };
 
 // What the phone's Record button shows of a ``recording`` answer: null when the server said nothing of it (an older

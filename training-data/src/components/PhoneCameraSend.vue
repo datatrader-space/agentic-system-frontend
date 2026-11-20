@@ -12,12 +12,17 @@
 // turning recording on holds), and this page shows what it answered: Recording with its time, or the reason why not.
 // A reload of a tab that was sending starts sending again by itself, with the camera it had (api/phone.js
 // cameraMemory; never after Stop); where the browser wants a tap first, the page says to tap Start.
+// SOUND: the page finds out by itself whether the phone has a microphone (hasMicrophone: no prompt for that). With one,
+// and "Send sound" on (the default; the person can turn it off), Start also asks the browser for the microphone and
+// sends its sound in a second session to the camera's own sound path (soundWhipUrlOk): AADML never records it and
+// nobody watching the camera hears it; only a stream that listens for alarms or breaking glass uses it. The video goes
+// on whatever happens to the sound. AADML is told each time whether this phone gives sound (phone-camera/sound/).
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { Camera, CircleAlert, Disc, RefreshCw, RotateCw, Smartphone, Square, Video } from 'lucide-vue-next';
+import { Camera, CircleAlert, Disc, Mic, MicOff, RefreshCw, RotateCw, Smartphone, Square, Video } from 'lucide-vue-next';
 import { cameraMemory, elapsedText, phoneCameraApi, recordingOf, rememberCamera } from '../api/phone.js';
 import {
-  cameraConstraints, canHoldLandscape, holdLandscape, publish, releaseLandscape, retryDelay, shapeOf, swapCamera,
-  whipUrlOk, REFUSED_TEXT,
+  cameraConstraints, canHoldLandscape, hasMicrophone, holdLandscape, publish, releaseLandscape, retryDelay, shapeOf,
+  swapCamera, whipUrlOk, REFUSED_TEXT, SOUND_CONSTRAINTS,
 } from '../api/phoneCamera.js';
 
 const props = defineProps({ secret: { type: String, required: true } });
@@ -28,6 +33,9 @@ const state = ref('idle'); const problem = ref(''); const facing = ref(memory.fa
 const preview = ref(null); const codec = ref(''); const busy = ref(false);
 const size = ref({ w: 0, h: 0 }); const held = ref(false);
 let stream = null; let session = null; let wakeLock = null; let retryTimer = null; let watchTimer = null;
+// The microphone: whether the phone has one (null: not known yet), whether to send it, and what happened to it.
+const microphone = ref(null); const sendSound = ref(true); const soundState = ref('off');   // off | sending | refused | failed
+let soundStream = null; let soundSession = null;
 let failures = 0; let run = 0; let gone = false;
 // The shape the session was made with. When the picture turns (the phone turned, so the browser sends the other size),
 // the session is made again: the relay's live view keeps the first size's init segment, and Google Chrome showed a
@@ -111,6 +119,7 @@ onMounted(async () => {
     if (!whipUrlOk(answer?.whip)) throw new Error('This phone link does not lead to an AADML camera.');
     info.value = answer;
     takeRecording(answer.recording);
+    microphone.value = await hasMicrophone();
     pollTimer = setInterval(refresh, 30000);
     if (memory.resume && supported) start({ resumed: true });          // this tab was sending when it was reloaded
   } catch (e) { error.value = e.message; }
@@ -147,6 +156,45 @@ function closeSession() {
   const was = session; session = null;
   if (was) was.stop();
 }
+function closeSound() {
+  const was = soundSession; soundSession = null;
+  if (was) was.stop();
+  if (soundStream) { soundStream.getTracks().forEach(t => t.stop()); soundStream = null; }
+  if (soundState.value === 'sending') soundState.value = 'off';
+}
+// The phone's sound, beside its video: asked for only with a microphone and "Send sound" on; AADML is told whether this
+// phone gives sound, and says where to send it. A refusal or a failure never touches the video.
+async function startSound(mine) {
+  if (mine !== run || soundSession || !info.value) return;
+  let given = false;
+  if (microphone.value && sendSound.value) {
+    try { soundStream = await navigator.mediaDevices.getUserMedia(SOUND_CONSTRAINTS); given = true; }
+    catch { soundState.value = 'refused'; }
+  }
+  if (mine !== run) { closeSound(); return; }
+  let answer = null;
+  try { answer = await phoneCameraApi.sound(props.secret, given); } catch { answer = null; }
+  if (!given || !answer?.sound_whip || mine !== run) { if (given) { closeSound(); soundState.value = 'failed'; } return; }
+  try {
+    soundSession = await publish({ whipUrl: answer.sound_whip, secret: props.secret, stream: soundStream, sound: true,
+      onState: s => { if (mine === run && s === 'failed') { closeSound(); soundState.value = 'failed'; } } });
+    if (mine !== run) { closeSound(); return; }
+    soundState.value = 'sending';
+  } catch { closeSound(); soundState.value = 'failed'; }
+}
+async function toggleSound() {
+  sendSound.value = !sendSound.value;
+  if (!sendSound.value) {
+    closeSound();
+    if (info.value) phoneCameraApi.sound(props.secret, false).catch(() => {});
+  } else if (sending.value) startSound(run);
+}
+const soundText = computed(() => {
+  if (microphone.value === false) return 'This phone has no microphone, so only its video is sent.';
+  if (!sendSound.value) return 'Sound is off: only the video is sent.';
+  return { sending: 'Sending sound too.', refused: 'The browser was not allowed to use the microphone: only the video is sent.',
+    failed: 'The sound could not be sent: only the video is sent.' }[soundState.value] || 'Its sound is sent too when you Start.';
+});
 function retry(mine) {
   if (mine !== run || gone) return;
   closeSession();
@@ -180,6 +228,7 @@ async function connect(mine) {
     });
     if (mine !== run) { made.stop(); return; }
     session = made; codec.value = made.codec; sentShape = trackShape();
+    startSound(mine);                                    // the sound, beside it (never holds the video up)
     // The camera was switched while the offer was on its way: the open camera goes on the sender now.
     const open = stream?.getVideoTracks()[0];
     if (open && made.sender && made.sender.track !== open) made.sender.replaceTrack(open).catch(() => { /* the next reconnect sends it */ });
@@ -219,6 +268,7 @@ function release() {
   clearTimeout(turnTimer); turnTimer = null; sentShape = '';
   clearTimeout(retryTimer); retryTimer = null;
   closeSession();
+  closeSound();
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (preview.value) preview.value.srcObject = null;
   size.value = { w: 0, h: 0 };
@@ -326,6 +376,14 @@ onUnmounted(() => {
           </template>
           <button v-if="sending" class="pick stop" type="button" @click="stop"><Square :size="16" aria-hidden="true"/> Stop sending</button>
         </div>
+        <!-- Sound: found by the page itself; sent beside the video, never recorded, heard by nobody watching. -->
+        <div v-if="microphone !== null" class="sound" data-test="pc-sound">
+          <p class="quiet" data-test="pc-sound-text">{{ soundText }}</p>
+          <button v-if="microphone" class="pick wide" type="button" :aria-pressed="sendSound" data-test="pc-sound-toggle"
+                  @click="toggleSound"><Mic v-if="sendSound" :size="16" aria-hidden="true"/><MicOff v-else :size="16" aria-hidden="true"/>
+            {{ sendSound ? 'Send sound: on' : 'Send sound: off' }}</button>
+          <p v-if="microphone && sendSound && info?.sound_note" class="quiet small">{{ info.sound_note }}</p>
+        </div>
         <button v-if="sending && mayHold && (shape === 'portrait' || held)" class="pick wide" type="button" @click="landscape"><RotateCw :size="16" aria-hidden="true"/> {{ held ? 'Let the screen turn again' : 'Hold the screen sideways' }}</button>
         <section v-if="rec" class="recbox" aria-label="Recording">
           <p v-if="recProblem" class="problem" role="alert">{{ recProblem }}</p>
@@ -381,6 +439,7 @@ h1{font-size:21px;margin:2px 0 0;letter-spacing:-.3px;overflow-wrap:anywhere}
 .pick{border:1px solid #d4d9e3;color:#24324a;background:#f8fafc}
 .pick.wide{margin-top:10px;min-height:48px}
 .pick.stop{border-color:#e5b8bf;color:#a12c3c;background:#fff5f6}
+.sound{display:grid;gap:6px}.sound .small{font-size:12px}
 .pick.record{border-color:#e5b8bf;color:#b42318;background:#fff}
 .pick.stoprec{border-color:#b42318;color:#fff;background:#b42318}
 .recbox:empty{display:none}

@@ -15,6 +15,16 @@ export function cameraConstraints(facing = 'environment') {
   };
 }
 
+// Whether the phone has a microphone at all: the browser lists its devices without asking (their names stay hidden until
+// the person allows one), so the page knows before it asks. False where the browser cannot tell.
+export async function hasMicrophone(devices = globalThis.navigator?.mediaDevices) {
+  try { return ((await devices?.enumerateDevices?.()) || []).some(d => d?.kind === 'audioinput'); }
+  catch { return false; }
+}
+
+// What the phone's microphone is asked for: sound alone, cleaned as a call is (echo, noise), one channel.
+export const SOUND_CONSTRAINTS = { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 }, video: false };
+
 // Open the phone's other camera. A phone opens one camera at a time: asking for the front one while the back one is
 // still open fails with NotReadableError ("the camera is in use by another app"), live on a phone, 2026-11-18. So the
 // open camera is let go first, then the other one is asked for; the page puts its track on the sender already sending
@@ -101,8 +111,8 @@ export function preferCodecs(transceiver, Sender = globalThis.RTCRtpSender) {
 export function sessionUrlOf(location, whipUrl) {
   const raw = String(location || '').trim();
   const path = raw.replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
-  const m = /^(?:\/live-publish)?\/(src[1-9][0-9]{0,11})\/whip\/([0-9a-fA-F-]{36})$/.exec(path);
-  const whip = /^(?:https?:\/\/[^/]+)?\/live-publish\/(src[1-9][0-9]{0,11})\/whip$/.exec(String(whipUrl || ''));
+  const m = /^(?:\/live-publish)?\/(src[1-9][0-9]{0,11}a?)\/whip\/([0-9a-fA-F-]{36})$/.exec(path);
+  const whip = /^(?:https?:\/\/[^/]+)?\/live-publish\/(src[1-9][0-9]{0,11}a?)\/whip$/.exec(String(whipUrl || ''));
   if (!m || !whip || m[1] !== whip[1]) return '';
   return `/live-publish/${m[1]}/whip/${m[2]}`;
 }
@@ -110,6 +120,12 @@ export function sessionUrlOf(location, whipUrl) {
 // The WHIP address the phone page was told (GET phone-camera/): this site's /live-publish/src<id>/whip only.
 export function whipUrlOk(url) {
   return /^\/live-publish\/src[1-9][0-9]{0,11}\/whip$/.test(String(url || ''));
+}
+
+// Where the phone sends its SOUND (POST phone-camera/sound/): its camera's own sound path, src<id>a, never the video's:
+// AADML records the video and viewers watch it, and neither ever gets the sound (backend media_relay.sound_path_of).
+export function soundWhipUrlOk(url) {
+  return /^\/live-publish\/src[1-9][0-9]{0,11}a\/whip$/.test(String(url || ''));
 }
 
 export class PublishError extends Error {
@@ -137,17 +153,18 @@ export function gathered(pc, ms = 2500) {
 // wrong error), so a 'relay' failure can be a refused link too: the phone page asks AADML about its link before it
 // tries again (PhoneCameraSend.vue).
 // `onState(state)` hears the connection's state: 'connecting', 'connected', 'disconnected', 'failed', 'closed'.
-export async function publish({ whipUrl, secret, stream, onState = () => {}, fetchImpl = globalThis.fetch, PeerConnection = globalThis.RTCPeerConnection, Sender = globalThis.RTCRtpSender, gatherMs = 2500 } = {}) {
-  if (!whipUrlOk(whipUrl)) throw new PublishError('refused', 'This phone link does not lead to an AADML camera.');
-  const track = stream?.getVideoTracks?.()[0];
-  if (!track) throw new PublishError('camera', 'The camera gave no video.');
+// `sound`: send `stream`'s microphone alone, to the camera's sound path (soundWhipUrlOk), instead of its video.
+export async function publish({ whipUrl, secret, stream, onState = () => {}, fetchImpl = globalThis.fetch, PeerConnection = globalThis.RTCPeerConnection, Sender = globalThis.RTCRtpSender, gatherMs = 2500, sound = false } = {}) {
+  if (!(sound ? soundWhipUrlOk(whipUrl) : whipUrlOk(whipUrl))) throw new PublishError('refused', 'This phone link does not lead to an AADML camera.');
+  const track = sound ? stream?.getAudioTracks?.()[0] : stream?.getVideoTracks?.()[0];
+  if (!track) throw new PublishError('camera', sound ? 'The microphone gave no sound.' : 'The camera gave no video.');
   const pc = new PeerConnection({ bundlePolicy: 'max-bundle' });
   let closed = false;
   const close = () => { if (!closed) { closed = true; try { pc.close(); } catch { /* already closed */ } } };
   pc.addEventListener?.('connectionstatechange', () => onState(pc.connectionState));
   try {
     const transceiver = pc.addTransceiver(track, { direction: 'sendonly', streams: [stream] });
-    const asked = preferCodecs(transceiver, Sender);
+    const asked = sound ? '' : preferCodecs(transceiver, Sender);
     await pc.setLocalDescription(await pc.createOffer());
     await gathered(pc, gatherMs);
     let response;
@@ -163,7 +180,7 @@ export async function publish({ whipUrl, secret, stream, onState = () => {}, fet
     const answer = await response.text();
     const sessionUrl = sessionUrlOf(response.headers.get('Location'), whipUrl);
     await pc.setRemoteDescription({ type: 'answer', sdp: answer });
-    const codec = (/a=rtpmap:\d+ (H264|VP8|VP9|AV1|H265)\//i.exec(answer) || [])[1] || '';
+    const codec = (/a=rtpmap:\d+ (H264|VP8|VP9|AV1|H265|opus)\//i.exec(answer) || [])[1] || '';
     return {
       pc, sender: transceiver.sender, sessionUrl, codec: codec.toUpperCase(), asked,
       // Tell the relay the phone stopped (so the camera goes offline at once), then close. `keepalive` lets it leave
