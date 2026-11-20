@@ -150,3 +150,15 @@ describe('searching the camera events (Phase E)', () => {
     expect(calls.some(c => c.url.includes('/workspace/stream-events/timeline/'))).toBe(true);
   });
 });
+
+describe('Phase G: ready-made rules and listening', () => {
+  beforeEach(() => { calls.length = 0; });
+  it('applies a preset with its zone, and sends listening only with the consent', async () => {
+    const { streamRules } = await import('../../../training-data/src/api/streaming.js');
+    await streamRules.applyPreset(7, 'empty_desk', '4');
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { preset: 'empty_desk', zone: 4 } });
+    expect(calls[0].url).toMatch(/video-sources\/7\/presets\/$/);
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, source: 3, detector: 'rfdetr-nano', listen: true });
+    expect(calls[1].body).toMatchObject({ listen: true, listen_consent: true, detector: 'rfdetr-nano' });
+  });
+});

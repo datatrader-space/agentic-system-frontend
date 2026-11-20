@@ -22,10 +22,11 @@ export const streamingApi = {
   // `detector`: the ready detector's key (people, vehicles, pets and 77 more, on AADML's server); `find`: names SAM 3
   // finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one answered is not
   // sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most.
-  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill }) => {
+  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill, listen }) => {
     const noModel = model === null || model === undefined || model === '';
     const extra = { ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
-      ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}) };
+      ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}),
+      ...(listen ? { listen: true, listen_consent: true } : {}) };
     const head = noModel ? { project } : { project, model };
     // A kept recording ("Use in project", CLOUD_STREAMING_PLAN.md §3.5): read in place, never continuous.
     if (recording !== undefined && recording !== null && recording !== '') {
@@ -41,6 +42,7 @@ export const streamingApi = {
       if (detector) body.append('detector', detector);
       if (find) body.append('find', find);
       if (skipStill) body.append('skip_still', 'true');
+      if (listen) { body.append('listen', 'true'); body.append('listen_consent', 'true'); }
       body.append('file', file, file.name);
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body, timeoutMs: UPLOAD_MS });
     }
@@ -853,6 +855,9 @@ export const streamRules = {
   add: (source, body) => apiFetch(`${SOURCES}${enc(source)}/rules/`, { method: 'POST', body, timeoutMs: SLOW }),
   update: (source, rule, body) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
   remove: (source, rule) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  // Ready-made rules (Phase G): fire or smoke, a package left, no hard hat, a person fallen, an empty desk...
+  presets: source => apiFetch(`${SOURCES}${enc(source)}/presets/`),
+  applyPreset: (source, preset, zone) => apiFetch(`${SOURCES}${enc(source)}/presets/`, { method: 'POST', body: { preset, ...(zone ? { zone: Number(zone) } : {}) }, timeoutMs: SLOW }),
 };
 export const streamEvents = {
   list: (source, { page = 1, limit = 20 } = {}) => {

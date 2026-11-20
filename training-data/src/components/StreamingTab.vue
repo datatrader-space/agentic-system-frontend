@@ -158,7 +158,8 @@ const notifying = ref(false);
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
 const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null,
-  useDetector: false, detector: '', useFind: false, find: '', skipStill: false });
+  useDetector: false, detector: '', useFind: false, find: '', skipStill: false, listen: false, listenConsent: false });
+const listenOption = computed(() => options.value.listen || null);
 // The ready detector (people, vehicles, pets and 77 more, on AADML's server) and finding objects by name (SAM 3): each
 // in place of the project's model, one of the three at most (SMART_CAMERA_AI_PLAN.md Phase A).
 const detectorsOption = computed(() => options.value.detectors || null);
@@ -193,7 +194,8 @@ const sourceProblem = computed(() => {
 });
 const startWhy = computed(() => {
   if (!may.value.start) return may.value.reason || (options.value.projects.length ? 'You may not start a stream.' : 'You need the Train right in a photo project to start a stream.');
-  if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes) return 'Choose what runs on each frame: the model, the ready detector, Find by name, or Read barcodes.';
+  if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes && !form.value.listen) return 'Choose what runs on each frame: the model, the ready detector, Find by name, Read barcodes, or Listen for sounds.';
+  if (form.value.listen && !form.value.listenConsent) return 'Confirm that the people near this camera are told its sound is analysed.';
   if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
   if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return "The ready detector cannot run on AADML's server right now. Try again later.";
   if (form.value.useFind && !form.value.find.trim()) return 'Name what to find, for example "person, forklift".';
@@ -218,6 +220,7 @@ function openCreate(saved = null, recording = null) {
     useModel: !!first?.models?.length, readCodes: false,
     useDetector: !first?.models?.length && detectorsOption.value?.available !== false,
     detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '', skipStill: false,
+    listen: false, listenConsent: false,
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
   creating.value = true;
@@ -244,6 +247,7 @@ async function startStream() {
       readCodes: form.value.readCodes,
       detector: form.value.useDetector ? form.value.detector : '', find: form.value.useFind ? form.value.find.trim() : '',
       skipStill: form.value.skipStill && (form.value.useModel || form.value.useDetector || form.value.useFind),
+      listen: form.value.listen && form.value.listenConsent,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
           : form.value.source === 'recording' ? { recording: form.value.recording.id }
@@ -259,7 +263,7 @@ async function startStream() {
   } catch (e) {
     if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'listen'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -482,6 +486,13 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <label v-if="form.useModel || form.useDetector || form.useFind" class="st-check">
             <input v-model="form.skipStill" type="checkbox"> <span>{{ options.skip_still_note || 'Skip still frames: a frame nearly the same as the last one answered is not sent, and is not charged.' }}</span>
           </label>
+          <label v-if="listenOption" class="st-check">
+            <input v-model="form.listen" type="checkbox"> <span><strong>Listen for sounds</strong>: {{ (listenOption.sounds || []).join(', ') }}. {{ listenOption.note }}</span>
+          </label>
+          <label v-if="form.listen" class="st-check">
+            <input v-model="form.listenConsent" type="checkbox"> <span>{{ listenOption.consent }}</span>
+          </label>
+          <p v-if="fieldErrors.listen" class="field-error" role="alert">{{ fieldErrors.listen }}</p>
           <p v-if="fieldErrors.detector" class="field-error" role="alert">{{ fieldErrors.detector }}</p>
           <p v-if="fieldErrors.find" class="field-error" role="alert">{{ fieldErrors.find }}</p>
           <p v-if="fieldErrors.read_codes" class="field-error" role="alert">{{ fieldErrors.read_codes }}</p>

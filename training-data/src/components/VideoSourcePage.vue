@@ -296,6 +296,13 @@ async function saveMine() {
 }
 const alertLabel = key => RULE_ALERTS.find(a => a.key === (key || ''))?.label || '';
 const visionModels = computed(() => rulesPage.value?.vision_models || []);
+// Ready-made rules (Phase G): one press makes the rule (or two), with the AI check where it keeps false alarms down.
+const presets = ref([]); const presetZone = ref('');
+async function loadPresets() { try { presets.value = (await streamRules.presets(props.source.id))?.presets || []; } catch { presets.value = []; } }
+async function applyPreset(p) {
+  if (p.needs_zone && !presetZone.value) { rulesError.value = 'Choose the zone for this rule first (draw it in the Zones tab).'; return; }
+  await ruleCall(() => streamRules.applyPreset(props.source.id, p.key, p.needs_zone ? presetZone.value : ''));
+}
 async function decideActions(e, approve) {
   verdictBusy.value = e.id; evError.value = '';
   try { const answer = await streamEvents.actions(e.id, approve); Object.assign(e, answer?.event || {}); }
@@ -333,7 +340,7 @@ const toggleRule = rule => ruleCall(() => streamRules.update(props.source.id, ru
 const removeRule = rule => ruleCall(() => streamRules.remove(props.source.id, rule.id));
 watch(tab, now => {
   if (now === 'events') loadEvents(1);
-  if (now === 'rules') loadRules();
+  if (now === 'rules') { loadRules(); if (!presets.value.length) loadPresets(); }
 });
 </script>
 
@@ -570,6 +577,13 @@ watch(tab, now => {
         <div v-else-if="tab === 'rules'" class="sp-recs">
           <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown, and alerts the people it names in the bell and by e-mail (one alert for a burst). A workflow with this camera's events as its trigger starts on each event.
             <button type="button" class="sp-linkish" :aria-expanded="mineOpen" @click="openMine">My alerts</button></p>
+          <div v-if="mayRule && presets.length && !adding" class="sp-presets" aria-label="Ready-made rules">
+            <strong>Ready-made</strong>
+            <UiButton v-for="p in presets" :key="p.key" class="small" :disabled="ruleBusy" :title="p.help" @click="applyPreset(p)">{{ p.name }}</UiButton>
+            <label v-if="presets.some(p => p.needs_zone) && ruleZones.length" class="sp-preset-zone">Zone for an empty desk
+              <select v-model="presetZone" class="text-input"><option value="">Choose</option><option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">{{ z.name }}</option></select>
+            </label>
+          </div>
           <div v-if="mineOpen" class="sp-rule-form" aria-label="My camera alerts">
             <p v-if="mineError" class="field-error" role="alert">{{ mineError }}</p>
             <template v-if="mine">
@@ -892,6 +906,8 @@ watch(tab, now => {
 .sp-tag.warn{background:#fef3c7;color:#92400e}
 .sp-ai{color:#334155!important}
 .sp-rule-question{display:grid;gap:4px;font-size:13px;font-weight:600;color:#33415a}
+.sp-presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.sp-preset-zone{display:flex;gap:6px;align-items:center;font-size:13px}
 .sp-linkish{border:0;background:none;padding:0;color:var(--aadml-primary);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
 .sp-rule-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#33415a}
 .sp-rule-schedule{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
