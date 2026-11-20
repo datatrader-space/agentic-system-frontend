@@ -50,6 +50,36 @@ describe('reload catch-up from the run log', () => {
     expect(chat._runSeq['41']).toBe(4)
   })
 
+  it('a followed run\'s live copy of text that already streamed here is not drawn twice (phase 8 run 5)', () => {
+    const { chat } = resumed()
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', last_seq: 1, events: [chunk(1, 'Plan:', true)] })
+    // The next round streams here as it is typed (work_stream), then its stored, joined copy arrives on the follow.
+    chat._onEvent({ type: 'assistant_message_chunk', conversation_id: '41', chunk: 'Got', replace: true })
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', live: true, last_seq: 2,
+                    events: [chunk(2, 'Got it, building in the root.', true)] })
+    chat._onEvent({ type: 'assistant_message_chunk', conversation_id: '41', chunk: ' it, building in the root.' })
+    expect(chat._cur().content).toBe('Got it, building in the root.')
+    expect(chat._runSeq['41']).toBe(2)                       // the cursor still moves past it
+    // A card from the follow is still drawn: only the typed text is the page's own already.
+    const card = { seq: 3, type: 'runtime.hitl_request', frame: 'hitl_request',
+                   payload: { type: 'hitl_request', request_id: 'h9', summary: 'Run npx?', conversation_id: '41' } }
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', live: true, last_seq: 3, events: [card] })
+    expect(chat.hitlRequests.map((r) => r.request_id)).toEqual(['h9'])
+  })
+
+  it('a page that opens on a running turn counts its time from the turn\'s start, through the catch-up (phase 8 run 5)', () => {
+    const chat = useChatStore()
+    chat._conn = { send: vi.fn(), sendIfOpen: vi.fn() }
+    chat.conversationId = '41'
+    chat._startProgressPolling = vi.fn()
+    const t0 = Date.now()
+    chat._onEvent({ type: 'turn_resumed', conversation_id: '41', turn_id: 't1', progress: { elapsed_seconds: 300 } })
+    chat._onEvent({ type: 'run_events_replay', conversation_id: '41', last_seq: 1, events: [chunk(1, 'Working', true)] })
+    const ran = t0 - chat.liveStartedAt
+    expect(ran).toBeGreaterThanOrEqual(299000)
+    expect(ran).toBeLessThan(302000)
+  })
+
   it('assistant_message_chunk with replace starts a new draft', () => {
     const { chat } = resumed()
     chat._onEvent({ type: 'run_events_replay', conversation_id: '41',

@@ -813,7 +813,7 @@ async function startServiceOAuthPopup(c) {
         const err = e?.response?.data
         // The backend names a missing prerequisite (e.g. no scopes) rather than letting the provider
         // reject it on a page the user then has to interpret.
-        throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+        throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection', { cause: e })
       }
     }, {
       name: 'oauth_popup',

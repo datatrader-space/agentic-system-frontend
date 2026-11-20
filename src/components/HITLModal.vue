@@ -2,9 +2,7 @@
   <Teleport to="body" :disabled="inline">
     <Transition name="modal-fade">
       <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isDocked, 'hitl-overlay--inline': inline }" @click.self="handleOverlayClick">
-        <!-- Plan mode's card (the agent's plan, its steps and the answers the server offers) is a card of its own. -->
-        <PlanModeCard v-if="isPlanApproval" :request="currentRequest" @respond="(e) => emit('respond', e)" />
-        <div v-else class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
+        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
@@ -142,6 +140,16 @@
                         title="Cancel this request and stop the agent">
                   Stop agent
                 </button>
+              </div>
+            </div>
+
+            <!-- The agent's questions (ASK_USER, Claude Code's AskUserQuestion shape): one to four, each with options
+                 and "Other"; one Send. -->
+            <div v-else-if="askQuestions.length" class="response-section">
+              <AskUserQuestions :questions="askQuestions" :disabled="isExpired" @answer="(v) => respond(v)" />
+              <div v-if="isExpired" class="choice-expired" data-test="hitl-expired">
+                <span>This question timed out — an answer can no longer reach the agent.</span>
+                <button class="btn-link" @click="dismiss">Close</button>
               </div>
             </div>
 
@@ -382,10 +390,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import AskUserQuestions from '@/components/chat/AskUserQuestions.vue';
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { notify } from '@/composables/useNotify'
-import PlanModeCard from '@/components/chat/PlanModeCard.vue'
 import { CANCEL_STEP_FEEDBACK } from '@/utils/hitlQueue'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
@@ -424,6 +432,13 @@ const isCompactAsk = computed(() =>
   ['choice', 'question', 'clarification'].includes(currentRequest.value?.interaction_type)
 );
 
+// The agent's questions (ASK_USER): `payload.questions`, each { question, header, options: [{label, description}],
+// multiSelect }. Empty for every other card.
+const askQuestions = computed(() => {
+  const qs = currentRequest.value?.payload?.kind === 'ask_user' ? currentRequest.value.payload.questions : null
+  return Array.isArray(qs) ? qs.filter((q) => q && q.question && Array.isArray(q.options)) : []
+});
+
 // A parked approval (backend phase 2b, `payload.parked`): its run waits for this answer and continues after it.
 const isParked = computed(() => currentRequest.value?.payload?.parked === true || currentRequest.value?.parked === true);
 
@@ -452,10 +467,7 @@ const markConnectOpened = () => { connectOpened.value = true; };
 
 // Docked = a small card that sits just above the chat composer (Claude-style) instead of a
 // full-screen blocking modal. Used for quick decisions: clarifications, tool approvals, and connects.
-// Plan mode's plan (backend phase 4): `kind: 'plan_approval'`, drawn by PlanModeCard, docked above the composer.
-const isPlanApproval = computed(() => currentRequest.value?.payload?.kind === 'plan_approval');
-
-const isDocked = computed(() => isCompactAsk.value || isToolApproval.value || isOAuthConnect.value || isPlanApproval.value);
+const isDocked = computed(() => isCompactAsk.value || isToolApproval.value || isOAuthConnect.value);
 
 // Control-only payload keys that should NOT surface a "View Details" dump to the user.
 const CONTROL_PAYLOAD_KEYS = ['allow_text', 'text_label', 'interpretation', 'confidence',
@@ -614,11 +626,11 @@ const dismiss = () => {
   emit('dismiss', currentRequest.value.request_id);
 };
 
-// "Cancel this step": a card that waits for an answer can be turned down with a reason, never dropped. Not for a plan
-// (its own card), a sign-in (it has "Not now"), a notification, or a card that expired or was replaced.
+// "Cancel this step": a card that waits for an answer can be turned down with a reason, never dropped. Not for a
+// sign-in (it has "Not now"), a notification, or a card that expired or was replaced.
 const canCancelStep = computed(() => {
   const r = currentRequest.value;
-  if (!r || isSuperseded.value || isExpired.value || isOAuthConnect.value || isPlanApproval.value) return false;
+  if (!r || isSuperseded.value || isExpired.value || isOAuthConnect.value) return false;
   return ['binary', 'choice', 'text'].includes(r.response_type);
 });
 const cancelStep = () => respond(false, CANCEL_STEP_FEEDBACK);

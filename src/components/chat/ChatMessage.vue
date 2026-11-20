@@ -64,6 +64,11 @@
         <div v-if="displayContent && !isWorkTurn" ref="bubbleEl" class="bubble assistant" v-html="rendered"
              @click="onCodeCopy"></div>
 
+        <!-- The plan this answer gives for review (plan mode): its file, opened beside the chat. The person answers
+             the plan with their next message (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
+        <FileCard v-if="message.planFile && message.planFile.path" :name="planFileName" :subtitle="planFileSubtitle"
+                  :path="message.planFile.path" icon="lucide:clipboard-list" data-test="plan-file-card" @open="openPlan" />
+
         <!-- The answer to a voice note, spoken back (VOICE_NOTES_PLAN.md): recording, then playable, or why not. -->
         <VoiceReply v-if="message.voiceReply" :reply="message.voiceReply" />
 
@@ -265,6 +270,8 @@ import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import WorkTimeline from './WorkTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
 import MemoryChips from './MemoryChips.vue'
+import FileCard from './FileCard.vue'
+import { usePlanReviewStore } from '../../stores/usePlanReviewStore'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
 import ChatActionButtons from './ChatActionButtons.vue'
@@ -283,6 +290,22 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
+
+// The plan file this answer gives for review: its name, and what and where it is.
+const planFileName = computed(() => {
+  const path = String((props.message.planFile && props.message.planFile.path) || '')
+  return path.split('/').pop() || path
+})
+const planFileSubtitle = computed(() => {
+  const path = String((props.message.planFile && props.message.planFile.path) || '')
+  const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
+  return dir ? `Plan · ${dir}` : 'Plan'
+})
+function openPlan() {
+  const plans = usePlanReviewStore()
+  plans.show(props.message.planFile, props.message.conversationId || chat.conversationId)
+  plans.openPanel()
+}
 
 // Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain
 // download link handled in the template). Guarded so a missing url is a no-op.

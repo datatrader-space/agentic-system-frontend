@@ -109,7 +109,12 @@
 
     <!-- What it is doing now, how long it has taken, and its tokens ("Inferring… (12s · 3.4k tokens)"). -->
     <!-- Only the label is announced: the elapsed time changes every second and would be read out each time. -->
-    <div v-if="running" class="wt-status" data-test="wt-status">
+    <!-- While a question or an approval waits on the rail the run is the person's to continue: "Waiting for you", no
+         clock and no spinner (LONG_RUN_ACCEPTANCE_PLAN step 6: it waits with no clock). -->
+    <div v-if="running && $slots.pending" class="wt-status is-waiting" data-test="wt-status">
+      <span class="wt-status-label" role="status" aria-live="polite">Waiting for you</span>
+    </div>
+    <div v-else-if="running" class="wt-status" data-test="wt-status">
       <svg class="wt-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>
       <span class="wt-status-label" role="status" aria-live="polite">{{ statusText }}</span>
       <span class="wt-status-meta">({{ elapsed }}<template v-if="tokensText"> · {{ tokensText }}</template>)</span>

@@ -1,7 +1,6 @@
 // Geometry of the annotation editor: a straight port of the old editor's geometry.js
 // (training_models_data/static/training_models_data/geometry.js), so a shape is cut, straightened and tidied the same way
 // in both editors; keep the two in step. Below the port: crosses() and box(), used only by this editor.
-/* eslint-disable no-var */
 function signedArea(points) {
   var total = 0;
   for (var i = 0; i < points.length; i += 1) {

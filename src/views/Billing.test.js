@@ -33,6 +33,16 @@ describe('Billing', () => {
     expect(w.text()).toContain('Your balance is empty')
   })
 
+  it('a charge too small for four places reads as less than $0.0001, never as $0.0000', async () => {
+    api.billingWallet.mockResolvedValue(wallet('12.01'))
+    const entry = (id, amount) => ({ id, kind: 'charge', usage_kind: 'embedding', amount_usd: amount,
+      balance_after_usd: '12.01', description: 'Embeddings: text-embedding-3-small', created_at: '2026-11-20T08:49:00Z' })
+    api.billingEntries.mockResolvedValueOnce({ data: {
+      entries: [entry(1, '-0.0000030'), entry(2, '-0.0012'), entry(3, '-0.18')], next_before: null } })
+    w = mount(Billing); await flushPromises()
+    expect(w.findAll('.amt').map((a) => a.text().split(' ')[0])).toEqual(['−<$0.0001', '−$0.0012', '−$0.18'])
+  })
+
   it('tops up a preset amount through Stripe, and never credits by itself', async () => {
     api.billingWallet.mockResolvedValue(wallet('3.00'))
     api.billingTopUp.mockReturnValue(new Promise(() => {}))

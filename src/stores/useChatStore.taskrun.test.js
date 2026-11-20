@@ -14,8 +14,8 @@ describe('task-run turn completion', () => {
     s._beginAssistant()
     expect(s.isStreaming).toBe(true)
 
-    // a multi-step task run begins (plan generated)
-    s._onEvent({ type: 'agent_plan_generated', step_count: 13, plan: { steps: [] } })
+    // a multi-step task run begins
+    s._onEvent({ type: 'agent_planning', message: 'planning…' })
     expect(s._taskRunActive).toBe(true)
 
     // step-0 narration "completes" — must keep the turn alive
@@ -46,7 +46,7 @@ describe('task-run turn completion', () => {
   it('shows the LAST streamed message as the final answer', () => {
     const s = useChatStore()
     s._beginAssistant()
-    s._onEvent({ type: 'agent_plan_generated', step_count: 2, plan: { steps: [] } })
+    s._onEvent({ type: 'agent_planning', message: 'planning…' })
     s._onEvent({ type: 'assistant_message_complete', full_message: 'intermediate' })
     s._onEvent({ type: 'assistant_message_complete', full_message: 'FINAL ANSWER' })
     s._onEvent({ type: 'agent_session_complete' })
@@ -63,24 +63,10 @@ describe('task-run turn completion', () => {
     expect(s.isStreaming).toBe(false)
   })
 
-  it('a display_only plan (native chat visibility) does NOT lock the turn', () => {
-    // Regression: the native chat path emits agent_plan_generated{display_only:true} purely to render
-    // the plan timeline. It must NOT flip _taskRunActive, or the turn would wait for an
-    // agent_session_complete that never comes and the composer would lock in steering mode forever.
-    const s = useChatStore()
-    s._beginAssistant()
-    s._onEvent({ type: 'agent_plan_generated', step_count: 4, display_only: true,
-      plan: { steps: [{ id: 1, description: 'a' }] } })
-    expect(s._taskRunActive).toBe(false)
-    // the single final message ends the turn normally
-    s._onEvent({ type: 'assistant_message_complete', full_message: 'Just say continue…' })
-    expect(s.isStreaming).toBe(false)
-  })
-
   it('a new turn resets the task-run flag', () => {
     const s = useChatStore()
     s._beginAssistant()
-    s._onEvent({ type: 'agent_plan_generated', step_count: 1, plan: { steps: [] } })
+    s._onEvent({ type: 'agent_planning', message: 'planning…' })
     s._onEvent({ type: 'agent_session_complete' })
     expect(s._taskRunActive).toBe(false)
     s._beginAssistant()

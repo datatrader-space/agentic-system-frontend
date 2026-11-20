@@ -185,6 +185,27 @@ describe('WorkTimeline', () => {
     }
   })
 
+  it('while a question or approval waits, the status line says "Waiting for you" with no clock', () => {
+    const w = mountIt({ finished: false, hasAnswer: false, running: true, statusLabel: 'Still working on it',
+                        tokens: 13500, startedAt: Date.now() - 82000 }, { pending: '<div class="q">3 questions</div>' })
+    const line = w.get('[data-test="wt-status"]')
+    expect(line.text()).toBe('Waiting for you')
+    expect(line.find('svg').exists()).toBe(false)
+    expect(w.text()).not.toContain('Still working on it')
+    w.unmount()
+  })
+
+  it('a question row shows no IN/OUT preview (its card shows it); opened, both are whole', async () => {
+    const w = mountIt({ steps: [{ stepId: 'step_q', toolCallId: 'q', tool: 'ASK_USER', title: 'Question',
+                                  label: 'Asking you a question', status: 'running',
+                                  input: { questions: [{ header: 'Stack', question: 'Which stack?' }] } }] })
+    expect(w.find('[data-test="wt-preview"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('"questions"')
+    await w.get('[data-test="wt-toggle"]').trigger('click')
+    expect(w.get('[data-test="wt-in"]').text()).toContain('Which stack?')
+    w.unmount()
+  })
+
   it('no status line once the turn has ended', () => {
     const w = mountIt()
     expect(w.find('[data-test="wt-status"]').exists()).toBe(false)

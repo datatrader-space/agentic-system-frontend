@@ -63,6 +63,10 @@ const TURN_ALIVE_TYPES = new Set([
   'agent_step_failed', 'source_citation', 'token_usage', 'todo_update',
 ])
 
+// The frames the run's event stream joins into one row per round (agent/runtime/durable_events.py,
+// COALESCED_TEXT_FIELD): the text and the reasoning as they are typed.
+const STREAMED_DELTAS = new Set(['assistant_message_chunk', 'reasoning_delta'])
+
 //: What the page sends after "Approve & run" (see `_resumeAfterPlan`).
 export const PLAN_APPROVED_CONTINUE = 'Approved. Carry out the approved plan, from its first step that is not done.'
 //: A second resume for the same approval inside this window is not sent (the server would refuse it).
@@ -270,6 +274,11 @@ export const useChatStore = defineStore('chat', {
     // the run's own `seq`). A reconnect asks for what came after it; an event at or below it is never applied
     // twice. Cleared when a conversation is opened from history: the page then has no turn on screen to continue.
     _runSeq: {},
+    // This turn's text or reasoning reached the page as it streamed (not from the run's stored events), and a frame
+    // being applied comes from those stored events: together they keep a followed run's live copy of the same text
+    // from being drawn twice (_applyRunEvents).
+    _heardDeltasLive: false,
+    _replaying: false,
 
     // A plan the run's older `plan_approval_required` frame paused on (not plan mode, whose plan is answered on its
     // `plan_approval` card). Feeds the "Waiting for approval" header and the WS resume mechanic only.
@@ -404,8 +413,7 @@ export const useChatStore = defineStore('chat', {
     //: True while this conversation's plan waits for the person's decision: the turn has ended on the plan card and
     //: nothing runs until they choose. The paused turn reads "Waiting for approval". A plan's progress after that is
     //: the task list's alone (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
-    planAwaitingApproval: (s) => !!s.pendingPlan
-      || (s.hitlRequests || []).some((r) => r && r.payload && r.payload.kind === 'plan_approval'),
+    planAwaitingApproval: (s) => !!s.pendingPlan,
     liveStatus: () => _tl.currentStatus.value,
     liveSteps: () => _tl.steps.value,
     liveSources: () => _tl.sources.value,
@@ -814,6 +822,8 @@ export const useChatStore = defineStore('chat', {
         // The memories this answer drew on ({ref, kind, text, via, id?, status?}) — shown as chips under
         // it, where a fact can be marked outdated or forgotten. Persisted on model_info like the rest.
         memories: pickArray(info.memories),
+        // The plan file this answer gave for review (plan mode): its file card under it.
+        planFile: info.plan_file || null,
         // The memories this turn really saved ("Saved to memory"), kept on the answer by the server.
         memoriesSaved: pickArray(info.memories_saved),
         // The mode the turn ran in, stamped on the saved answer (backend `turn_metadata`): a Work answer is drawn on
@@ -1870,6 +1880,7 @@ export const useChatStore = defineStore('chat', {
             ? pickArray(m.model_info.chat_actions) : ((_prev && _prev.chatActions) || []),
           memories: pickArray(m.model_info && m.model_info.memories).length
             ? pickArray(m.model_info.memories) : ((_prev && _prev.memories) || []),
+          planFile: (m.model_info && m.model_info.plan_file) || (_prev && _prev.planFile) || null,
           // The server's saved list plus any save shown live that the row does not hold yet (a learner's save).
           memoriesSaved: mergeSavedMemories(m.model_info && m.model_info.memories_saved,
             _prev && _prev.memoriesSaved),
@@ -1928,6 +1939,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _beginAssistant() {
+      this._heardDeltasLive = false   // a new turn has streamed nothing to this page yet
       this._recovering = false   // fresh turn must never inherit a stale "reconnecting" state
       this._stopProgressPolling()   // nor a poll left over from a previous turn's resume
       this._taskRunActive = false   // a new turn hasn't entered a multi-step task run yet
@@ -2112,7 +2124,9 @@ export const useChatStore = defineStore('chat', {
       if (!msg.live && before === 0 && onScreen && events.some((e) => replayedFrame(e, cid) && Number(e.seq) > 0)) {
         const m = this._cur()
         if (m) { m.content = ''; _think.reset() }
+        const began = _tl.startedAt.value              // the turn's own start (turn_resumed), kept through the rebuild
         _tl.reset(_tl.mode.value)
+        if (began) _tl.startedAt.value = began
       }
       let last = before
       for (const e of events) {
@@ -2126,7 +2140,15 @@ export const useChatStore = defineStore('chat', {
         if (!onScreen) continue
         const frame = replayedFrame(e, cid)
         if (!frame) continue
-        try { this._onEvent(frame) } catch (_e) { /* one bad frame never stops the catch-up */ }
+        // A FOLLOWED run's typing, sent live, is the stored copy of text this page already drew as it streamed: the
+        // store joins a round's chunks into one `replace` row, so drawing it opened the round a second time and showed
+        // every sentence twice ("Got | Got it — … it — …", phase 8 run 5, 2026-11-20). Drawn only when nothing streamed
+        // here (a run that sends no live frames to the person's tabs); the catch-up after a reload is drawn in full.
+        if (msg.live && this._heardDeltasLive && STREAMED_DELTAS.has(frame.type)) continue
+        this._replaying = true
+        try { this._onEvent(frame) } catch (_e) { /* one bad frame never stops the catch-up */ } finally {
+          this._replaying = false
+        }
       }
       if (last !== before) this._runSeq = { ...this._runSeq, [cid]: last }
       // A long run comes in pages: ask again from the last one received.
@@ -2170,15 +2192,20 @@ export const useChatStore = defineStore('chat', {
       // A turn the run host runs (LONG_RUN_LIKE_CLAUDE_CODE_PLAN.md phase 1c) has no socket: every frame it sends comes
       // over the user group, which carries every open tab, marked `via_user_group` by the server. One addressed to
       // another conversation is dropped BEFORE the surface sees it, so a project chat's changed files, preview link or
-      // permission card never reach another chat's panel.
-      if (msg?.via_user_group === true && msg.conversation_id != null && this.conversationId != null &&
-          String(msg.conversation_id) !== String(this.conversationId)) {
+      // permission card never reach another chat's panel. A NEW chat (no conversation yet) has no turn of its own: its
+      // conversation is made before its first message is sent (`ensureConversation`), so every such frame is another
+      // chat's. It used to be let through, and a project chat's resumed turn was drawn in a new chat (live, 2026-11-19).
+      if (msg?.via_user_group === true && msg.conversation_id != null && msg.conversation_id !== '' &&
+          String(msg.conversation_id) !== String(this.conversationId ?? '')) {
         return
       }
       if (t === 'run_events_replay') {
         this._applyRunEvents(msg)
         return
       }
+      // This turn's typing reached the page as it streamed (its own socket, or `work_stream` over the user group): the
+      // run's stored copy of the same text, which a followed run also sends live, is not drawn again (_applyRunEvents).
+      if (STREAMED_DELTAS.has(t) && !this._replaying) this._heardDeltasLive = true
       if (this.surfaceHandler) {
         try { if (this.surfaceHandler(msg)) return } catch (_e) { /* a surface's card must never break the chat */ }
       }
@@ -2355,6 +2382,27 @@ export const useChatStore = defineStore('chat', {
           this._errAssistant(msg.error || 'That voice note could not be sent. Record it again.', false, true)
           break
         }
+        case 'plan_ready': {
+          // PLAN MODE (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md): the answer just saved gives a plan for review. Its file card
+          // goes under it, and the plan opens beside the chat by itself on a wide screen (the card opens it on a phone).
+          if (msg.conversation_id != null && String(msg.conversation_id) !== String(this.conversationId)) break
+          const target = (msg.message_id != null
+            && this.messages.find((x) => x.role === 'assistant' && String(x.serverId ?? x.id) === String(msg.message_id)))
+            || m || [...this.messages].reverse().find((x) => x.role === 'assistant')
+          if (!target || !msg.plan_file || !msg.plan_file.path) break
+          target.planFile = msg.plan_file
+          const wide = typeof window !== 'undefined' && window.matchMedia
+            && window.matchMedia('(min-width: 1024px)').matches
+          usePlanReviewStore().show(msg.plan_file, this.conversationId, { openPanel: !!wide })
+          break
+        }
+        case 'plan_reply': {
+          // The person's message approved the plan that waited for it: plan mode is over, so the composer leaves it
+          // (back to Chat or Work), as Claude Code does. A change or a question keeps plan mode.
+          if (msg.conversation_id != null && String(msg.conversation_id) !== String(this.conversationId)) break
+          if (msg.decision === 'approve') this.leavePlanMode()
+          break
+        }
         case 'memories_used': {
           // The memories the answer drew on, sent once the answer is saved (its pk is in the frame).
           const target = (msg.message_id != null
@@ -2398,6 +2446,10 @@ export const useChatStore = defineStore('chat', {
           if (_afterRestart) this.runHostRestarting = false
           if (!this.isStreaming) this._beginAssistant()
           this._turnAliveAt = Date.now()   // the server has just said this turn is running
+          // The status line's clock counts from when the TURN began, not from when this page opened: a reload showed
+          // "Working… (10s)" on a turn five minutes in (phase 8 run 5). The server's snapshot says how long it has run.
+          const _ran = Number(msg.progress && msg.progress.elapsed_seconds)
+          if (Number.isFinite(_ran) && _ran > 0) _tl.startedAt.value = Date.now() - _ran * 1000
           const rm = this._cur()
           if (rm) { rm.reconnecting = false; rm.prepStatus = resumeStatusLine(msg.progress, msg.status) }
           if (rm && msg.turn_id) rm._serverTurn = msg.turn_id   // its `run_finished` names this turn
@@ -2640,16 +2692,6 @@ export const useChatStore = defineStore('chat', {
           // An MCP client's approval ("mcp:<session>") belongs to no chat: it is answered on the Sessions page.
           if (_hcid.startsWith('mcp:')) break
           if (_hcid && _hcid !== String(this.conversationId || '')) break
-          // Plan mode's card: its run's plan is answered HERE, so a `plan_approval_required` for it is not a second card.
-          if (msg.payload && msg.payload.kind === 'plan_approval') {
-            this.pendingPlan = null
-            // The plan is read BESIDE the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md): it opens there by itself on a wide
-            // screen; on a phone the card's "Open the plan" opens it.
-            const wide = typeof window !== 'undefined' && window.matchMedia
-              && window.matchMedia('(min-width: 1024px)').matches
-            usePlanReviewStore().show({ request_id: msg.request_id, payload: msg.payload }, _hcid || this.conversationId,
-              { openPanel: !!wide })
-          }
           // A PARKED approval (phase 2b, agent/services/hitl/parked_approvals.py): a run nobody watched stopped
           // before this step and ended its turn; the person's answer continues it. No clock, no "for the session".
           const _parked = !!(msg.payload && msg.payload.parked === true)
@@ -2838,14 +2880,6 @@ export const useChatStore = defineStore('chat', {
         case 'agent_planning':
           this._taskRunActive = true   // a multi-step task run is in progress
           break
-        case 'agent_plan_generated':
-          // A `display_only` plan comes from the native chat path purely to render the plan in the
-          // timeline — it is NOT a multi-step TASK run and this turn ends on assistant_message_complete
-          // (no agent_session_complete follows). Flipping _taskRunActive here would suppress that end
-          // signal and lock the composer in steering mode forever. Only real task runs (no display_only)
-          // set the flag.
-          if (!msg.display_only) this._taskRunActive = true
-          break
         case 'agent_session_complete':
         case 'agent_session_stopped':
         case 'agent_session_error': {
@@ -2873,12 +2907,11 @@ export const useChatStore = defineStore('chat', {
         // frame after it. Left streaming, the page kept a spinning "Working" and a Stop button over a plan
         // that waited for the person (prod conv 2814, 2026-10-15).
         case 'plan_approval_required': {
-          // PLAN MODE: the plan is answered on its `plan_approval` card (a `hitl_request` that keeps the turn open),
-          // so the run's older event for the same plan is display-only. Pausing here would end the turn under the card.
+          // PLAN MODE: the plan is a message in the chat with its file (`plan_ready`), answered by the person's next
+          // message, so the run's older event for the same plan is display-only. Pausing here would add a second plan.
           const _p = msg.plan || {}
           const _review = usePlanReviewStore().review
           const _planMode = this._planModeTurn
-            || this.hitlRequests.some((r) => r.payload && r.payload.kind === 'plan_approval')
             || !!(_review && _review.runId && String(_review.runId) === String(_p.run_id || msg.run_id || ''))
           if (_planMode) break
           this.pendingPlan = _p

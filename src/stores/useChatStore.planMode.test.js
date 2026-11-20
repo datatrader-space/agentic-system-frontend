@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// Plan mode (backend phase 4): the composer sends `turn_mode: "plan"`, the plan comes as a `plan_approval` card, it is
-// answered with `hitl_response`, the run's older `plan_approval_required` for the same plan is display-only, and a
-// call plan mode refused (`tool_blocked`, reason `plan_mode`) reads "Not run: plan mode only reads", never a failure.
+// Plan mode (backend phase 4; the plan as a message, owner 2026-11-19): the composer sends `turn_mode: "plan"`, the
+// plan comes as the answer's file (`plan_ready`), the person answers it with a message and `plan_reply` says what it
+// was, the run's older `plan_approval_required` for the same plan is display-only, and a call plan mode refused
+// (`tool_blocked`, reason `plan_mode`) reads "Not run: plan mode only reads", never a failure.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useChatStore } from './useChatStore'
@@ -15,18 +16,18 @@ vi.mock('../services/api', () => ({
   },
 }))
 
-const planCard = (over = {}) => ({
-  type: 'hitl_request', request_id: 'pr1', conversation_id: 'c1', interaction_type: 'approval', response_type: 'choice',
-  payload: {
-    kind: 'plan_approval', request_id: 'pr1', run_id: 'run-9', plan_version_id: 'pv-3', conversation_id: 'c1',
-    plan_file: { path: '.aadml/plans/plan.md', surface: 'lets_code', content: '# Plan\n\n1. Read' },
-    steps: [{ id: 's1', description: 'Read the views' }],
-    answers: [{ id: 'run_on_its_own', title: 'Run it on its own' }, { id: 'ask_before_each_change', title: 'Ask before each change' },
-              { id: 'keep_planning', title: 'Keep planning' }],
-    notes_answer: 'keep_planning', person_only: true,
-    ...over,
-  },
+const planReady = (over = {}) => ({
+  type: 'plan_ready', message_id: 91, conversation_id: 'c1',
+  plan_file: { path: 'docs/plans/2026-11-19-add-a-login-page-1a2b3c4d.md', surface: 'lets_code',
+               content: '# Plan\n\n1. Read', run_id: 'run-9', plan_version_id: 'pv-3' },
+  ...over,
 })
+
+function withAnswer(chat) {
+  chat.conversationId = 'c1'
+  chat.messages = [{ id: 'u1', role: 'user', content: 'plan it', status: 'done' },
+                   { id: 'a1', serverId: 91, role: 'assistant', content: 'Two steps.', status: 'done' }]
+}
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -53,80 +54,74 @@ describe('plan mode: sending', () => {
   })
 })
 
-describe('plan mode: the card', () => {
-  it('queues the plan_approval card with its payload and keeps the turn open', () => {
+describe('plan mode: the plan as a message', () => {
+  it('the saved answer gets its plan file, and the plan is shown for review with its run', () => {
     const chat = useChatStore()
-    chat.conversationId = 'c1'
-    chat._beginAssistant()
-    chat._onEvent(planCard())
-    expect(chat.hitlRequests).toHaveLength(1)
-    expect(chat.hitlRequests[0].payload.kind).toBe('plan_approval')
-    expect(chat.awaitingApproval).toBe(true)
-    expect(chat.isStreaming).toBe(true)
-    // The plan is shown for review beside the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md), with its run.
+    withAnswer(chat)
+    chat._onEvent(planReady())
+    expect(chat.messages[1].planFile.path).toBe('docs/plans/2026-11-19-add-a-login-page-1a2b3c4d.md')
+    expect(chat.hitlRequests).toHaveLength(0)
     const review = usePlanReviewStore().forConversation('c1')
-    expect(review).toMatchObject({ requestId: 'pr1', runId: 'run-9', path: '.aadml/plans/plan.md',
-                                   content: '# Plan\n\n1. Read', steps: ['Read the views'], answer: '' })
+    expect(review).toMatchObject({ runId: 'run-9', path: 'docs/plans/2026-11-19-add-a-login-page-1a2b3c4d.md',
+                                   content: '# Plan\n\n1. Read' })
   })
 
   it('opens the plan beside the chat by itself on a wide screen, not on a phone', () => {
     const wide = (on) => vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: on })))
     wide(true)
     const chat = useChatStore()
-    chat.conversationId = 'c1'
-    chat._onEvent(planCard())
+    withAnswer(chat)
+    chat._onEvent(planReady())
     expect(usePlanReviewStore().open).toBe(true)
     setActivePinia(createPinia())
     wide(false)
     const phone = useChatStore()
-    phone.conversationId = 'c1'
-    phone._onEvent(planCard())
+    withAnswer(phone)
+    phone._onEvent(planReady())
     expect(usePlanReviewStore().open).toBe(false)
-    expect(usePlanReviewStore().forConversation('c1')).not.toBe(null)   // "Open the plan" opens it
+    expect(usePlanReviewStore().forConversation('c1')).not.toBe(null)   // its file card opens it
     vi.unstubAllGlobals()
   })
 
-  it('a plan of another chat is never shown here', () => {
+  it('a plan of another chat is never taken here', () => {
     const chat = useChatStore()
-    chat.conversationId = 'c1'
-    chat._onEvent(planCard())
-    expect(usePlanReviewStore().forConversation('c2')).toBe(null)
+    withAnswer(chat)
+    chat.conversationId = 'c2'
+    chat._onEvent(planReady())
+    expect(chat.messages[1].planFile).toBeUndefined()
+    expect(usePlanReviewStore().forConversation('c1')).toBe(null)
   })
 
-  it('after the card is answered, a late plan_approval_required of that run still pauses nothing', () => {
+  it('a reloaded answer keeps its plan file (model_info.plan_file)', () => {
+    const chat = useChatStore()
+    const m = chat._mapServerMessage({ id: 91, role: 'assistant', content: 'Two steps.',
+                                       model_info: { plan_file: { path: 'plans/r.md', content: '# P' } } }, 'c1')
+    expect(m.planFile).toEqual({ path: 'plans/r.md', content: '# P' })
+  })
+
+  it('a reply that approved the plan leaves Plan mode; a change keeps it', () => {
     const chat = useChatStore()
     chat.conversationId = 'c1'
+    chat.setTurnMode('plan')
+    chat._onEvent({ type: 'plan_reply', decision: 'change', conversation_id: 'c1' })
+    expect(chat.turnMode).toBe('plan')
+    chat._onEvent({ type: 'plan_reply', decision: 'approve', conversation_id: 'c2' })
+    expect(chat.turnMode).toBe('plan')
+    chat._onEvent({ type: 'plan_reply', decision: 'approve', conversation_id: 'c1' })
+    expect(chat.turnMode).toBe('chat')
+  })
+
+  it('the old plan_approval_required for the plan just given is display-only: no pause', () => {
+    const chat = useChatStore()
+    withAnswer(chat)
+    chat._onEvent(planReady())
     chat._beginAssistant()
-    chat._onEvent(planCard())
-    chat.hitlRequests = []                                              // the card was answered
-    chat._onEvent({ type: 'plan_approval_required', plan: { run_id: 'run-9', steps: [] } })
-    expect(chat.pendingPlan).toBe(null)
-    expect(chat.isStreaming).toBe(true)
-  })
-
-  it('the answer goes back as hitl_response with the answer id and the notes', () => {
-    const chat = useChatStore()
-    const sendHitlResponse = vi.fn()
-    chat._conn = { sendHitlResponse }
-    chat.conversationId = 'c1'
-    chat._onEvent(planCard())
-    chat.respondHitl({ request_id: 'pr1', response_value: 'keep_planning', feedback: 'tests first' })
-    expect(sendHitlResponse).toHaveBeenCalledWith('pr1', 'keep_planning', 'tests first')
-    expect(chat.hitlRequests).toHaveLength(0)
-  })
-
-  it('the old plan_approval_required for the same plan is display-only: no second card, no pause', () => {
-    const chat = useChatStore()
-    chat.conversationId = 'c1'
-    chat._beginAssistant()
-    chat._onEvent(planCard())
     chat._onEvent({ type: 'plan_approval_required', plan: { run_id: 'run-9', plan_version_id: 'pv-3', steps: [] } })
     expect(chat.pendingPlan).toBe(null)
     expect(chat.isStreaming).toBe(true)
-    expect(chat.hitlRequests).toHaveLength(1)
   })
 
-  it('arriving BEFORE the card in a plan-mode turn it is display-only too, and the card clears it', async () => {
+  it('arriving in a plan-mode turn before the plan it is display-only too', async () => {
     const chat = useChatStore()
     chat._conn = { sendMessage: vi.fn() }
     chat.conversationId = 'c1'
@@ -145,13 +140,6 @@ describe('plan mode: the card', () => {
     chat._onEvent({ type: 'plan_approval_required', plan: { run_id: 'run-1', steps: [] } })
     expect(chat.pendingPlan).toEqual({ run_id: 'run-1', steps: [] })
     expect(chat.isStreaming).toBe(false)
-  })
-
-  it('a plan card for another conversation is not shown here', () => {
-    const chat = useChatStore()
-    chat.conversationId = 'c2'
-    chat._onEvent(planCard())
-    expect(chat.hitlRequests).toHaveLength(0)
   })
 })
 

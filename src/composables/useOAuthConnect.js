@@ -55,7 +55,7 @@ export async function connectOAuth(api, providerSlug, opts = {}) {
         const response = await api.startConnection(providerSlug, opts)
         return response.data?.redirect_url
       } catch (error) {
-        throw new Error(error?.response?.data?.error || 'Failed to start connection')
+        throw new Error(error?.response?.data?.error || 'Failed to start connection', { cause: error })
       }
     },
     {

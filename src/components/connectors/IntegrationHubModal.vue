@@ -643,7 +643,7 @@ async function startRegisteredServiceOAuth(reg, name) {
       return data?.redirect_url
     } catch (e) {
       const err = e?.response?.data
-      throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+      throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection', { cause: e })
     }
   }, {
     name: 'oauth_popup',
@@ -767,7 +767,7 @@ async function connectMcpOAuth() {
       try {
         ({ data } = await api.mcpOauthInitiate({ server_id: srv.id }))
       } catch (e) {
-        throw new Error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
+        throw new Error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.', { cause: e })
       }
       const url = data && data.authorize_url
       if (!url) throw new Error('No authorization URL returned.')

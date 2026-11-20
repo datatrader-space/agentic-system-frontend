@@ -517,6 +517,23 @@ describe('UnifiedAgentChat: the chats are editor tabs, several running at once (
     w.unmount()
   })
 
+  it('a reopened tab keeps its words, and the server\'s "Chat with <agent>" never names a chat (phase 8 run 5)', async () => {
+    const api = await open()
+    api.getConversations.mockResolvedValueOnce({ data: [
+      { id: 88, title: 'Chat with Coding Agent', last_message: { content: 'Done: RUNNING.md added' } },
+      { id: 70, title: 'Chat with Coding Agent' }] })
+    localStorage.setItem('aadml.lc.tabs.14', JSON.stringify({ ids: ['70', '88'], labels: { 70: 'Build the store' }, active: '88' }))
+    const w = await mountChat()
+    expect(ctl.title(ctl.tabs[0])).toBe('Build the store')               // kept with the tab
+    chat.conversationId = '70'                                             // another tab in front: 88 is named by history
+    expect(ctl.title(ctl.tabs[1])).toBe('Done: RUNNING.md added')
+    ctl.tabs[1].label = 'Add a RUNNING.md'
+    await ctl.select(ctl.tabs[1])
+    await flushPromises()
+    expect(JSON.parse(localStorage.getItem('aadml.lc.tabs.14')).labels).toEqual({ 70: 'Build the store', 88: 'Add a RUNNING.md' })
+    w.unmount()
+  })
+
   it('closing a tab never stops its chat; closing the last one puts the files in front', async () => {
     const api = await open()
     api.getConversations.mockResolvedValueOnce({ data: [{ id: 88 }, { id: 70 }] })

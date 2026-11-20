@@ -437,9 +437,13 @@ function tabState(t) {
 }
 const STATE_WORDS = { working: 'Working', needs_input: 'Needs your answer', done: 'Finished', failed: 'Failed', idle: 'Idle' }
 function tabStateLabel(t) { return STATE_WORDS[tabState(t)] || 'Idle' }
+// Each tab's words are kept with it: a reload or a second browser tab showed the server's "Chat with Coding Agent" for
+// every chat but the one on screen (phase 8 run 5, 2026-11-20).
 function saveTabs() {
   try {
-    localStorage.setItem(TABS_KEY(), JSON.stringify({ ids: tabsStore.tabs.filter((t) => t.id).map((t) => t.id),
+    const open = tabsStore.tabs.filter((t) => t.id)
+    localStorage.setItem(TABS_KEY(), JSON.stringify({ ids: open.map((t) => t.id),
+                                                       labels: Object.fromEntries(open.filter((t) => t.label).map((t) => [t.id, t.label])),
                                                        active: chat.conversationId || null }))
   } catch { /* private window: the tabs are not remembered */ }
 }
@@ -548,8 +552,12 @@ async function openConversation(c) {
 }
 // The server names a chat it has no title for "New Conversation": that is no title, so its last message names it.
 const GENERIC_TITLES = new Set(['new conversation', 'new chat', 'untitled chat'])
+// A chat made before 2026-11-20 may still be titled "Chat with <agent>"; it says nothing about the chat. (The server
+// now titles every chat from its first message: agent/services/conversation_title.py.)
+const DEFAULT_TITLE = /^chat with /i
 function convTitle(c) {
-  if (c.title && c.title.trim() && !GENERIC_TITLES.has(c.title.trim().toLowerCase())) return c.title.trim()
+  const title = (c.title || '').trim()
+  if (title && !GENERIC_TITLES.has(title.toLowerCase()) && !DEFAULT_TITLE.test(title)) return title
   const lm = c.last_message && c.last_message.content
   return lm ? lm.slice(0, 60) : 'Untitled chat'
 }
@@ -603,7 +611,8 @@ async function resumeLastChat() {
     const named = addressedChat != null && known.has(addressedChat) ? addressedChat : null
     if (named && !ids.includes(named)) ids.push(named)
     if (ids.length) {
-      tabsStore.tabs = ids.map((id) => newTab(id))
+      const labels = (saved && saved.labels && typeof saved.labels === 'object') ? saved.labels : {}
+      tabsStore.tabs = ids.map((id) => ({ ...newTab(id), label: String(labels[id] || '') }))
       const active = named || (saved && saved.active && ids.includes(String(saved.active)) ? String(saved.active)
         : ids[ids.length - 1])
       await openConversation({ id: active })

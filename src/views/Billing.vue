@@ -171,7 +171,12 @@ const balanceState = computed(() => {
 })
 
 function pick(p) { picked.value = String(p); custom.value = ''; touched.value = false }
-function money(v) { const n = Number(v); return `${n >= 0 ? '+' : '−'}$${fmt(Math.abs(n))}` }
+// A charge too small to show in four places is still a charge: "−<$0.0001", never "−$0.0000" (an embedding costs
+// about $0.000003; phase 8 run 5).
+function money(v) {
+  const n = Number(v), a = Math.abs(n), sign = n >= 0 ? '+' : '−'
+  return a > 0 && a < 0.0001 ? `${sign}<$0.0001` : `${sign}$${fmt(a)}`
+}
 function fmt(n) { return n >= 0.01 || n === 0 ? n.toFixed(2) : n.toFixed(4) }
 function iconFor(e) {
   if (e.kind === 'charge') return USAGE_ICON[e.usage_kind] || Bot

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The plan under review, read beside the chat (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md): the plan file rendered whole as safe
-// markdown, its steps when no file reached the page, its state; the chat's dock carries it as a "Plan" tab that comes
-// to the front when a plan is ready and closes with the dock's X.
+// markdown; the chat's dock carries it as a "Plan" tab that comes to the front when a plan is opened and closes with the
+// dock's X.
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -10,63 +10,52 @@ import ChatDock from './ChatDock.vue'
 import { usePlanReviewStore } from '../../stores/usePlanReviewStore'
 import { useChatStore } from '../../stores/useChatStore'
 
-const request = (over = {}) => ({
-  request_id: 'pr1',
-  payload: {
-    kind: 'plan_approval', run_id: 'run-9',
-    plan_file: { path: 'plans/run-9.md', content: '# Login page\n\nAdd **a form**.\n\n<img src=x onerror=alert(1)>' },
-    steps: [{ id: 's1', description: 'Read the routes' }, { id: 's2', description: 'Add the form' }],
-    ...over,
-  },
+const planFile = (over = {}) => ({
+  path: 'plans/run-9.md', run_id: 'run-9', plan_version_id: 'v1',
+  content: '# Login page\n\nAdd **a form**.\n\n<img src=x onerror=alert(1)>',
+  ...over,
 })
 
 describe('PlanPreviewPanel', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('renders the plan file whole as markdown, never raw HTML, with its path and state', () => {
-    usePlanReviewStore().show(request(), 'c1')
+  it('renders the plan file whole as markdown, never raw HTML, with its path', () => {
+    usePlanReviewStore().show(planFile(), 'c1')
     const w = mount(PlanPreviewPanel, { props: { conversationId: 'c1' }, global: { stubs: { Icon: true } } })
     const doc = w.find('[data-test="ppp-content"]')
     expect(doc.find('h1').text()).toBe('Login page')
     expect(doc.find('strong').text()).toBe('a form')
     expect(doc.find('img').exists()).toBe(false)
     expect(w.text()).toContain('plans/run-9.md')
-    expect(w.find('[data-test="ppp-state"]').text()).toBe('Waiting for you')
-    usePlanReviewStore().answered('pr1', 'Plan approved: ask me before risky changes')
-    return w.vm.$nextTick().then(() => expect(w.find('[data-test="ppp-state"]').text()).toBe('Answered'))
-  })
-
-  it('shows the steps when no plan file reached the page', () => {
-    usePlanReviewStore().show(request({ plan_file: {} }), 'c1')
-    const w = mount(PlanPreviewPanel, { props: { conversationId: 'c1' }, global: { stubs: { Icon: true } } })
-    expect(w.findAll('[data-test="ppp-steps"] li').map((l) => l.text())).toEqual(['Read the routes', 'Add the form'])
   })
 
   it('never shows another conversation\'s plan', () => {
-    usePlanReviewStore().show(request(), 'c1')
+    usePlanReviewStore().show(planFile(), 'c1')
     const w = mount(PlanPreviewPanel, { props: { conversationId: 'c2' }, global: { stubs: { Icon: true } } })
     expect(w.find('[data-test="ppp-content"]').exists()).toBe(false)
     expect(w.text()).toContain('No plan to show yet')
   })
 
-  it('a new plan replaces the last one and clears its answer; the same request again changes nothing', () => {
+  it('a new version of the plan replaces the last one; the same plan again changes nothing; no path, nothing', () => {
     const plans = usePlanReviewStore()
-    plans.show(request(), 'c1')
-    plans.answered('pr1', 'Changes sent: the agent is planning again')
-    plans.show(request(), 'c1')
-    expect(plans.review.answer).toBe('Changes sent: the agent is planning again')
-    plans.show({ request_id: 'pr2', payload: { plan_file: { path: 'plans/run-9.md', content: '# v2' } } }, 'c1')
-    expect(plans.review).toMatchObject({ requestId: 'pr2', content: '# v2', answer: '' })
+    plans.show(planFile(), 'c1')
+    const first = plans.review
+    plans.show(planFile(), 'c1')
+    expect(plans.review).toBe(first)
+    plans.show(planFile({ plan_version_id: 'v2', content: '# v2' }), 'c1')
+    expect(plans.review).toMatchObject({ runId: 'run-9', path: 'plans/run-9.md', content: '# v2' })
+    plans.show({ content: 'x' }, 'c1')
+    expect(plans.review.content).toBe('# v2')
   })
 })
 
 describe('the plan under review: opened by itself or asked for', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('a plan that opens by itself is not "asked for"; "Open the plan" is, and closing clears both', () => {
-    // Let's Code shares one pane between the chat and the editor: only an asked-for plan takes it, so the card stays.
+  it('a plan that opens by itself is not "asked for"; the file card is, and closing clears both', () => {
+    // Let's Code shares one pane between the chat and the editor: only an asked-for plan takes it, so the chat stays.
     const plans = usePlanReviewStore()
-    plans.show(request(), 'c1', { openPanel: true })
+    plans.show(planFile(), 'c1', { openPanel: true })
     expect([plans.open, plans.focus]).toEqual([true, false])
     plans.closePanel()
     plans.openPanel()
@@ -83,7 +72,7 @@ describe('ChatDock — the Plan tab', () => {
   it('comes to the front when the plan is opened, and the X closes it', async () => {
     useChatStore().conversationId = 'c1'
     const plans = usePlanReviewStore()
-    plans.show(request(), 'c1', { openPanel: true })
+    plans.show(planFile(), 'c1', { openPanel: true })
     const w = mount(ChatDock, { global: { stubs } })
     const tab = w.find('[data-test="dock-tab-plan"]')
     expect(tab.exists()).toBe(true)
@@ -95,7 +84,7 @@ describe('ChatDock — the Plan tab', () => {
 
   it('has no Plan tab for a plan of another chat, or when no plan is open', () => {
     useChatStore().conversationId = 'c2'
-    usePlanReviewStore().show(request(), 'c1', { openPanel: true })
+    usePlanReviewStore().show(planFile(), 'c1', { openPanel: true })
     expect(mount(ChatDock, { global: { stubs } }).find('[data-test="dock-tab-plan"]').exists()).toBe(false)
   })
 })

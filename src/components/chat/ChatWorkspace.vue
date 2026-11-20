@@ -101,18 +101,6 @@
           <HITLModal inline :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl"
                      @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
         </template>
-        <!-- A Chat or Plan turn's plan card, where the run paused: in the conversation, never floating over it. The plan
-             is read beside the chat (the Plan tab). Once answered, one line says what was chosen
-             (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). A Work turn's card is on its rail, above. -->
-        <template v-if="(planRequest && !chat.latestTurnIsWork) || answeredPlan" #after-thread>
-          <PlanModeCard v-if="planRequest && !chat.latestTurnIsWork" :request="planRequest"
-                        :conversation-id="chat.conversationId" @respond="chat.respondHitl" />
-          <p v-else-if="answeredPlan" class="plan-answered" data-test="plan-answered">
-            <Icon icon="lucide:clipboard-check" aria-hidden="true" />
-            <span>{{ answeredPlan.answer }}</span>
-            <button type="button" class="plan-answered-open" data-test="plan-answered-open" @click="planReview.openPanel()">View plan</button>
-          </p>
-        </template>
       </ChatMessageList>
     </div>
 
@@ -156,7 +144,7 @@
          max-steps pause-and-ask (Stop / Continue / Continue-for-chat) — same hitl_request mechanism. -->
     <HITLModal
       v-if="!(chat.latestTurnIsWork && !showWelcome)"
-      :requests="overlayRequests"
+      :requests="chat.hitlRequests"
       :show-stop="true"
       @respond="chat.respondHitl"
       @dismiss="chat.dismissHitl"
@@ -210,8 +198,6 @@ import { useChatStore } from '../../stores/useChatStore'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { usePlanReviewStore } from '../../stores/usePlanReviewStore'
-import PlanModeCard from './PlanModeCard.vue'
-import { Icon } from '@iconify/vue'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import { useBrowserStore } from '../../stores/useBrowserStore'
 import BrowserCard from '../browser/BrowserCard.vue'
@@ -309,15 +295,6 @@ const browserView = browser.attach()
 const route = useRoute()
 const router = useRouter()
 
-// The plan the run paused on (plan mode): its card goes in the conversation, not in the floating approval overlay,
-// which keeps every other card. After the answer, one line remains (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
-const isPlanRequest = (r) => !!(r && r.payload && r.payload.kind === 'plan_approval')
-const planRequest = computed(() => (chat.hitlRequests || []).find(isPlanRequest) || null)
-const overlayRequests = computed(() => (chat.hitlRequests || []).filter((r) => !isPlanRequest(r)))
-const answeredPlan = computed(() => {
-  const r = planReview.forConversation(chat.conversationId)
-  return r && r.answer && !planRequest.value ? r : null
-})
 // Chat history drawer (collapsed by default; agent-scoped — see ChatHistoryDrawer.vue).
 const historyOpen = ref(false)
 

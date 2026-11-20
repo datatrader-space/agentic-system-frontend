@@ -282,7 +282,7 @@ function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelectio
 // this page's panel, so the request is taken and the flag cleared.
 const chat = useChatStore()
 const planReview = usePlanReviewStore()
-watch(() => [planReview.open, planReview.review && planReview.review.requestId, codeBrowser.value], ([open]) => {
+watch(() => [planReview.open, planReview.review && planReview.review.key, codeBrowser.value], ([open]) => {
   const review = open ? planReview.forConversation(chat.conversationId) : null
   if (!review || !codeBrowser.value) return
   codeBrowser.value.openMarkdownPreview(review.path || 'plan.md', review.content, { focus: planReview.focus })

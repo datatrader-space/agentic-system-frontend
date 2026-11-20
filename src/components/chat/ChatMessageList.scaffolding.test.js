@@ -70,24 +70,3 @@ describe('ChatMessageList — run scaffolding', () => {
     expect(w.find('.msg-plan').exists()).toBe(false)
   })
 })
-
-describe('ChatMessageList — what the run waits on, where the thread ends', () => {
-  it('draws the after-thread slot in the flow, after the last message, and nothing when it is empty', async () => {
-    const { setActivePinia, createPinia } = await import('pinia')
-    const { mount } = await import('@vue/test-utils')
-    const { useChatStore } = await import('../../stores/useChatStore')
-    const ChatMessageList = (await import('./ChatMessageList.vue')).default
-    setActivePinia(createPinia())
-    const chat = useChatStore()
-    chat.messages = [{ id: 'u1', role: 'user', content: 'plan it' }, { id: 'a1', role: 'assistant', content: '', status: 'done' }]
-    const withCard = mount(ChatMessageList, { global: { stubs: { ChatMessage: true } },
-      slots: { 'after-thread': '<section class="stub-plan-card">Plan ready for review</section>' } })
-    const after = withCard.find('[data-test="msg-after-thread"]')
-    expect(after.exists()).toBe(true)
-    expect(after.text()).toContain('Plan ready for review')
-    const inner = withCard.find('.msg-list-inner').element
-    expect(inner.lastElementChild).toBe(after.element)                      // after every message
-    const without = mount(ChatMessageList, { global: { stubs: { ChatMessage: true } } })
-    expect(without.find('[data-test="msg-after-thread"]').exists()).toBe(false)
-  })
-})

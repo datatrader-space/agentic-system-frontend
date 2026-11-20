@@ -39,9 +39,6 @@
         <!-- A surface's own cards for this message (Let's Code: the proposed diff, the running app's preview). -->
         <slot name="after-message" :message="m" />
       </template>
-      <!-- Where the thread ends: what the run is waiting on, in the conversation's flow (the plan card of a Chat or
-           Plan turn, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md). -->
-      <div v-if="$slots['after-thread']" class="msg-after" data-test="msg-after-thread"><slot name="after-thread" /></div>
 
       </div>
     </div>
@@ -284,7 +281,7 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
    28px top gap was sized for a desktop header that is no longer 22px tall here. */
 @media (max-width: 640px) {
   .msg-list-inner { padding: 14px 10px 10px; }
-  .msg-after, .load-earlier { margin-bottom: 14px; }
+  .load-earlier { margin-bottom: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -295,8 +292,6 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 }
 /* What the run waits on where the thread ends (a plan card), in the same centered column as the messages. It flows
    with the conversation: never sticky, never over it. */
-.msg-after { max-width: 760px; margin: 0 auto 22px; }
-.msg-after:empty { display: none; }
 
 /* "Load earlier messages" — top of the thread, same centered column as the bubbles. */
 .load-earlier { max-width: 760px; margin: 0 auto 18px; display: flex; justify-content: center; }

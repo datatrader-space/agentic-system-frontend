@@ -41,7 +41,7 @@ export async function connectGithubService(api, { switchAccount = false } = {}) 
       url = (await api.startOAuth(serviceId)).data?.redirect_url
     } catch (e) {
       const err = e?.response?.data
-      throw new Error(err?.detail || err?.error || 'Could not start the GitHub sign-in')
+      throw new Error(err?.detail || err?.error || 'Could not start the GitHub sign-in', { cause: e })
     }
     return url && switchAccount ? withAccountPicker(url) : url
   }, {
@@ -65,6 +65,6 @@ export async function disconnectGithubService(api) {
   try {
     await api.disconnectOAuth(svc.id)
   } catch (e) {
-    throw new Error(e?.response?.data?.error || 'Could not disconnect GitHub')
+    throw new Error(e?.response?.data?.error || 'Could not disconnect GitHub', { cause: e })
   }
 }

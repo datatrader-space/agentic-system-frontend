@@ -273,9 +273,11 @@ export function headOf(text) {
 
 // Does a closed tool row show its IN/OUT preview? Claude Code shows a Read as its path alone (the file is the OUT) and
 // a subagent as its task with what it used nested under it; every other call shows the start of what went in and
-// what came back. Both still open to their whole IN and OUT.
+// what came back. A question shows only its card: its IN would repeat the card as JSON (Claude Code draws the question
+// alone). All of them still open to their whole IN and OUT.
+const NO_PREVIEW_TOOLS = new Set(['ASK_USER'])
 export function showsPreview(row) {
-  return !!row && !isSubagent(row) && toolName(row) !== 'Read'
+  return !!row && !isSubagent(row) && toolName(row) !== 'Read' && !NO_PREVIEW_TOOLS.has(String(row.tool || ''))
 }
 
 // "12s", "1m 05s": the live status line's elapsed time.

@@ -165,7 +165,7 @@ onMounted(() => run(async alive => {
 }))
 function sceneAction(scene, suffix, data, method = 'post') { return run(async alive => {
   try { const body = typeof data === 'function' ? await data() : data; const result = await api[method](`/video/projects/${projectId.value}/scenes/${scene.scene_id}/${suffix}/`, body); if (alive()) { if (result.data.job_id) track(result.data); else board.value = result.data } }
-  catch (e) { if (alive() && e.response?.status === 409) { if (e.response.data.storyboard) board.value = e.response.data.storyboard; project.value = null; throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
+  catch (e) { if (alive() && e.response?.status === 409) { if (e.response.data.storyboard) board.value = e.response.data.storyboard; project.value = null; throw Error('Someone changed this project. Review the current storyboard before trying again.', { cause: e }) } throw e }
 }) }
 function chooseFrame(s,f) { sceneAction(s,'keyframe',{ attachment_id: f.attachment_id, revision: board.value.revision }) }
 function keyframes(s) { modelField.value = 'route_id'; sceneAction(s,'keyframes',async () => ({ route_id: routeId.value, n: count.value, conversation_id: (await chatFields()).conversation_id })) }
@@ -199,7 +199,7 @@ function saveTimeline() {
 function exportTimeline() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation:'export', project_id:projectId.value, params:{ timeline_revision_id:revisionId.value }, ...await chatFields() }); if (alive()) emit('job',data) }) }
 async function patchScenes(scenes, alive) {
   try { return await api.patch(`/video/projects/${projectId.value}/`, { revision: board.value.revision, scenes }) }
-  catch (e) { if (e.response?.status === 409) { await loadProject(alive); throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
+  catch (e) { if (e.response?.status === 409) { await loadProject(alive); throw Error('Someone changed this project. Review the current storyboard before trying again.', { cause: e }) } throw e }
 }
 // The model lists change with a project (keyframe pictures, scene videos): opened, as choosing one is.
 function createProject() { run(async alive => { const {data} = await api.post('/video/projects/',{ title:newTitle.value, conversation_id:(await chatFields()).conversation_id }); if (alive()) { projects.value.push(data); projectId.value = data.project_id; await open() } }) }

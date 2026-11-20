@@ -166,6 +166,29 @@ describe('parked approvals', () => {
     expect(chat.isStreaming).toBe(false)
   })
 
+  it("another chat's turn is never drawn in a new chat (no conversation yet)", () => {
+    // Live, 2026-11-19: a project chat's turn, resumed after a restart, streamed into the New Chat page.
+    const chat = useChatStore()
+    chat._conn = { send: vi.fn(), sendIfOpen: vi.fn() }
+    chat.conversationId = null
+    chat._onEvent({ type: 'assistant_message_start', conversation_id: '1369', via_user_group: true })
+    chat._onEvent({ type: 'assistant_message_chunk', chunk: 'Plan: Add CARE.md', conversation_id: '1369',
+                    via_user_group: true })
+    chat._onEvent({ type: 'assistant_message_complete', content: 'Plan: Add CARE.md', conversation_id: '1369',
+                    via_user_group: true })
+    expect(chat.messages).toHaveLength(0)
+    expect(chat.isStreaming).toBe(false)
+  })
+
+  it("the new chat's own turn still arrives once its conversation is made", () => {
+    const chat = useChatStore()
+    chat._conn = { send: vi.fn(), sendIfOpen: vi.fn() }
+    chat.conversationId = '1380'                       // set by ensureConversation before the first message
+    chat._beginAssistant()
+    chat._onEvent({ type: 'assistant_message_chunk', chunk: 'Hello', conversation_id: '1380', via_user_group: true })
+    expect(chat._cur().content).toContain('Hello')
+  })
+
   it('does not hold a turn on screen open', () => {
     const chat = streaming()
     chat._onEvent(PARKED)

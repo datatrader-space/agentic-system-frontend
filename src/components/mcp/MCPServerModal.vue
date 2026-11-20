@@ -318,7 +318,7 @@ export default {
           try {
             res = await api.mcpOauthInitiate(_body)
           } catch (e) {
-            throw new Error(e.response?.data?.error || e.message || 'Could not start OAuth for this server.')
+            throw new Error(e.response?.data?.error || e.message || 'Could not start OAuth for this server.', { cause: e })
           }
           const url = res.data && res.data.authorize_url
           connId = (res.data && res.data.connection_id) || null

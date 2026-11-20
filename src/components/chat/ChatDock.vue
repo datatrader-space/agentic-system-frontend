@@ -114,8 +114,8 @@ function select(t) {
   if (t === 'artifacts') artifacts.unseen = 0
 }
 
-// A plan ready for review comes to the front (opened by itself, or from the card's "Open the plan").
-watch(() => [planAvailable.value, planReview.review && planReview.review.requestId], ([on]) => { if (on) _tab.value = 'plan' },
+// A plan ready for review comes to the front (opened by itself, or from its file card).
+watch(() => [planAvailable.value, planReview.review && planReview.review.key], ([on]) => { if (on) _tab.value = 'plan' },
   { immediate: true })
 // The agent producing a design pulls the canvas forward; the user opening Artifacts pulls that forward.
 watch(canvasAvailable, (on) => { if (on) _tab.value = 'canvas' })
