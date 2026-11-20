@@ -588,7 +588,7 @@ watch(tab, now => {
                 <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
               </label>
               <label v-if="draft.kind === 'stays' || draft.kind === 'absent'">For (minutes)
-                <input v-model.number="draft.minutes" class="text-input" type="number" min="0.2" max="1440" step="0.5" :aria-invalid="!!draftErrors.minutes">
+                <input v-model.number="draft.minutes" class="text-input" type="number" min="0.2" max="1440" step="any" :aria-invalid="!!draftErrors.minutes">
                 <small v-if="draftErrors.minutes" class="field-error">{{ draftErrors.minutes }}</small>
               </label>
               <label v-if="draft.kind === 'cross'">Line
