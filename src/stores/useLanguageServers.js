@@ -124,6 +124,42 @@ export function applyTextEdits(text, edits) {
 
 export const RESOURCE_OPERATIONS_REFUSED = 'This change creates, renames or deletes files. The editor does not do that, '
   + 'so nothing was changed.'
+
+// ── a TypeScript project loading (ADM-1335) ──
+// While tsserver loads a project, typescript-language-server sends `rename` (and references, definitions, ...) to its
+// syntax-only server, which knows the open files alone (SyntaxRoutingTsServer.syntaxAllowedCommands, 4.3.3), so a
+// rename then changed the open file only. The server reports the load as progress: window/workDoneProgress/create,
+// then $/progress begin ... end ("Initializing JS/TS language features…"). A rename waits for it to end, and is asked
+// again when a load began while it was being asked (the server's create reaches us before that answer).
+export const PROJECT_LOADING_WAIT_MS = 60000
+export const RENAME_WAITING = 'The project is still loading. The rename runs as soon as it has loaded, so it reaches every file.'
+export const RENAME_NOT_LOADED = 'Nothing was renamed: the project is still loading, and a rename now could miss files. '
+  + 'Try again in a moment.'
+function loadingBegan(entry, token) {
+  entry.loading.add(String(token))
+  entry.loadingEpoch += 1
+}
+function loadingEnded(entry, token) {
+  entry.loading.delete(String(token))
+  if (!entry.loading.size) for (const done of entry.loadingWaiters.splice(0)) done(true)
+}
+function loadingStopped(entry) {                     // the connection closed: nothing will end the loads it reported
+  entry.loading.clear()
+  for (const done of entry.loadingWaiters.splice(0)) done(false)
+}
+/** Resolves true once no load is going on, false after `ms` or when the connection closes. */
+function whenLoaded(entry, ms) {
+  if (!entry.loading.size) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const done = (ok) => { clearTimeout(timer); resolve(ok) }
+    const timer = setTimeout(() => {
+      const i = entry.loadingWaiters.indexOf(done)
+      if (i >= 0) entry.loadingWaiters.splice(i, 1)
+      resolve(false)
+    }, ms)
+    entry.loadingWaiters.push(done)
+  })
+}
 /** The files a WorkspaceEdit changes, in order: `{uri, version, steps: [TextEdit[], ...]}` (a file named twice in
  *  documentChanges gets the second set of edits on the result of the first). A change that creates, renames or deletes
  *  a file is refused whole: `{files: [], refused}`. */
@@ -286,8 +322,9 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     const have = conns[lang]
     if (have && !['closed', 'error'].includes(have.conn.state)) return have
     // `caps`: what the server said it does (initialize); `raw`: its diagnostics of each file as sent, for code actions.
+    // `loading`: the TypeScript server's project loads in progress, by token (ADM-1335).
     const entry = { conn: null, root: '', opened: new Map(), ready: false, pending: new Map(), timer: null, caps: {},
-      raw: new Map() }
+      raw: new Map(), lang, loading: new Set(), loadingEpoch: 0, loadingWaiters: [] }
     servers[lang] = { state: 'connecting', error: '', root: '' }
     entry.conn = new Connection({
       url: urlFor(val(repoId), lang),
@@ -296,6 +333,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         if (s.state === 'ready') { entry.root = s.root || ''; initialize(lang, entry) }
         if (s.state === 'closed' || s.state === 'error' || s.state === 'exited') {
           entry.ready = false
+          loadingStopped(entry)
           clearDiagnostics(lang)
         }
       },
@@ -333,6 +371,8 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
             // Text edits only: creating, renaming or deleting a file is refused (applyWorkspaceEdit).
             workspaceEdit: { documentChanges: true, resourceOperations: [] },
             executeCommand: { dynamicRegistration: false } },
+          // The TypeScript server then reports a project load, during which a rename would miss files (ADM-1335).
+          window: { workDoneProgress: true },
         },
       })
       entry.caps = (init && init.capabilities) || {}
@@ -364,10 +404,19 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       return applyWorkspaceEdit(entry, params && params.edit).then((r) => (r.applied ? { applied: true }
         : { applied: false, failureReason: r.failureReason }))
     }
-    return null      // window/workDoneProgress/create, client/registerCapability, ...: accepted
+    if (method === 'window/workDoneProgress/create') {
+      // Only the TypeScript server routes requests elsewhere while it loads; pyright's progress changes nothing.
+      if (entry.lang === 'typescript' && params && params.token != null) loadingBegan(entry, params.token)
+      return null
+    }
+    return null      // client/registerCapability, ...: accepted
   }
 
   function onNotification(lang, entry, method, params) {
+    if (method === '$/progress') {
+      if (entry.lang === 'typescript' && params && params.value && params.value.kind === 'end') loadingEnded(entry, params.token)
+      return
+    }
     if (method !== 'textDocument/publishDiagnostics' || !params) return
     const path = pathOfUri(entry.root, params.uri)
     if (path == null || path.startsWith('node_modules/')) return
@@ -713,12 +762,23 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         const f = current(model)
         if (!f) { notify.info(STARTING); return { edits: [] } }
         let edit
-        try {
-          edit = await f.entry.conn.request('textDocument/rename', { textDocument: { uri: f.uri },
-            position: positionOf(position), newName })
-        } catch (e) {
-          notify.error(`Nothing was renamed: ${e.message}`)
-          return { edits: [] }
+        // ADM-1335: never while the project loads (the answer would cover the open files only). Asked again, at most
+        // twice, when a load began while it was being asked; never applied from a load's half-answer.
+        for (let attempt = 0; ; attempt++) {
+          if (f.entry.loading.size) {
+            if (attempt === 0) notify.info(RENAME_WAITING)
+            if (!(await whenLoaded(f.entry, PROJECT_LOADING_WAIT_MS))) { notify.warning(RENAME_NOT_LOADED); return { edits: [] } }
+          }
+          const epoch = f.entry.loadingEpoch
+          try {
+            edit = await f.entry.conn.request('textDocument/rename', { textDocument: { uri: f.uri },
+              position: positionOf(position), newName })
+          } catch (e) {
+            notify.error(`Nothing was renamed: ${e.message}`)
+            return { edits: [] }
+          }
+          if (f.entry.loadingEpoch === epoch) break
+          if (attempt >= 2) { notify.warning(RENAME_NOT_LOADED); return { edits: [] } }
         }
         if (!edit) { notify.info('Nothing was renamed: the language server found nothing to change.'); return { edits: [] } }
         await applyWorkspaceEdit(f.entry, edit, { rename: true })

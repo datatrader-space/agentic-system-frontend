@@ -14,7 +14,7 @@ import { useEditorSettings } from '@/composables/useEditorSettings'
 import {
   createLanguageServers, serverFor, languageIdOf, toUri, pathOfUri, problemOf, rangeOf, positionOf,
   hoverContents, locationsOf, completionsOf, applyTextEdits, endOf, workspaceEditFiles, inlayHintsOf, lspRangeOf,
-  leaveEditingToServers, RESOURCE_OPERATIONS_REFUSED,
+  leaveEditingToServers, RESOURCE_OPERATIONS_REFUSED, PROJECT_LOADING_WAIT_MS, RENAME_WAITING, RENAME_NOT_LOADED,
 } from './useLanguageServers'
 
 const ROOT = '/home/northrays/workspace/repo-4'
@@ -365,6 +365,69 @@ describe('editing through the language servers (ADM-1319)', () => {
     expect(api.getFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts')
     expect(api.saveFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts', 'import { a } from "../app/page"\nexport { total }\n', SHA)
     expect(notify.success).toHaveBeenCalledWith('Renamed in 2 files')
+  })
+
+  // ADM-1335: while tsserver loads the project, the server answers a rename from its syntax-only server (open files
+  // only). It reports the load as progress; a rename waits for it and is never applied from a load's half-answer.
+  const TWO_FILES = { changes: { [PAGE]: [{ range: r(0, 6, 0, 7), newText: 'total' }],
+    [UTIL]: [{ range: r(1, 9, 1, 10), newText: 'total' }] } }
+  const ONLY_OPEN = { changes: { [PAGE]: [{ range: r(0, 6, 0, 7), newText: 'total' }] } }
+  const loadStarts = (c, token) => c.onRequest('window/workDoneProgress/create', { token })
+  const loadEnds = (c, token) => c.onNotification('$/progress', { token, value: { kind: 'end' } })
+
+  it('says it understands progress, so the TypeScript server reports a project load', async () => {
+    const { c } = await ready()
+    const init = FakeConnection.made[0].sent.find(([, m]) => m === 'initialize')
+    expect(init[2].capabilities.window).toEqual({ workDoneProgress: true })
+    expect(loadStarts(c, 't1')).toBeNull()                                  // the server's create is answered
+  })
+
+  it('a rename pressed while the project loads waits for the load, then reaches every file', async () => {
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/rename': TWO_FILES })
+    api.getFileContent.mockResolvedValueOnce({ data: { content: 'x\nexport { a }\n', sha: SHA } })
+    api.saveFileContent.mockResolvedValueOnce({ data: { sha: 'b'.repeat(64) } })
+    loadStarts(c, 'load-1')
+    c.onNotification('$/progress', { token: 'load-1', value: { kind: 'begin', title: 'Initializing JS/TS language features…' } })
+    const pending = e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
+    await Promise.resolve(); await Promise.resolve()
+    expect(notify.info).toHaveBeenCalledWith(RENAME_WAITING)
+    expect(c.request).not.toHaveBeenCalledWith('textDocument/rename', expect.anything())   // nothing asked mid-load
+    loadEnds(c, 'load-1')
+    await pending
+    expect(c.request).toHaveBeenCalledTimes(1)
+    expect(api.saveFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts', 'x\nexport { total }\n', SHA)
+    expect(notify.success).toHaveBeenCalledWith('Renamed in 2 files')
+  })
+
+  it('a load that begins while the rename is asked: its answer is dropped and the rename is asked again after', async () => {
+    const { e, c } = await ready()
+    api.getFileContent.mockResolvedValueOnce({ data: { content: 'x\nexport { a }\n', sha: SHA } })
+    api.saveFileContent.mockResolvedValueOnce({ data: { sha: 'b'.repeat(64) } })
+    let n = 0
+    answers(c, { 'textDocument/rename': () => {
+      n += 1
+      if (n === 1) { loadStarts(c, 'load-2'); setTimeout(() => loadEnds(c, 'load-2'), 0); return ONLY_OPEN }
+      return TWO_FILES
+    } })
+    await e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
+    expect(n).toBe(2)
+    expect(api.saveFileContent).toHaveBeenCalledTimes(1)                    // lib/util.ts too: the whole answer
+    expect(notify.success).toHaveBeenCalledWith('Renamed in 2 files')
+  })
+
+  it('a load that never ends renames nothing and says so', async () => {
+    vi.useFakeTimers()
+    const { e, c } = await ready()
+    answers(c, { 'textDocument/rename': TWO_FILES })
+    loadStarts(c, 'stuck')
+    const pending = e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
+    await vi.advanceTimersByTimeAsync(PROJECT_LOADING_WAIT_MS + 1)
+    await pending
+    expect(c.request).not.toHaveBeenCalledWith('textDocument/rename', expect.anything())
+    expect(notify.warning).toHaveBeenCalledWith(RENAME_NOT_LOADED)
+    expect(e.tabs.value[0].content).toBe('const a = 1')                     // nothing changed
+    vi.useRealTimers()
   })
 
   it('a closed file changed on disk meanwhile is reported and never overwritten', async () => {
