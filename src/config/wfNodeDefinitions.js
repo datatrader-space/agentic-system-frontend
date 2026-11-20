@@ -31,7 +31,7 @@
 
 export const WF_NODE_DEFS = {
   'media.generate': {
-    category: 'media', icon: '▣', label: 'Generate media', sub: 'Review a Studio estimate before spending',
+    category: 'media', icon: 'lucide:film', label: 'Generate media', sub: 'Review a Studio estimate before spending',
     defaults: { operation: 'image', route_id: '', prompt: '', params: {}, references: [], cinema: {} },
     outputSample: { attachment_id: '(attachment)', url: '(url)', extra_attachment_ids: [] },
     fields: [
@@ -45,7 +45,7 @@ export const WF_NODE_DEFS = {
     hint: 'The run waits on a job approval card. Generate authorizes only that job; Decline stops the run.',
   },
   'trigger.manual': {
-    category: 'trigger', icon: '▶', label: 'Manual trigger', sub: 'Runs on demand',
+    category: 'trigger', icon: 'lucide:square-play', label: 'Manual trigger', sub: 'Runs on demand',
     defaults: {},
     fields: [
       { type: 'note', text: 'Manual triggers run when you press Run. Declare inputs to be prompted at run time — reference them as {{vars.key}}.' },
@@ -54,17 +54,17 @@ export const WF_NODE_DEFS = {
     ],
   },
   'trigger.schedule': {
-    category: 'trigger', icon: '⏰', label: 'Schedule', sub: 'Cron trigger',
+    category: 'trigger', icon: 'lucide:clock-3', label: 'Schedule', sub: 'Cron trigger',
     defaults: { cron: '0 8 * * *' },
     fields: [{ key: 'cron', type: 'string', mono: true, title: 'Cron (m h dom mon dow)', placeholder: '0 8 * * *' }],
     hint: 'Save to register the schedule. A scheduler tick fires it when the cron matches.',
   },
   'trigger.webhook': {
-    category: 'trigger', icon: '🔗', label: 'Webhook', sub: 'Inbound HTTP',
+    category: 'trigger', icon: 'lucide:webhook', label: 'Webhook', sub: 'Inbound HTTP',
     defaults: {}, custom: true,   // dynamic URL display
   },
   'trigger.connector': {
-    category: 'trigger', icon: '🔌', label: 'Connector event', sub: 'A connected account fires',
+    category: 'trigger', icon: 'lucide:plug', label: 'Connector event', sub: 'A connected account fires',
     // `connection` is an ID, never a credential: it names WHICH connected account this binding
     // listens to. The backend refuses credential-shaped keys outright, so there is deliberately no
     // field here to type a token into.
@@ -95,7 +95,7 @@ export const WF_NODE_DEFS = {
   // rule; they are not authority: the server starts the workflow only for a camera of the workflow's own workspace,
   // and only once the workflow is published.
   'trigger.training.stream_event': {
-    category: 'trigger', icon: '📷', label: 'Camera event', sub: 'A camera rule matched',
+    category: 'trigger', icon: 'lucide:cctv', label: 'Camera event', sub: 'A camera rule matched',
     defaults: { source: null, rule: null, source_name: '' },
     fields: [
       { type: 'note', text: 'Starts when a rule on this camera matches what a model finds, at most once in the rule\'s cooldown. Read the event as {{trigger.source.name}}, {{trigger.matched}} and {{trigger.frame_time}}. A step opens the frame with {{trigger.snapshot_url}} (it works for 15 minutes after the run starts); {{trigger.snapshot_link}} is for a signed-in person.' },
@@ -106,7 +106,7 @@ export const WF_NODE_DEFS = {
     outputSample: { event: 0, source: { id: 0, name: 'Camera' }, matched: { person: 1 }, frame_time: '2026-11-18T09:00:00+00:00', snapshot_link: '(link)', snapshot_url: '(15-minute link)' },
   },
   'trigger.channel': {
-    category: 'trigger', icon: '💬', label: 'Channel message', sub: 'Inbound slack/telegram/email',
+    category: 'trigger', icon: 'lucide:message-square', label: 'Channel message', sub: 'Inbound slack/telegram/email',
     defaults: { platform: 'slack', channel: '', keyword: '' },
     fields: [
       { key: 'platform', type: 'enum', title: 'Platform', options: [['slack', 'Slack'], ['telegram', 'Telegram'], ['email', 'Email']] },
@@ -116,7 +116,7 @@ export const WF_NODE_DEFS = {
     customTail: 'channelUrl',
   },
   'agent.run': {
-    category: 'agent', icon: '🤖', label: 'Run agent', sub: 'Run an AgentProfile',
+    category: 'agent', icon: 'lucide:bot', label: 'Run agent', sub: 'Run an AgentProfile',
     defaults: { prompt: '', agent_id: null, agent_name: '' }, custom: true,   // agent picker + output-mode + schema editor
     outputSample: { text: 'agent reply text', agent: 'Agent name' },   // JSON/schema mode adds the declared fields
   },
@@ -125,7 +125,7 @@ export const WF_NODE_DEFS = {
   // understanding is genuinely required, and paying for a planning loop there buys nothing. Every
   // shipped template is built around exactly one of these.
   'llm.call': {
-    category: 'agent', icon: '✨', label: 'Model call', sub: 'One structured LLM call',
+    category: 'agent', icon: 'lucide:sparkles', label: 'Model call', sub: 'One structured LLM call',
     defaults: { prompt: '', system: '', model_id: null, output_mode: 'text', output_schema_json: '' },
     fields: [
       { key: 'prompt', type: 'textarea', rows: 6, insertable: true, title: 'Prompt',
@@ -149,30 +149,31 @@ export const WF_NODE_DEFS = {
     outputSample: { text: 'model reply', model: 'Model name' },   // schema mode adds the declared fields
   },
   'action.tool': {
-    category: 'action', icon: '🛠️', label: 'Run tool', sub: 'Call a registered tool',
+    category: 'action', icon: 'lucide:wrench', label: 'Run tool', sub: 'Call a registered tool',
     defaults: { tool: '', params_json: '{}' },
     fields: [
       { key: 'tool', type: 'string', mono: true, list: 'tools', title: 'Tool name', placeholder: 'GITHUB_LIST_REPOSITORIES' },
       { key: 'params_json', type: 'textarea', mono: true, rows: 5, insertable: true, title: 'Params (JSON)', placeholder: '{ "owner": "me" }' },
     ],
     hint: 'Read-only tools run unattended; approval-required tools are blocked in workflows.',
-    outputSample: { text: 'tool result text', tool: 'TOOL_NAME' },
+    // B10: the tool's own structure is kept under `result` (a JSON string is parsed); `text` stays for old templates.
+    outputSample: { text: 'tool result text', result: '(the tool result)', tool: 'TOOL_NAME' },
   },
   'action.mcp_tool': {
-    category: 'action', icon: '🔧', label: 'MCP tool', sub: 'Deterministic MCP call',
+    category: 'action', icon: 'lucide:plug-zap', label: 'MCP tool', sub: 'Deterministic MCP call',
     paletteHidden: true,   // reached via the palette's MCP drill-in
     defaults: { agent_id: null, agent_name: '', server_id: null, server_name: '', tool_name: '', params_json: '{}' },
     custom: true,
-    outputSample: { text: 'MCP tool result', tool: 'tool_name', server_id: 0 },
+    outputSample: { text: 'MCP tool result', result: '(the tool result)', tool: 'tool_name', server_id: 0 },
   },
   'action.script': {
-    category: 'action', icon: '📜', label: 'Run script', sub: 'Run a saved script',
+    category: 'action', icon: 'lucide:scan-line', label: 'Run script', sub: 'Run a saved script',
     defaults: { script_id: null },
     fields: [{ key: 'script_id', type: 'enum', optionsKey: 'scripts', title: 'Saved script', placeholder: 'Select a script…' }],
     hint: 'Runs a SavedScript you own in the sandbox. Manage scripts on the Scripts page.',
   },
   'action.channel': {
-    category: 'action', icon: '📣', label: 'Send to channel', sub: 'log / slack / webhook / telegram / email',
+    category: 'action', icon: 'lucide:send', label: 'Send to channel', sub: 'log / slack / webhook / telegram / email',
     defaults: { kind: 'log', message: '', slack_channel: '', url: '', chat_id: '', to: '', subject: '' },
     fields: [
       { key: 'kind', type: 'enum', title: 'Channel', options: [['log', 'Log (always works)'], ['slack', 'Slack'], ['webhook', 'Webhook'], ['telegram', 'Telegram'], ['email', 'Email']] },
@@ -187,7 +188,7 @@ export const WF_NODE_DEFS = {
     outputSample: { text: 'sent message', channel: 'log', delivered: true },
   },
   'action.http': {
-    category: 'action', icon: '🌐', label: 'HTTP request', sub: 'GET/POST a URL',
+    category: 'action', icon: 'lucide:earth', label: 'HTTP request', sub: 'GET/POST a URL',
     defaults: { method: 'GET', url: '', json_text: '' },
     fields: [
       { key: 'method', type: 'enum', title: 'Method', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
@@ -197,34 +198,37 @@ export const WF_NODE_DEFS = {
     outputSample: { status_code: 200, text: 'response body' },
   },
   'logic.condition': {
-    category: 'logic', icon: '🔀', label: 'Condition', sub: 'Branch true / false',
+    category: 'logic', icon: 'lucide:split', label: 'Condition', sub: 'Branch true / false',
     defaults: { expression: '' },
     fields: [{ key: 'expression', type: 'string', mono: true, insertable: true, title: 'Expression', placeholder: '{{nodes.<id>.output.text}} contains ok' }],
     hint: 'Supports == != > < >= <= and "contains". The true / false handles route each branch.',
     outputSample: { result: true, text: 'True', expression: '… contains ok' },
   },
   'logic.approval': {
-    category: 'logic', icon: '✋', label: 'Approval', sub: 'Wait for human OK',
+    category: 'logic', icon: 'lucide:badge-check', label: 'Approval', sub: 'Wait for human OK',
     defaults: { message: 'Approve to continue?' },
     fields: [
+      // No approvers field: the engine does not enforce one yet (ADM-1339), and the builder must not suggest a
+      // control that is not there. The workflow's owner approves.
       { key: 'message', type: 'textarea', rows: 3, title: 'Approval message', placeholder: 'What needs approval? Shown to the approver.' },
-      { key: 'approvers', type: 'string', title: 'Approvers (optional)', placeholder: 'emails, comma-separated' },
     ],
     hint: 'The run pauses here until approved. Connect the normal handle for approve, the on-error handle for reject.',
     customTail: 'approval',
   },
   'logic.foreach': {
-    category: 'logic', icon: '🔁', label: 'For-each', sub: 'Run per list item',
+    category: 'logic', icon: 'lucide:repeat-2', label: 'For-each', sub: 'Run per list item',
     defaults: { items_template: '', do: { type: 'action.channel', data: { kind: 'log', message: 'item {{item}}' } } },
     custom: true,
   },
   'logic.delay': {
-    category: 'logic', icon: '⏳', label: 'Delay', sub: 'Wait (durable >60s)',
+    category: 'logic', icon: 'lucide:timer', label: 'Delay', sub: 'Wait (durable >60s)',
     defaults: { seconds: 5 },
-    fields: [{ key: 'seconds', type: 'number', min: 0, max: 60, title: 'Seconds (max 60)' }],
+    // No upper bound: up to 60 s the step waits in place; a longer delay parks the run and resumes it later.
+    fields: [{ key: 'seconds', type: 'number', min: 0, title: 'Seconds to wait',
+      help: 'Up to 60 seconds the step waits in place. A longer delay pauses the run and resumes it when the time is up.' }],
   },
   'action.subworkflow': {
-    category: 'action', icon: '🧩', label: 'Sub-workflow', sub: 'Run another graph',
+    category: 'action', icon: 'lucide:workflow', label: 'Sub-workflow', sub: 'Run another graph',
     defaults: { graph_id: null, graph_name: '' },
     fields: [
       { key: 'graph_id', type: 'enum', optionsKey: 'graphs', title: 'Workflow to run', placeholder: 'Select a workflow…' },
@@ -246,6 +250,24 @@ export const WF_PALETTE_ORDER = [
 export const WF_TYPES = Object.keys(WF_NODE_DEFS)
 
 export function wfDef(type) { return WF_NODE_DEFS[type] || null }
+
+// THE category set (plan §3.2): one label, one Lucide icon and one colour token per category. The colours are the
+// `--wf-cat-<id>` tokens in components/workflows/workflow-builder.css (light and dark, text contrast 4.5:1 or more).
+// Every node type's category and icon come from WF_NODE_DEFS above; nothing else keeps its own map.
+export const WF_CATEGORIES = {
+  trigger: { label: 'Triggers', icon: 'lucide:zap', token: '--wf-cat-trigger' },
+  agent: { label: 'AI', icon: 'lucide:bot', token: '--wf-cat-agent' },
+  action: { label: 'Actions', icon: 'lucide:wrench', token: '--wf-cat-action' },
+  logic: { label: 'Logic', icon: 'lucide:split', token: '--wf-cat-logic' },
+  media: { label: 'Media', icon: 'lucide:film', token: '--wf-cat-media' },
+}
+export const WF_CATEGORY_ORDER = ['trigger', 'agent', 'action', 'logic', 'media']
+
+/** The category id of a node type ('logic' for a type the registry does not know). */
+export function wfCategory(type) { return WF_NODE_DEFS[type]?.category || 'logic' }
+
+/** The Lucide icon of a node type, from the registry (its category's icon for an unknown type). */
+export function wfIcon(type) { return WF_NODE_DEFS[type]?.icon || WF_CATEGORIES[wfCategory(type)].icon }
 
 // Palette items (drag/click metadata) derived from the registry — single source, no duplication.
 export function wfPaletteItems() {

@@ -57,6 +57,17 @@ describe('useUnsavedGuard', () => {
     expect(ev3.defaultPrevented).toBe(false)          // removed with the page
   })
 
+  it('asks the page\'s own question when one is given (ADM-1333)', async () => {
+    const question = { title: 'Leave with unsaved workflow changes?', message: 'm', confirmText: 'Leave', cancelText: 'Stay', danger: true }
+    let guard
+    const C = defineComponent({ setup() { guard = useUnsavedGuard(() => 1, question); return () => h('div') } })
+    const w = mount(C)
+    confirmMock.mockResolvedValueOnce(false)
+    expect(await guard.mayLeave()).toBe(false)
+    expect(confirmMock).toHaveBeenCalledWith(question)
+    w.unmount()
+  })
+
   it('names one file or several', () => {
     expect(unsavedQuestion(1).title).toBe('Leave with an unsaved file?')
     expect(unsavedQuestion(3).title).toBe('Leave with 3 unsaved files?')

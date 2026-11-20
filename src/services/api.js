@@ -1290,7 +1290,7 @@ export default {
   deleteWorkflowGraph: (id) => api.delete(`/workflow-graphs/${id}/`),
   validateWorkflowGraph: (id, graph) => api.post(`/workflow-graphs/${id}/validate/`, { graph }),
   runWorkflowGraph: (id, payload = {}) => api.post(`/workflow-graphs/${id}/run/`, payload),
-  getWorkflowGraphRuns: (id) => api.get(`/workflow-graphs/${id}/runs/`),
+  getWorkflowGraphRuns: (id, params) => api.get(`/workflow-graphs/${id}/runs/`, { params }),
   getWorkflowGraphRun: (runId) => api.get(`/workflow-graph-runs/${runId}/`),
   cancelWorkflowGraphRun: (runId) => api.post(`/workflow-graph-runs/${runId}/cancel/`),
   rerunWorkflowGraphRun: (runId, fromNode = null) =>
@@ -1301,7 +1301,7 @@ export default {
   getWorkflowGraphMetrics: (id) => api.get(`/workflow-graphs/${id}/metrics/`),
   exportWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/export/`),
   importWorkflowGraph: (payload) => api.post('/workflow-graphs/import/', payload),
-  getWorkflowGraphVersions: (id) => api.get(`/workflow-graphs/${id}/versions/`),
+  getWorkflowGraphVersions: (id, params) => api.get(`/workflow-graphs/${id}/versions/`, { params }),
   restoreWorkflowGraphVersion: (id, versionId) =>
     api.post(`/workflow-graphs/${id}/versions/${versionId}/restore/`),
   getWorkflowGraphTemplates: () => api.get('/workflow-graph-templates/'),

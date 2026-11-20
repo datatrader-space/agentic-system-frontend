@@ -1,37 +1,80 @@
+// The Workflow Builder in a real browser (ADM-1333). The harness mounts the production builder INSIDE the production
+// AppShell, with synthetic API answers only (no user session, no worker, no outside network).
 import { test, expect } from '@playwright/test'
-import { wfPaletteItems } from '../../src/config/wfNodeDefinitions.js'
+import AxeBuilder from '@axe-core/playwright'
+import { resolve } from 'node:path'
+import { writeFileSync } from 'node:fs'
 
-const clone = value => JSON.parse(JSON.stringify(value))
+const SHOTS = process.env.WF_SHOT_DIR || ''
+const AXE_OUT = process.env.WF_AXE_OUT || ''
+const clone = (v) => JSON.parse(JSON.stringify(v))
 const baseGraph = {
-  id: 86, name: 'Customer intake', status: 'draft', version: 1, etag: 'initial', triggers: [],
+  id: 86, public_id: 'wf_86', name: 'Customer intake', status: 'draft', version: 1, etag: 'initial', triggers: [], last_run: null,
   graph: {
     nodes: [
       { id: 'start', type: 'trigger.manual', position: { x: 80, y: 160 }, data: { label: 'Receive request', inputs: [] } },
       { id: 'log', type: 'action.channel', position: { x: 410, y: 160 }, data: { label: 'Record result', kind: 'log', message: 'Received {{trigger.name}}' } },
-    ], edges: [{ id: 'start-log', source: 'start', target: 'log' }], viewport: {},
+    ],
+    edges: [{ id: 'e_start_log', source: 'start', target: 'log' }],
+    viewport: {},
   },
 }
-const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body,#app,.workflow-test-root{height:100%;margin:0;min-width:0}.workflow-test-root{height:100dvh}</style></head><body><div id="app"></div><script type="module" src="/tests/e2e/workflow-harness.js"></script></body></html>'
+const html = '<!doctype html><html lang="en"><head><title>Workflow builder test</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body,#app,.workflow-test-root{height:100%;margin:0;min-width:0}</style></head><body><div id="app"></div><script type="module" src="/tests/e2e/workflow-harness.js"></script></body></html>'
+const runPage = (n, start = 0) => Array.from({ length: n }, (_, i) => ({ id: 600 - start - i, status: i % 3 ? 'success' : 'failed', dry_run: i % 2 === 0, duration_ms: 1200, created_at: '2026-11-19T06:00:00Z' }))
+
+// A cold dev server optimises its dependencies on the first page load and then reloads it, which can take longer
+// than one test's time. One warm-up load first, with its own time.
+test.beforeAll(async ({ browser }, testInfo) => {
+  testInfo.setTimeout(300000)
+  const page = await browser.newPage()
+  await page.route('**/*', (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    if (url.origin !== 'http://127.0.0.1:5177') return route.abort()
+    if (req.resourceType() === 'document') return route.fulfill({ contentType: 'text/html', body: html })
+    if (url.pathname.startsWith('/api/')) {
+      return route.fulfill({ contentType: 'application/json', body: url.pathname.endsWith('/bundle/') ? JSON.stringify({ graph: baseGraph, agents: [], all_graphs: [], scripts: [] }) : '{}' })
+    }
+    return route.continue()
+  })
+  await page.goto('http://127.0.0.1:5177/dashboard/workflow-builder/86', { waitUntil: 'commit' })
+  await page.locator('.wfb-name').waitFor({ timeout: 280000 })
+  await page.close()
+})
 
 async function prepare(page, overrides = {}) {
-  const state = { graph: clone(baseGraph), requests: [], failSave: false, failLoad: false, failHistory: false, failVersions: false, running: false, run: null, ...overrides }
+  const state = {
+    graph: clone(baseGraph), requests: [], failSave: false, failLoad: false, running: false, run: null,
+    validation: { ok: true, warnings: [] }, ...overrides,
+  }
   const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  await page.addInitScript(() => {
-    localStorage.clear()
-    // Never connect this test harness to a workflow worker.
-    window.WebSocket = class extends EventTarget { close() {} send() {} }
-  })
-  await page.route('**/*', async route => {
-    const req = route.request(), url = new URL(req.url()), path = url.pathname
+  page.on('pageerror', (e) => errors.push(e.message))
+  if (process.env.WF_DEBUG) page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[browser ${m.type()}]`, m.text().slice(0, 400)) })
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5177' })
+  await page.addInitScript((theme) => {
+    // A fresh browser for each test, kept across a reload within the test (remembered choices are tested).
+    if (!sessionStorage.getItem('wf-e2e')) {
+      localStorage.clear()
+      localStorage.setItem('app-theme', theme)              // the app's own theme setting (useTheme)
+      sessionStorage.setItem('wf-e2e', '1')
+    }
+    window.WebSocket = class extends EventTarget { close() {} send() {} }   // never a real socket
+  }, state.theme || 'light')
+  await page.route('**/*', async (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    const path = url.pathname
     if (url.origin !== 'http://127.0.0.1:5177') return route.abort()
-    if (req.resourceType() === 'document' && path.startsWith('/dashboard/workflow-builder')) return route.fulfill({ contentType: 'text/html', body: html })
+    if (req.resourceType() === 'document' && path.startsWith('/dashboard')) return route.fulfill({ contentType: 'text/html', body: html })
     if (!path.startsWith('/api/')) return route.continue()
-    const method = req.method(), body = req.postDataJSON()
-    state.requests.push({ path, method, body })
+    const method = req.method()
+    let body = null
+    try { body = req.postDataJSON() } catch { body = null }
+    state.requests.push({ path, method, body, query: Object.fromEntries(url.searchParams) })
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
-    if (/\/bundle\/$/.test(path)) return state.failLoad ? json({ error: 'Unavailable' }, 503) : json({ graph: state.graph, agents: [{ id: 1, name: 'Fixture agent' }], all_graphs: [], scripts: [{ id: 2, name: 'Fixture script' }] })
-    if (/\/workflow-graphs\/\d+\/$/.test(path) && method === 'GET') return state.failLoad ? json({ error: 'Unavailable' }, 503) : json(state.graph)
+    if (/\/workflow-graphs\/\d+\/bundle\/$/.test(path)) {
+      return state.failLoad ? json({ error: 'Unavailable' }, 503) : json({ graph: state.graph, agents: [{ id: 1, name: 'Fixture agent' }], all_graphs: [], scripts: [] })
+    }
     if (/\/workflow-graphs\/\d+\/$/.test(path) && method === 'PUT') {
       if (state.failSave) return json({ error: 'Conflict: reload before saving.' }, 409)
       state.graph = { ...state.graph, ...body, etag: `saved-${state.requests.length}`, version: body.status === 'published' ? state.graph.version + 1 : state.graph.version }
@@ -39,425 +82,497 @@ async function prepare(page, overrides = {}) {
     }
     if (/\/workflow-graphs\/\d+\/$/.test(path) && method === 'DELETE') return json({ archived: true })
     if (path === '/api/workflow-graphs/' && method === 'POST') return json({ id: 87, ...body })
-    if (path.endsWith('/validate/')) return json(state.validation || { ok: true, warnings: [] })
+    if (path.endsWith('/validate/')) return json(state.validation)
     if (path.endsWith('/run/')) {
       state.run = { id: 501, status: state.running ? 'running' : 'success', dry_run: body.dry_run, node_runs: [], duration_ms: 50 }
-      return json({ run_id: 501 })
+      return json({ run_id: 501, status: state.run.status })
     }
     if (path === '/api/workflow-graph-runs/501/cancel/') { state.run.status = 'cancelled'; return json({ ok: true }) }
-    if (path === '/api/workflow-graph-runs/501/rerun/') { state.run.status = 'success'; return json({ run_id: 501 }) }
-    if (path === '/api/workflow-graph-runs/501/') return json(state.run || { id: 501, status: 'success', node_runs: [], duration_ms: 300, created_at: '2026-10-23T06:00:00Z' })
-    if (path.endsWith('/runs/')) return state.failHistory ? json({}, 503) : json([{ id: 501, status: 'success', duration_ms: 300, created_at: '2026-10-23T06:00:00Z' }])
-    if (path.endsWith('/metrics/')) return json({ success_rate: 1, avg_duration_ms: 300, total_cost: 0, total_runs: 1 })
-    if (path.endsWith('/versions/')) return state.failVersions ? json({}, 503) : json([{ id: 1, version: 1, label: 'Initial version', created_at: '2026-10-23T06:00:00Z' }])
+    if (path === '/api/workflow-graph-runs/501/') return json(state.run || { id: 501, status: 'success', node_runs: [] })
+    if (/\/workflow-graph-runs\/\d+\/$/.test(path)) {
+      const id = Number(path.split('/')[3])
+      return json(state.runDetails?.[id] || { id, status: 'failed', node_runs: [{ node_id: 'log', status: 'failed', error: 'Channel refused', attempt: 1 }] })
+    }
+    if (/\/workflow-graphs\/\d+\/runs\/$/.test(path)) {
+      const cursor = url.searchParams.get('cursor')
+      return cursor ? json({ results: runPage(2, 50), next_cursor: null, prev_cursor: 'c0', has_more: false, limit: 50 })
+        : json({ results: runPage(50), next_cursor: 'c1', prev_cursor: null, has_more: true, limit: 50 })
+    }
+    if (path.endsWith('/metrics/')) return json({ success_rate: 0.5, avg_duration_ms: 1200, total_cost: 0.0123, total_runs: 52 })
+    if (path.endsWith('/versions/')) return json({ results: [{ id: 1, version: 1, label: 'First', created_at: '2026-11-19T06:00:00Z' }], next_cursor: null, has_more: false, limit: 50 })
     if (path.endsWith('/restore/')) return json({ ...state.graph, graph: clone(baseGraph.graph), etag: 'restored' })
-    if (path === '/api/tools/') return json({ tools: [{ name: 'FIXTURE_TOOL', description: 'Synthetic test tool', category: 'utility' }] })
-    if (path.includes('/mcp-catalog/')) return json({ enabled: true, servers: [{ id: 7, name: 'Fixture MCP', tools: [{ name: 'fixture_read', description: 'Read synthetic data' }] }] })
-    if (path === '/api/video/media/routes/') return json({ routes: [{ route_id: 'image-proven', name: 'Fixture model', ready: true }] })
-    if (path === '/api/workflow-graphs/' || path === '/api/agents/' || path === '/api/scripts/') return json([])
+    if (path === '/api/tools/') return json({ tools: [{ name: 'FIXTURE_TOOL', description: 'Synthetic test tool', category: 'utility' }], total_count: 1 })
+    if (path.includes('mcp-catalog')) return json({ enabled: true, servers: [{ id: 7, name: 'Fixture MCP', tools: [{ name: 'fixture_read', description: 'Read synthetic data' }] }] })
     return json({})
   })
   await page.goto('/dashboard/workflow-builder/86', { waitUntil: 'commit' })
-  if (!state.failLoad) await expect(page.locator('.name-display')).toHaveText('Customer intake', { timeout: 60000 })
+  if (!state.failLoad) await expect(page.locator('.wfb-name')).toContainText('Customer intake', { timeout: 60000 })
+  await page.waitForFunction(() => document.querySelectorAll('.vue-flow__node').length >= 0 && !!document.querySelector('.vue-flow'))
   return { state, errors }
 }
-const more = async (page, name) => { await page.getByRole('button', { name: 'More workflow actions' }).click(); await page.getByRole('button', { name, exact: true }).click() }
-const mutation = (state, end) => state.requests.filter(r => r.method !== 'GET' && r.path.endsWith(end))
-const selectNode = async (page, id) => { await page.locator(`.vue-flow__node[data-id="${id}"]`).click(); await expect(page.locator('.ins-node-title')).toBeVisible() }
+const node = (page, id) => page.locator(`.vue-flow__node[data-id="${id}"]`)
+const mutations = (state, end) => state.requests.filter((r) => r.method !== 'GET' && r.path.endsWith(end))
+const menu = async (page, name) => {
+  await page.getByRole('button', { name: 'More workflow actions' }).click()
+  await page.getByRole('menuitem', { name, exact: false }).click()
+}
+const picker = (page) => page.getByRole('dialog', { name: /Add a step|Add a connected step|Insert a step/ })
+// Choose a step in the picker. The new step's window opens next (lane FE-4's WfNodeModal); it is closed again here.
+async function choose(page, text) {
+  const dlg = picker(page)
+  await expect(dlg).toBeVisible()
+  await dlg.getByRole('combobox').fill(text)
+  await dlg.getByRole('option', { name: new RegExp(text, 'i') }).first().click()
+  await expect(dlg).toHaveCount(0)
+  await closeLayers(page)
+}
+async function closeLayers(page) {
+  const layers = page.locator('[role="dialog"], [role="alertdialog"]')
+  for (let i = 0; i < 4 && await layers.count(); i++) {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+  }
+  await expect(layers).toHaveCount(0)
+}
+const pageScrolls = (page) => page.evaluate(() => {
+  const main = document.querySelector('.center-main')
+  return { x: document.documentElement.scrollWidth > innerWidth, y: document.documentElement.scrollHeight > innerHeight, main: main ? main.scrollHeight > main.clientHeight + 1 : true }
+})
+// Every button on the page has an accessible name (a stand-in while axe is not installed; see the lane report).
+const unnamedButtons = (page) => page.evaluate(() => [...document.querySelectorAll('.wfb-root button, .wfb-layer button')]
+  .filter((b) => b.offsetParent !== null && !(b.getAttribute('aria-label') || b.textContent.trim() || b.getAttribute('aria-labelledby')))
+  .map((b) => b.outerHTML.slice(0, 120)))
 
-test('shows the real workflow, accurate lifecycle and compact editor controls', async ({ page }) => {
-  const { state, errors } = await prepare(page)
+test('fills the shell: no breadcrumbs, no help button, sidebar collapsed, no page scroll (F1)', async ({ page }) => {
+  const { errors } = await prepare(page)
   await expect(page.locator('.vue-flow__node')).toHaveCount(2)
-  await expect(page.locator('.wf-status').first()).toHaveText('draft')
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
-  await expect(page.locator('.wfb-guide')).toHaveCount(0)
-  expect(state.requests.every(r => r.method === 'GET')).toBe(true)
+  await expect(page.locator('nav[aria-label="Breadcrumb"]')).toHaveCount(0)
+  await expect(page.locator('.gha-fab')).toHaveCount(0)
+  expect(await pageScrolls(page)).toEqual({ x: false, y: false, main: false })
+  const sidebar = await page.locator('.sidebar-desktop').boundingBox()
+  expect(sidebar.width).toBeLessThan(120)
+  await expect(page.locator('.wfb-pill')).toHaveText('Draft')
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+  expect(await unnamedButtons(page)).toEqual([])
+  // Leaving gives the shell back: breadcrumbs and the person's own (expanded) sidebar.
+  await page.getByRole('button', { name: 'Back to workflows' }).click()
+  await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible()
+  await expect(page.locator('nav[aria-label="Breadcrumb"]')).toHaveCount(1)
+  expect((await page.locator('.sidebar-desktop').boundingBox()).width).toBeGreaterThan(120)
   expect(errors).toEqual([])
 })
 
-test('does not replace empty or single-node workflows with a demo', async ({ page }) => {
-  const graph = clone(baseGraph); graph.graph.nodes = []; graph.graph.edges = []
-  const { state } = await prepare(page, { graph })
-  await expect(page.getByText('Build your first workflow', { exact: true })).toBeVisible()
-  await expect(page.locator('.vue-flow__node')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Manual Trigger', exact: false }).last().click()
-  await expect(page.locator('.vue-flow__node')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  expect(state.graph.graph.nodes).toHaveLength(1)
-  await page.reload(); await expect(page.locator('.vue-flow__node')).toHaveCount(1)
+test('the picker adds a step by mouse, from the toolbar', async ({ page }) => {
+  const { state } = await prepare(page)
+  await page.getByRole('button', { name: 'Add a step', exact: true }).click()
+  await choose(page, 'Delay')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+  await expect(page.getByRole('button', { name: /Unsaved changes/ })).toBeVisible()
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  expect(state.graph.graph.nodes.map((n) => n.type)).toContain('logic.delay')
+  expect(state.graph.graph.nodes.every((n) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n.id))).toBe(true)
 })
 
-test('load failure blocks mutation and offers a working retry', async ({ page }) => {
+test('the picker opens from the keyboard, and Ctrl+K never opens the shell palette too', async ({ page }) => {
+  await prepare(page)
+  await page.locator('.vue-flow__pane').click({ position: { x: 600, y: 500 } })
+  await page.keyboard.press('n')
+  await expect(picker(page)).toBeVisible()
+  await page.keyboard.type('delay')
+  await page.keyboard.press('Enter')
+  await expect(picker(page)).toHaveCount(0)
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+  // The new step's window opens; Escape closes it (twice when the focus is in one of its fields).
+  await closeLayers(page)
+  await page.keyboard.press('Control+k')
+  await expect(picker(page)).toBeVisible()
+  await expect(page.locator('.cmdk-overlay')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(picker(page)).toHaveCount(0)
+})
+
+test('an output + adds a connected step, keeping the handle', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.graph.nodes.push({ id: 'check', type: 'logic.condition', position: { x: 410, y: 400 }, data: { label: 'Check', expression: '1 == 1' } })
+  const { state } = await prepare(page, { graph })
+  await node(page, 'check').hover()
+  await page.getByRole('button', { name: 'Add a step on the false branch of Check' }).click()
+  await expect(page.getByRole('dialog', { name: 'Add a connected step' })).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Triggers' })).toHaveCount(0)
+  await choose(page, 'Delay')
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  const added = state.graph.graph.nodes.find((n) => n.type === 'logic.delay')
+  expect(state.graph.graph.edges).toContainEqual(expect.objectContaining({ source: 'check', target: added.id, sourceHandle: 'false' }))
+})
+
+test('the + on a connection inserts a step between its ends', async ({ page }) => {
+  const { state } = await prepare(page)
+  const edge = page.locator('.vue-flow__edge[data-id="e_start_log"] .wf-edge-hit')
+  await edge.hover({ force: true })
+  await page.getByRole('button', { name: 'Insert a step between Receive request and Record result' }).click()
+  await expect(page.getByRole('dialog', { name: 'Insert a step' })).toBeVisible()
+  await choose(page, 'Delay')
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  const id = state.graph.graph.nodes.find((n) => n.type === 'logic.delay').id
+  const pairs = state.graph.graph.edges.map((e) => `${e.source}>${e.target}`)
+  expect(pairs).toEqual(expect.arrayContaining([`start>${id}`, `${id}>log`]))
+  expect(pairs).not.toContain('start>log')
+})
+
+test('undo and redo, from the keyboard and the toolbar', async ({ page }) => {
+  await prepare(page)
+  await page.getByRole('button', { name: 'Add a step', exact: true }).click()
+  await choose(page, 'Delay')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+  await page.locator('.vue-flow__pane').click({ position: { x: 700, y: 520 } })
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+  await page.keyboard.press('Control+Shift+Z')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+  await page.getByRole('button', { name: /^Undo/ }).click()
+  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+  await page.getByRole('button', { name: /^Redo/ }).click()
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+})
+
+test('Delete removes every selected item after one question, and undo brings them back', async ({ page }) => {
+  const { state } = await prepare(page)
+  await page.locator('.vue-flow__pane').click({ position: { x: 700, y: 520 } })
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Delete')
+  const ask = page.getByRole('alertdialog', { name: 'Delete 2 steps and 1 connection?' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.locator('.vue-flow__node')).toHaveCount(0)
+  await expect(page.locator('.vue-flow__edge')).toHaveCount(0)
+  await expect(page.getByText('Build your first workflow')).toBeVisible()
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+  await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
+  expect(state.requests.filter((r) => r.method !== 'GET')).toHaveLength(0)
+})
+
+test('a large graph draws only what is on screen, yet Select all reaches every step (F18)', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.graph.nodes = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}`, type: 'logic.delay', position: { x: (i % 20) * 260, y: Math.floor(i / 20) * 120 }, data: { seconds: 1 } }))
+  graph.graph.edges = []
+  graph.graph.viewport = { x: 0, y: 0, zoom: 1 }
+  await prepare(page, { graph })
+  await page.locator('.vue-flow__pane').click({ position: { x: 700, y: 520 } })
+  await page.keyboard.press('0')
+  await expect.poll(() => page.locator('.vue-flow__node').count()).toBeLessThan(200)
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Delete')
+  await expect(page.getByRole('alertdialog', { name: 'Delete 200 steps?' })).toBeVisible()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click()
+})
+
+test('Escape in a field only leaves the field; the next Escape closes the dialog', async ({ page }) => {
+  await prepare(page)
+  await node(page, 'log').click()
+  await page.keyboard.press('F2')
+  const dlg = page.getByRole('dialog', { name: 'Rename step' })
+  await expect(dlg).toBeVisible()
+  const input = dlg.getByRole('textbox', { name: 'Name' })
+  await input.fill('Write the log')
+  await input.press('Escape')
+  await expect(dlg).toBeVisible()
+  await expect(input).not.toBeFocused()
+  await expect(input).toHaveValue('Write the log')
+  await page.keyboard.press('Escape')
+  await expect(dlg).toHaveCount(0)
+  await expect(node(page, 'log')).toContainText('Record result')
+  // Rename for real, then undo it.
+  await node(page, 'log').click()
+  await page.keyboard.press('F2')
+  await page.getByRole('dialog', { name: 'Rename step' }).getByRole('textbox').fill('Write the log')
+  await page.keyboard.press('Enter')
+  await expect(node(page, 'log')).toContainText('Write the log')
+  await page.keyboard.press('Control+z')
+  await expect(node(page, 'log')).toContainText('Record result')
+})
+
+test('double-click and Enter open the step window', async ({ page }) => {
+  await prepare(page)
+  await node(page, 'log').dblclick()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await closeLayers(page)
+  await node(page, 'start').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await closeLayers(page)
+  // The arrow keys go to the neighbouring step.
+  await node(page, 'start').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(node(page, 'log')).toBeFocused()
+})
+
+test('a run waiting on a sub-workflow links to it and asks for no approval', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.last_run = { id: 900, status: 'waiting' }
+  graph.graph.nodes.push({ id: 'child', type: 'action.subworkflow', position: { x: 740, y: 160 }, data: { label: 'Run billing', graph_id: 12, graph_name: 'Billing' } })
+  graph.graph.edges.push({ id: 'e_log_child', source: 'log', target: 'child' })
+  const runDetails = { 900: { id: 900, status: 'waiting', node_runs: [
+    { node_id: 'start', status: 'succeeded', attempt: 1 }, { node_id: 'log', status: 'succeeded', attempt: 1 },
+    { node_id: 'child', status: 'waiting', attempt: 1, output: { awaiting_subworkflow: true, sub_run_id: 77 } },
+  ] } }
+  await prepare(page, { graph, runDetails })
+  await expect(page.getByText('Waiting for sub-workflow run #77')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open run #77' })).toHaveAttribute('href', '/dashboard/workflow-runs?run=77')
+  await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0)
+  await expect(node(page, 'child').locator('.wf-node')).toHaveClass(/is-waiting/)
+})
+
+test('copy and paste go through the system clipboard; pasted steps get fresh ids', async ({ page }) => {
+  const { state } = await prepare(page)
+  await node(page, 'log').click()
+  await page.keyboard.press('Control+C')                     // upper case too (F13)
+  await page.keyboard.press('Control+V')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
+  await page.keyboard.press('Control+v')
+  await expect(page.locator('.vue-flow__node')).toHaveCount(4)
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  const ids = state.graph.graph.nodes.map((n) => n.id)
+  expect(new Set(ids).size).toBe(4)
+})
+
+test('Test, Run and Test up to here send the right modes; Stop cancels the live run', async ({ page }) => {
+  const { state } = await prepare(page)
+  await page.getByRole('button', { name: 'Test', exact: true }).click()
+  await expect.poll(() => mutations(state, '/run/').length).toBe(1)
+  expect(mutations(state, '/run/')[0].body).toMatchObject({ dry_run: true, until_node: null })
+  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeEnabled()
+  await page.keyboard.press('Control+Enter')
+  await expect.poll(() => mutations(state, '/run/').length).toBe(2)
+  expect(mutations(state, '/run/')[1].body.dry_run).toBe(false)
+  await node(page, 'log').hover()
+  await page.getByRole('button', { name: 'Test up to Record result' }).click()
+  await expect.poll(() => mutations(state, '/run/').length).toBe(3)
+  expect(mutations(state, '/run/')[2].body).toMatchObject({ dry_run: true, until_node: 'log' })
+  state.running = true
+  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect.poll(() => mutations(state, '/cancel/').length).toBe(1)
+})
+
+test('Publish, Pause and Resume', async ({ page }) => {
+  const { state } = await prepare(page)
+  await page.getByRole('button', { name: 'Publish', exact: true }).click()
+  await expect(page.locator('.wfb-pill')).toHaveText('Published v2')
+  await menu(page, 'Pause triggers')
+  await expect(page.locator('.wfb-pill')).toHaveText('Paused')
+  await menu(page, 'Resume triggers')
+  expect(state.requests.filter((r) => r.body?.status).map((r) => r.body.status)).toEqual(['published', 'paused', 'published'])
+})
+
+test('Validate shows the reason and the JSON, never hides them (F12)', async ({ page }) => {
+  await prepare(page, { validation: { ok: false, errors: [{ node_id: 'log', message: 'Choose a supported destination' }], warnings: [] } })
+  await menu(page, 'Validate')
+  const dlg = page.getByRole('dialog', { name: 'Validate' })
+  await expect(dlg).toContainText('log: Choose a supported destination')
+  await dlg.getByText("The server's answer (JSON)").click()
+  await expect(dlg.locator('pre').first()).toContainText('"Choose a supported destination"')
+  await dlg.getByRole('button', { name: 'Close' }).first().click()
+  await expect(node(page, 'log').locator('.wf-node')).toHaveClass(/is-invalid/)
+})
+
+test('a validation request that fails shows the server reason', async ({ page }) => {
+  await prepare(page)
+  await page.route('**/api/workflow-graphs/86/validate/', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'The validator is not available.' }) }))
+  await menu(page, 'Validate')
+  const dlg = page.getByRole('dialog', { name: 'Validate' })
+  await expect(dlg.getByRole('alert')).toContainText('The validator is not available.')
+  await dlg.getByText('The workflow that was checked (JSON)').click()
+  await expect(dlg.locator('pre').last()).toContainText('"e_start_log"')
+})
+
+test('the console: L toggles it, Runs pages by cursor, a run opens in the Timeline', async ({ page }) => {
+  const { state } = await prepare(page)
+  await page.locator('.vue-flow__pane').click({ position: { x: 700, y: 520 } })
+  await page.keyboard.press('l')
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Runs' }).click()
+  await expect(page.locator('.wfb-run-row')).toHaveCount(50)
+  await page.getByRole('button', { name: 'Load more runs' }).click()
+  await expect(page.locator('.wfb-run-row')).toHaveCount(52)
+  const runs = state.requests.filter((r) => r.path.endsWith('/runs/'))
+  expect(runs.map((r) => r.query)).toEqual([{ limit: '50' }, { limit: '50', cursor: 'c1' }])
+  await page.locator('.wfb-run-row').nth(1).click()
+  await expect(page.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.wfb-tl-row')).toContainText('Channel refused')
+  await expect(node(page, 'log').locator('.wf-node')).toHaveClass(/is-failed/)
+  await page.getByRole('button', { name: 'Back to the live view' }).click()
+  await expect(node(page, 'log').locator('.wf-node')).not.toHaveClass(/is-failed/)
+  await page.keyboard.press('l')
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toHaveCount(0)
+})
+
+test('the outline lists every step and moves with the arrow keys', async ({ page }) => {
+  await prepare(page)
+  await menu(page, 'Outline')
+  const sheet = page.getByRole('dialog', { name: 'Outline' })
+  const items = sheet.locator('.wfb-outline__open')
+  await expect(items).toHaveCount(2)
+  await expect(items.first()).toContainText('Receive request')
+  await expect(items.first()).toContainText('leads to Record result')
+  await items.first().focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(items.nth(1)).toBeFocused()
+})
+
+test('archive asks first; duplicate opens the copy', async ({ page }) => {
+  const { state } = await prepare(page)
+  await menu(page, 'Duplicate workflow')
+  await expect(page).toHaveURL(/\/87$/)
+  expect(state.requests.find((r) => r.method === 'POST' && r.path === '/api/workflow-graphs/').body.name).toBe('Customer intake (copy)')
+  await expect(page.locator('.wfb-name')).toContainText('Customer intake')
+  await menu(page, 'Archive workflow')
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click()
+  expect(state.requests.filter((r) => r.method === 'DELETE')).toHaveLength(0)
+  await menu(page, 'Archive workflow')
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Archive', exact: true }).click()
+  await expect(page).toHaveURL(/\/workflow-builder$/)
+})
+
+test('a failed load says so and retries', async ({ page }) => {
   const { state } = await prepare(page, { failLoad: true })
   await expect(page.getByRole('alert').filter({ hasText: 'Could not load this workflow' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeDisabled()
-  expect(state.requests.every(r => r.method === 'GET')).toBe(true)
   state.failLoad = false
-  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.locator('.vue-flow__node')).toHaveCount(2)
 })
 
-test('rename, save, discard and leave protection preserve the saved graph', async ({ page }) => {
-  const { state } = await prepare(page)
-  await page.locator('.name-display').click()
-  await page.getByRole('textbox', { name: 'Workflow name' }).fill('Updated intake')
-  await page.getByRole('textbox', { name: 'Workflow name' }).press('Enter')
-  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
-  expect(state.graph.name).toBe('Updated intake')
-  await page.locator('.name-display').click(); await page.getByRole('textbox', { name: 'Workflow name' }).fill('Discard me'); await page.getByRole('textbox', { name: 'Workflow name' }).press('Enter')
-  await more(page, 'Discard changes')
-  await page.getByRole('button', { name: 'Discard', exact: true }).click()
-  await expect(page.locator('.name-display')).toHaveText('Updated intake')
-  await selectNode(page, 'start')
-  await page.locator('.inspector textarea').first().fill('Unsaved description')
+test('leaving with unsaved changes asks first', async ({ page }) => {
+  await prepare(page)
+  await page.getByRole('button', { name: 'Tidy up' }).click()
+  await expect(page.getByRole('button', { name: /Unsaved changes/ })).toBeVisible()
   await page.getByRole('button', { name: 'Back to workflows' }).click()
-  await expect(page.getByRole('alertdialog', { name: 'Leave without saving?' })).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  const ask = page.getByRole('alertdialog', { name: 'Leave with unsaved changes?' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'Stay' }).click()
   await expect(page).toHaveURL(/\/86$/)
 })
 
-test('a conflicting save blocks Run and Publish', async ({ page }) => {
-  const { state } = await prepare(page, { failSave: true })
-  await selectNode(page, 'start'); await page.locator('.inspector textarea').first().fill('Changed')
-  await page.getByRole('button', { name: 'Run', exact: true }).click()
-  await expect(page.getByText('Conflict: reload before saving.')).toBeVisible()
-  expect(mutation(state, '/run/')).toHaveLength(0)
-  await page.getByRole('button', { name: 'Publish', exact: true }).click()
-  expect(state.requests.filter(r => r.body?.status === 'published')).toHaveLength(0)
+test('dark mode draws the builder from the dark tokens', async ({ page }) => {
+  await prepare(page, { theme: 'dark' })
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))   // as useTheme does
+  const style = (sel, prop) => node(page, 'start').locator(sel).evaluate((el, p) => getComputedStyle(el)[p], prop)
+  await expect.poll(() => style('.wf-node', 'backgroundColor')).toBe('rgb(17, 24, 39)')     // --vm-surface in dark
+  await expect.poll(() => style('.wf-node__title', 'color')).toBe('rgb(229, 231, 235)')     // --vm-ink in dark
+  await expect.poll(() => style('.wf-node__badge', 'color')).toBe('rgb(148, 163, 184)')     // --vm-ink-faint in dark
+  expect(await unnamedButtons(page)).toEqual([])
 })
 
-test('Test, Run and Test up to here send the correct execution modes', async ({ page }) => {
-  const { state, errors } = await prepare(page)
-  await page.getByRole('button', { name: 'Test', exact: true }).click()
-  await expect.poll(() => mutation(state, '/run/').length).toBe(1)
-  expect(mutation(state, '/run/')[0].body.dry_run).toBe(true)
-  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Run', exact: true }).click()
-  await expect.poll(() => mutation(state, '/run/').length).toBe(2)
-  expect(mutation(state, '/run/')[1].body.dry_run).toBe(false)
-  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeVisible()
-  await selectNode(page, 'log')
-  await page.getByRole('button', { name: 'Test up to here', exact: false }).click()
-  await expect.poll(() => mutation(state, '/run/').length).toBe(3)
-  expect(mutation(state, '/run/')[2].body).toMatchObject({ dry_run: true, until_node: 'log' })
-  expect(errors).toEqual([])
-})
-
-test('manual inputs can be added, passed to a dry run and removed', async ({ page }) => {
-  const { state } = await prepare(page)
-  await selectNode(page, 'start'); await page.getByRole('button', { name: '+ Add input', exact: true }).click()
-  await page.getByPlaceholder('key', { exact: true }).fill('customer')
-  await page.getByPlaceholder('default value', { exact: true }).fill('Example')
-  await page.getByRole('button', { name: 'Test', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Run with inputs' })
-  await dialog.getByPlaceholder('customer', { exact: true }).fill('Synthetic customer')
-  await dialog.locator('.rf-foot button').last().click()
-  await expect.poll(() => mutation(state, '/run/').length).toBe(1)
-  expect(mutation(state, '/run/')[0].body).toMatchObject({ dry_run: true, payload: { customer: 'Synthetic customer' } })
-  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Test up to here', exact: false }).click()
-  await expect(dialog).toBeVisible()
-  await dialog.locator('.rf-foot button').last().click()
-  await expect.poll(() => mutation(state, '/run/').length).toBe(2)
-  expect(mutation(state, '/run/')[1].body).toMatchObject({ dry_run: true, until_node: 'start', payload: { customer: 'Example' } })
-  await page.getByRole('button', { name: 'Remove input', exact: true }).click()
-  await expect(page.getByText('No inputs yet', { exact: true })).toBeVisible()
-})
-
-test('Stop requests cancellation and keeps logs available while running', async ({ page }) => {
-  const { state } = await prepare(page, { running: true })
-  await page.getByRole('button', { name: 'Run', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
-  await expect(page.locator('.log-console')).toBeVisible()
-  await page.getByRole('button', { name: 'Stop', exact: true }).click()
-  await expect.poll(() => mutation(state, '/cancel/').length).toBe(1)
-})
-
-test('Publish, Pause and Resume use explicit lifecycle requests', async ({ page }) => {
-  const { state } = await prepare(page)
-  await page.getByRole('button', { name: 'Publish', exact: true }).click()
-  await expect(page.locator('.wf-status').first()).toHaveText('published')
-  await page.getByRole('button', { name: 'Pause', exact: true }).click()
-  await expect(page.locator('.wf-status').first()).toHaveText('paused')
-  await page.getByRole('button', { name: 'Resume', exact: true }).click()
-  await expect(page.locator('.wf-status').first()).toHaveText('published')
-  expect(state.requests.filter(r => r.body?.status).map(r => r.body.status)).toEqual(['published', 'paused', 'published'])
-})
-
-test('history and versions show failures, retry, details and restore', async ({ page }) => {
-  const { state } = await prepare(page, { failHistory: true, failVersions: true })
-  await page.getByRole('button', { name: 'Runs', exact: true }).click()
-  await expect(page.getByText('Could not load run history.')).toBeVisible()
-  state.failHistory = false; await page.getByRole('button', { name: 'Try again', exact: true }).click()
-  await page.locator('.run-row').first().click(); await expect(page.locator('.run-detail')).toContainText('Run #501')
-  await page.keyboard.press('Escape')
-  await more(page, 'Version history')
-  await expect(page.getByText('Could not load version history.')).toBeVisible()
-  state.failVersions = false; await page.getByRole('button', { name: 'Try again', exact: true }).click()
-  await page.getByRole('button', { name: 'Restore', exact: true }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Restore', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Version history' })).toHaveCount(0)
-})
-
-test('palette is searchable, nodes are removable, and Escape never deletes from a select', async ({ page }) => {
-  await prepare(page)
-  await page.getByRole('textbox', { name: 'Filter node library' }).fill('nonsense')
-  await expect(page.getByText('No nodes match', { exact: false })).toBeVisible()
-  await page.getByRole('textbox', { name: 'Filter node library' }).fill('')
-  await page.keyboard.press('Control+k')
-  await page.getByRole('searchbox', { name: 'Search nodes', exact: true }).fill('delay')
-  await page.locator('.cmd-item').filter({ hasText: 'Delay' }).first().click()
-  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Delete node', exact: true }).click()
-  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
-  await selectNode(page, 'log'); await page.locator('.inspector select').first().focus(); await page.keyboard.press('Backspace')
-  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
-  await page.getByRole('button', { name: 'Workflow help and keyboard shortcuts' }).click()
-  await expect(page.getByRole('dialog', { name: 'Workflow help' })).toBeVisible()
-  await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0)
-})
-
-for (const node of wfPaletteItems()) {
-  test(`node palette config: ${node.type}`, async ({ page }) => {
+for (const width of [1440, 1024, 768, 375]) {
+  test(`at ${width}px the canvas fills the screen with no page scroll and the toolbar keeps Run`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width < 641 ? 812 : 900 })
     const { errors } = await prepare(page)
-    await page.getByRole('textbox', { name: 'Filter node library' }).fill(node.label)
-    await page.locator('.pal-card').filter({ has: page.getByText(node.label, { exact: true }) }).click()
-    await expect(page.locator('.vue-flow__node')).toHaveCount(3)
-    await expect(page.locator('.ins-node-title strong')).toHaveText(node.label)
-    await expect(page.locator('.inspector')).toBeVisible()
-    if (node.type !== 'trigger.webhook') await expect(page.getByRole('button', { name: 'Test up to here', exact: false })).toBeVisible()
-    await page.getByRole('button', { name: 'Delete node', exact: true }).click()
-    await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+    expect(await pageScrolls(page)).toEqual({ x: false, y: false, main: false })
+    const bar = await page.locator('.wfb-toolbar').boundingBox()
+    expect(bar.height).toBeLessThan(64)
+    expect(bar.x + bar.width).toBeLessThanOrEqual(width)
+    await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeInViewport()
+    await expect(page.getByRole('button', { name: 'More workflow actions' })).toBeInViewport()
+    if (width < 640) await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0)
+    // A workflow with no run starts with the console collapsed to its strip.
+    await expect(page.getByRole('tablist', { name: 'Console views' })).toHaveCount(0)
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((t) => { localStorage.setItem('app-theme', t); document.documentElement.setAttribute('data-theme', t) }, theme)
+      await page.waitForTimeout(1200)                         // colour transitions settled, minimap faded
+      if (SHOTS && (width === 1440 || width === 375)) await page.screenshot({ path: resolve(SHOTS, `workflow-builder-${width}-${theme}.png`) })
+    }
+    // Below 1024 px the console opens as a bottom sheet.
+    await page.getByRole('button', { name: /^Console/ }).click()
+    if (width < 1024) await expect(page.getByRole('dialog', { name: 'Console' })).toBeInViewport()
+    else await expect(page.getByRole('tablist', { name: 'Console views' })).toBeInViewport()
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Control+k')
+    await expect(picker(page)).toBeInViewport()
+    await page.keyboard.press('Escape')
+    expect(await pageScrolls(page)).toEqual({ x: false, y: false, main: false })
     expect(errors).toEqual([])
   })
 }
 
-test('MCP catalog selection exposes its confirmation action and preserves the chosen identity', async ({ page }) => {
-  const { state, errors } = await prepare(page)
-  await page.keyboard.press('Control+k')
-  await page.getByRole('searchbox', { name: 'Search nodes', exact: true }).fill('fixture_read')
-  const group = page.locator('.cmd-grp').filter({ hasText: 'Fixture MCP' })
-  if (await group.locator('.cmd-item').count() === 0) await group.locator('.cmd-grp-toggle').click()
-  await group.locator('.cmd-item').filter({ hasText: 'fixture_read' }).click()
-  const confirmation = page.getByRole('button', { name: 'Add MCP tool node', exact: true })
-  await expect(confirmation).toBeVisible(); await expect(confirmation).toBeDisabled()
-  await page.locator('.cmd-ctx select').selectOption('1')
-  await confirmation.click()
-  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  const added = state.graph.graph.nodes.find(node => node.type === 'action.mcp_tool')
-  expect(added.data).toMatchObject({ server_id: 7, tool_name: 'fixture_read', agent_id: 1 })
-  expect(errors).toEqual([])
-})
-
-test('panel toggles, layout reset, zoom and help are usable', async ({ page }) => {
-  await prepare(page)
-  const library = page.getByRole('complementary', { name: 'Node library' })
-  await page.getByRole('button', { name: 'Nodes', exact: true }).click(); await expect(library).toBeHidden()
-  await page.getByRole('button', { name: 'Nodes', exact: true }).click(); await expect(library).toBeVisible()
-  await page.getByRole('button', { name: 'Inspector', exact: true }).click(); await expect(page.locator('.inspector')).toBeVisible()
-  await page.getByRole('button', { name: 'Inspector', exact: true }).click(); await expect(page.locator('.inspector')).toHaveCount(0)
-  const before = await page.locator('.vue-flow__transformationpane').getAttribute('style')
-  await page.locator('.vue-flow__controls-zoomin').click()
-  await expect(page.locator('.vue-flow__transformationpane')).not.toHaveAttribute('style', before)
-  await page.locator('.vue-flow__controls-zoomout').click(); await page.locator('.vue-flow__controls-fitview').click()
-  await page.getByRole('button', { name: 'Reset layout', exact: true }).click()
-  await page.getByRole('button', { name: 'Shortcuts', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Workflow help' }); await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click(); await expect(dialog).toHaveCount(0)
-})
-
-test('copy/paste creates independent nodes, and connection labels and deletion persist', async ({ page }) => {
-  const { state } = await prepare(page)
-  await selectNode(page, 'log'); await page.keyboard.press('Control+c'); await page.keyboard.press('Control+v')
-  await expect(page.locator('.vue-flow__node')).toHaveCount(3)
-  await page.locator('.vue-flow__edge-path').first().click({ force: true })
-  await page.getByPlaceholder('e.g. on success').fill('Accepted')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  expect(state.graph.graph.edges[0].label).toBe('Accepted')
-  await page.locator('[title="Delete connection"]').click()
-  await expect(page.locator('.vue-flow__edge')).toHaveCount(0)
-})
-
-test('validation highlights errors, log filtering, clear and hide keep the canvas accessible', async ({ page }) => {
-  await prepare(page, { validation: { ok: false, errors: [{ node_id: 'log', message: 'Choose a supported destination' }] } })
-  await more(page, 'Validate workflow')
-  await expect(page.locator('.log-console')).toBeVisible()
-  await expect(page.locator('.log-body')).toContainText('Choose a supported destination')
-  await expect(page.locator('.vue-flow__node[data-id="log"]')).toContainText('Choose a supported destination')
-  await page.getByRole('button', { name: 'Errors only' }).click()
-  await page.locator('.log-console').getByRole('button', { name: 'Clear', exact: true }).click()
-  await expect(page.getByText('No activity yet', { exact: false })).toBeVisible()
-  await page.locator('.log-console').getByRole('button', { name: 'Hide', exact: true }).click()
-  await expect(page.locator('.log-console')).toHaveCount(0)
-  await page.locator('.log-reopen').click(); await expect(page.locator('.log-console')).toBeVisible()
-})
-
-test('duplicate and archive require explicit actions and leave the correct workflow', async ({ page }) => {
-  const { state } = await prepare(page)
-  await more(page, 'Duplicate workflow')
-  await expect(page).toHaveURL(/\/87$/)
-  expect(state.requests.find(r => r.method === 'POST' && r.path === '/api/workflow-graphs/').body.name).toBe('Customer intake (copy)')
-  await expect(page.locator('.name-display')).toHaveText('Customer intake')
-  await more(page, 'Archive workflow')
-  const dialog = page.getByRole('alertdialog', { name: 'Archive workflow?' })
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-  expect(state.requests.filter(r => r.method === 'DELETE')).toHaveLength(0)
-  await more(page, 'Archive workflow')
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Archive', exact: true }).click()
-  await expect(page).toHaveURL(/\/workflow-builder$/)
-  expect(state.requests.filter(r => r.method === 'DELETE').at(-1).path).toBe('/api/workflow-graphs/87/')
-})
-
-test('edits made while saving remain dirty and discard returns to the actual saved snapshot', async ({ page }) => {
-  await prepare(page)
-  let pending, submitted
-  await page.route('**/api/workflow-graphs/86/', async route => {
-    if (route.request().method() !== 'PUT') return route.fallback()
-    submitted = route.request().postDataJSON()
-    await new Promise(resolve => { pending = resolve })
-    await route.fulfill({ json: { ...baseGraph, ...submitted, etag: 'saved-during-edit' } })
-  })
-  await selectNode(page, 'start'); await page.getByRole('button', { name: '+ Add input', exact: true }).click()
-  await page.getByPlaceholder('key', { exact: true }).fill('saved-key')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect.poll(() => !!pending).toBe(true)
-  await page.getByPlaceholder('key', { exact: true }).fill('later-key')
-  pending()
-  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible()
-  await more(page, 'Discard changes'); await page.getByRole('alertdialog').getByRole('button', { name: 'Discard', exact: true }).click()
-  await selectNode(page, 'start')
-  await expect(page.getByPlaceholder('key', { exact: true })).toHaveValue('saved-key')
-})
-
-test('editing during publication retains the unsaved indicator', async ({ page }) => {
-  await prepare(page)
-  let complete
-  await page.route('**/api/workflow-graphs/86/', async route => {
-    if (route.request().method() !== 'PUT') return route.fallback()
-    await new Promise(resolve => { complete = resolve })
-    await route.fulfill({ json: { ...baseGraph, status: 'published', version: 2 } })
-  })
-  await selectNode(page, 'start')
-  await page.getByRole('button', { name: 'Publish', exact: true }).click()
-  await expect.poll(() => !!complete).toBe(true)
-  await page.getByRole('button', { name: '+ Add input', exact: true }).click()
-  complete()
-  await expect(page.locator('.wf-status').first()).toHaveText('published')
-  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible()
-})
-
-test('repeated paste creates independent nested configuration', async ({ page }) => {
-  const graph = clone(baseGraph); graph.graph.nodes[0].data.inputs = [{ key: 'original', default: 'one' }]
-  const { state } = await prepare(page, { graph })
-  await selectNode(page, 'start'); await page.keyboard.press('Control+c'); await page.keyboard.press('Control+v'); await page.keyboard.press('Control+v')
-  await expect(page.locator('.vue-flow__node')).toHaveCount(4)
-  const copies = page.locator('.vue-flow__node').filter({ hasText: 'Receive request' })
-  await copies.last().click()
-  await page.getByPlaceholder('key', { exact: true }).fill('changed-copy')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  const keys = state.graph.graph.nodes.filter(node => node.type === 'trigger.manual').map(node => node.data.inputs[0].key)
-  expect(keys.filter(key => key === 'changed-copy')).toHaveLength(1)
-  expect(keys.filter(key => key === 'original')).toHaveLength(2)
-})
-
-test('invalid JSON blocks saving and execution without replacing saved parameters', async ({ page }) => {
+test('the console stays a strip until there is a run, then remembers the person’s choice', async ({ page }) => {
   const graph = clone(baseGraph)
-  graph.graph.nodes[1] = { ...graph.graph.nodes[1], type: 'action.tool', data: { tool: 'FIXTURE_TOOL', params: { query: 'saved' } } }
-  const { state } = await prepare(page, { graph })
-  await selectNode(page, 'log')
-  await page.getByLabel('Params (JSON)', { exact: true }).fill('{ invalid')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.locator('.ins-err')).toContainText('Enter valid JSON')
-  await page.getByRole('button', { name: 'Run', exact: true }).click()
-  await expect(page.locator('.ins-err')).toBeVisible()
-  expect(state.requests.filter(r => r.method !== 'GET')).toHaveLength(0)
-  expect(state.graph.graph.nodes[1].data.params).toEqual({ query: 'saved' })
-  await page.getByLabel('Params (JSON)', { exact: true }).fill('{ "query": "updated" }')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect.poll(() => state.graph.graph.nodes[1].data.params.query).toBe('updated')
+  graph.last_run = { id: 450, status: 'success' }
+  await prepare(page, { graph })
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toHaveCount(0)
+  await page.getByRole('button', { name: /^Console/ }).click()
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toBeVisible()
+  await page.reload()
+  await expect(page.locator('.wfb-name')).toContainText('Customer intake', { timeout: 60000 })
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toBeVisible()      // opened, and remembered
+  await page.getByRole('button', { name: /^Console/ }).click()
+  await page.reload()
+  await expect(page.locator('.wfb-name')).toContainText('Customer intake', { timeout: 60000 })
+  await expect(page.getByRole('tablist', { name: 'Console views' })).toHaveCount(0)      // closed, and remembered
 })
 
-test('clearing an HTTP JSON body removes the saved body', async ({ page }) => {
-  const graph = clone(baseGraph)
-  graph.graph.nodes[1] = { ...graph.graph.nodes[1], type: 'action.http', data: { method: 'POST', url: 'https://example.invalid', json: { previous: true } } }
-  const { state } = await prepare(page, { graph })
-  await selectNode(page, 'log')
-  await page.getByLabel('JSON body (optional)', { exact: true }).fill('')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect.poll(() => state.requests.filter(r => r.method === 'PUT').length).toBe(1)
-  expect(state.graph.graph.nodes[1].data).not.toHaveProperty('json')
-})
-
-test('dragging and quick-add connect real nodes and mark the layout unsaved', async ({ page }) => {
-  const { state } = await prepare(page)
-  const start = page.locator('.vue-flow__node[data-id="start"]')
-  const box = await start.boundingBox()
-  await page.mouse.move(box.x + 50, box.y + 20); await page.mouse.down(); await page.mouse.move(box.x + 90, box.y + 100, { steps: 10 }); await page.mouse.up()
-  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible()
-  await start.hover(); await start.getByRole('button', { name: 'Add next node' }).click()
-  await page.getByRole('searchbox', { name: 'Search nodes', exact: true }).fill('Delay')
-  await page.locator('.cmd-item').filter({ hasText: 'Delay' }).click()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  expect(state.graph.graph.nodes).toHaveLength(3); expect(state.graph.graph.edges).toHaveLength(2)
-  expect(state.graph.graph.nodes.find(node => node.id === 'start').position.y).not.toBe(160)
-  const next = state.graph.graph.nodes.find(node => node.type === 'logic.delay')
-  expect(state.graph.graph.edges).toContainEqual(expect.objectContaining({ source: 'start', target: next.id }))
-})
-
-test('condition rows, advanced settings and variable insertion persist edited values', async ({ page }) => {
-  const { state } = await prepare(page)
-  await page.getByRole('textbox', { name: 'Filter node library' }).fill('Condition')
-  await page.locator('.pal-card').click()
-  await page.getByRole('button', { name: 'Add condition', exact: true }).click()
-  const fields = page.locator('.condition-row input')
-  await fields.nth(0).fill('score'); await fields.nth(1).fill('80')
-  await page.locator('.condition-row select').first().selectOption('>')
-  await page.locator('.condition-join').selectOption('OR')
-  await page.getByRole('button', { name: 'Remove condition' }).last().click()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  const condition = state.graph.graph.nodes.find(node => node.type === 'logic.condition')
-  expect(condition.data.conditions).toHaveLength(1)
-  expect(condition.data.conditions[0]).toMatchObject({ field: 'score', operator: '>', value: '80' })
-  await selectNode(page, 'log')
-  await page.getByRole('button', { name: 'Advanced', exact: false }).click()
-  await page.getByLabel('Retries', { exact: true }).fill('2')
-  const insert = page.locator('.inspector').getByRole('button', { name: 'Insert variable', exact: false }).first()
-  await insert.click(); await expect(page.getByRole('dialog', { name: 'Insert variable' })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  expect(state.graph.graph.nodes.find(node => node.id === 'log').data.retries).toBe(2)
-})
-
-test('dialogs trap focus and return it to their opener, without triggering graph shortcuts', async ({ page }) => {
-  await prepare(page)
-  const help = page.getByRole('button', { name: 'Workflow help and keyboard shortcuts' })
-  await help.click()
-  const dialog = page.getByRole('dialog', { name: 'Workflow help' })
-  await dialog.getByRole('button', { name: 'Done', exact: true }).focus(); await page.keyboard.press('Tab')
-  await expect(dialog.getByRole('button', { name: 'Close workflow help' })).toBeFocused()
-  await page.keyboard.press('Shift+Tab'); await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeFocused()
-  await page.keyboard.press('Control+k'); await expect(page.getByRole('dialog', { name: 'Add a node' })).toHaveCount(0)
-  await page.keyboard.press('Escape'); await expect(help).toBeFocused()
-})
-
-for (const width of [1440, 1024, 768, 375]) {
-  test(`responsive editor at ${width}px keeps actions and dialogs inside the viewport`, async ({ page }, testInfo) => {
-    await page.setViewportSize({ width, height: 900 })
-    const { errors } = await prepare(page)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    const toolbar = await page.locator('.wfb-bar').boundingBox(); expect(toolbar.height).toBeLessThan(width < 641 ? 130 : 75)
-    await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeInViewport()
-    await page.screenshot({ path: testInfo.outputPath(`editor-${width}.png`) })
-    await page.keyboard.press('Control+k')
-    await expect(page.getByRole('dialog', { name: 'Add a node' })).toBeInViewport()
-    await page.screenshot({ path: testInfo.outputPath(`palette-${width}.png`) })
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Workflow help and keyboard shortcuts' }).click()
-    await expect(page.getByRole('dialog', { name: 'Workflow help' })).toBeInViewport()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    expect(errors).toEqual([])
+// ── axe (WCAG 2.2 AA rules): the builder's own parts must have no serious or critical finding ──
+const BUILDER_PARTS = ['.wfb-root', '.wf-tokens', '.app-dialog', '.app-sheet', '.wfb-menu']
+const axeFindings = []
+async function axeScan(page, label) {
+  const present = []
+  for (const sel of BUILDER_PARTS) if (await page.locator(sel).count()) present.push(sel)
+  let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+  for (const sel of present) builder = builder.include(sel)
+  const own = await builder.analyze()
+  // The whole page too, so findings in the shell around the builder are reported (not failed: not this lane's code).
+  const all = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
+  const grave = (r) => r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
+  // The node window's content is lane FE-4's (its root carries `wf-tokens`): reported, not failed here.
+  const inNodeWindow = (target) => page.evaluate((sel) => !!document.querySelector(sel)?.closest('.wf-tokens'), target.join(' '))
+  const ownGrave = []
+  const nodeWindow = []
+  for (const v of grave(own)) {
+    const mine = []
+    const theirs = []
+    for (const n of v.nodes) (await inNodeWindow(n.target) ? theirs : mine).push(n)
+    if (mine.length) ownGrave.push({ ...v, nodes: mine })
+    if (theirs.length) nodeWindow.push({ ...v, nodes: theirs })
+  }
+  const ownKeys = new Set(ownGrave.flatMap((v) => v.nodes.map((n) => `${v.id}|${n.target.join(' ')}`)))
+  for (const v of nodeWindow) for (const n of v.nodes) ownKeys.add(`${v.id}|${n.target.join(' ')}`)
+  const shell = grave(all).map((v) => ({ ...v, nodes: v.nodes.filter((n) => !ownKeys.has(`${v.id}|${n.target.join(' ')}`)) })).filter((v) => v.nodes.length)
+  axeFindings.push({
+    label,
+    builder: ownGrave.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target.join(' ')) })),
+    nodeWindow: nodeWindow.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target.join(' ')) })),
+    outside: shell.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target.join(' ')) })),
+    counts: { builderViolations: own.violations.length, builderPasses: own.passes.length },
   })
+  if (AXE_OUT) writeFileSync(AXE_OUT, JSON.stringify(axeFindings, null, 2))
+  return ownGrave
+}
+const summary = (list) => list.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+
+for (const width of [1440, 375]) {
+  for (const theme of ['light', 'dark']) {
+    test(`axe: no serious or critical finding at ${width}px in ${theme}, with the node window and the console`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width < 641 ? 812 : 900 })
+      await prepare(page, { theme })
+      await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
+      await page.waitForTimeout(1200)
+      expect(summary(await axeScan(page, `${width} ${theme} canvas`))).toEqual([])
+      await node(page, 'log').dblclick()
+      await expect(page.getByRole('dialog')).toBeVisible()
+      await page.waitForTimeout(400)
+      expect(summary(await axeScan(page, `${width} ${theme} node window`))).toEqual([])
+      await closeLayers(page)
+      await page.getByRole('button', { name: /^Console/ }).click()
+      if (width < 1024) await expect(page.getByRole('dialog', { name: 'Console' })).toBeVisible()
+      else await expect(page.getByRole('tablist', { name: 'Console views' })).toBeVisible()
+      await page.waitForTimeout(400)
+      expect(summary(await axeScan(page, `${width} ${theme} console`))).toEqual([])
+    })
+  }
 }

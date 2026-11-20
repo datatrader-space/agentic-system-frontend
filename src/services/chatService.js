@@ -303,6 +303,9 @@ export class ChatConnection {
       // The Studio page (and preset) this message is sent from: the agent is told it on every turn and the chat is
       // named from it. Only known page ids are kept by the backend.
       studio_context: opts.studioContext || undefined,
+      // Workflow Builder agent bar (ADM-1333): the workflow open in the builder, {graph_id: <int>}. The server
+      // checks the person owns it before the turn gets the two read-only workflow tools.
+      workflow_context: opts.workflowContext || undefined,
       // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
       // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
       // deliberate choice rather than whatever the model happens to pick. Backend enforces both.
