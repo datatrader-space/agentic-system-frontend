@@ -285,7 +285,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
       </div>
     </div>
     <UiDialog :open="confirmOpen" title="Label this batch" @close="confirmOpen=false">
-      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every corner and send the photo to review.</p>
+      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every shape it drew and send the photo to review.</p>
       <p class="dialog-description">{{ current ? label(current) : '' }} becomes the model “Find Objects with AI” offers you first in this project. You can change it there.</p>
       <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ sentence(cost) }}</p>
       <p v-else-if="current&&detail" class="dialog-description">A model runs only when you ask it. {{ label(current) }}: {{ detail }}.</p>

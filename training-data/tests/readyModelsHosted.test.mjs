@@ -95,6 +95,10 @@ test('Auto Label chooses no place, says its price an image, and keeps no place i
   assert.match(autoLabel, /<span>\{\{ current\.hosted\?\.price \|\| 'Uses balance' \}\}<\/span>/);
   assert.match(autoLabel, /AADML starts and stops it; each photo it answers is charged as one image\./);
   assert.doesNotMatch(autoLabel, /acceptLicence|stopOnMachine|SAM License|stopped after 15 minutes/);
+  // Live, 2026-11-20: a "Find objects" project of plain classes was told to "check every corner"; corners are a
+  // wall's only. The person checks every shape the model drew.
+  assert.doesNotMatch(autoLabel, /every corner/);
+  assert.match(autoLabel, /you check every shape it drew and send the photo to review\./);
   // The workflow's first node is the model alone, with no run-location line.
   assert.match(workflow, /<small>1 · Model<\/small><h4>/);
   assert.doesNotMatch(workflow, /run location|shown\.where|On one of your machines/);
