@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupSources, familyOfId, idFor, labelsOfId, waysOf } from '../src/sourceFamilies.js';
+import { groupSources, familyOfId, idFor, labelsOfId, waysOf, fillOpacityOf, sameAnswer } from '../src/sourceFamilies.js';
 
 // As views._detect_sources + auto_label.sources send them (owner, 2026-11-09: GPT-6.1 Terra and Gemini 4 Argon, each
 // alone and with SAM 3, beside SAM 3 and the project's own models).
@@ -92,4 +92,17 @@ test('only a price follows "charged to you"; a model\'s words and its detail rea
   assert.equal(aboutOf({ detail: 'Trained in this project' }), 'Trained in this project.');
   assert.equal(aboutOf({ what: 'Finds walls' }), 'Finds walls.');
   assert.equal(aboutOf(null), '');
+});
+
+// Live, 2026-11-20: Auto Label threw SAM 3's preview away when Polygons was switched to Masks (asking and charging again),
+// and the editor drew both ways alike. Polygons and Masks of one model are the same answer; a mask is drawn filled.
+test('Polygons and Masks of one model are the same answer, drawn lighter and filled', () => {
+  const byId = id => SOURCES.find(s => s.id === id);
+  assert.equal(sameAnswer(byId('sam3'), byId('sam3-masks')), true);
+  assert.equal(sameAnswer(byId('vision:openai/gpt-6.1-terra'), byId('sam3')), false);   // another model
+  assert.equal(sameAnswer(byId('m2'), byId('psegformer-b0')), false);
+  assert.equal(sameAnswer(byId('sam3'), null), false);
+  assert.equal(fillOpacityOf('masks'), 0.55);
+  assert.equal(fillOpacityOf('polygons'), 0.25);
+  assert.equal(fillOpacityOf(undefined), 0.25);
 });

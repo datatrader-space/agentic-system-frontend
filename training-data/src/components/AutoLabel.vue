@@ -17,7 +17,7 @@ import { ArrowLeft, ArrowRight, ChevronRight, Image as ImageIcon, Plus, Zap, Che
 import AutoLabelAgent from './AutoLabelAgent.vue';
 import LabelingWorkflow from './LabelingWorkflow.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { costOf, reasonOnly, sentence, startsServer } from '../sourceFamilies.js';
+import { costOf, fillOpacityOf, reasonOnly, sameAnswer, sentence, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -60,8 +60,8 @@ const pickedImages = computed(() => props.media.filter(m => picked.value.include
 const generating = computed(() => previews.value.some(p => p.state === 'asking' || p.state === 'waiting'));
 const colour = kind => props.state.classes.find(c => c.name === kind)?.color || '#8b5cf6';
 const label = s => `${s.mode ? `${s.mode}: ` : ''}${s.name}`;
-// A mask is the same outline, filled: it is drawn more solid than a polygon.
-const fillOpacity = computed(() => (current.value?.labels === 'masks' ? 0.55 : 0.25));
+// A mask is the same outline, filled: it is drawn more solid than a polygon (sourceFamilies.fillOpacityOf).
+const fillOpacity = computed(() => fillOpacityOf(current.value?.labels));
 async function loadSources() {
   loading.value = true; error.value = '';
   try {
@@ -81,8 +81,15 @@ const classNames = computed(() => props.state.classes.map(c => c.name));
 const asked = ref(askedClasses(props.state.ref, classNames.value));
 const definition = computed(() => ({ schema: 'aadml.labeling-workflow.v1', source: chosen.value,
   classes: props.state.classes.filter(c => asked.value.includes(c.name)).map(c => ({ name: c.name, color: c.color, description: c.description || '' })) }));
-// Another model, another way of showing it, or other classes: the preview is of the one chosen before, so it goes.
-watch(definition, () => { previews.value = []; focus.value = 0; });
+// Another model or other classes: the preview is of the one chosen before, so it goes. Polygons and Masks of the same
+// model are the same answer drawn two ways (sourceFamilies.sameAnswer): the preview stays and is drawn the new way, and
+// nothing is asked (or charged) again (live, 2026-11-20: the switch threw SAM 3's preview away).
+watch(definition, (now, before) => {
+  const byId = id => sources.value.find(s => s.id === id);
+  const sameClasses = before && JSON.stringify(now.classes) === JSON.stringify(before.classes);
+  if (sameClasses && sameAnswer(byId(now.source), byId(before.source))) return;
+  previews.value = []; focus.value = 0;
+});
 const agentContext = computed(() => JSON.stringify({ project: props.state.ref, batch: { id: props.batch.id, source: props.batch.source },
   selected_image_ids: picked.value.slice(0, 4), configuration: definition.value }, null, 2));
 async function applyWorkflow(body) {

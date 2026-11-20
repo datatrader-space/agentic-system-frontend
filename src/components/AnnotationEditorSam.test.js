@@ -53,7 +53,9 @@ test('restored SAM disables point tool and keyboard while retaining automatic an
   const body = await api.editor(); body.detect.sources[0].point_selection=false; api.editor.mockResolvedValue(body); api.editor.mockClear();
   const w=render();await flushPromises();
   expect(w.get('[aria-label="SAM 3 click to label (A)"]').element.disabled).toBe(true);
-  expect(w.text()).toContain('SAM 3 click-to-label is unavailable right now');
+  // Not "unavailable right now" (live, 2026-11-20: it read as an outage while SAM 3 was on): the release has no point
+  // selection in its SAM 3 server (bb77016e), whether SAM 3 is on or not.
+  expect(w.text()).toContain('SAM 3 click-to-label is not available yet. Find Objects with AI, Auto Label and drawing by hand work.');
   expect(w.text()).not.toContain('Mouse selection');
   expect(w.get('[aria-label="Draw polygon (P)"]').element.disabled).toBe(false);
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'a',bubbles:true}));
@@ -85,4 +87,28 @@ test('a class added in the editor takes the next palette colour no class of the 
   await w.get('input[placeholder="What do you want to label?"]').setValue('sofa');
   await w.get('input[placeholder="What do you want to label?"]').element.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await flushPromises();
   expect(api.addClass).toHaveBeenCalledWith('~901',{name:'sofa',color:'#0ea5e9'});   // not the red of "wall"
+});
+
+// Live, 2026-11-20: "Find Objects with AI" drew SAM 3's Masks like its Polygons, and seeing the other way meant Back and
+// asking (and paying) again. The found shapes are drawn as the chosen way shows them, and the switch beside them only
+// redraws the same answer.
+test('the found shapes are drawn as Polygons or Masks show them, and switching never asks again',async()=>{
+  const sam=(id,labels)=>({id,name:`SAM 3 (${labels==='masks'?'Masks':'Polygons'})`,maker:'Meta',family:'SAM 3',labels,where:[],platform:true,detail:'Synthetic fixture'});
+  api.editor.mockResolvedValue({photo:{width:1200,height:800},shapes:[],classes,tags:[],readonly:'',approving:false,
+    detect:{sources:[sam('sam3','polygons'),sam('sam3-masks','masks')],preference:'sam3'},started_from:'from_scratch'});
+  api.detect.mockResolvedValue({name:'SAM 3 (Polygons)',started_model:'sam3',find:'product logo',tidy:false,
+    shapes:[{kind:'product logo',points:[[100,100],[300,100],[300,300]],score:0.9}]});
+  const w=render();await flushPromises();
+  await w.get('button.find-ai').trigger('click');await flushPromises();
+  await w.get('#find-class-name').setValue('product logo');
+  await w.get('form.find-ask').trigger('submit');await flushPromises();   // Find Objects submits the card's form
+  expect(api.detect).toHaveBeenCalledTimes(1);
+  const found=()=>w.get('polygon[stroke-dasharray="6 4"]').attributes('fill-opacity');
+  expect(found()).toBe('0.25');
+  const way=name=>w.findAll('.find-card .source-ways button').find(b=>b.text().includes(name));
+  await way('Masks').trigger('click');await flushPromises();
+  expect(found()).toBe('0.55');                                            // the same shape, filled
+  await way('Polygons').trigger('click');await flushPromises();
+  expect(found()).toBe('0.25');
+  expect(api.detect).toHaveBeenCalledTimes(1);                             // never asked again
 });

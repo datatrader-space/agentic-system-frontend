@@ -10,7 +10,8 @@
 // starts it."), and while it is not running it is listed with that reason and cannot be chosen
 // (agentic-docs/FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10).
 import { computed, nextTick, ref, watch } from 'vue';
-import { Boxes, Check, ChevronDown, ChevronRight, Search, Shapes, PaintBucket } from 'lucide-vue-next';
+import { Boxes, Check, ChevronDown, ChevronRight, Search } from 'lucide-vue-next';
+import AnswerWays from './AnswerWays.vue';
 import { familyOfId, groupSources, idFor, labelsOfId, waysOf } from '../sourceFamilies.js';
 
 const props = defineProps({
@@ -33,7 +34,6 @@ const trigger = ref(null);
 const groups = computed(() => groupSources(props.sources));
 const current = computed(() => familyOfId(groups.value, props.modelValue));
 const labels = computed(() => labelsOfId(props.sources, props.modelValue));
-const ways = computed(() => waysOf(current.value));
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase();
   return groups.value
@@ -49,7 +49,6 @@ function choose(family) {
   emit('update:modelValue', idFor(family, labels.value));
   if (!props.inline) { open.value = false; nextTick(() => trigger.value?.focus()); }
 }
-function setWay(way) { if (current.value) emit('update:modelValue', idFor(current.value, way)); }
 function toggle() {
   if (props.disabled) return;
   open.value = !open.value;
@@ -111,13 +110,7 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
         </div>
       </div>
     </div>
-    <div v-if="current && ways.length > 1" class="source-ways" role="radiogroup" aria-label="How the answer is shown">
-      <button v-for="way in ways" :key="way" type="button" role="radio" :aria-checked="labels===way" :class="{ on: labels===way }"
-              :disabled="disabled" @click="setWay(way)">
-        <PaintBucket v-if="way==='masks'" :size="15" aria-hidden="true"/><Shapes v-else :size="15" aria-hidden="true"/>
-        {{ way === 'masks' ? 'Masks' : 'Polygons' }}
-      </button>
-    </div>
+    <AnswerWays v-if="current" :sources="sources" :model-value="modelValue" :disabled="disabled" @update:model-value="v => emit('update:modelValue', v)"/>
     <div v-if="current" class="source-where"><span class="source-where-label">Where this model runs</span>
       <p :class="['source-location-note', { 'source-off': !!current.unavailable || (current.hosted && current.hosted.state !== 'on') }]" :role="current.hosted ? 'status' : undefined">{{ current.unavailable || current.detail || 'Location information is unavailable. Reload the models before running.' }}</p></div>
   </div>
@@ -157,13 +150,8 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
 .source-option-text small { font-size: 12px; color: #667085; }
 .source-off { color: #b54708 !important; }
 .source-empty { margin: 0; padding: 14px; font-size: 13px; color: #667085; }
-.source-ways { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 10px; background: #f2f4f7; }
-.source-ways button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: 0; border-radius: 8px;
-  background: none; color: #475467; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
-.source-ways button.on { background: #fff; color: #16213a; box-shadow: 0 1px 3px #10182826; }
-.source-ways button:focus-visible { outline: 2px solid var(--aadml-focus); outline-offset: 1px; }
 .source-where { display: flex; flex-direction: column; gap: 6px; }
 .source-location-note { margin: 0; font-size: 12px; line-height: 1.5; color: #667085; }
 .source-where-label { font-size: 13px; font-weight: 600; color: #344054; }
-@media (prefers-reduced-motion: reduce) { .turned, .source-trigger, .source-ways button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .turned, .source-trigger { transition: none; } }
 </style>

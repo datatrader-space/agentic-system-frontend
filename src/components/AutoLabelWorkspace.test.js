@@ -149,6 +149,27 @@ test('a hosted SAM 3 offers no place to run it and previews with no place sent',
   await button(w, 'Generate Preview').trigger('click'); await flushPromises();
   expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet']);
 });
+// Live, 2026-11-20: switching SAM 3 from Polygons to Masks threw the preview away, so seeing it filled asked (and charged)
+// SAM 3 again for the same outlines. The two ways are one answer: the preview stays and is drawn filled.
+test('switching Polygons and Masks keeps the preview, asks nothing again and only draws it filled', async () => {
+  api.detectSources.mockResolvedValue({ sources: [hostedSam(), hostedSam({ id: 'sam3-masks', labels: 'masks' })] });
+  api.detect.mockResolvedValue({ shapes: [{ kind: 'helmet', points: [[0, 0], [1, 0], [1, 1]] }] });
+  const w = render(); await flushPromises();
+  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);
+  for (const img of w.findAll('img')) {                                        // the photo loads (jsdom loads none)
+    Object.defineProperties(img.element, { naturalWidth: { value: 10 }, naturalHeight: { value: 10 } });
+    await img.trigger('load');
+  }
+  const fill = () => w.find('polygon[fill-opacity]').attributes('fill-opacity');
+  expect(fill()).toBe('0.25');
+  await w.findAll('.source-ways button').find(b => b.text().includes('Masks')).trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);                                   // not asked again
+  expect(fill()).toBe('0.55');                                                    // the same shapes, filled
+  await w.findAll('.source-ways button').find(b => b.text().includes('Polygons')).trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);
+  expect(fill()).toBe('0.25');
+});
 test('a hosted SAM 3 that AADML is not running cannot preview', async () => {
   api.detectSources.mockResolvedValue({ sources: [hostedSam({ hosted: { state: 'off', price: '' },
     unavailable: 'SAM 3 is not running now: AADML starts it.' })] });

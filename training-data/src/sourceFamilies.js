@@ -82,6 +82,19 @@ export function waysOf(family) {
   return ['polygons', 'masks'].filter(way => family?.ids?.[way]);
 }
 
+// How solid an answer is drawn: a mask is the same outline as its polygon, filled (Auto Label's preview and the
+// editor's "Find Objects with AI" draw it alike; live, 2026-11-20, the editor drew both the same).
+export function fillOpacityOf(labels) {
+  return labels === 'masks' ? 0.55 : 0.25;
+}
+
+// Whether two sources give the same answer: the Polygons and the Masks of one model or pair ask the same model and get
+// the same shapes (backend auto_label.detect), only drawn differently. Switching between them keeps an answer and never
+// asks (and charges) again (live, 2026-11-20: Auto Label threw its SAM 3 preview away on the switch).
+export function sameAnswer(a, b) {
+  return !!a && !!b && makerOf(a) === makerOf(b) && familyOf(a) === familyOf(b);
+}
+
 // A ready-to-use model AADML hosts (``hosted``: SAM 3, a vision + SAM 3 pair): nobody chooses where it runs.
 export function isHosted(source) {
   return !!source?.hosted;
