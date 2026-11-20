@@ -45,12 +45,46 @@ export function fromBackend(shapes, width, height) {
 }
 // The editor's shapes as the backend reads them. A wall's corner types go back only while its corners are the ones
 // that came with them; otherwise the backend decides each corner from where it is (labels.py, _corner_types).
-export function toBackend(shapes, width, height) {
+// A wall is a shape whose class has geometry 'wall' in ``roles`` (``rolesOf``), never a class called "wall".
+export function toBackend(shapes, width, height, roles = {}) {
   return shapes.map(shape => {
     const out = { kind: shape.kind, points: toPixels(shape.points, width, height) };
-    if (shape.kind === 'wall' && shape.cornerTypes && shape.cornerTypes.length === shape.points.length && shape.cornerCount === shape.points.length) out.corner_types = shape.cornerTypes;
+    if (geometryOf(roles, shape.kind) === 'wall' && shape.cornerTypes && shape.cornerTypes.length === shape.points.length && shape.cornerCount === shape.points.length) out.corner_types = shape.cornerTypes;
     return out;
   });
+}
+
+// What a class is in FitMyWall's walls format (ProjectClass.geometry): 'wall' (a room's wall: corner types, the
+// tidy-up, the room-corner tools), 'window' or 'door' (an opening inside a wall), '' (a plain shape). The geometry is
+// a setting of the class (Classes page), never read from its name.
+export const GEOMETRIES = [
+  { value: '', label: 'None', about: 'A plain shape.' },
+  { value: 'wall', label: 'Wall', about: "A room's wall: each corner has a type, and the room-corner tools and the tidy-up apply." },
+  { value: 'window', label: 'Window in a wall', about: 'An opening that must sit inside a wall.' },
+  { value: 'door', label: 'Door in a wall', about: 'An opening that must sit inside a wall.' },
+];
+const KNOWN_GEOMETRY = new Set(GEOMETRIES.map(g => g.value));
+export const geometryLabel = value => GEOMETRIES.find(g => g.value === (value || ''))?.label || 'None';
+// The project's classes as ``{class name: geometry}``, for the tidy-up, the corner types and the editor's tools.
+export function rolesOf(classes) {
+  const roles = {};
+  for (const c of classes || []) roles[c.name] = KNOWN_GEOMETRY.has(c.geometry) ? c.geometry : '';
+  return roles;
+}
+export function geometryOf(roles, name) {
+  return roles && Object.prototype.hasOwnProperty.call(roles, name) ? roles[name] || '' : '';
+}
+
+// The colours a new class is given, in order (the backend's label_classes.PALETTE): the first one no class of the
+// project has yet, so a new class never takes the colour of one already there (live, 2026-11-19: "sofa" got the red
+// of "wall"). When every colour is taken, the one used least.
+export const PALETTE = ['#ef4444', '#0ea5e9', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#6366f1', '#a855f7', '#eab308', '#64748b'];
+export function nextClassColor(classes) {
+  const used = (classes || []).map(c => String(c.color || '').toLowerCase());
+  const free = PALETTE.find(color => !used.includes(color));
+  if (free) return free;
+  const times = color => used.filter(u => u === color).length;
+  return PALETTE.reduce((best, color) => (times(color) < times(best) ? color : best), PALETTE[0]);
 }
 
 // Where a photo stands, in the words the screens use.
@@ -96,7 +130,7 @@ export async function loadBoard(store) {
 
 // Classes are supplied by the project API; a new project has no default vocabulary.
 export function classesOf(rows) {
-  return (rows || []).map(c => ({ name: c.name, color: c.color, description: c.description || '', trained: !!c.trained,
+  return (rows || []).map(c => ({ name: c.name, color: c.color, description: c.description || '', geometry: KNOWN_GEOMETRY.has(c.geometry) ? c.geometry : '',
     ...(c.editable === undefined ? {} : { editable: c.editable }), ...(c.removable === undefined ? {} : { removable: c.removable }) }));
 }
 export async function loadClasses(store) {

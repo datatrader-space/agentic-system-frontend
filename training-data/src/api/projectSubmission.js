@@ -5,7 +5,8 @@ export function projectSubmission({ requireKind, create, savePolicy, saveLlmPoli
   return async form => {
     const scope = workspace();
     const checkScope = () => { if (workspace() !== scope) throw new Error('Your workspace changed. Return to the original workspace before retrying this project.'); };
-    const kind = typeKind[form.task];
+    // The card's own kind (a card made from the API's row carries it), else the one TYPE_KIND names for the card.
+    const kind = form.kind || typeKind[form.task];
     const chosen = await requireKind(kind);
     checkScope();
     const body = { name: form.name, description: form.purpose, task: chosen.task,

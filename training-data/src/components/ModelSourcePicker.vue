@@ -119,7 +119,7 @@ watch(query, () => { active.value = walkable.value[0]?.key || ''; });
       </button>
     </div>
     <div v-if="current" class="source-where"><span class="source-where-label">Where this model runs</span>
-      <p :class="['source-location-note', { 'source-off': current.hosted && current.hosted.state !== 'on' }]" :role="current.hosted ? 'status' : undefined">{{ current.detail || 'Location information is unavailable. Reload the models before running.' }}</p></div>
+      <p :class="['source-location-note', { 'source-off': !!current.unavailable || (current.hosted && current.hosted.state !== 'on') }]" :role="current.hosted ? 'status' : undefined">{{ current.unavailable || current.detail || 'Location information is unavailable. Reload the models before running.' }}</p></div>
   </div>
 </template>
 

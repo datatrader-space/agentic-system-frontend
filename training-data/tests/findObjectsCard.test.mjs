@@ -46,7 +46,9 @@ test('what was found is reviewed on the photo with a confidence slider before an
 test('Save adds the kept shapes beside what is drawn, as one Undo step, and adds a new class first', () => {
   assert.match(editor, /remember\(\);const before=shapes\.value\.length;shapes\.value=\[\.\.\.shapes\.value,\.\.\.kept\.map/);
   assert.doesNotMatch(editor, /What is drawn now is thrown away and replaced/);
-  assert.match(editor, /liveApi\.addClass\(props\.state\.ref,\{name:f\.cls,description:findDescription\.value\.trim\(\)\}\)/);
+  // The new class takes the next palette colour no class of the project has (live, 2026-11-19: "sofa" got the red of "wall").
+  assert.match(editor, /liveApi\.addClass\(props\.state\.ref,\{name:f\.cls,color:nextClassColor\(props\.state\.classes\),description:findDescription\.value\.trim\(\)\}\)/);
+  assert.match(editor, /liveApi\.addClass\(props\.state\.ref,\{name:editorClassName\.value,color:nextClassColor\(props\.state\.classes\)\}\)/);
   // A class that could not be added adds nothing.
   assert.match(editor, /was not added to the project's classes, so nothing was added/);
 });

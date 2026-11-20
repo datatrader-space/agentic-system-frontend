@@ -16,7 +16,7 @@ const wrappers = [];
 const batch = { id: 'batch-1', name: 'Safety inspection', source: 'source-1' };
 const media = [{ id: 'image-1', batchId: batch.id, name: 'Synthetic image', url: 'data:image/png;base64,AA==' }];
 const state = () => ({ ref: '~901', live: true, images: media, labellers: [], canChangeClasses: true,
-  classes: [{ name: 'helmet', color: '#2563eb', description: 'Protective headwear', trained: false }] });
+  classes: [{ name: 'helmet', color: '#2563eb', description: 'Protective headwear', geometry: '' }] });
 const render = (component = AutoLabel) => {
   const wrapper = mount(component, { props: { batch, state: state(), media }, global: {
     stubs: { UiDialog: { props: ['open'], template: '<div v-if="open"><slot/></div>' } },
@@ -102,7 +102,7 @@ test('labeling keeps the existing explicit confirmation and source payload', asy
 });
 
 test('using a saved workflow applies its user-defined classes without running inference', async () => {
-  const classes = [{ name: 'safety vest', color: '#123456', description: 'High visibility clothing', trained: false }];
+  const classes = [{ name: 'safety vest', color: '#123456', description: 'High visibility clothing', geometry: '' }];
   const row = { id: 'workflow-1', name: 'Safety gear', revision: 1,
     definition: { schema: 'aadml.labeling-workflow.v1', source: 'vision:fixture', classes: classes.map(c => ({name:c.name, color:c.color, description:c.description})) } };
   labelingWorkflows.list.mockResolvedValue({ workflows: [row] });
@@ -131,7 +131,7 @@ test('a fresh project has no hardcoded classes and cannot preview or label until
   expect(button(wrapper, 'Generate Preview').attributes('disabled')).toBeDefined();
   expect(button(wrapper, 'Label Batch').attributes('disabled')).toBeDefined();
   expect(api.detect).not.toHaveBeenCalled();
-  await wrapper.setProps({ state: { ...empty, classes: [{name:'product logo', color:'#123456', description:'', trained:false}] } });
+  await wrapper.setProps({ state: { ...empty, classes: [{name:'product logo', color:'#123456', description:'', geometry:''}] } });
   await flushPromises();
   expect(wrapper.findAll('.class-name').map(el=>el.element.value)).toEqual(['product logo']);
   await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();

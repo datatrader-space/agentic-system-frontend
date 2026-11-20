@@ -6,10 +6,11 @@
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aboutOf, costOf, groupSources, sentence, startsServer } from '../src/sourceFamilies.js';
+import { aboutOf, costOf, groupSources, reasonOnly, sentence, startsServer } from '../src/sourceFamilies.js';
 import { freeLeftAfter, freeTriesUsed, hostedTry } from '../src/api/workspace.js';
 
-const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+// Line endings read as LF: the sources are kept with CRLF in git, and a pattern below spans a line break.
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const picker = read('../src/components/ModelSourcePicker.vue');
 const editor = read('../src/components/AnnotationEditor.vue');
 const autoLabel = read('../src/components/AutoLabel.vue');
@@ -60,7 +61,8 @@ test('the picker has no place list: one line says where the chosen model runs', 
   assert.match(picker, /const emit = defineEmits\(\['update:modelValue'\]\);/);
   assert.match(picker, /<template v-if="f\.hosted\?\.price"> · \{\{ f\.hosted\.price \}\}<\/template><\/small>/);
   assert.match(picker, /<div v-if="current" class="source-where"><span class="source-where-label">Where this model runs<\/span>/);
-  assert.match(picker, /:role="current\.hosted \? 'status' : undefined">\{\{ current\.detail/);
+  // A model that cannot be chosen now says why there instead (its reason alone, not also its detail).
+  assert.match(picker, /:role="current\.hosted \? 'status' : undefined">\{\{ current\.unavailable \|\| current\.detail/);
 });
 
 test('the editor sends no place with Find Objects, its preference or click-to-label', () => {
@@ -106,7 +108,7 @@ test('the Try panel of a hosted model says its phase, the free tries left and th
     price: 'In a project it is $0.002 an image, paid from your balance.' });
   const off = hostedTry({ hosted: true, phase: 'off', price_per_image: '', free_per_day: 20, free_left: 20 });
   assert.equal(off.on, false);
-  assert.equal(off.phase, 'Not running now: AADML starts it');
+  assert.equal(off.phase, 'Not running now: AADML starts it.');
   assert.equal(off.price, 'It has no price for use in a project yet, so it can only be tried here for now.');
 });
 
@@ -134,4 +136,30 @@ test('a hosted model\'s Try has no Start, Stop or machine picker; an open model 
   assert.match(open, /<MachinePicker v-if="state\.may\.start" ref="picker"/);
   assert.match(open, /Start its server<\/UiButton>/);
   assert.match(open, /Stop its server<\/UiButton>/);
+});
+
+// Live, 2026-11-19: the hosted SAM 3 Try said why it was not running three times (heading, a line, a sentence), each
+// time ending "Nothing was charged." though nothing had been asked of it.
+test('a model AADML is not running says why once, and never "Nothing was charged" when nothing was asked', () => {
+  assert.equal(reasonOnly('SAM 3 is not running now. AADML starts it; try again later. Nothing was charged.'),
+    'SAM 3 is not running now. AADML starts it; try again later.');
+  assert.equal(reasonOnly('SAM 3 could not be reached. Nothing was charged; try again shortly.'), 'SAM 3 could not be reached. Try again shortly.');
+  assert.equal(reasonOnly(''), '');
+  assert.equal(reasonOnly(undefined), '');
+  // The Try panel: the server's reason once, as its phase.
+  const off = hostedTry({ hosted: true, phase: 'off', said: 'Not running now: AADML starts it.', free_per_day: 20, free_left: 20,
+    refused: 'SAM 3 is not running now: the machine it runs on is not online. AADML starts it; try again later. Nothing was charged.' });
+  assert.equal(off.phase, 'SAM 3 is not running now: the machine it runs on is not online. AADML starts it; try again later.');
+  const starting = hostedTry({ hosted: true, phase: 'starting', said: 'Being started by AADML.', refused: '', free_per_day: 20, free_left: 3 });
+  assert.equal(starting.phase, 'Being started by AADML.');
+  const panel = models.slice(models.indexOf('<template v-else-if="hosted">'), models.indexOf('<template v-else>', models.indexOf('<template v-else-if="hosted">')));
+  assert.equal((panel.match(/hosted\.phase|state\.said|state\.refused/g) || []).length, 1, panel);
+  assert.doesNotMatch(panel, /Nothing was charged/);
+  // The picker: a model that cannot be chosen shows its reason alone, also as its "where" line.
+  const family = groupSources([{ ...OFF, unavailable: `${OFF.unavailable} Nothing was charged.` }]).find(g => g.maker === 'Meta').families[0];
+  assert.equal(family.unavailable, OFF.unavailable);
+  assert.match(picker, /\{\{ current\.unavailable \|\| current\.detail \|\| /);
+  assert.match(picker, /<small v-if="f\.unavailable" class="source-off">\{\{ f\.unavailable \}\}<\/small>/);
+  // Auto Label says it in its status bar only, not again under the picker.
+  assert.doesNotMatch(autoLabel, /<p v-else-if="current\?\.unavailable"/);
 });

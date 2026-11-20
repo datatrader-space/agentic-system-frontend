@@ -18,7 +18,10 @@ const props = defineProps({ submit: Function });
 const emit = defineEmits(['cancel', 'done']);
 // Which project types the backend can create today (GET kinds/): a type with no kind, or one not available yet, is shown and cannot be created.
 const kinds = inject('kinds', ref([]));
-const kindOf = name => kinds.value.find(k => k.key === TYPE_KIND[name]);
+// The kind a card stands for: a card made from the API's own row (a kind this screen has no picture for, such as "Find
+// objects") carries its key; the others are named in TYPE_KIND.
+const kindKey = name => apiTasks.value.find(t => t.name === name)?.kind || TYPE_KIND[name];
+const kindOf = name => kinds.value.find(k => k.key === kindKey(name));
 const kindResource = inject('projectKinds');
 const kindStatus = kindResource.status;
 const kindError = kindResource.error;
@@ -52,15 +55,36 @@ const families = [
   { value: 'llm', name: 'Language model (LLM)', hint: 'Text and conversations' },
   { value: 'data', name: 'Only collect data', hint: 'Records and files; no model' },
 ];
-const shownTasks = computed(() => tasks.filter(t => (t.family || 'vision') === form.family));
+// A vision kind the API lists and this screen has no card for (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 4.3: "Find
+// objects", the default) is shown from the API's own words: its label, description, what it gives, an example and what
+// a person labels. Nothing about it is hard-coded here.
+const KNOWN_KINDS = new Set(Object.values(TYPE_KIND));
+const apiTasks = computed(() => (kinds.value || []).filter(k => k && k.family === 'vision' && typeof k.key === 'string' && !KNOWN_KINDS.has(k.key) && k.label)
+  .map(k => ({ name: k.label, kind: k.key, family: 'vision', description: k.description || '', tags: Array.isArray(k.gives) ? k.gives : [],
+    example: (Array.isArray(k.examples) && k.examples[0]) || k.description || k.label, output: k.you_label ? `You label: ${k.you_label}.` : '' })));
+// The cards in the order the API lists their kinds (what can be trained first); a card whose kind the API does not list
+// comes after, as before.
+const orderOf = name => { const at = (kinds.value || []).findIndex(k => k.key === kindKey(name)); return at < 0 ? Number.MAX_SAFE_INTEGER : at; };
+const allTasks = computed(() => [...apiTasks.value, ...tasks].map((t, i) => ({ t, i })).sort((a, b) => orderOf(a.t.name) - orderOf(b.t.name) || a.i - b.i).map(({ t }) => t));
+const shownTasks = computed(() => allTasks.value.filter(t => (t.family || 'vision') === form.family));
 // The first type that can be created now is picked, so the choice is never a card that says "Coming soon".
-watch(() => form.family, () => { form.task = (shownTasks.value.find(t => kindOf(t.name)?.available) || shownTasks.value[0]).name; expanded.value = false; });
-const current = computed(() => tasks.find(t => t.name === form.task));
+function firstTask() { form.task = (shownTasks.value.find(t => kindOf(t.name)?.available) || shownTasks.value[0]).name; }
+watch(() => form.family, () => { firstTask(); expanded.value = false; });
+const current = computed(() => allTasks.value.find(t => t.name === form.task) || tasks[0]);
 const visibilityDescription = computed(() => form.visibility === 'Public'
   ? 'Public listing: anyone could discover the project name, purpose and project type. Photos and annotations are not made public by this choice; access is configured separately in Data policy.'
   : 'Private listing: the project is hidden from public discovery. Only you and permitted project members could see its listing. Access to photos and annotations is configured separately in Data policy.');
-const initial = JSON.stringify(form);
+let initial = JSON.stringify(form);
 const dirty = computed(() => JSON.stringify(form) !== initial);
+// When the kinds arrive, the first one the API lists that can be created is the default ("Find objects"), unless the
+// person already chose a type. Choosing it for them is not a change of theirs.
+const chosenByPerson = ref(false);
+watch([kinds, kindStatus], () => {
+  if (chosenByPerson.value || kindStatus.value !== 'ready') return;
+  const untouched = JSON.stringify(form) === initial;
+  firstTask();
+  if (untouched) initial = JSON.stringify(form);
+}, { immediate: true });
 async function go(target) {
   errors.value = [];
   if (target > 1) {
@@ -78,7 +102,7 @@ async function create() {
   if (busy.value || !available.value) return;
   busy.value = true; errors.value = [];
   try {
-    created.value = await props.submit({ ...form, name: form.name.trim(), purpose: form.purpose.trim(), group: form.group.trim() });
+    created.value = await props.submit({ ...form, kind: kindKey(form.task), name: form.name.trim(), purpose: form.purpose.trim(), group: form.group.trim() });
     emit('done', 'upload', created.value);
   }
   catch (error) { errors.value = [error.message]; await nextTick(); document.getElementById('create-errors')?.focus(); }
@@ -97,8 +121,8 @@ async function create() {
         <div class="project-details-grid"><div><label class="field-label" for="new-project-name">Project name <span>*</span></label><input id="new-project-name" v-model="form.name" class="text-input" maxlength="80" :placeholder="form.family === 'llm' ? 'e.g. Support assistant' : 'e.g. Room Wall Segmentation'"><label class="field-label" for="project-purpose">What will you use this project for? <span>*</span></label><textarea id="project-purpose" v-model="form.purpose" class="text-input" rows="2" maxlength="500" :placeholder="form.family === 'llm' ? 'e.g. Answer customer questions the way our support team does.' : 'e.g. Detect room walls and windows to preview paint colors.'"></textarea></div><fieldset><legend>Project listing visibility</legend><div class="choice-buttons"><label :class="{chosen: form.visibility === 'Private'}"><input v-model="form.visibility" name="visibility" type="radio" value="Private"><LockKeyhole :size="15" /> Private</label><label :class="{chosen: form.visibility === 'Public'}"><input v-model="form.visibility" name="visibility" type="radio" value="Public"><Globe :size="15" /> Public</label></div><p class="field-help visibility-description" aria-live="polite">{{ visibilityDescription }}</p><label class="check-line"><input v-model="form.share" type="checkbox"> Share annotation definitions between projects</label><label v-if="form.share" class="field-label" for="annotation-group">Annotation group name<input id="annotation-group" v-model="form.group" class="text-input" placeholder="e.g. Interior surfaces" maxlength="80"></label></fieldset></div>
         <fieldset class="family-question"><legend>What do you want to train?</legend><div class="choice-buttons"><label v-for="family in families" :key="family.value" :class="{chosen: form.family === family.value}"><input v-model="form.family" name="family" type="radio" :value="family.value"><span><strong>{{ family.name }}</strong><small>{{ family.hint }}</small></span></label></div></fieldset>
         <div class="type-heading"><h2>Project type</h2><span>Select a task to see its example and expected output.</span></div>
-        <div class="task-layout"><div><div class="task-options" role="radiogroup" aria-label="Project type"><label v-for="task in shownTasks.slice(0, expanded ? shownTasks.length : 7)" :key="task.name" :class="['task-option', {chosen: form.task === task.name}]"><input v-model="form.task" name="task" type="radio" :value="task.name"><div><div class="task-name"><strong>{{ task.name }}</strong><span class="task-tags"><span v-for="tag in task.tags" :key="tag">{{ tag }}</span></span></div><p>{{ task.description }}</p></div></label></div><UiButton v-if="shownTasks.length > 7" class="expand-tasks" @click="expanded = !expanded">{{ expanded ? 'Show fewer project types' : 'Show more project types' }}<ChevronDown :size="15" /></UiButton><fieldset v-if="form.task === 'Classification'" class="classification-options"><legend>Classification mode</legend><label><input v-model="form.classification" name="classification" type="radio" value="Single-label"> Single-label</label><label><input v-model="form.classification" name="classification" type="radio" value="Multi-label"> Multi-label</label></fieldset></div>
-          <aside class="task-example"><div v-if="current.image" class="example-art"><img :key="form.task" :src="current.image" :alt="current.alt" width="1536" height="1024" decoding="async"><span class="illustration-caption">AI-generated example · No inference is running</span></div><div v-else class="example-chat" :key="form.task"><div v-for="([who, text], index) in current.sample" :key="index" :class="['chat-line', who]"><span>{{ who }}</span><p>{{ text }}</p></div><span class="illustration-caption">Example data · No model is running</span></div><div class="example-content"><UiBadge tone="purple">{{ form.task }}</UiBadge> <UiBadge v-if="kindStatus === 'ready' && !available">Coming soon</UiBadge><h2>{{ current.example }}</h2><p>{{ current.output }}</p><div class="example-note"><ShieldCheck :size="19" /><span>Choose the output your project needs. You can explore every task in this frontend prototype.</span></div></div></aside></div>
+        <div class="task-layout"><div><div class="task-options" role="radiogroup" aria-label="Project type"><label v-for="task in shownTasks.slice(0, expanded ? shownTasks.length : 7)" :key="task.name" :class="['task-option', {chosen: form.task === task.name}]"><input v-model="form.task" name="task" type="radio" :value="task.name" @change="chosenByPerson = true"><div><div class="task-name"><strong>{{ task.name }}</strong><span class="task-tags"><span v-for="tag in task.tags" :key="tag">{{ tag }}</span></span></div><p>{{ task.description }}</p></div></label></div><UiButton v-if="shownTasks.length > 7" class="expand-tasks" @click="expanded = !expanded">{{ expanded ? 'Show fewer project types' : 'Show more project types' }}<ChevronDown :size="15" /></UiButton><fieldset v-if="form.task === 'Classification'" class="classification-options"><legend>Classification mode</legend><label><input v-model="form.classification" name="classification" type="radio" value="Single-label"> Single-label</label><label><input v-model="form.classification" name="classification" type="radio" value="Multi-label"> Multi-label</label></fieldset></div>
+          <aside class="task-example"><div v-if="current.image" class="example-art"><img :key="form.task" :src="current.image" :alt="current.alt" width="1536" height="1024" decoding="async"><span class="illustration-caption">AI-generated example · No inference is running</span></div><div v-else-if="current.sample" class="example-chat" :key="form.task"><div v-for="([who, text], index) in current.sample" :key="index" :class="['chat-line', who]"><span>{{ who }}</span><p>{{ text }}</p></div><span class="illustration-caption">Example data · No model is running</span></div><div class="example-content"><UiBadge tone="purple">{{ form.task }}</UiBadge> <UiBadge v-if="kindStatus === 'ready' && !available">Coming soon</UiBadge><h2>{{ current.example }}</h2><p>{{ current.output }}</p><div class="example-note"><ShieldCheck :size="19" /><span>Choose the output your project needs. You can explore every task in this frontend prototype.</span></div></div></aside></div>
       </form>
       <div v-else-if="step === 2" class="policy-layout"><div class="policy-questions">
         <fieldset class="policy-card"><legend><span>1</span> May this data be used to train models?</legend><label v-for="(choice, index) in ['No', 'Only this project’s own models', 'Also AADML’s shared models']" :key="choice" class="policy-option"><input v-model="form.training" name="training" type="radio" :value="choice"><div><strong>{{ choice }}</strong><p>{{ ['No labeling assignment, dataset version or training run can be made from it.', 'A person must start each step; nothing is trained automatically.', 'Data may also improve models outside this project.'][index] }}</p></div></label></fieldset>

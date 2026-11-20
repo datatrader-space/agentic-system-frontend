@@ -11,6 +11,17 @@ const MAKER_ORDER = ['OpenAI', 'Google', 'Meta', 'AADML', 'My Models'];
 
 const labelsOf = source => (source?.labels === 'masks' ? 'masks' : 'polygons');
 
+// Why a model cannot be used now, as the reason alone. The server's words end with "Nothing was charged." because they
+// are also the answer to a refused call; shown beside a model nobody asked anything of, that sentence is wrong (live,
+// 2026-11-19: the hosted SAM 3 Try said its reason three times, each ending "Nothing was charged.").
+export function reasonOnly(text) {
+  return String(text || '')
+    .replace(/\s*Nothing was charged; (\w)/g, (_, first) => ` ${first.toUpperCase()}`)
+    .replace(/\s*Nothing was charged\.?/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export function familyOf(source) {
   if (!source) return '';
   if (source.family) return source.family;
@@ -30,7 +41,7 @@ export function groupSources(sources) {
   for (const source of sources || []) {
     const key = `${makerOf(source)}|${familyOf(source)}`;
     if (!families.has(key)) {
-      families.set(key, { key, name: familyOf(source), maker: makerOf(source), ids: {}, unavailable: source.unavailable || '',
+      families.set(key, { key, name: familyOf(source), maker: makerOf(source), ids: {}, unavailable: reasonOnly(source.unavailable),
         what: source.what || '', detail: source.detail || '', research_only: !!source.research_only, licence: source.licence || '',
         hosted: source.hosted || null });
     }

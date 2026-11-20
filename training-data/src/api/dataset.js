@@ -41,7 +41,7 @@ export async function loadDataset(store, { q = '', status = 'All', filters = FIL
 export async function loadVersions(store) {
   const body = await apiFetch(`${base(store.ref)}/versions/`);
   store.versions = body.versions;
-  store.versionMeta = { kinds: body.kinds, sizes: body.sizes, canPublish: body.can_publish, refused: body.refused, withoutWalls: body.without_walls };
+  store.versionMeta = { kinds: body.kinds, sizes: body.sizes, canPublish: body.can_publish, refused: body.refused };
   return body;
 }
 

@@ -237,10 +237,17 @@ function roomCut(points) {
    could not be sent to review). A cut, a straightening or a move that would is not made: the shape stays as the model
    drew it. A shape the model itself drew crossing itself is redrawn round its outline (``repaired``).
 
-   It is a head start still: the person checks every corner and presses Done, and Undo shows what the model drew. */
+   It is a head start still: the person checks every corner and presses Done, and Undo shows what the model drew.
+
+   ``roles`` is the project's ``{class name: geometry}`` (``rolesOf`` in api/annotate.js): a wall is a shape whose
+   class has geometry 'wall', an opening one whose class has 'window' or 'door'; every other shape is only untangled.
+   Never decided by a class's name (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 12.2): a class named "wall" with no
+   geometry is a plain shape, a class "facade" with geometry 'wall' is a wall. */
 var GROWS = 1.5, REACH = 0.2;
-function tidyUp(shapes) {
+function tidyUp(shapes, roles) {
   var out = [], walls = [], report = { cut: 0, straightened: 0, moved: 0, repaired: 0 };
+  var role = function (shape) { return (roles && Object.prototype.hasOwnProperty.call(roles, shape.kind) && roles[shape.kind]) || ''; };
+  var openings = [];
   function tenth(p) { return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }
   // A shape that still crosses itself is redrawn round its outline (its convex hull, brought to its corners), which
   // never crosses itself. A shape with no area (its points on one line) does not cross itself and is left.
@@ -253,7 +260,12 @@ function tidyUp(shapes) {
     return { kind: made.kind, points: outline };
   }
   shapes.forEach(function (shape) {
-    if (shape.kind !== 'wall') { out.push(untangled({ kind: shape.kind, points: shape.points.map(tenth) })); return; }
+    if (role(shape) !== 'wall') {
+      var plain = untangled({ kind: shape.kind, points: shape.points.map(tenth) });
+      out.push(plain);
+      if (role(shape) === 'window' || role(shape) === 'door') openings.push(plain);
+      return;
+    }
     var pieces = [shape.points], again = true, rounds = 0;
     while (again && rounds < 6) {
       again = false; rounds += 1;
@@ -270,7 +282,7 @@ function tidyUp(shapes) {
     report.cut += pieces.length - 1;
     pieces.forEach(function (piece) {
       var kept = whole(piece).map(tenth);
-      var made = { kind: 'wall', points: piece.map(tenth) };
+      var made = { kind: shape.kind, points: piece.map(tenth) };
       if (kept.length >= 3 && kept.length < piece.length && !dentedAbove(piece) && area(hull(piece)) <= area(piece) * GROWS
           && !crossesItself(kept)) {
         made.points = kept;
@@ -283,8 +295,8 @@ function tidyUp(shapes) {
       walls.push(made);
     });
   });
-  out.forEach(function (shape) {
-    if (shape.kind === 'wall' || !walls.length) return;
+  openings.forEach(function (shape) {
+    if (!walls.length) return;
     var centre = [0, 0];
     shape.points.forEach(function (p) { centre[0] += p[0] / shape.points.length; centre[1] += p[1] / shape.points.length; });
     // Its wall: the smallest one that holds its centre, else the one that holds most of its points.

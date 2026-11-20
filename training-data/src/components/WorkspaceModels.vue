@@ -339,8 +339,6 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <p v-if="!state" class="muted">Looking at where it stands…</p>
             <template v-else-if="hosted">
               <p :class="['hosted-phase', { on: hosted.on }]" role="status"><span class="hosted-dot" aria-hidden="true"></span><strong>{{ hosted.phase }}</strong></p>
-              <p v-if="!hosted.on&&state.said" class="muted">{{ state.said }}</p>
-              <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
               <p class="muted"><strong>{{ hosted.free }}.</strong> {{ hosted.price }}</p>
               <p v-if="freeUsed" class="field-error" role="alert">{{ freeUsed }}</p>
             </template>

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { area, contains, split, box } from '../src/geometry.js';
 
 const square = [[0, 0], [100, 0], [100, 100], [0, 100]];
+// FitMyWall's walls project: its classes carry the wall geometry (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 12.2).
+const ROLES = { wall: 'wall', window: 'window', door: 'door' };
 
 test('a point inside a shape is found inside it, one outside is not', () => {
   assert.equal(contains(square, [50, 50]), true);
@@ -69,7 +71,7 @@ test('a cut that would leave a half crossing itself is not made: the wall stays 
   const wall = [[287, 240], [226, 264], [220, 234], [195, 176], [168, 97], [266, 172], [220, 128], [238, 133], [398, 63], [407, 169]];
   assert.equal(crossesItself(wall), false);
   assert.ok(roomCut(wall).some(crossesItself));                                    // the cut alone makes a bow-tie
-  const report = tidyUp([{ kind: 'wall', points: wall, corner_types: wall.map(() => 'room') }]);
+  const report = tidyUp([{ kind: 'wall', points: wall, corner_types: wall.map(() => 'room') }], ROLES);
   assert.equal(report.cut, 0);
   assert.equal(report.shapes.length, 1);
   assert.deepEqual(report.shapes[0].points, wall);
@@ -82,7 +84,7 @@ test('a window brought into its wall is left where it was when the move would ma
   const wall = [[279, 230], [269, 242], [209, 300], [172, 299], [187, 208], [261, 184], [140, 114], [166, 112], [419, 105], [364, 184], [498, 191]];
   const window = [[336, 224], [342, 231], [276, 218], [285, 209], [291, 209]];
   assert.equal(crossesItself(window), false);
-  const report = tidyUp([{ kind: 'wall', points: wall }, { kind: 'window', points: window }]);
+  const report = tidyUp([{ kind: 'wall', points: wall }, { kind: 'window', points: window }], ROLES);
   assert.equal(report.shapes.some(s => crossesItself(s.points)), false);
   assert.deepEqual(report.shapes.find(s => s.kind === 'window').points, window);
 });
@@ -90,7 +92,7 @@ test('a window brought into its wall is left where it was when the move would ma
 test('a shape the model drew crossing itself is redrawn round its outline; a tidy-up never returns a bow-tie', async () => {
   const { tidyUp, crossesItself, area } = await import('../src/geometry.js');
   const bowTie = [[100, 50], [400, 250], [400, 50], [100, 250]];
-  const report = tidyUp([{ kind: 'wall', points: bowTie, corner_types: ['room', 'room', 'room', 'room'] }, { kind: 'door', points: [[150, 100], [200, 200], [200, 100], [150, 200]] }]);
+  const report = tidyUp([{ kind: 'wall', points: bowTie, corner_types: ['room', 'room', 'room', 'room'] }, { kind: 'door', points: [[150, 100], [200, 200], [200, 100], [150, 200]] }], ROLES);
   assert.equal(report.repaired, 2);
   for (const shape of report.shapes) {
     assert.equal(crossesItself(shape.points), false);
@@ -103,6 +105,30 @@ test('a shape the model drew crossing itself is redrawn round its outline; a tid
     const points = Array.from({ length: 6 + Math.floor(rnd() * 8) }, () => [rnd() * Math.PI * 2, 40 + rnd() * 160])
       .sort((a, b) => a[0] - b[0]).map(([t, r]) => [Math.round(300 + r * Math.cos(t)), Math.round(200 + r * Math.sin(t) * 0.8)]);
     if (rnd() < 0.3) points.sort(() => rnd() - 0.5);
-    for (const shape of tidyUp([{ kind: 'wall', points }]).shapes) assert.equal(crossesItself(shape.points), false, JSON.stringify(points));
+    for (const shape of tidyUp([{ kind: 'wall', points }], ROLES).shapes) assert.equal(crossesItself(shape.points), false, JSON.stringify(points));
   }
+});
+
+// The tidy-up follows each class's geometry, never its name (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 12.2).
+test('the tidy-up treats a class as a wall by its geometry: "facade" marked wall is tidied, a plain "wall" is not', async () => {
+  const { tidyUp } = await import('../src/geometry.js');
+  const wall = [[100, 50], [250, 50], [400, 50], [400, 250], [100, 250]];             // a corner-free point on its top edge
+  const opening = [[380, 100], [410, 100], [410, 150], [380, 150]];                    // reaches a little outside the wall
+  // Geometry 'wall' on a class called "facade", 'window' on "hatch": the wall keeps its corners, the opening comes in.
+  const marked = tidyUp([{ kind: 'facade', points: wall }, { kind: 'hatch', points: opening }], { facade: 'wall', hatch: 'window' });
+  assert.equal(marked.straightened, 1);
+  assert.equal(marked.moved, 1);
+  assert.equal(marked.shapes[0].points.length, 4);
+  assert.ok(marked.shapes[1].points.every(([x]) => x <= 400));
+  // Classes called "wall" and "window" with no geometry: plain shapes, left as drawn.
+  const plain = tidyUp([{ kind: 'wall', points: wall }, { kind: 'window', points: opening }], { wall: '', window: '' });
+  assert.deepEqual([plain.straightened, plain.moved, plain.cut], [0, 0, 0]);
+  assert.deepEqual(plain.shapes.map(x => x.points), [wall, opening]);
+  // No roles at all: nothing is a wall.
+  assert.deepEqual(tidyUp([{ kind: 'wall', points: wall }]).shapes[0].points, wall);
+  // A plain shape over a wall is not moved into it: only an opening is.
+  const sofa = tidyUp([{ kind: 'facade', points: wall }, { kind: 'sofa', points: opening }], { facade: 'wall', sofa: '' });
+  assert.equal(sofa.moved, 0);
+  assert.deepEqual(sofa.shapes[1].points, opening);
+  assert.equal(sofa.shapes[0].kind, 'facade');                                            // a wall keeps its class's name
 });

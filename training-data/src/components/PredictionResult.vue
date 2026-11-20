@@ -1,6 +1,9 @@
 <script setup>
-// What a model found on one photo, drawn on it: the verdict, each wall with its corners and each window or door, the
-// figures and the answer as JSON. Used by a project's Test page and by trying a published model (WorkspaceModels).
+// What a model found on one photo, drawn on it: the verdict, what it found with its confidence, the figures and the
+// answer as JSON. Used by a project's Test page and by trying a published model (WorkspaceModels).
+// Two answers: a model that finds things by name (SAM 3, a model of a project's own classes) answers ``objects``
+// ([{class, polygon, score}]) and every one is shown by its class, none taken for a wall because of its name; a
+// FitMyWall walls model answers its own format (``walls`` with corners, ``openings`` inside them).
 // ``least`` (0..1) hides what is below it here; the model is not asked again.
 import { computed } from 'vue';
 import { Images } from 'lucide-vue-next';
@@ -10,18 +13,21 @@ import { VERDICTS, filtered, middle, percent } from '../api/trial.js';
 const props = defineProps({ answer: Object, photoUrl: String, asking: Boolean, least: { type: Number, default: 0 },
   waitingText: { type: String, default: 'Start the test server and choose a photo: what the model finds is drawn on it.' } });
 const WALL_COLOURS = ['#2563eb', '#f59e0b', '#12b76a', '#c11574', '#7c3aed', '#0e9384', '#b54708', '#363f72'];
-const KIND_COLOUR = { window: '#0ea5e9', door: '#f97316' };
 
-const shown = computed(() => filtered(props.answer, props.least));
-// SAM 3 finds what the person named (``objects`` and ``classes`` in its answer), not only walls, windows and doors: its
-// verdict and its rows name those things.
 const byName = computed(() => Array.isArray(props.answer?.objects));
+const shown = computed(() => {
+  if (!byName.value) return filtered(props.answer, props.least);
+  const all = props.answer.objects.filter(o => Array.isArray(o?.polygon) && o.polygon.length >= 3)
+    .map(o => ({ type: String(o.class ?? ''), polygon: o.polygon, confidence: o.score ?? o.confidence ?? null }));
+  const kept = all.filter(o => (o.confidence ?? 1) >= props.least);
+  return { ...props.answer, objects: props.answer.objects.filter(o => (o?.score ?? o?.confidence ?? 1) >= props.least), walls: [], openings: kept, hidden: all.length - kept.length };
+});
 const OTHER_COLOURS = ['#0ea5e9', '#f97316', '#12b76a', '#c11574', '#7c3aed', '#0e9384', '#b54708'];
-const named = computed(() => [...new Set([...(props.answer?.classes || []), ...(shown.value?.openings || []).map(o => o.type)])].filter(n => n !== 'wall'));
-const colourOf = type => KIND_COLOUR[type] || OTHER_COLOURS[Math.max(named.value.indexOf(type), 0) % OTHER_COLOURS.length];
-const nameOf = type => (type === 'door' ? 'Door' : type === 'window' ? 'Window' : `${type.charAt(0).toUpperCase()}${type.slice(1)}`);
+const named = computed(() => [...new Set([...(byName.value ? props.answer?.classes || [] : []), ...(shown.value?.openings || []).map(o => o.type)])]);
+const colourOf = type => OTHER_COLOURS[Math.max(named.value.indexOf(type), 0) % OTHER_COLOURS.length];
+const nameOf = type => (type ? `${type.charAt(0).toUpperCase()}${type.slice(1)}` : 'Unnamed');
 const counts = computed(() => {
-  const all = [...(shown.value?.walls || []).map(() => 'wall'), ...(shown.value?.openings || []).map(o => o.type)];
+  const all = [...(byName.value ? [] : (shown.value?.walls || []).map(() => 'wall')), ...(shown.value?.openings || []).map(o => o.type)];
   return Object.entries(all.reduce((acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }), {})).map(([t, n]) => `${n} ${t}${n === 1 ? '' : 's'}`).join(', ');
 });
 const verdict = computed(() => {
@@ -31,7 +37,8 @@ const verdict = computed(() => {
   }
   return VERDICTS[props.answer?.status] || ['neutral', props.answer?.status || '', ''];
 });
-const othersLabel = computed(() => (!byName.value || (shown.value?.openings || []).every(o => o.type === 'window' || o.type === 'door') ? 'Windows and doors' : 'Other things'));
+const othersLabel = computed(() => (byName.value ? 'Found' : 'Openings'));
+const asJson = computed(() => (byName.value ? { ...shown.value, walls: undefined, openings: undefined, hidden: undefined } : { ...shown.value, hidden: undefined }));
 const box = computed(() => (props.answer ? `0 0 ${props.answer.image.width} ${props.answer.image.height}` : '0 0 1 1'));
 const dot = computed(() => (props.answer ? Math.max(props.answer.image.width, props.answer.image.height) / 150 : 1));
 const font = computed(() => (props.answer ? Math.max(props.answer.image.width, props.answer.image.height) / 48 : 1));
@@ -62,7 +69,7 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
       </svg>
     </div>
     <dl class="facts">
-      <div><dt>Walls</dt><dd>{{ shown.walls.length }}</dd></div>
+      <div v-if="!byName"><dt>Walls</dt><dd>{{ shown.walls.length }}</dd></div>
       <div><dt>{{ othersLabel }}</dt><dd>{{ shown.openings.length }}</dd></div>
       <div><dt>Model time</dt><dd>{{ seconds(answer.timing_ms?.model) }}</dd></div>
       <div><dt>Whole answer</dt><dd>{{ seconds(answer.timing_ms?.total) }}</dd></div>
@@ -77,7 +84,7 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
     </div>
     <p v-if="answer.warnings?.length" class="test-meta">Notes from the model: {{ answer.warnings.join(', ') }}.</p>
     <p class="test-meta">Answered by {{ answer.model?.name }} {{ answer.model?.version }} {{ answer.served_by==='machine' ? `on ${answer.served_on || 'your machine'}` : answer.served_by==='staging' ? 'on its staging endpoint' : answer.served_by==='platform' ? 'on AADML\'s GPU server' : 'on its test server' }}.<template v-if="answer.charged"> Charged {{ answer.charged }}.</template></p>
-    <details class="json"><summary>The answer as shown (JSON{{ shown.hidden ? ', filtered by the slider' : '' }})</summary><pre>{{ JSON.stringify({ ...shown, hidden: undefined }, null, 2) }}</pre></details>
+    <details class="json"><summary>The answer as shown (JSON{{ shown.hidden ? ', filtered by the slider' : '' }})</summary><pre>{{ JSON.stringify(asJson, null, 2) }}</pre></details>
   </template>
 </template>
 
@@ -87,7 +94,7 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
 .stage{position:relative;line-height:0;border-radius:8px;overflow:hidden;background:#f6f7f9}
 .stage img{width:100%;height:auto;display:block}
 .stage svg{position:absolute;inset:0;width:100%;height:100%}
-.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0}
 .facts>div{border:1px solid #e6e8ee;border-radius:7px;padding:8px 10px}
 .facts dt{font-size:11px;color:#6d7c92}
 .facts dd{margin:4px 0 0;font-size:15px;font-weight:600}

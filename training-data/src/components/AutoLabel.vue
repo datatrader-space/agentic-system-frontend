@@ -17,11 +17,11 @@ import { ArrowLeft, ArrowRight, ChevronRight, Image as ImageIcon, Plus, Zap, Che
 import AutoLabelAgent from './AutoLabelAgent.vue';
 import LabelingWorkflow from './LabelingWorkflow.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { costOf, sentence, startsServer } from '../sourceFamilies.js';
+import { costOf, reasonOnly, sentence, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { api, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
+import { api, classesOf, askedClasses, keepAskedClasses, rolesOf, geometryLabel, nextClassColor } from '../api/annotate.js';
 import { tidyUp } from '../geometry.js';
 
 const props = defineProps({ batch: Object, state: Object, media: Array, busy: Boolean, optionsOpen: Boolean });
@@ -49,7 +49,7 @@ const stateWords = computed(() => {
   if (loading.value) return ['Loading the models', ''];
   if (!current.value) return ['Choose a model', 'Pick the model that draws the head start.'];
   if (!asked.value.length) return ['Add your classes', 'Add a class or use a saved workflow before previewing.'];
-  if (current.value.unavailable) return ['This model cannot be used now', current.value.unavailable];
+  if (current.value.unavailable) return ['This model cannot be used now', reasonOnly(current.value.unavailable)];
   if (generating.value) return ['Generating the preview', 'The model is looking at the preview photos.'];
   // The reason itself, not a pointer to it (live, 2026-11-16: the refusal sat below the photo, out of view).
   if (previews.value.some(p => p.state === 'refused')) return ['Preview needs attention', (shown.value?.state === 'refused' && shown.value.error) || previews.value.find(p => p.state === 'refused').error];
@@ -102,10 +102,9 @@ function toggleAsked(name) {
   asked.value = now; keepAskedClasses(props.state.ref, classNames.value, now); previews.value = [];
 }
 const adding = ref(null); const classBusy = ref(false); const classError = ref(''); const newName = ref(null);
-const PALETTE = ['#ef4444', '#0ea5e9', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#6366f1', '#a855f7'];
 function startAdd() {
   classError.value = '';
-  adding.value = { name: '', color: PALETTE.find(c => !props.state.classes.some(k => k.color === c)) || PALETTE[0], description: '' };
+  adding.value = { name: '', color: nextClassColor(props.state.classes), description: '' };
   nextTick(() => newName.value?.focus());
 }
 async function changeClasses(call) {
@@ -172,7 +171,7 @@ async function ask(preview) {
         continue;
       }
       let shapes = body.shapes;
-      if (body.tidy && shapes.length) shapes = tidyUp(JSON.parse(JSON.stringify(shapes))).shapes;
+      if (body.tidy && shapes.length) shapes = tidyUp(JSON.parse(JSON.stringify(shapes)), rolesOf(props.state.classes)).shapes;
       Object.assign(preview, { state: 'ready', shapes });
     } catch (e) { Object.assign(preview, { state: 'refused', error: e.message }); }
     return;
@@ -202,7 +201,6 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
         <h3 class="auto-step-heading">Model</h3>
         <ModelSourcePicker v-model="chosen" :sources="sources" :loading="loading" :disabled="generating||busy" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"/>
         <p v-if="error" class="field-error" role="alert">{{ error }} <UiButton @click="loadSources">Try again</UiButton></p>
-        <p v-else-if="current?.unavailable" class="field-error" role="status">{{ current.unavailable }}</p>
 
 
         <h3 class="auto-gap auto-step-heading">Classes <UiBadge>{{ asked.length }} / {{ state.classes.length }}</UiBadge></h3>
@@ -220,7 +218,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
             <label class="class-colour" :style="{background:c.color}" :title="canChange?`Change the colour of ${c.name}`:c.name"><input type="color" :value="c.color" :disabled="!canChange||classBusy||generating||c.editable===false" :aria-label="`Colour of ${c.name}`" @change="saveClass(c,{color:$event.target.value})"></label>
             <input class="text-input class-desc" :value="c.description" :readonly="!canChange||generating||classBusy||c.editable===false" placeholder="Visual description of the class" :aria-label="`Visual description of ${c.name}`" maxlength="300" @change="saveClass(c,{description:$event.target.value})">
             <label class="auto-ask" :title="asked.includes(c.name) ? `The AI looks for ${c.name}` : `The AI does not look for ${c.name}`"><input type="checkbox" :checked="asked.includes(c.name)" :disabled="generating||(asked.length===1&&asked.includes(c.name))" :aria-label="`Ask the AI for ${c.name}`" @change="toggleAsked(c.name)"> Ask the AI</label>
-            <div class="auto-class-meta"><UiBadge :class="c.trained?'':'label-only'">{{ c.trained ? 'Model class' : 'Label only' }}</UiBadge><button v-if="canChange&&c.removable!==false" class="icon-button" :disabled="classBusy||generating" :aria-label="`Remove class ${c.name}`" :title="`Remove class ${c.name}`" @click="removeClass(c)"><Trash2 :size="15"/></button></div>
+            <div class="auto-class-meta"><UiBadge v-if="c.geometry" :title="`Wall geometry: ${geometryLabel(c.geometry)}`">{{ geometryLabel(c.geometry) }}</UiBadge><button v-if="canChange&&c.removable!==false" class="icon-button" :disabled="classBusy||generating" :aria-label="`Remove class ${c.name}`" :title="`Remove class ${c.name}`" @click="removeClass(c)"><Trash2 :size="15"/></button></div>
           </div>
         </div>
         <button v-if="canChange" class="auto-add" type="button" :disabled="!!adding||generating" @click="startAdd"><Plus :size="15"/> Add Class</button>
@@ -306,7 +304,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
 .auto-progress{display:flex;align-items:center;gap:12px;list-style:none;padding:0;margin:0;color:#94a3b8;font-size:10px}.auto-progress li{display:flex;align-items:center;gap:5px;white-space:nowrap}.auto-progress li>span{width:11px;height:11px;border:1px solid #cbd5e1;border-radius:50%;font-size:0}.auto-progress [aria-current=step]{color:#1d4ed8;font-weight:600}.auto-progress [aria-current=step]>span{border-color:#2563eb;background:#eff6ff}
 .auto-header-actions{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:wrap}.auto-header-actions .button{min-height:31px;padding:6px 9px;font-size:10px;gap:5px;white-space:nowrap}.auto-cost{display:flex;align-items:center;gap:5px;padding:7px;border-radius:5px;background:#f1f5f9;color:#475569;font-size:10px;white-space:nowrap;cursor:help}
 .auto-body{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:0;flex:1;overflow:hidden}.auto-side{display:flex;flex-direction:column;gap:11px;padding:22px 20px;border-right:1px solid #e2e8f0;min-width:0;overflow-y:auto;background:#fff}.auto-side h3{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#334155;margin:0}.auto-gap{margin-top:15px!important}.auto-help{font-size:11px;line-height:1.6;color:#64748b;margin:0}
-.auto-classes{border:1px solid #e2e8f0;border-radius:8px}.auto-class{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;padding:12px;border-bottom:1px solid #eef2f6}.auto-class:last-child{border-bottom:0}.auto-class.adding{background:#f8fafc}.auto-class .text-input{width:100%;min-width:0;padding:8px 9px;font-size:11px;border-color:#e2e8f0}.class-name{grid-column:1;grid-row:1;font-weight:500}.class-desc{grid-column:1/-1;grid-row:2}.class-colour{grid-column:2;grid-row:1;width:14px;height:14px;border-radius:50%;position:relative;justify-self:center;box-shadow:0 0 0 2px #fff,0 0 0 3px #e2e8f0}.class-colour input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.auto-ask{grid-column:1;grid-row:3;display:flex;align-items:center;gap:6px;font-size:10px;min-height:22px;color:#475569}.auto-ask input{accent-color:var(--accent);width:13px;height:13px}.auto-class-meta{grid-column:2;grid-row:3;display:flex;align-items:center;gap:3px}.auto-class-meta .badge{font-size:8px;padding:3px 5px}.auto-class-meta .icon-button{width:20px;height:20px;padding:3px}.label-only{background:#fffbeb;color:#92400e}.auto-class-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:5px}.auto-class-actions .button{font-size:10px;padding:5px 7px}.auto-add{display:flex;align-items:center;align-self:flex-start;gap:5px;padding:7px 0;border:0;background:none;color:#2563eb;font-size:11px;min-height:30px}
+.auto-classes{border:1px solid #e2e8f0;border-radius:8px}.auto-class{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;padding:12px;border-bottom:1px solid #eef2f6}.auto-class:last-child{border-bottom:0}.auto-class.adding{background:#f8fafc}.auto-class .text-input{width:100%;min-width:0;padding:8px 9px;font-size:11px;border-color:#e2e8f0}.class-name{grid-column:1;grid-row:1;font-weight:500}.class-desc{grid-column:1/-1;grid-row:2}.class-colour{grid-column:2;grid-row:1;width:14px;height:14px;border-radius:50%;position:relative;justify-self:center;box-shadow:0 0 0 2px #fff,0 0 0 3px #e2e8f0}.class-colour input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.auto-ask{grid-column:1;grid-row:3;display:flex;align-items:center;gap:6px;font-size:10px;min-height:22px;color:#475569}.auto-ask input{accent-color:var(--accent);width:13px;height:13px}.auto-class-meta{grid-column:2;grid-row:3;display:flex;align-items:center;gap:3px}.auto-class-meta .badge{font-size:8px;padding:3px 5px}.auto-class-meta .icon-button{width:20px;height:20px;padding:3px}.auto-class-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:5px}.auto-class-actions .button{font-size:10px;padding:5px 7px}.auto-add{display:flex;align-items:center;align-self:flex-start;gap:5px;padding:7px 0;border:0;background:none;color:#2563eb;font-size:11px;min-height:30px}
 .auto-advanced{border-top:1px solid #e2e8f0;margin-top:10px;padding-top:10px}.auto-advanced summary{display:flex;align-items:center;gap:7px;font-size:11px;color:#475569;min-height:32px;cursor:pointer;list-style:none}.auto-advanced dl{font-size:11px;line-height:1.6;margin:8px 0}.auto-advanced dt{font-weight:600;margin-top:8px}.auto-advanced dd{margin:3px 0;color:#64748b}
 .auto-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fbfcfe;padding:12px 16px 0;gap:12px}.auto-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.auto-preview-head h3{font-size:12px;font-weight:500;margin:0}.auto-bar-state{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;color:#64748b}.auto-bar-state strong{font-weight:400}.auto-bar-state small{font-size:10px;max-width:300px}.auto-canvas{position:relative;flex:1;min-height:280px;border:1px solid #e2e8f0;border-radius:12px;background:#f3f4f6;display:flex;align-items:safe center;justify-content:safe center;padding:20px;overflow:auto}.auto-canvas:fullscreen{background:#101828}.auto-preview-idle{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:0}.auto-original-image{display:block;width:100%;height:100%;object-fit:contain}.auto-before-note{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;padding:7px 10px;border:1px solid #e2e8f0;border-radius:20px;background:#ffffffd9;color:#64748b;font-size:10px;pointer-events:none}.auto-welcome{display:flex;flex-direction:column;align-items:center;gap:12px;color:#64748b;text-align:center;font-size:13px}
 .auto-tools{position:absolute;top:12px;right:12px;z-index:2;display:flex;align-items:center;gap:6px;padding:4px 6px;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 2px 4px #0f172a08}.auto-switch{display:flex;align-items:center;gap:6px;font-size:11px;color:#475569;padding:0 6px;min-height:30px}.auto-switch input{position:absolute;opacity:0;width:1px;height:1px}.auto-switch span{width:28px;height:16px;position:relative;border-radius:8px;background:#cbd5e1}.auto-switch span::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:white}.auto-switch input:checked+span{background:#2563eb}.auto-switch input:checked+span::after{transform:translateX(12px)}.auto-switch input:focus-visible+span{outline:2px solid #60a5fa;outline-offset:3px}.auto-tools .icon-button{width:28px;height:28px;padding:5px}

@@ -1,14 +1,16 @@
 <script setup>
-// A project's Classes & tags page: the classes (wall, window and door, which every walls model learns, then the
-// project's own label-only classes) with how often each is drawn, and the photo tags with how many photos carry each.
-// Add, change and remove a class; lock the classes (Owner); rename or remove a tag on every photo. Tags are put on
-// photos on the Dataset page. Backend: app_api.py classes-tags/, classes/, class-lock/, tags/<remove|rename>/.
+// A project's Classes & tags page: the project's own classes with how often each is drawn, and the photo tags with
+// how many photos carry each. Add, change and remove a class, and set its wall geometry (None, Wall, Window in a wall,
+// Door in a wall: FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 12.2; at most one class per geometry, the server says
+// so in words); lock the classes (Owner); rename or remove a tag on every photo. Tags are put on photos on the Dataset
+// page. Backend: app_api.py classes-tags/, classes/, class-lock/, tags/<remove|rename>/.
 import { computed, ref, watch } from 'vue';
 import { Check, Lock, Plus, Search, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { classesApi, usageText, matching } from '../api/classes.js';
+import { GEOMETRIES, geometryLabel, nextClassColor } from '../api/annotate.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
@@ -26,7 +28,7 @@ const rows = computed(() => matching(tab.value === 'Classes' ? data.value?.class
 const dialog = ref(null); const form = ref({}); const dialogError = ref('');
 function open(type, row = null) {
   dialog.value = { type, row }; dialogError.value = '';
-  form.value = type === 'class' ? { name: row?.name || '', color: row?.color || '#8b5cf6', description: row?.description || '' }
+  form.value = type === 'class' ? { name: row?.name || '', color: row?.color || nextClassColor(data.value?.classes), description: row?.description || '', geometry: row?.geometry || '' }
     : type === 'rename' ? { to: row.name } : {};
 }
 const title = computed(() => ({ class: dialog.value?.row ? `Edit "${dialog.value.row.name}"` : 'Add a class', removeClass: 'Remove the class',
@@ -39,7 +41,7 @@ async function run(call, done) {
   finally { busy.value = false; }
 }
 function saveClass() {
-  const { row } = dialog.value; const body = { color: form.value.color, description: form.value.description };
+  const { row } = dialog.value; const body = { color: form.value.color, description: form.value.description, geometry: form.value.geometry || '' };
   if (row) return run(() => classesApi.updateClass(props.projectRef, row.name, body), () => `"${row.name}" is changed.`);
   return run(() => classesApi.addClass(props.projectRef, { ...body, name: form.value.name.trim() }), a => `"${a.added}" is added to this project's classes.`);
 }
@@ -78,7 +80,7 @@ async function toggleLock(event) {
           <tbody>
             <tr v-for="row in rows" :key="row.name">
               <td><span v-if="tab==='Classes'" class="class-dot" :style="{background:row.color}"/><UiBadge v-else>Tag</UiBadge></td>
-              <td><strong>{{ row.name }}</strong><UiBadge v-if="row.trained" tone="purple">Model class</UiBadge><span v-if="row.description" class="classes-meta"> · {{ row.description }}</span></td>
+              <td><strong>{{ row.name }}</strong><UiBadge v-if="tab==='Classes'&&row.geometry" tone="purple" :title="`Wall geometry: ${geometryLabel(row.geometry)}`">{{ geometryLabel(row.geometry) }}</UiBadge><span v-if="row.description" class="classes-meta"> · {{ row.description }}</span></td>
               <td>{{ tab==='Classes' ? usageText(row) : `${row.photos} photo${row.photos===1?'':'s'}` }}</td>
               <td class="modify">
                 <template v-if="tab==='Classes'">
@@ -105,6 +107,8 @@ async function toggleLock(event) {
         <label v-if="!dialog.row" class="field-label">Name<input v-model="form.name" class="text-input" maxlength="40" placeholder="e.g. radiator"></label>
         <label class="field-label">Color<input v-model="form.color" type="color" class="color-input"></label>
         <label class="field-label">Description<input v-model="form.description" class="text-input" maxlength="300" placeholder="What a labeller should mark with it"></label>
+        <label v-if="data?.may?.classes" class="field-label">Wall geometry<select v-model="form.geometry" class="text-input" aria-describedby="class-geometry-help"><option v-for="g in GEOMETRIES" :key="g.value" :value="g.value">{{ g.label }}</option></select></label>
+        <p v-if="data?.may?.classes" id="class-geometry-help" class="field-help">{{ GEOMETRIES.find(g => g.value === (form.geometry || ''))?.about }} Only one class of the project can have each geometry.</p>
         <p v-if="dialogError" class="field-error" role="alert">{{ dialogError }}</p>
         <div class="dialog-actions"><UiButton @click="dialog=null">Cancel</UiButton><UiButton variant="primary" :disabled="busy||(!dialog.row&&!form.name.trim())" @click="saveClass">{{ dialog.row ? 'Save' : 'Add class' }}</UiButton></div>
       </template>

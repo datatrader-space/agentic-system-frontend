@@ -2,6 +2,7 @@
 // workspace/deployments/, workspace/events/, workspace/audit/, assistant/), and the person's own workflows (AADML's
 // /api/workflow-graphs/, which lists only the workflows of the person signed in). Every rule is the backend's.
 import { apiFetch } from './client.js';
+import { reasonOnly, sentence } from '../sourceFamilies.js';
 
 const enc = encodeURIComponent;
 const APP = '/training-data/app';
@@ -312,9 +313,11 @@ export function hostedTry(state) {
   const on = state.phase === 'ready';
   const left = Number.isInteger(state.free_left) ? state.free_left : 0;
   const perDay = Number.isInteger(state.free_per_day) ? state.free_per_day : 0;
+  // Not running: the reason once (the server's ``refused``, else its ``said``), never also as a heading and a second
+  // line, and without "Nothing was charged": nothing was asked of it here.
   return {
     on,
-    phase: on ? 'Always on' : 'Not running now: AADML starts it',
+    phase: on ? 'Always on' : sentence(reasonOnly(state.refused) || reasonOnly(state.said) || 'Not running now: AADML starts it'),
     free: `Free: ${left} of ${perDay} tries left today`,
     price: state.price_per_image
       ? `In a project it is ${state.price_per_image}, paid from your balance.`

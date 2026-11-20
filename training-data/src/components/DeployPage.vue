@@ -112,7 +112,7 @@ const currentModel = computed(() => {
 // "Build on this model": the person's words go to the AADML agent. Its chat starts empty, so the words are copied and
 // the chat is opened (the Training assistant's own conversation where AADML has one).
 const BUILD_CHIPS = [
-  { text: 'Mark the walls in my room photos with this model', icon: ScanSearch },
+  { text: 'Label my new photos with this model', icon: ScanSearch },
   { text: 'Check this model on new photos before it goes to production', icon: Check },
   { text: 'Customize with Workflows', icon: GitBranch, page: 'workflows' },
 ];

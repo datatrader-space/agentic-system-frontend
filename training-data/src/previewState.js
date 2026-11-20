@@ -5,8 +5,10 @@ let nextId = 100;
 export function getPreview(id = 'room-walls') {
   if (!projects.has(id)) projects.set(id, reactive({
     batches: (id.startsWith('preview-') || id === 'interior-library' || id.startsWith('real:')) ? [] : [{ id: 'demo-batch', name: 'Interior collection', count: 6, status: 'Unassigned', tags: ['interior'], assignee: 'Unassigned', group: 'Demo home 01' }],
-    images: (id.startsWith('preview-') || id === 'interior-library' || id.startsWith('real:')) ? [] : Array.from({ length: 6 }, (_, i) => ({ id: `demo-${i}`, batchId:'demo-batch', name: `room-${String(i+1).padStart(2,'0')}.png`, sample: true, variant: i % 2, state: i < 2 ? 'Accepted' : 'Unlabeled', tags: ['interior'], shapes: i < 2 ? [{id:1, kind:'wall', points:[[178,48],[460,48],[460,217],[178,217]],corner:'room'}] : [] })),
-    classes: [{name:'wall',color:'#8b5cf6'}, {name:'window',color:'#10b981'}, {name:'door',color:'#f59e0b'}], tags: ['interior', 'review'],
+    images: (id.startsWith('preview-') || id === 'interior-library' || id.startsWith('real:')) ? [] : Array.from({ length: 6 }, (_, i) => ({ id: `demo-${i}`, batchId:'demo-batch', name: `room-${String(i+1).padStart(2,'0')}.png`, sample: true, variant: i % 2, state: 'Unlabeled', tags: ['interior'], shapes: [] })),
+    // No class is assumed (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 4): a sample screen starts with no class list
+    // and no drawn shape, and says so; a real project's classes come from its API.
+    classes: [], tags: ['interior', 'review'],
     versions: [], runs: [], models: [], activeRules: [], workflows: [], selectedImage: null,
   }));
   return projects.get(id);
