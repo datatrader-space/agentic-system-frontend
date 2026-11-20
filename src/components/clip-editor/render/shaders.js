@@ -6,8 +6,8 @@
 //   every framebuffer stores row 0 at the top (textures are uploaded without a flip, framebuffers are written at
 //   gl_FragCoord.y = y + 0.5), so texelFetch(tex, ivec2(x, y)) means the same pixel everywhere.
 // - Colours are straight (not premultiplied) RGBA in 0..1, as ffmpeg's yuva/gbra planes are.
-// - Where a filter works on YUV (unsharp, chromakey, the matte's gray), the conversion is BT.601 limited range
-//   (swscale's default for an untagged picture, as the export gets).
+// - Where a filter works on YUV (unsharp, chromakey, the matte's gray), the conversion is BT.709 limited range: the
+//   editor's one colour space (backend services/colour.py), which the export converts every source into and tags.
 
 export const VERTEX = `#version 300 es
 in vec2 a_pos;
@@ -21,12 +21,12 @@ precision highp sampler3D;
 out vec4 o;
 ivec2 pix() { return ivec2(gl_FragCoord.xy); }
 vec4 at(sampler2D t, ivec2 p) { ivec2 s = textureSize(t, 0); return texelFetch(t, clamp(p, ivec2(0), s - 1), 0); }
-// BT.601 limited range, 8-bit scale (Y 16..235, U/V 16..240).
-vec3 toYuv(vec3 c) { return vec3(16.0 + 65.481 * c.r + 128.553 * c.g + 24.966 * c.b,
-                                 128.0 - 37.797 * c.r - 74.203 * c.g + 112.0 * c.b,
-                                 128.0 + 112.0 * c.r - 93.786 * c.g - 18.214 * c.b); }
+// BT.709 limited range, 8-bit scale (Y 16..235, U/V 16..240): Kr 0.2126, Kb 0.0722.
+vec3 toYuv(vec3 c) { return vec3(16.0 + 46.5594 * c.r + 156.6288 * c.g + 15.8118 * c.b,
+                                 128.0 - 25.6642 * c.r - 86.3358 * c.g + 112.0 * c.b,
+                                 128.0 + 112.0 * c.r - 101.7303 * c.g - 10.2697 * c.b); }
 vec3 toRgb(vec3 y) { float l = 1.164383562 * (y.x - 16.0); float u = y.y - 128.0, v = y.z - 128.0;
-                     return vec3(l + 1.596026786 * v, l - 0.391762290 * u - 0.812967647 * v, l + 2.017232143 * u) / 255.0; }
+                     return vec3(l + 1.792741071 * v, l - 0.213248614 * u - 0.532909329 * v, l + 2.112401786 * u) / 255.0; }
 `
 
 // ── the clip's picture: crop, fitted to the canvas (contain or cover), slow zoom (compositor._crop_fit) ───────────
@@ -45,7 +45,11 @@ void main() {
   vec2 c = u_scaled * 0.5;
   p = c + (p - c) / u_zoom;
   vec2 s = u_crop.xy + p / u_scaled * u_crop.zw;
-  o = texture(u_src, s / u_srcSize);
+  vec4 t = texture(u_src, s / u_srcSize);
+  // The export converts every source into the editor's colour space as whole 8-bit BT.709 numbers (backend
+  // colour.to_work, up to 3 levels from the source's own on a BT.601 file): the same rounding here, so effects that
+  // stretch colours (adjust, curves, LUTs) start from the export's values.
+  o = vec4(clamp(toRgb(floor(toYuv(clamp(t.rgb, 0.0, 1.0)) + 0.5)), 0.0, 1.0), t.a);
 }`
 
 // ── effects on the picture ──────────────────────────────────────────────────────────────────────────────────────
@@ -176,7 +180,7 @@ void main() {
 // binomial kernel (1 4 6 4 1)^2 / 256 with repeated edges; Y' = Y + (Y - blur) * amount; U and V kept.
 export const UNSHARP = EFFECT_HEAD + `
 uniform float u_amount;
-float Y(ivec2 p) { return dot(at(u_in, p).rgb, vec3(65.481, 128.553, 24.966)) + 16.0; }
+float Y(ivec2 p) { return toYuv(at(u_in, p).rgb).x; }
 void main() {
   ivec2 p = pix();
   float k[5] = float[5](1.0, 4.0, 6.0, 4.0, 1.0);
@@ -234,8 +238,8 @@ void main() {
 }`
 
 // vf_chromakey (8-bit): the mean over the 3 x 3 neighbourhood of sqrt((du^2 + dv^2) / (255^2 * 2)) from the key's U,V
-// (pixels' U,V in BT.601 limited range, the key's by RGB_TO_U/V); alpha = clip((diff - similarity) / blend) or a hard
-// step; written as 8 bits. ffmpeg REPLACES the alpha plane; here it multiplies (equal when the clip had no alpha).
+// (pixels' U,V in BT.709 limited range, the frames' own; the key's by vf_chromakey's own RGB_TO_U/V, BT.601); alpha =
+// clip((diff - similarity) / blend) or a hard step; written as 8 bits. ffmpeg REPLACES the alpha plane; here it multiplies (equal when the clip had no alpha).
 export const CHROMAKEY = EFFECT_HEAD + `
 uniform vec2 u_key;
 uniform float u_similarity, u_blend;
@@ -533,7 +537,7 @@ uniform vec4 u_color;
 void main() { o = u_color; }`
 
 // The export's 4:4:4 picture made 4:2:0 (the swscale ffmpeg inserts where a yuva444p layer joins the yuv420p canvas,
-// bicubic): U and V at each 2 x 2 block, computed as SCALE computes a plane, from the picture's 8-bit BT.601 values.
+// bicubic): U and V at each 2 x 2 block, computed as SCALE computes a plane, from the picture's 8-bit BT.709 values.
 // Writes U, V / 255. The golden-frame test's model of the export's encode (readPixels, PRESENT).
 export const CHROMA_DOWN = HEAD + YUVA + SWS + `
 uniform sampler2D u_src;
@@ -557,7 +561,7 @@ void main() {
 }`
 
 // To the screen: the canvas's row 0 is at the bottom, so this pass flips. u_chroma420 imitates the export's yuv420p
-// for the golden-frame test: BT.601 limited YUV in 8 bits, the chroma of each 2 x 2 block from CHROMA_DOWN, then
+// for the golden-frame test: BT.709 limited YUV in 8 bits (the export's tagged colour space), the chroma of each 2 x 2 block from CHROMA_DOWN, then
 //   1: upsampled bilinearly from centre-sited samples (scale=flags=bilinear+full_chroma_int+accurate_rnd, which is
 //      also how browsers decode yuv420p video), or
 //   2: repeated over its block (swscale's default yuv420p -> rgb24, what `format=rgb24` gives).
