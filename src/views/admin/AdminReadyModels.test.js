@@ -243,6 +243,22 @@ describe('AdminReadyModels', () => {
     expect(api.readyModelCameraAdd.mock.calls[0][0].tuning).toEqual({ near: 0.7 })
   })
 
+  it('shows the machine\'s own progress while a model starts there, and updates it as it polls', async () => {
+    vi.useFakeTimers()
+    const starting = (label, percent) => qwen({ state: 'starting', host: 'machine', machine: { id: 4, name: 'Studio PC' },
+      progress: { label, percent } })
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [starting('Downloading the model: model files, 1 GB of 4.3 GB (23%)', 23)],
+      machines: fitted, kinds } })
+    await render()
+    const shown = w.get('[data-test="rm-model-qwen3-vl-8b"] [data-test="rm-progress"]')
+    expect(shown.text()).toContain('model files, 1 GB of 4.3 GB (23%)')
+    expect(shown.get('progress').attributes('value')).toBe('23')
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [starting('Downloading the model: its server image, 2 GB of 3.5 GB (57%)', 57)],
+      machines: fitted, kinds } })
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(w.get('[data-test="rm-progress"]').text()).toContain('its server image')
+  })
+
   it('removes a camera model only after the in-page confirmation', async () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
     api.readyModelCameraRemove.mockResolvedValue({ status: 204 })

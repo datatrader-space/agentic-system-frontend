@@ -46,6 +46,12 @@
             {{ stateWord(m.state) }}
           </span>
         </div>
+        <!-- While it starts on a machine: the machine's own progress (its files, its server image), as Try shows it. -->
+        <div v-if="m.state === 'starting' && m.progress" class="rm-progress" data-test="rm-progress">
+          <span>{{ m.progress.label }}</span>
+          <progress v-if="m.progress.percent != null" :value="m.progress.percent" max="100"
+                    :aria-label="`${m.name || m.key}: ${m.progress.percent}%`"></progress>
+        </div>
         <p v-if="m.state === 'failed' && m.failure_reason" class="rm-failure" role="alert" data-test="rm-failure">
           {{ m.failure_reason }}
         </p>
@@ -523,6 +529,9 @@ onBeforeUnmount(() => { disposed = true; stopPolling() })
 .rm-state.is-failed { color: var(--admin-danger, #b42318); border-color: currentColor; }
 .rm-spin { animation: rm-spin 1.2s linear infinite; }
 @keyframes rm-spin { to { transform: rotate(360deg); } }
+.rm-progress { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 0; font-size: 13px;
+  color: var(--admin-accent, #4f46e5); overflow-wrap: anywhere; }
+.rm-progress progress { width: 100%; height: 6px; }
 .rm-failure { margin: 10px 0 0; color: var(--admin-danger, #b42318); font-size: 13px; overflow-wrap: anywhere; }
 
 .rm-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 20px; margin: 14px 0; }
