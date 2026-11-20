@@ -1,0 +1,290 @@
+<script setup>
+// The Workplace view of Cloud Streaming (backend workplace_api.py; SMART_CAMERA_AI_PLAN.md Phase H): the Admin's switch
+// and terms (with the staff notice in English and Urdu), people and their own consent links, attendance (and its CSV for
+// HR or payroll), desks now, space use, and the plate lists. Nothing is recognised until the terms are accepted and
+// each person consented on their own link; the server enforces it, this page only offers it.
+import { computed, onMounted, ref, watch } from 'vue';
+import { Copy, Download, Link as LinkIcon, Plus, RefreshCw, Trash2, UserX } from 'lucide-vue-next';
+import UiButton from './UiButton.vue';
+import { percent, pkDay, workplaceApi } from '../api/workplace.js';
+
+const part = ref('setup');                      // setup | people | attendance | desks | usage | plates
+const PARTS = [['setup', 'Setup'], ['people', 'People'], ['attendance', 'Attendance'], ['desks', 'Desks now'],
+  ['usage', 'Space use'], ['plates', 'Plates'], ['outside', 'Outside AADML']];
+const error = ref(''); const said = ref(''); const busy = ref(false);
+const settings = ref(null); const forbidden = ref(false);
+async function call(work, after) {
+  busy.value = true; error.value = ''; said.value = '';
+  try { const answer = await work(); if (after) after(answer); said.value = answer?.said || ''; return answer; }
+  catch (e) { error.value = e.message; if (e.status === 403) forbidden.value = true; return null; }
+  finally { busy.value = false; }
+}
+
+// ── setup ──
+const loadSettings = () => call(() => workplaceApi.settings(), a => { settings.value = a.settings; });
+const draft = ref({ accept: false, notice: false, day_start: '09:00', day_end: '18:00', faces_on: false, plates_on: false,
+  face_model: '', search_model: '' });
+watch(settings, s => { if (s) draft.value = { accept: s.accepted, notice: !!s.notice_confirmed_at, day_start: s.day_start || '09:00', day_end: s.day_end || '18:00', faces_on: s.faces_on, plates_on: s.plates_on, face_model: s.face_model || '', search_model: s.search_model || '' }; });
+// The hosted face and search models that run now (backend camera_models.py), each with its price.
+const faceModels = computed(() => settings.value?.models?.faces || []);
+const searchModels = computed(() => settings.value?.models?.search || []);
+function saveSettings() {
+  const s = settings.value; const d = draft.value;
+  const body = { day_start: d.day_start, day_end: d.day_end, faces_on: d.faces_on, plates_on: d.plates_on,
+    face_model: d.face_model, search_model: d.search_model };
+  if (d.accept && !s.accepted) body.accept = s.terms.version;
+  if (d.notice && !s.notice_confirmed_at) body.notice_confirmed = true;
+  return call(() => workplaceApi.saveSettings(body), a => { settings.value = a.settings; said.value = 'Saved.'; });
+}
+
+// ── people ──
+const people = ref([]); const newPerson = ref({ name: '', employee_id: '', email: '', badge_number: '', department: '' });
+const shownLink = ref(null);                    // { name, link }: shown once
+const loadPeople = () => call(() => workplaceApi.people(), a => { people.value = a.people || []; });
+function addPerson() {
+  return call(() => workplaceApi.addPerson(newPerson.value), a => {
+    people.value = a.people || []; shownLink.value = { name: newPerson.value.name, link: a.link };
+    newPerson.value = { name: '', employee_id: '', email: '', badge_number: '', department: '' };
+  });
+}
+const newLink = p => call(() => workplaceApi.newLink(p.id), a => { shownLink.value = { name: p.name, link: a.link }; loadPeople(); });
+const withdraw = p => call(() => workplaceApi.withdraw(p.id), () => loadPeople());
+const removePerson = p => call(() => workplaceApi.removePerson(p.id), () => loadPeople());
+async function copyLink() { try { await navigator.clipboard.writeText(shownLink.value.link); said.value = 'The link is copied.'; } catch { /* the link is shown to copy by hand */ } }
+
+// ── attendance ──
+const since = ref(pkDay(6)); const until = ref(pkDay(0)); const rows = ref([]);
+const loadAttendance = () => call(() => workplaceApi.attendance({ since: since.value, until: until.value }), a => { rows.value = a.rows || []; });
+const csvUrl = computed(() => workplaceApi.attendanceCsvUrl({ since: since.value, until: until.value }));
+
+// ── desks, space use, plates ──
+const desks = ref([]); const usage = ref([]);
+const loadDesks = () => call(() => workplaceApi.occupancy(), a => { desks.value = a.zones || []; });
+const loadUsage = () => call(() => workplaceApi.usage({ since: since.value, until: until.value }), a => { usage.value = a.zones || []; });
+const plates = ref([]); const newPlate = ref({ plate: '', label: '', list: 'allow' }); const recent = ref([]);
+const loadPlates = () => call(() => workplaceApi.plates(), a => { plates.value = a.plates || []; })
+  .then(() => workplaceApi.sightings('plate').then(a => { recent.value = a.sightings || []; }).catch(() => {}));
+const addPlate = () => call(() => workplaceApi.addPlate(newPlate.value), a => { plates.value = a.plates || []; newPlate.value = { plate: '', label: '', list: 'allow' }; });
+const removePlate = p => call(() => workplaceApi.removePlate(p.id), () => loadPlates());
+
+// ── outside AADML (Phase I): webhooks, the monitoring partner, device actions, sharing ──
+const endpoints = ref([]); const agreements = ref([]); const shownSecret = ref(''); const shownCode = ref('');
+const newEndpoint = ref({ kind: 'webhook', name: '', url: '', critical_only: true, site_address: '', contacts: '', partner_terms: false, body: '' });
+const proposal = ref({ purpose: '', pictures: false }); const acceptCode = ref('');
+const loadOutside = () => call(() => workplaceApi.endpoints(), a => { endpoints.value = a.endpoints || []; })
+  .then(() => workplaceApi.sharing().then(a => { agreements.value = a.agreements || []; }).catch(() => {}));
+function addEndpoint() {
+  const e = newEndpoint.value;
+  let body = {};
+  if (e.kind === 'device' && e.body.trim()) { try { body = JSON.parse(e.body); } catch { error.value = 'The device body is JSON, like {"relay": 1}.'; return null; } }
+  return call(() => workplaceApi.addEndpoint({ ...e, body }), a => { endpoints.value = a.endpoints || []; shownSecret.value = a.secret || '';
+    newEndpoint.value = { kind: 'webhook', name: '', url: '', critical_only: true, site_address: '', contacts: '', partner_terms: false, body: '' }; });
+}
+const removeEndpoint = e => call(() => workplaceApi.removeEndpoint(e.id), () => loadOutside());
+const propose = () => call(() => workplaceApi.propose(proposal.value.purpose, proposal.value.pictures), a => { agreements.value = a.agreements || []; shownCode.value = a.code || ''; });
+const accept = () => call(() => workplaceApi.accept(acceptCode.value), a => { agreements.value = a.agreements || []; acceptCode.value = ''; });
+const endAgreement = a => call(() => workplaceApi.endAgreement(a.id), () => loadOutside());
+
+const loaders = { setup: loadSettings, people: loadPeople, attendance: loadAttendance, desks: loadDesks, usage: loadUsage, plates: loadPlates, outside: loadOutside };
+watch(part, now => loaders[now]?.());
+onMounted(loadSettings);
+const ready = computed(() => !!settings.value?.accepted);
+</script>
+
+<template>
+  <section class="wp" aria-label="Workplace">
+    <div class="wp-parts" role="tablist" aria-label="Workplace">
+      <button v-for="[id, label] in PARTS" :key="id" type="button" role="tab" :aria-selected="part === id" :class="{ on: part === id }" @click="part = id">{{ label }}</button>
+    </div>
+    <p v-if="forbidden" class="wp-muted">The workplace features are for the Admins of this workspace. Desks now and Space use are for everyone who sees the cameras.</p>
+    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+    <p v-else-if="said" class="wp-muted" role="status">{{ said }}</p>
+
+    <!-- Setup -->
+    <div v-if="part === 'setup' && settings" class="wp-card">
+      <h3>Before anything runs</h3>
+      <ul class="wp-points"><li v-for="p in settings.terms.points" :key="p">{{ p }}</li></ul>
+      <details><summary>Staff notice to give your staff (English and Urdu)</summary><p class="wp-notice">{{ settings.staff_notice }}</p></details>
+      <label class="wp-check"><input v-model="draft.accept" type="checkbox" :disabled="settings.accepted"> I accept these terms for this workspace (version {{ settings.terms.version }})</label>
+      <label class="wp-check"><input v-model="draft.notice" type="checkbox" :disabled="!!settings.notice_confirmed_at"> My staff were given the notice in writing, and signs are up where cameras are</label>
+      <div class="wp-row">
+        <label>Working day from <input v-model="draft.day_start" class="text-input" type="time"></label>
+        <label>to <input v-model="draft.day_end" class="text-input" type="time"></label>
+      </div>
+      <label class="wp-check"><input v-model="draft.faces_on" type="checkbox" :disabled="!ready && !(draft.accept && draft.notice)"> Face recognition (only people who consented on their own link)</label>
+      <label class="wp-check"><input v-model="draft.plates_on" type="checkbox" :disabled="!ready && !(draft.accept && draft.notice)"> Number plates (read on vehicle events)</label>
+      <div class="wp-row">
+        <label>Face model
+          <select v-model="draft.face_model" class="text-input" data-test="wp-face-model">
+            <option value="">The first that runs</option>
+            <option v-for="m in faceModels" :key="m.key" :value="m.key">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
+          </select>
+        </label>
+        <label>Search model
+          <select v-model="draft.search_model" class="text-input" data-test="wp-search-model">
+            <option value="">The first that runs</option>
+            <option v-for="m in searchModels" :key="m.key" :value="m.key">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
+          </select>
+        </label>
+      </div>
+      <p class="wp-muted">Both run where AADML hosts them (its own GPU machines or RunPod), never on AADML's server. A face
+        template is matched only with templates of the same face model: after a change of face model, people consent
+        again on their link.</p>
+      <UiButton variant="primary" class="small" :disabled="busy" @click="saveSettings">Save</UiButton>
+    </div>
+
+    <!-- People -->
+    <div v-else-if="part === 'people'" class="wp-card">
+      <form class="wp-row" @submit.prevent="addPerson">
+        <input v-model="newPerson.name" class="text-input" maxlength="120" placeholder="Name" aria-label="Name" required>
+        <input v-model="newPerson.employee_id" class="text-input" maxlength="60" placeholder="Employee ID" aria-label="Employee ID">
+        <input v-model="newPerson.badge_number" class="text-input" maxlength="60" placeholder="Badge number" aria-label="Badge number">
+        <input v-model="newPerson.department" class="text-input" maxlength="80" placeholder="Department" aria-label="Department">
+        <UiButton type="submit" variant="primary" class="small" :disabled="busy || !newPerson.name.trim()"><Plus :size="13" aria-hidden="true"/> Add person</UiButton>
+      </form>
+      <div v-if="shownLink" class="wp-link" role="status">
+        <strong>{{ shownLink.name }}'s own link (shown only now):</strong>
+        <code>{{ shownLink.link }}</code>
+        <UiButton class="small" @click="copyLink"><Copy :size="13" aria-hidden="true"/> Copy</UiButton>
+        <p class="wp-muted">Give it to them only. On it they read what is done, and agree with a photo of their own face, or not.</p>
+      </div>
+      <table v-if="people.length" class="wp-table">
+        <thead><tr><th scope="col">Name</th><th scope="col">Employee ID</th><th scope="col">Badge</th><th scope="col">Consent</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          <tr v-for="p in people" :key="p.id">
+            <td>{{ p.name }}<small v-if="p.department"> · {{ p.department }}</small></td><td>{{ p.employee_id }}</td><td>{{ p.badge_number }}</td>
+            <td>{{ p.state_label }}<small v-if="p.consent_at"> {{ new Date(p.consent_at).toLocaleDateString() }}</small></td>
+            <td class="wp-acts">
+              <UiButton class="small" :disabled="busy" :aria-label="`New link for ${p.name}`" @click="newLink(p)"><LinkIcon :size="13" aria-hidden="true"/></UiButton>
+              <UiButton v-if="p.state === 'consented'" class="small" :disabled="busy" :aria-label="`Withdraw ${p.name}`" @click="withdraw(p)"><UserX :size="13" aria-hidden="true"/></UiButton>
+              <UiButton class="small sp-danger" :disabled="busy" :aria-label="`Remove ${p.name}`" @click="removePerson(p)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="wp-muted">No people yet. Add them, then give each their own link.</p>
+    </div>
+
+    <!-- Attendance -->
+    <div v-else-if="part === 'attendance'" class="wp-card">
+      <div class="wp-row">
+        <label>From <input v-model="since" class="text-input" type="date"></label>
+        <label>To <input v-model="until" class="text-input" type="date"></label>
+        <UiButton class="small" :disabled="busy" @click="loadAttendance"><RefreshCw :size="13" aria-hidden="true"/> Show</UiButton>
+        <a class="button small" :href="csvUrl"><Download :size="13" aria-hidden="true"/> CSV for HR</a>
+      </div>
+      <table v-if="rows.length" class="wp-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Name</th><th scope="col">First seen</th><th scope="col">Last seen</th><th scope="col">Hours</th><th scope="col">Note</th></tr></thead>
+        <tbody><tr v-for="r in rows" :key="`${r.day}-${r.person}`"><td>{{ r.day }}</td><td>{{ r.name }}</td><td>{{ r.first_seen }}</td><td>{{ r.last_seen }}</td><td>{{ r.hours }}</td><td>{{ [r.late ? 'late' : '', r.left_early ? 'left early' : ''].filter(Boolean).join(', ') }}</td></tr></tbody>
+      </table>
+      <p v-else class="wp-muted">No one was recognised in these days. Times are Pakistan time.</p>
+    </div>
+
+    <!-- Desks now -->
+    <div v-else-if="part === 'desks'" class="wp-card">
+      <UiButton class="small" :disabled="busy" @click="loadDesks"><RefreshCw :size="13" aria-hidden="true"/> Refresh</UiButton>
+      <ul v-if="desks.length" class="wp-desks">
+        <li v-for="d in desks" :key="d.zone_id" :class="{ taken: d.occupied }">
+          <strong>{{ d.zone }}</strong><small>{{ d.camera }}</small>
+          <span>{{ d.occupied ? (d.people.length ? d.people.join(', ') : 'Taken') : 'Free' }}</span>
+          <small v-if="!d.live">no stream running</small>
+        </li>
+      </ul>
+      <p v-else class="wp-muted">Draw desks as zones on a camera (its Zones tab) and run the ready detector on it.</p>
+    </div>
+
+    <!-- Space use -->
+    <div v-else-if="part === 'usage'" class="wp-card">
+      <div class="wp-row">
+        <label>From <input v-model="since" class="text-input" type="date"></label>
+        <label>To <input v-model="until" class="text-input" type="date"></label>
+        <UiButton class="small" :disabled="busy" @click="loadUsage"><RefreshCw :size="13" aria-hidden="true"/> Show</UiButton>
+      </div>
+      <ul v-if="usage.length" class="wp-usage">
+        <li v-for="u in usage" :key="u.zone_id"><span class="wp-bar" :style="{ width: percent(u.used_share) }"></span>
+          <strong>{{ u.zone }}</strong> <small>{{ u.camera }}</small> <span>{{ percent(u.used_share) }} used · {{ u.occupied_hours }} of {{ u.watched_hours }} hours watched</span></li>
+      </ul>
+      <p v-else class="wp-muted">No zone was watched in these days.</p>
+    </div>
+
+    <!-- Plates -->
+    <div v-else-if="part === 'plates'" class="wp-card">
+      <form class="wp-row" @submit.prevent="addPlate">
+        <input v-model="newPlate.plate" class="text-input" maxlength="20" placeholder="Plate, e.g. LEA-1234" aria-label="Plate" required>
+        <input v-model="newPlate.label" class="text-input" maxlength="80" placeholder="Whose (optional)" aria-label="Whose">
+        <select v-model="newPlate.list" class="text-input" aria-label="List"><option value="allow">Allow</option><option value="deny">Deny (alert)</option></select>
+        <UiButton type="submit" variant="primary" class="small" :disabled="busy"><Plus :size="13" aria-hidden="true"/> Add</UiButton>
+      </form>
+      <ul v-if="plates.length" class="wp-list"><li v-for="p in plates" :key="p.id"><strong>{{ p.plate }}</strong> <span>{{ p.list === 'deny' ? 'Deny' : 'Allow' }}</span> <small>{{ p.label }}</small>
+        <UiButton class="small sp-danger" :aria-label="`Remove ${p.plate}`" @click="removePlate(p)"><Trash2 :size="13" aria-hidden="true"/></UiButton></li></ul>
+      <h4>Read lately</h4>
+      <ul v-if="recent.length" class="wp-list"><li v-for="(s, i) in recent" :key="i"><strong>{{ s.value }}</strong> <small>{{ s.camera }} · {{ s.at }}</small></li></ul>
+      <p v-else class="wp-muted">No plate read yet. Add the "Number plates at the gate" ready-made rule to a camera.</p>
+    </div>
+    <!-- Outside AADML -->
+    <div v-else-if="part === 'outside'" class="wp-card">
+      <h3>Where events go</h3>
+      <p class="wp-muted">Each delivery is signed: the receiver checks X-AADML-Signature (HMAC-SHA256 of the timestamp and the body) with the secret shown when it is added.</p>
+      <form class="wp-row" @submit.prevent="addEndpoint">
+        <select v-model="newEndpoint.kind" class="text-input" aria-label="Kind"><option value="webhook">Your system (webhook)</option><option value="monitoring">Monitoring partner</option><option value="device">Device action (siren, light, relay)</option></select>
+        <input v-model="newEndpoint.name" class="text-input" maxlength="80" placeholder="Name" aria-label="Name" required>
+        <input v-model="newEndpoint.url" class="text-input" maxlength="500" placeholder="https://" aria-label="Address" required>
+        <label v-if="newEndpoint.kind === 'webhook'" class="wp-check"><input v-model="newEndpoint.critical_only" type="checkbox"> Critical events only</label>
+        <template v-if="newEndpoint.kind === 'monitoring'">
+          <input v-model="newEndpoint.site_address" class="text-input" maxlength="300" placeholder="Site address" aria-label="Site address">
+          <input v-model="newEndpoint.contacts" class="text-input" maxlength="300" placeholder="Contacts (names, phones)" aria-label="Contacts">
+          <label class="wp-check"><input v-model="newEndpoint.partner_terms" type="checkbox"> I accepted the monitoring company's terms</label>
+        </template>
+        <input v-if="newEndpoint.kind === 'device'" v-model="newEndpoint.body" class="text-input" placeholder='Body JSON, e.g. {"relay": 1}' aria-label="Body">
+        <UiButton type="submit" variant="primary" class="small" :disabled="busy"><Plus :size="13" aria-hidden="true"/> Add</UiButton>
+      </form>
+      <p v-if="shownSecret" class="wp-link" role="status"><strong>Signing secret (shown only now):</strong> <code>{{ shownSecret }}</code></p>
+      <ul v-if="endpoints.length" class="wp-list"><li v-for="e in endpoints" :key="e.id"><strong>{{ e.name }}</strong> <span>{{ e.kind_label }}</span> <small>{{ e.host }}<template v-if="e.last_status"> · last {{ e.last_status }}</template></small>
+        <UiButton class="small sp-danger" :aria-label="`Remove ${e.name}`" @click="removeEndpoint(e)"><Trash2 :size="13" aria-hidden="true"/></UiButton></li></ul>
+      <h3>Sharing with another workspace</h3>
+      <p class="wp-muted">Only alerts of rules marked "Share", for the purpose you agree; never live access to a camera. Either side can end it.</p>
+      <form class="wp-row" @submit.prevent="propose">
+        <input v-model="proposal.purpose" class="text-input" maxlength="200" placeholder="Purpose, e.g. banned visitors in the mall" aria-label="Purpose" required>
+        <label class="wp-check"><input v-model="proposal.pictures" type="checkbox"> With the picture (a 15-minute link)</label>
+        <UiButton type="submit" class="small" :disabled="busy">Propose</UiButton>
+      </form>
+      <p v-if="shownCode" class="wp-link" role="status"><strong>Give this code to an Admin of the other workspace (shown only now):</strong> <code>{{ shownCode }}</code></p>
+      <form class="wp-row" @submit.prevent="accept">
+        <input v-model="acceptCode" class="text-input" placeholder="A code you were given" aria-label="Code">
+        <UiButton type="submit" class="small" :disabled="busy || !acceptCode.trim()">Accept</UiButton>
+      </form>
+      <ul v-if="agreements.length" class="wp-list"><li v-for="a in agreements" :key="a.id"><strong>{{ a.purpose }}</strong> <span>{{ a.state === 'active' ? `with ${a.with}` : 'waiting for the other side' }}</span> <small>{{ a.pictures ? 'with pictures' : 'alerts only' }}</small>
+        <UiButton class="small sp-danger" @click="endAgreement(a)">End</UiButton></li></ul>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.wp{display:grid;gap:12px;margin-top:12px}
+.wp-parts{display:flex;flex-wrap:wrap;gap:4px}
+.wp-parts button{min-height:34px;padding:0 12px;border:0;border-radius:8px;background:none;font:inherit;font-size:14px;font-weight:600;color:#475569;cursor:pointer}
+.wp-parts button.on{background:var(--aadml-soft);color:var(--aadml-primary)}
+.wp-card{display:grid;gap:10px;padding:14px;border:1px solid #eef1f5;border-radius:12px}
+.wp-card h3,.wp-card h4{margin:0;font-size:15px}
+.wp-points{margin:0;padding-left:20px;font-size:14px}
+.wp-notice{white-space:pre-line;font-size:13px;color:#334155}
+.wp-check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.wp-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wp-row label{display:flex;gap:6px;align-items:center;font-size:13px}
+.wp-muted{margin:0;font-size:13px;color:#5f6d82}
+.wp-link{display:grid;gap:6px;padding:10px;border-radius:10px;background:#f0fdf4}
+.wp-link code{word-break:break-all;font-size:12px}
+.wp-table{width:100%;border-collapse:collapse;font-size:13px}
+.wp-table th,.wp-table td{text-align:left;padding:6px;border-bottom:1px solid #eef2f7}
+.wp-acts{display:flex;gap:4px}
+.wp-desks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.wp-desks li{display:grid;gap:2px;padding:10px;border-radius:10px;border:1px solid #bbf7d0;background:#f0fdf4}
+.wp-desks li.taken{border-color:#fde68a;background:#fffbeb}
+.wp-desks small{color:#64748b}
+.wp-usage{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wp-usage li{position:relative;padding:8px;border-radius:8px;border:1px solid #eef1f5;overflow:hidden;font-size:13px}
+.wp-bar{position:absolute;inset:0 auto 0 0;background:rgba(37,99,235,.12);z-index:-1}
+.wp-list{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.wp-list li{display:flex;gap:8px;align-items:center}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>

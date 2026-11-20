@@ -6,16 +6,22 @@
 // its trigger). Right, the results: the newest answers of the stream on this camera, as the model's own classes, and
 // its newest frames; with "Read barcodes", the barcodes and QR codes it read, newest first, each with its type, its
 // value (shown as text only) and its frame time; its Events (what its rules matched, with a snapshot) and Rules
-// (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. AADML's own words
-// throughout.
+// (CLOUD_STREAMING_PLAN.md §3.5, phase 6); its Recordings, each of which can be used in a project. An RTMP stream (§14)
+// shows where its camera sends ("Send to AADML": the server; the stream key only right after "Rotate key", an Admin's,
+// confirmed first: the old key stops at once and the camera sending with it is disconnected). A phone camera (§16)
+// shows when its phone link ends, and "New phone link" (an Admin's, confirmed first: the old link stops at once and a
+// phone sending with it is disconnected) shows the new link once, as a QR code. AADML's own words throughout.
 // Backend: streaming_api.py workspace/video-sources/<id>/ (the source and its streams), workspace/streams/<id>/;
 // stream_events_api.py workspace/video-sources/<id>/rules/ and events/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
-  ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RefreshCw, Square, Trash2, Tv, Wallet, Workflow,
+  KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, RotateCcw, Smartphone, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
+import CameraZones from './CameraZones.vue';
 import LiveView from './LiveView.vue';
+import PushDetails from './PushDetails.vue';
+import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
 import { timeAgo } from '../api/workspace.js';
@@ -23,9 +29,9 @@ import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
   sourceState, sourceKindLabel, sourceShown, isPublic, thumbnailOf, lastFrameText, canWatch,
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
-  streamWhat, codesRead, frameCodesText,
+  streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -120,22 +126,95 @@ const recLine = computed(() => {
   if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
+// A phone camera's Record button (§16): its phone records only after an Admin lets it, with the recording consent;
+// that Admin pays for what it records. ``rec.phone`` is absent from a server older than the button.
+const phoneRec = computed(() => rec.value?.phone || null);
+const askingPhone = ref(false); const phoneConsent = ref(false);
+function askPhone() { phoneConsent.value = false; recError.value = ''; askingPhone.value = true; }
+async function letPhone(on) { await setRecording(on ? { phone: true, consent: phoneConsent.value } : { phone: false }); if (!recError.value) askingPhone.value = false; }
+const phoneRecLine = computed(() => {
+  const p = phoneRec.value;
+  if (!p) return '';
+  if (p.may && p.works) return `The phone link shows Record: it starts and stops this camera's recording, charged to ${p.by || 'the Admin who let it'}.`;
+  if (p.may) return `The phone's Record does not work now: ${p.by || 'the Admin who let it'} is no longer an Admin of this workspace. Let the phone record again to pay for it yourself.`;
+  return "The phone's page shows Record, but it records only after an Admin lets it here. Its recordings are then charged to that Admin.";
+});
 
-const tab = ref('results');                                            // results | events | rules | recordings
+// ── an RTMP stream: where its camera sends, and "Rotate key" (CLOUD_STREAMING_PLAN.md §14) ────────────────────────
+const pushed = computed(() => props.source.kind === 'rtmp' && props.source.shared !== true);
+// The new key is kept only while this page shows it: leaving the page drops it.
+const newPush = ref(null);
+const push = computed(() => newPush.value || pushDetails(props.source.push));
+const mayRotate = computed(() => pushed.value && props.may.rotate !== false && props.may.change !== false
+  && props.source.may?.rotate !== false);
+const rotating = ref(false); const rotateBusy = ref(false); const rotateError = ref(''); const rotateSaid = ref('');
+watch(() => props.source.id, () => { newPush.value = null; rotating.value = false; rotateSaid.value = ''; });
+async function rotateKey() {
+  if (rotateBusy.value) return;
+  rotateBusy.value = true; rotateError.value = '';
+  try {
+    const answer = await videoSources.rotateKey(props.source.id);
+    newPush.value = pushDetails(answer?.source?.push);
+    rotateSaid.value = answer?.said || 'The stream key is rotated. The old one no longer works.';
+    rotating.value = false;
+    if (!newPush.value?.streamKey) rotateError.value = "The key was rotated, but the new one could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R, or pull down on a phone), then rotate it again.";
+    emit('refresh');
+  } catch (e) { rotateError.value = e.message; }
+  finally { rotateBusy.value = false; }
+}
+
+// ── a phone camera: when its link ends, and "New phone link" (CLOUD_STREAMING_PLAN.md §16) ─────────────────────────
+const phoned = computed(() => props.source.kind === 'phone' && props.source.shared !== true);
+// The new link is kept only while this page shows it: leaving the page drops it.
+const newPhone = ref(null);
+const phoneNow = computed(() => phoneLinkDetails(props.source.phone));
+const mayNewLink = computed(() => phoned.value && props.may.change !== false && props.source.may?.new_link !== false);
+const relinking = ref(false); const relinkBusy = ref(false); const relinkError = ref(''); const relinkSaid = ref('');
+watch(() => props.source.id, () => { newPhone.value = null; relinking.value = false; relinkSaid.value = ''; relinkError.value = ''; });
+async function newPhoneLink() {
+  if (relinkBusy.value) return;
+  relinkBusy.value = true; relinkError.value = '';
+  try {
+    const answer = await videoSources.newPhoneLink(props.source.id);
+    const details = phoneLinkDetails(answer?.source?.phone);
+    newPhone.value = details?.url ? details : null;
+    relinkSaid.value = answer?.said || 'There is a new phone link. The old one no longer works.';
+    relinking.value = false;
+    if (!newPhone.value) relinkError.value = "A new link was made, but it could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R, or pull down on a phone), then make a new phone link.";
+    emit('refresh');
+  } catch (e) { relinkError.value = e.message; }
+  finally { relinkBusy.value = false; }
+}
+
+const tab = ref('results');                                            // results | events | rules | zones | recordings
 const today = new Date().toISOString().slice(0, 10);
 const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
-const playing = ref(null);
+const playing = ref(null); const playError = ref(''); let recLoadedAt = 0;
 async function loadRecordings() {
   recLoading.value = true; recListError.value = '';
   try {
     const answer = await recordingsApi.list({ source: props.source.id, ...dayRange(recDay.value) });
-    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete;
+    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete; recLoadedAt = Date.now();
     if (playing.value && !recRows.value.some(r => r.id === playing.value.id)) playing.value = null;
   } catch (e) { recListError.value = e.message; }
   finally { recLoading.value = false; }
 }
 watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); });
+// The links are signed for 15 minutes: a list older than 10 asks for new ones before playing (live, 2026-11-19: a
+// recording that kept loading), and one the browser cannot play says so, with its download.
+async function playRecording(row) {
+  playError.value = '';
+  if (!linksFresh(recLoadedAt)) {
+    await loadRecordings();
+    row = recRows.value.find(r => r.id === row.id) || null;
+    if (!row) return;
+  }
+  playing.value = row;
+}
+function cannotPlay() {
+  playError.value = 'This recording could not be played in this browser. Download it to watch it, or try again.';
+}
 // ── management (CLOUD_STREAMING_PLAN.md §3.6): this month's spend and the state history ─────────────────────────────
 const spend = computed(() => spendItems(props.source.spend_month));
 const spendMonth = computed(() => monthText(props.source.spend_month?.month));
@@ -143,8 +222,13 @@ const history = computed(() => historyRows(props.source.history));
 const HISTORY_FIRST = 5; const historyAll = ref(false);
 const historyShown = computed(() => (historyAll.value ? history.value : history.value.slice(0, HISTORY_FIRST)));
 
+// Deleting schedules it (the 14-day recovery period, the owner, 2026-11-19): it stays listed, with Cancel deletion.
 async function removeRecording(row) {
-  try { await recordingsApi.remove(row.id); if (playing.value?.id === row.id) playing.value = null; await loadRecordings(); emit('refresh'); }
+  try { await recordingsApi.remove(row.id); await loadRecordings(); emit('refresh'); }
+  catch (e) { recListError.value = e.message; }
+}
+async function restoreRecording(row) {
+  try { await recordingsApi.restore(row.id); await loadRecordings(); emit('refresh'); }
   catch (e) { recListError.value = e.message; }
 }
 // "Use in project": a project's model runs over the recording, read in place (the tab's start dialog, as Run a model).
@@ -167,7 +251,65 @@ const rulesPage = ref(null); const rulesLoading = ref(false); const rulesError =
 const rules = computed(() => rulesPage.value?.rules || []);
 const ruleLimits = computed(() => rulesPage.value?.limits || {});
 const mayRule = computed(() => !!rulesPage.value?.may?.change);
-const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes));
+const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes, rulesPage.value?.detector_classes));
+// The camera's zones (CameraZones.vue): a rule may count only what is inside one.
+const ruleZones = computed(() => rulesPage.value?.zones || []);
+const ruleLines = computed(() => rulesPage.value?.lines || []);
+const kindHelp = computed(() => RULE_KINDS.find(k => k.key === draft.value.kind)?.help || '');
+function toggleDay(day) {
+  const days = new Set(draft.value.days || []);
+  if (days.has(day)) days.delete(day); else days.add(day);
+  draft.value.days = [...days].sort((a, b) => a - b);
+}
+// "Wrong? Fix it" (Phase B): a camera manager marks an event; the list shows the mark.
+const verdictBusy = ref(0);
+async function markEvent(e, verdict) {
+  verdictBusy.value = e.id; evError.value = '';
+  try { const answer = await streamEvents.verdict(e.id, e.verdict === verdict ? '' : verdict); Object.assign(e, answer?.event || {}); }
+  catch (err) { evError.value = err.message; }
+  finally { verdictBusy.value = 0; }
+}
+// An event inside a kept recording opens the Recordings tab on its day (Phase B, feature 27).
+function openRecordingOf(e) {
+  const iso = e?.frame_at || e?.at;
+  if (iso) recDay.value = String(iso).slice(0, 10);
+  tab.value = 'recordings';
+}
+const lineCounts = computed(() => stream.value?.line_counts || []);
+// My alerts (Phase C): each person's own quiet hours and e-mail switch for camera alerts.
+const mine = ref(null); const mineOpen = ref(false); const mineBusy = ref(false); const mineSaid = ref(''); const mineError = ref('');
+async function openMine() {
+  mineOpen.value = !mineOpen.value; mineSaid.value = ''; mineError.value = '';
+  if (mineOpen.value && !mine.value) {
+    try { const answer = await myCameraAlerts.get(); mine.value = { quiet: !!answer?.settings?.quiet_from, quiet_from: answer?.settings?.quiet_from || '22:00', quiet_to: answer?.settings?.quiet_to || '07:00', email: answer?.settings?.email !== false, daily_summary: answer?.settings?.daily_summary !== false }; }
+    catch (e) { mineError.value = e.message; }
+  }
+}
+async function saveMine() {
+  mineBusy.value = true; mineError.value = '';
+  try {
+    const m = mine.value;
+    const answer = await myCameraAlerts.save({ quiet_from: m.quiet ? m.quiet_from : '', quiet_to: m.quiet ? m.quiet_to : '', email: m.email, daily_summary: m.daily_summary });
+    mineSaid.value = answer?.said || 'Saved.';
+  } catch (e) { mineError.value = e.message; }
+  finally { mineBusy.value = false; }
+}
+const alertLabel = key => RULE_ALERTS.find(a => a.key === (key || ''))?.label || '';
+const visionModels = computed(() => rulesPage.value?.vision_models || []);
+// Ready-made rules (Phase G): one press makes the rule (or two), with the AI check where it keeps false alarms down.
+const presets = ref([]); const presetZone = ref('');
+async function loadPresets() { try { presets.value = (await streamRules.presets(props.source.id))?.presets || []; } catch { presets.value = []; } }
+async function applyPreset(p) {
+  if (p.needs_zone && !presetZone.value) { rulesError.value = 'Choose the zone for this rule first (draw it in the Zones tab).'; return; }
+  await ruleCall(() => streamRules.applyPreset(props.source.id, p.key, p.needs_zone ? presetZone.value : ''));
+}
+async function decideActions(e, approve) {
+  verdictBusy.value = e.id; evError.value = '';
+  try { const answer = await streamEvents.actions(e.id, approve); Object.assign(e, answer?.event || {}); }
+  catch (err) { evError.value = err.message; }
+  finally { verdictBusy.value = 0; }
+}
+const answers = computed(() => !!(stream.value?.model || stream.value?.detector || (stream.value?.find || []).length));
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
   rulesLoading.value = true; rulesError.value = '';
@@ -183,7 +325,8 @@ async function ruleCall(call) {
   ruleBusy.value = true; rulesError.value = '';
   try { const answer = await call(); rulesPage.value = answer; rulesSaid.value = answer?.said || ''; return true; }
   catch (e) {
-    if (e.field && ['class_name', 'min_count', 'cooldown_seconds'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    if (e.field && ['class_name', 'min_count', 'cooldown_seconds', 'zone', 'line', 'direction', 'schedule'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    else if (e.field === 'seconds') draftErrors.value = { ...draftErrors.value, minutes: e.message };
     else rulesError.value = e.message;
     return false;
   } finally { ruleBusy.value = false; }
@@ -197,7 +340,7 @@ const toggleRule = rule => ruleCall(() => streamRules.update(props.source.id, ru
 const removeRule = rule => ruleCall(() => streamRules.remove(props.source.id, rule.id));
 watch(tab, now => {
   if (now === 'events') loadEvents(1);
-  if (now === 'rules') loadRules();
+  if (now === 'rules') { loadRules(); if (!presets.value.length) loadPresets(); }
 });
 </script>
 
@@ -249,6 +392,43 @@ watch(tab, now => {
           </div>
           <p v-if="asked" class="sp-reason" role="status"><LoaderCircle class="spin" :size="13" aria-hidden="true"/> {{ askedLine }}</p>
           <p v-else-if="source.state_reason" class="sp-reason">{{ source.state_reason }}</p>
+          <!-- Phone camera: its phone link -->
+          <div v-if="phoned" class="sp-push" aria-labelledby="sp-phone-h">
+            <h4 id="sp-phone-h" class="sp-push-title"><Smartphone :size="14" aria-hidden="true"/> Phone link</h4>
+            <p v-if="phoneNow && !phoneNow.available" class="sp-reason">Sending a phone's camera to AADML is switched off on this server for now.</p>
+            <p v-if="relinkSaid" class="sp-muted" role="status">{{ relinkSaid }}</p>
+            <PhoneLinkDetails v-if="newPhone" :phone="newPhone" id-prefix="sp-phone"/>
+            <p v-else-if="phoneNow" class="sp-muted">The phone opens this camera's link and sends from its browser. The link was shown once, when it was made. {{ phoneLinkUntil(phoneNow) }}</p>
+            <p v-if="relinkError" class="field-error" role="alert">{{ relinkError }}</p>
+            <template v-if="mayNewLink">
+              <div v-if="relinking" class="sp-rotate-ask" role="group" aria-labelledby="sp-relink-q">
+                <p id="sp-relink-q">Make a new phone link? The current one stops working now, and a phone sending with it is disconnected until it opens the new link.</p>
+                <span class="sp-rec-acts">
+                  <UiButton variant="primary" class="small" :disabled="relinkBusy" @click="newPhoneLink"><LoaderCircle v-if="relinkBusy" class="spin" :size="13" aria-hidden="true"/><Smartphone v-else :size="13" aria-hidden="true"/> New phone link</UiButton>
+                  <UiButton class="small" :disabled="relinkBusy" @click="relinking = false">Cancel</UiButton>
+                </span>
+              </div>
+              <UiButton v-else class="small" @click="relinking = true; relinkError = ''"><Smartphone :size="13" aria-hidden="true"/> New phone link</UiButton>
+            </template>
+          </div>
+          <!-- RTMP stream: where its camera or encoder sends -->
+          <div v-if="pushed" class="sp-push" aria-labelledby="sp-push-h">
+            <h4 id="sp-push-h" class="sp-push-title"><RadioTower :size="14" aria-hidden="true"/> Send to AADML</h4>
+            <p v-if="push && !push.available" class="sp-reason">Pushing video to AADML is switched off on this server for now.</p>
+            <p v-if="rotateSaid" class="sp-muted" role="status">{{ rotateSaid }}</p>
+            <PushDetails v-if="push" :push="push" id-prefix="sp-push"/>
+            <p v-if="rotateError" class="field-error" role="alert">{{ rotateError }}</p>
+            <template v-if="mayRotate">
+              <div v-if="rotating" class="sp-rotate-ask" role="group" aria-labelledby="sp-rotate-q">
+                <p id="sp-rotate-q">Make a new stream key? The current one stops working now, and the camera or encoder sending with it is disconnected until you give it the new key.</p>
+                <span class="sp-rec-acts">
+                  <UiButton variant="primary" class="small" :disabled="rotateBusy" @click="rotateKey"><LoaderCircle v-if="rotateBusy" class="spin" :size="13" aria-hidden="true"/><KeyRound v-else :size="13" aria-hidden="true"/> Rotate key</UiButton>
+                  <UiButton class="small" :disabled="rotateBusy" @click="rotating = false">Cancel</UiButton>
+                </span>
+              </div>
+              <UiButton v-else class="small" @click="rotating = true; rotateError = ''"><KeyRound :size="13" aria-hidden="true"/> Rotate key</UiButton>
+            </template>
+          </div>
           <!-- Cloud recording -->
           <div v-if="rec" class="sp-rec" :class="{ on: rec.on && !rec.unpaid }">
             <p class="sp-rec-line"><Circle v-if="rec.on && !rec.unpaid" class="sp-rec-dot" :size="10" aria-hidden="true"/>{{ recLine }}</p>
@@ -270,6 +450,20 @@ watch(tab, now => {
                 <UiButton class="small" type="button" :disabled="recBusy" @click="asking = false">Cancel</UiButton>
               </span>
             </form>
+            <div v-if="phoneRec" class="sp-rec-phone">
+              <p class="sp-muted">{{ phoneRecLine }}</p>
+              <form v-if="mayRecord && askingPhone" class="sp-rec-form" @submit.prevent="letPhone(true)">
+                <label class="sp-rec-consent"><input v-model="phoneConsent" type="checkbox"> {{ rec.consent_text }}</label>
+                <span class="sp-rec-acts">
+                  <UiButton type="submit" variant="primary" class="small" :disabled="recBusy || !phoneConsent"><Smartphone :size="13" aria-hidden="true"/> Let the phone record</UiButton>
+                  <UiButton class="small" type="button" :disabled="recBusy" @click="askingPhone = false">Cancel</UiButton>
+                </span>
+              </form>
+              <span v-else-if="mayRecord" class="sp-rec-acts">
+                <UiButton v-if="!phoneRec.may || !phoneRec.works" class="small" :disabled="recBusy" @click="askPhone"><Smartphone :size="13" aria-hidden="true"/> Let the phone record</UiButton>
+                <UiButton v-if="phoneRec.may" class="small" :disabled="recBusy" @click="letPhone(false)">Stop letting the phone record</UiButton>
+              </span>
+            </div>
             <p v-if="recError" class="field-error" role="alert">{{ recError }}</p>
             <p v-else-if="recSaid" class="sp-muted" role="status">{{ recSaid }}</p>
           </div>
@@ -334,6 +528,7 @@ watch(tab, now => {
             <button id="sp-results-h" type="button" role="tab" :aria-selected="tab === 'results'" :class="{ on: tab === 'results' }" @click="tab = 'results'">Results</button>
             <button v-if="own" type="button" role="tab" :aria-selected="tab === 'events'" :class="{ on: tab === 'events' }" @click="tab = 'events'">Events</button>
             <button v-if="own" type="button" role="tab" :aria-selected="tab === 'rules'" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">Rules</button>
+            <button v-if="own" type="button" role="tab" :aria-selected="tab === 'zones'" :class="{ on: tab === 'zones' }" @click="tab = 'zones'">Zones</button>
             <button v-if="rec" type="button" role="tab" :aria-selected="tab === 'recordings'" :class="{ on: tab === 'recordings' }" @click="tab = 'recordings'">Recordings</button>
           </div>
           <UiButton v-if="tab === 'results' && stream && stream.has_results" class="small" @click="emit('download', stream)"><Download :size="14" aria-hidden="true"/> Download results</UiButton>
@@ -355,8 +550,20 @@ watch(tab, now => {
               <li v-for="e in events" :key="e.id">
                 <img v-if="e.snapshot_url" :src="e.snapshot_url" :alt="`Frame of ${source.name} when ${e.rule.text}`" referrerpolicy="no-referrer" loading="lazy">
                 <span v-else class="sp-ev-none"><ImageOff :size="18" aria-hidden="true"/></span>
-                <span class="sp-ev-text"><strong>{{ e.rule.text }}</strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
+                <span class="sp-ev-text"><strong>{{ e.rule.text }}<span v-if="e.unusual" class="sp-tag">Unusual</span><span v-if="e.actions === 'waiting'" class="sp-tag warn">Waiting for approval</span></strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
+                  <small v-if="e.ai && e.ai.text" class="sp-ai">AI: {{ e.ai.text }}<template v-if="e.ai.importance !== null && e.ai.importance !== undefined"> · importance {{ e.ai.importance }} of 100</template></small>
                   <small v-if="e.model">{{ modelName(e.model) }}<template v-if="e.project"> · {{ e.project.name }}</template><template v-if="e.workflows_started"> · {{ e.workflows_started }} workflow{{ e.workflows_started === 1 ? '' : 's' }} started</template></small></span>
+                <span class="sp-ev-acts">
+                  <UiButton v-if="e.recording && rec" class="small" :aria-label="`Open the recording of ${e.rule.text}`" @click="openRecordingOf(e)"><Disc :size="13" aria-hidden="true"/></UiButton>
+                  <template v-if="(rulesPage ? mayRule : may.change !== false) && e.actions === 'waiting'">
+                    <UiButton variant="primary" class="small" :disabled="verdictBusy === e.id" @click="decideActions(e, true)">Approve</UiButton>
+                    <UiButton class="small" :disabled="verdictBusy === e.id" @click="decideActions(e, false)">Decline</UiButton>
+                  </template>
+                  <template v-if="rulesPage ? mayRule : may.change !== false">
+                    <UiButton class="small" :class="{ 'sp-on': e.verdict === 'right' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'right'" @click="markEvent(e, 'right')">Right</UiButton>
+                    <UiButton class="small" :class="{ 'sp-on': e.verdict === 'wrong' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'wrong'" @click="markEvent(e, 'wrong')">Wrong</UiButton>
+                  </template>
+                </span>
               </li>
             </ul>
             <div v-if="evPages > 1" class="sp-pager">
@@ -368,24 +575,117 @@ watch(tab, now => {
         </div>
         <!-- Rules -->
         <div v-else-if="tab === 'rules'" class="sp-recs">
-          <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown. A workflow with this camera's events as its trigger starts on each event.</p>
+          <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown, and alerts the people it names in the bell and by e-mail (one alert for a burst). A workflow with this camera's events as its trigger starts on each event.
+            <button type="button" class="sp-linkish" :aria-expanded="mineOpen" @click="openMine">My alerts</button></p>
+          <div v-if="mayRule && presets.length && !adding" class="sp-presets" aria-label="Ready-made rules">
+            <strong>Ready-made</strong>
+            <UiButton v-for="p in presets" :key="p.key" class="small" :disabled="ruleBusy" :title="p.help" @click="applyPreset(p)">{{ p.name }}</UiButton>
+            <label v-if="presets.some(p => p.needs_zone) && ruleZones.length" class="sp-preset-zone">Zone for an empty desk
+              <select v-model="presetZone" class="text-input"><option value="">Choose</option><option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">{{ z.name }}</option></select>
+            </label>
+          </div>
+          <div v-if="mineOpen" class="sp-rule-form" aria-label="My camera alerts">
+            <p v-if="mineError" class="field-error" role="alert">{{ mineError }}</p>
+            <template v-if="mine">
+              <label class="sp-rule-check"><input v-model="mine.email" type="checkbox"> E-mail me camera alerts (the bell always shows them)</label>
+              <label class="sp-rule-check"><input v-model="mine.daily_summary" type="checkbox"> A summary of yesterday's camera events every morning (for camera managers)</label>
+              <label class="sp-rule-check"><input v-model="mine.quiet" type="checkbox"> Quiet hours: the bell only, except critical alerts (Pakistan time)</label>
+              <div v-if="mine.quiet" class="sp-rule-schedule">
+                <label>From <input v-model="mine.quiet_from" class="text-input" type="time"></label>
+                <label>To <input v-model="mine.quiet_to" class="text-input" type="time"></label>
+              </div>
+              <span class="sp-rec-acts"><UiButton variant="primary" class="small" :disabled="mineBusy" @click="saveMine">Save my alerts</UiButton></span>
+              <p v-if="mineSaid" class="sp-muted" role="status">{{ mineSaid }}</p>
+            </template>
+          </div>
           <form v-if="adding" class="sp-rule-form" @submit.prevent="saveRule">
             <div class="sp-rule-fields">
+              <label>What
+                <select v-model="draft.kind" class="text-input">
+                  <option v-for="k in RULE_KINDS" :key="k.key" :value="k.key">{{ k.label }}</option>
+                </select>
+              </label>
               <label>Class
                 <input v-model="draft.class_name" class="text-input" list="sp-rule-classes" maxlength="64" autocomplete="off" :aria-invalid="!!draftErrors.class_name">
                 <datalist id="sp-rule-classes"><option v-for="c in classChoices" :key="c" :value="c"></option></datalist>
                 <small v-if="draftErrors.class_name" class="field-error">{{ draftErrors.class_name }}</small>
               </label>
-              <label>At least
+              <label v-if="draft.kind !== 'cross'">{{ draft.kind === 'absent' ? 'Fewer than' : 'At least' }}
                 <input v-model.number="draft.min_count" class="text-input" type="number" min="1" :max="ruleLimits.count_max || 1000" step="1" :aria-invalid="!!draftErrors.min_count">
                 <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
+              </label>
+              <label v-if="draft.kind === 'stays' || draft.kind === 'absent'">For (minutes)
+                <input v-model.number="draft.minutes" class="text-input" type="number" min="0.2" max="1440" step="any" :aria-invalid="!!draftErrors.minutes">
+                <small v-if="draftErrors.minutes" class="field-error">{{ draftErrors.minutes }}</small>
+              </label>
+              <label v-if="draft.kind === 'cross'">Line
+                <select v-model="draft.line" class="text-input" :aria-invalid="!!draftErrors.line">
+                  <option value="">Choose a line</option>
+                  <option v-for="l in ruleLines" :key="l.id" :value="String(l.id)">{{ l.name }}</option>
+                </select>
+                <small v-if="draftErrors.line" class="field-error">{{ draftErrors.line }}</small>
+              </label>
+              <label v-if="draft.kind === 'cross'">Direction
+                <select v-model="draft.direction" class="text-input">
+                  <option value="any">In or out</option><option value="in">In</option><option value="out">Out</option>
+                </select>
+              </label>
+              <label v-if="draft.kind !== 'cross'">Where
+                <select v-model="draft.zone" class="text-input" :aria-invalid="!!draftErrors.zone">
+                  <option value="">The whole picture</option>
+                  <option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">In {{ z.name }}</option>
+                </select>
+                <small v-if="draftErrors.zone" class="field-error">{{ draftErrors.zone }}</small>
               </label>
               <label>Cooldown (seconds)
                 <input v-model.number="draft.cooldown_seconds" class="text-input" type="number" :min="ruleLimits.cooldown_min || COOLDOWN_MIN" step="1" :aria-invalid="!!draftErrors.cooldown_seconds">
                 <small v-if="draftErrors.cooldown_seconds" class="field-error">{{ draftErrors.cooldown_seconds }}</small>
               </label>
             </div>
-            <p v-if="!classChoices.length" class="sp-muted">Run a model on this camera to choose from the classes it finds, or type a class name.</p>
+            <p class="sp-muted">{{ kindHelp }}<template v-if="draft.kind === 'cross'"> "In" is crossing towards the right of the line, walking from its first point to its second.</template></p>
+            <label v-if="draft.kind === 'seen' || draft.kind === 'cross'" class="sp-rule-check"><input v-model="draft.once_per_object" type="checkbox"> One event for each {{ draft.class_name || 'object' }} (tracked from frame to frame), not one per cooldown</label>
+            <div class="sp-rule-fields">
+              <label>Alert
+                <select v-model="draft.alert" class="text-input">
+                  <option v-for="a in RULE_ALERTS" :key="a.key" :value="a.key">{{ a.label }}</option>
+                </select>
+              </label>
+            </div>
+            <label v-if="draft.alert" class="sp-rule-check"><input v-model="draft.critical" type="checkbox"> Critical: e-mail even in quiet hours</label>
+            <div class="sp-rule-fields">
+              <label>AI on each event's picture
+                <select v-model="draft.ai" class="text-input">
+                  <option v-for="a in RULE_AI" :key="a.key" :value="a.key">{{ a.label }}</option>
+                </select>
+              </label>
+              <label v-if="draft.ai && visionModels.length">Model
+                <select v-model="draft.ai_model" class="text-input">
+                  <option value="">The default</option>
+                  <option v-for="m in visionModels" :key="m.id" :value="m.id">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
+                </select>
+              </label>
+            </div>
+            <label v-if="draft.ai" class="sp-rule-question">The rule in words (optional)
+              <input v-model="draft.ai_question" class="text-input" maxlength="300" placeholder="Is someone at the desk without a visible badge?">
+              <small class="sp-muted">The AI sees only the event's picture, with the privacy masks black. It runs where AADML hosts it, on its own GPU machines or RunPod: the picture goes to no outside AI provider. Each look is charged to the person running the stream at the model's price an image.</small>
+            </label>
+            <label class="sp-rule-check"><input v-model="draft.approve_actions" type="checkbox"> Its workflows and device action wait for a camera manager's approval</label>
+            <div v-if="(rulesPage?.devices || []).length" class="sp-rule-fields">
+              <label>Device action
+                <select v-model="draft.device" class="text-input"><option value="">None</option><option v-for="d in rulesPage.devices" :key="d.id" :value="String(d.id)">{{ d.name }}</option></select>
+              </label>
+            </div>
+            <label class="sp-rule-check"><input v-model="draft.share" type="checkbox"> Share its alerts with the workspaces of our sharing agreements</label>
+            <label class="sp-rule-check"><input v-model="draft.scheduled" type="checkbox"> Only at these times (Pakistan time)</label>
+            <div v-if="draft.scheduled" class="sp-rule-schedule">
+              <span class="sp-days" role="group" aria-label="Days">
+                <button v-for="(d, i) in WEEKDAYS" :key="d" type="button" :class="{ on: (draft.days || []).includes(i) }" :aria-pressed="(draft.days || []).includes(i)" @click="toggleDay(i)">{{ d }}</button>
+              </span>
+              <label>From <input v-model="draft.start" class="text-input" type="time"></label>
+              <label>To <input v-model="draft.end" class="text-input" type="time"></label>
+              <small v-if="draftErrors.schedule" class="field-error">{{ draftErrors.schedule }}</small>
+            </div>
+            <p v-if="!classChoices.length" class="sp-muted">Run a model or the ready detector on this camera to choose from the classes it finds, or type a class name.</p>
             <span class="sp-rec-acts">
               <UiButton type="submit" variant="primary" class="small" :disabled="ruleBusy">Save rule</UiButton>
               <UiButton type="button" class="small" :disabled="ruleBusy" @click="adding = false">Cancel</UiButton>
@@ -401,7 +701,7 @@ watch(tab, now => {
           </div>
           <ul v-else-if="rules.length" class="sp-rec-list" aria-label="Rules">
             <li v-for="r in rules" :key="r.id" :class="{ off: !r.enabled }">
-              <span><strong>{{ r.text }}</strong><small>At most once every {{ cooldownText(r.cooldown_seconds) }}<template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
+              <span><strong>{{ r.text }}</strong><small><template v-if="r.once_per_object">One event for each one</template><template v-else>At most once every {{ cooldownText(r.cooldown_seconds) }}</template><template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="r.alert"> · alerts {{ alertLabel(r.alert).toLowerCase() }}<template v-if="r.critical"> (critical)</template></template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
               <span class="sp-rec-acts">
                 <a v-if="r.enabled" class="button small" :href="workflowFromCamera(source, r)" :aria-label="`Build a workflow on the rule ${r.text}`"><Workflow :size="13" aria-hidden="true"/></a>
                 <UiButton v-if="mayRule" class="small" :disabled="ruleBusy" @click="toggleRule(r)">{{ r.enabled ? 'Turn off' : 'Turn on' }}</UiButton>
@@ -410,9 +710,14 @@ watch(tab, now => {
             </li>
           </ul>
         </div>
+        <!-- Zones -->
+        <div v-else-if="tab === 'zones'" class="sp-recs">
+          <CameraZones :source="source" @changed="rulesPage = null"/>
+        </div>
         <!-- Recordings -->
         <div v-else-if="tab === 'recordings'" class="sp-recs">
-          <video v-if="playing" :key="playing.id" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`"></video>
+          <video v-if="playing" :key="playing.id + ':' + playing.play_url" class="sp-player" :src="playing.play_url" controls autoplay muted playsinline :aria-label="`Recording of ${source.name}, ${windowText(playing)}`" @error="cannotPlay"></video>
+          <p v-if="playing && playError" class="field-error" role="alert">{{ playError }} <a v-if="playing.download_url" :href="playing.download_url" rel="noopener">Download it</a></p>
           <p v-if="recListError" class="field-error" role="alert">{{ recListError }}</p>
           <p v-else-if="recLoading" class="sp-muted" role="status">Loading the recordings…</p>
           <div v-else-if="!recRows.length" class="sp-results-empty" role="status">
@@ -422,12 +727,13 @@ watch(tab, now => {
           </div>
           <ul v-else class="sp-rec-list">
             <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
-              <span><strong>{{ windowText(r) }}</strong><small>{{ sizeText(r.bytes) }}</small></span>
+              <span><strong>{{ windowText(r) }} <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
               <span class="sp-rec-acts">
-                <UiButton class="small" :disabled="!r.play_url" @click="playing = r"><Play :size="13" aria-hidden="true"/> Play</UiButton>
+                <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
                 <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
                 <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
-                <UiButton v-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)}`" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+                <UiButton v-if="mayDelete && r.deletion" class="small" :aria-label="`Cancel the deletion of ${windowText(r)}`" @click="restoreRecording(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
+                <UiButton v-else-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)} (kept 14 days first, and it can be restored)`" title="Kept 14 days first, and it can be restored" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
               </span>
             </li>
           </ul>
@@ -441,14 +747,20 @@ watch(tab, now => {
           <p class="sp-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="sp-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="stream.state === 'queued'">Waiting for a worker to read the camera</template>
-            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
+            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : stream.detector ? 'Getting the ready detector ready and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="sp-frame-error">This frame got no answer: {{ last.error }}</p>
-          <div v-if="stream.model" class="sp-counts" :class="{ waiting: !answered }">
+          <div v-if="answers" class="sp-counts" :class="{ waiting: !answered }">
             <div v-for="name in names" :key="name" class="sp-count"><span class="sp-num">{{ answered ? countOf(last, name) : '–' }}</span><span class="sp-what">{{ name }}</span></div>
             <div v-if="!names.length" class="sp-count"><span class="sp-num">{{ answered ? 0 : '–' }}</span><span class="sp-what">found</span></div>
           </div>
+          <section v-if="lineCounts.length" class="sp-codes" aria-labelledby="sp-lines-h">
+            <h4 id="sp-lines-h">Counted across lines <small>this stream</small></h4>
+            <ul class="sp-line-counts">
+              <li v-for="c in lineCounts" :key="c.line"><strong>{{ c.name }}</strong> <span>in {{ c.in }}</span> <span>out {{ c.out }}</span> <span>inside now {{ Math.max(0, c.in - c.out) }}</span></li>
+            </ul>
+          </section>
           <section v-if="stream.read_codes" class="sp-codes" aria-labelledby="sp-codes-h">
             <h4 id="sp-codes-h">Barcodes read <small>newest first</small></h4>
             <p v-if="last && !last.error && frameCodesText(last)" class="sp-muted">This frame: {{ frameCodesText(last) }}</p>
@@ -542,6 +854,12 @@ watch(tab, now => {
 .sp-ended.failed{color:#b42318}
 .sp-link{align-self:flex-start;border:0;background:none;padding:0;min-height:32px;color:var(--aadml-primary);text-decoration:underline;font:inherit;font-size:13px;cursor:pointer}
 .sp-rec{display:grid;gap:8px;padding:12px 14px;border-top:1px solid #eef1f5}
+.sp-push{display:grid;gap:10px;padding:12px 14px;border-top:1px solid #eef1f5}
+.sp-push-title{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:#1d2a42}
+.sp-push > .sp-reason{margin:0;border-radius:6px}
+.sp-rotate-ask{display:grid;gap:8px;padding:10px 12px;border-radius:8px;background:#f8fafc}
+.sp-rotate-ask p{margin:0;font-size:13px;line-height:1.5;color:#33415a}
+.sp-push > .button,.sp-push > button{justify-self:start}
 .sp-rec.on{background:#fef3f2}
 .sp-rec-line{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:#33415a;line-height:1.5}
 .sp-rec-dot{flex-shrink:0;fill:#d92d20;color:#d92d20}
@@ -551,6 +869,8 @@ watch(tab, now => {
 .sp-rec-days select{width:auto;min-height:36px}
 .sp-rec-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:#33415a}
 .sp-rec-consent input{margin-top:3px}
+.sp-rec-phone{display:grid;gap:8px;padding-top:8px;border-top:1px solid #f0d5d2}
+.sp-rec-phone .sp-muted{margin:0}
 .sp-tabs{display:flex;gap:4px}
 .sp-tabs button{min-height:36px;padding:0 12px;border:0;border-radius:8px;background:none;color:#475569;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .sp-tabs button.on{background:var(--aadml-soft);color:var(--aadml-primary)}
@@ -588,6 +908,22 @@ watch(tab, now => {
 .sp-ev-text strong{font-size:14px;color:#17243b;overflow-wrap:anywhere}
 .sp-ev-text small{color:#64748b;font-size:12px;overflow-wrap:anywhere}
 .sp-pager{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:600;vertical-align:middle}
+.sp-tag.warn{background:#fef3c7;color:#92400e}
+.sp-ai{color:#334155!important}
+.sp-rule-question{display:grid;gap:4px;font-size:13px;font-weight:600;color:#33415a}
+.sp-presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.sp-preset-zone{display:flex;gap:6px;align-items:center;font-size:13px}
+.sp-linkish{border:0;background:none;padding:0;color:var(--aadml-primary);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+.sp-rule-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#33415a}
+.sp-rule-schedule{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sp-days{display:flex;gap:4px;flex-wrap:wrap}
+.sp-days button{min-height:32px;padding:0 10px;border:1px solid #d5dce7;border-radius:8px;background:#fff;font:inherit;font-size:13px;cursor:pointer}
+.sp-days button.on{background:var(--aadml-soft);border-color:var(--aadml-primary);color:var(--aadml-primary);font-weight:600}
+.sp-ev-acts{display:flex;gap:4px;margin-left:auto;align-items:center}
+.sp-on{outline:2px solid var(--aadml-primary)}
+.sp-line-counts{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.sp-line-counts li{display:flex;gap:12px;flex-wrap:wrap}
 .sp-rule-form{display:grid;gap:10px;padding:12px;border:1px solid #eef1f5;border-radius:10px;background:#f8fafc}
 .sp-rule-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .sp-rule-fields label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#33415a}

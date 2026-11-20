@@ -1501,6 +1501,11 @@ export const useChatStore = defineStore('chat', {
     _connectionHandlers() {
       return {
         onEvent: (msg) => this._onEvent(msg),
+        // After a few failed reconnects (chatService): is the session gone? A 401 also lands on /login through the
+        // global 401 handler in services/api.js.
+        checkSignedIn: async () => {
+          try { await api.getCurrentUser(); return true } catch (e) { return e?.response?.status !== 401 }
+        },
         onOpen: () => {
           // Reconnected after a mid-turn drop. The backend keeps the turn alive and PERSISTS its answer
           // (turn lifetime is decoupled from the socket), so recover by reloading history. Trigger whenever
@@ -2242,6 +2247,11 @@ export const useChatStore = defineStore('chat', {
             && String(msg.conversation_id || '') === String(this.conversationId) && !this.isStreaming) {
           this._refreshHistory()
         }
+        return
+      }
+      // A stage of a brand or product read from its website (Ads Studio), kept by the video store by its read_id.
+      if (t === 'video_stage') {
+        try { useVideoStore().onStageFrame(msg) } catch { /* the page still gets every stage in its answer */ }
         return
       }
       // A storyboard plan (ADM-1146): one approval card for every scene, mirrored by the video store.

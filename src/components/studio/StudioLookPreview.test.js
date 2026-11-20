@@ -7,7 +7,7 @@ const stubs = { RouterLink: { name: 'RouterLink', props: ['to'], template: '<a d
 describe('Look preview', () => {
   it('"See all" opens the Library filtered to this look', () => {
     const w = mount(StudioLookPreview, { props: { look: { id: 'neon-noir', title: 'Neon noir', purpose: 'p' } }, global: { stubs } })
-    expect(w.getComponent({ name: 'RouterLink' }).props('to')).toEqual({ path: '/video-studio/library', query: { preset: 'neon-noir' } })
+    expect(w.getComponent({ name: 'RouterLink' }).props('to')).toEqual({ path: '/dashboard/video-studio/library', query: { preset: 'neon-noir' } })
     expect(w.get('[data-test="look-see-all"]').text()).toBe('See all'); w.unmount()
   })
   it('has no "See all" for a look id the backend would refuse', () => {

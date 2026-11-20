@@ -63,3 +63,23 @@ export function byFile(matches) {
   }
   return [...groups.values()]
 }
+
+// Replace's requests (ADM-1320): the files in batches of at most BATCH_FILES files and about BATCH_CHARS characters
+// of line text, in order, so each request stays short (the editor's requests must finish well within 45 s). A file is
+// never split; one larger than a batch goes alone.
+export const BATCH_FILES = 25
+export const BATCH_CHARS = 24000
+
+export function replaceBatches(files) {
+  const out = []
+  let cur = []
+  let size = 0
+  for (const f of files || []) {
+    const n = (f.lines || []).reduce((s, l) => s + (l.text || '').length, 0)
+    if (cur.length && (cur.length >= BATCH_FILES || size + n > BATCH_CHARS)) { out.push(cur); cur = []; size = 0 }
+    cur.push(f)
+    size += n
+  }
+  if (cur.length) out.push(cur)
+  return out
+}

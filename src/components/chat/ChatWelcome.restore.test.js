@@ -74,7 +74,7 @@ describe('No video mode on the welcome screen', () => {
     await wrapper.get('[data-test="welcome-plus"]').trigger('click')
     expect(wrapper.find('[data-test="welcome-plus-video-mode"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Create video')
-    expect(push).not.toHaveBeenCalledWith(expect.objectContaining({ path: '/video-studio' }))
+    expect(push).not.toHaveBeenCalledWith(expect.objectContaining({ path: '/dashboard/video-studio' }))
     wrapper.unmount()
   })
 })

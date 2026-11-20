@@ -62,8 +62,9 @@ export const llmApi = {
   startTrial: (ref, body) => post(`${llm(ref)}/trials/`, body, { timeoutMs: 120000 }),
   stopTrial: ref => post(`${llm(ref)}/trials/stop/`, {}),
   // The person's own machines a chat test server of ``{version}`` or ``{base_model}`` may run on (llm/app_api.py
-  // chat_trial_machines): each with whether it can hold the model now, why not, and the fee.
-  trialMachines: (ref, params) => apiFetch(`${llm(ref)}/trials/machines/?${query(params)}`),
+  // chat_trial_machines): each with whether it can hold the model now, why not, and the fee. ``query`` brings its own
+  // "?" (live, 2026-11-18: ".../trials/machines/??version=2" answered 400 and the Test page offered no machine).
+  trialMachines: (ref, params) => apiFetch(`${llm(ref)}/trials/machines/${query(params)}`),
   chat: (ref, body) => post(`${llm(ref)}/trials/chat/`, body, { timeoutMs: 300000 }),
   compare: ref => apiFetch(`${llm(ref)}/compare/`),
   comparePairs: (ref, number) => apiFetch(`${llm(ref)}/compare/${number}/`),

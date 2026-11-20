@@ -9,6 +9,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Camera, Check, CircleAlert, QrCode, Send } from 'lucide-vue-next';
 import { cameraPhoneApi, scanFormats } from '../api/phone.js';
+import { isPairingLink, PAIRING_SCANNED } from '../api/streaming.js';
 
 const props = defineProps({ secret: { type: String, required: true } });
 const info = ref(null); const error = ref(''); const busy = ref(false); const sent = ref('');
@@ -33,7 +34,10 @@ async function look() {
   try {
     const found = video.value.readyState >= 2 ? await detector.detect(video.value) : [];
     const first = found.find(code => typeof code.rawValue === 'string' && code.rawValue.trim());
-    if (first) {
+    if (first && isPairingLink(first.rawValue)) {
+      scanError.value = PAIRING_SCANNED;                 // the computer's pairing QR: go on looking for the label
+    } else if (first) {
+      scanError.value = '';
       // eslint-disable-next-line no-control-regex
       value.value = first.rawValue.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, limit.value);
       stopCamera();

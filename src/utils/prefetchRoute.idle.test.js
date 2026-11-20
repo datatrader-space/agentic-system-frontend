@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const loaders = {}
 const router = { resolve: (path) => ({ matched: [{ components: { default: (loaders[path] ||= vi.fn(() => Promise.resolve({}))) } }] }) }
-const PATHS = ['/dashboard', '/dashboard/agents', '/video-studio']
+const PATHS = ['/dashboard', '/dashboard/agents', '/dashboard/video-studio']
 const called = () => PATHS.filter((p) => loaders[p] && loaders[p].mock.calls.length)
 
 let idle

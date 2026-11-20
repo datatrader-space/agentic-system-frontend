@@ -3,9 +3,10 @@
 // list below is the order, names and addresses, with the plan's status until the server has answered.
 import { shallowRef } from 'vue'
 import api from './api'
-export const CREATIVE_STUDIO_PAGES = ['audio','music','characters','identity-training','edit','motion','swap','effects','storyboard','cinema','editor','ads','marketing','ad-remix','avatar','lipsync','shorts','explainer','canvas']
+import { studioPath } from './studioPaths'
+export const CREATIVE_STUDIO_PAGES = ['audio','music','characters','identity-training','edit','motion','swap','effects','storyboard','cinema','ads','marketing','ad-remix','avatar','lipsync','shorts','explainer','canvas']
 export const STUDIO_GROUPS = ['Home', 'Create', 'Edit & enhance', 'Characters', 'Video tools', 'Avatars & shorts', 'Story', 'Marketing', 'Workspace']
-const entry = (id, group, label, path, status, phase, purpose, icon) => ({ id, group, label, route: `/video-studio${path ? '/' + path : ''}`, status, phase, purpose, icon })
+const entry = (id, group, label, path, status, phase, purpose, icon) => ({ id, group, label, route: studioPath(path), status, phase, purpose, icon })
 export const studioFeatures = shallowRef([
   entry('home', 'Home', 'Discover', '', 'live', 'F0', 'Choose a look or a tool. Your agent helps with the rest.', 'home'),
   entry('image', 'Create', 'Image', 'image', 'live', 'F0', 'Make a picture from a preset, your references and a few details.', 'image'),
@@ -19,10 +20,10 @@ export const studioFeatures = shallowRef([
   entry('motion', 'Video tools', 'Motion transfer', 'motion', 'live', 'P2', 'Guide a character with movement from a reference clip.', 'motion'),
   entry('swap', 'Video tools', 'Swap & restyle', 'swap', 'live', 'P2', 'Replace a subject or give existing footage a new visual direction.', 'swap'),
   entry('effects', 'Video tools', 'Effects', 'effects', 'live', 'P2', 'Add a visual treatment using a preset and its required media.', 'effects'),
+  entry('editor', 'Edit & enhance', 'Clip editor', 'editor', 'live', 'P3', 'Cut your own clips, pictures and sound on tracks: trim, split, join, text, captions, music, then export.', 'edit'),
   entry('enhance', 'Edit & enhance', 'Enhance', 'enhance', 'beta', 'F0', 'Trim, reframe, retime or caption a Library video for free, or upscale or extend it.', 'enhance'),
   entry('storyboard', 'Story', 'Storyboard', 'storyboard', 'live', 'P3', 'Plan keyframes, choose takes and build scenes in order.', 'story'),
   entry('cinema', 'Story', 'Cinema', 'cinema', 'live', 'P3', 'Shape a sequence with camera, lighting and scene choices.', 'video'),
-  entry('editor', 'Story', 'Editor', 'editor', 'live', 'P3', 'Arrange video, sound and captions on a multitrack timeline.', 'edit'),
   entry('ads', 'Marketing', 'Ads Studio', 'ads', 'live', 'P4', 'Turn a brand brief into concepts you can review and develop.', 'marketing'),
   entry('marketing', 'Marketing', 'Product videos', 'marketing', 'live', 'P4', 'Build a product story around a showcase, demonstration or unboxing.', 'marketing'),
   entry('ad-remix', 'Marketing', 'Ad remix', 'ad-remix', 'live', 'P4', 'Restyle a whole reference ad, move it to a new setting or swap in your product.', 'swap'),
@@ -33,6 +34,8 @@ export const studioFeatures = shallowRef([
   entry('projects', 'Workspace', 'Projects', 'projects', 'live', 'F0', 'Open and organize your video projects.', 'folder'),
   entry('library', 'Workspace', 'Library', 'library', 'live', 'F0', 'Browse media you uploaded or made in Video Studio.', 'image'),
   entry('canvas', 'Workspace', 'Canvas', 'canvas', 'live', 'P6', 'Connect typed media steps into a reusable creative workflow.', 'elements'),
+  entry('publish', 'Workspace', 'Publish', 'publish', 'live', 'P7', 'Post a finished video to YouTube, TikTok, Instagram, Facebook, LinkedIn or X, now or later.', 'publish'),
+  entry('community', 'Workspace', 'Community', 'community', 'live', 'P7', 'Share a project as a template others can remix, or remix one of theirs.', 'community'),
   entry('help', 'Workspace', 'Help', 'help', 'live', 'F0', 'Learn the Studio, its models and its approval flow.', 'help'),
 ])
 export function featureLink(feature) { return feature.route }
@@ -55,6 +58,8 @@ export const studioIcons = {
   marketing: 'm3 10 15-6v16L3 14v-4M7 15l2 6h4l-2-5M21 9v6',
   folder: 'M3 7h7l2 2h9v11H3V7M3 7V4h7l2 3',
   help: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5M12 17h.01',
+  publish: 'M12 16V4M7 9l5-5 5 5M4 15v5h16v-5',
+  community: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7M19 21a7 7 0 0 0-3-5.7',
 }
 
 export function orderedFeatures(features = studioFeatures.value) {
@@ -76,4 +81,16 @@ export function loadStudioFeatures({ force = false } = {}) {
     return rows
   }).catch(error => { pending = null; throw error })
   return pending
+}
+
+// How a page is shown wherever it is listed (the menu, Discover, search), from the server's word on it: a page the
+// server says this person cannot run yet (ready: false) is "Not available yet", with the server's reason, never
+// shown as ready. Its page stays reachable and says why. Null for a page that is ready and live.
+export function featureBadge(feature) {
+  if (!feature) return null
+  const reason = feature.reason || ''
+  if (feature.status === 'soon') return { label: 'Soon', tone: 'soon', unavailable: true, reason }
+  if (feature.ready === false) return { label: 'Not available yet', tone: 'unavailable', unavailable: true, reason }
+  if (feature.status === 'beta') return { label: 'Beta', tone: 'beta', unavailable: false, reason: '' }
+  return null
 }

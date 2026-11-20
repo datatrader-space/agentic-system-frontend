@@ -1,0 +1,573 @@
+[
+ {
+  "name": "children follow their parents, positive and negative offsets",
+  "doc": {
+   "version": 3,
+   "rate": 30,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 1000,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      },
+      {
+       "type": "clip",
+       "id": "c2",
+       "media": "m",
+       "start_ms": 3000,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "video",
+     "items": [
+      {
+       "type": "clip",
+       "id": "o1",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": 500
+       }
+      },
+      {
+       "type": "clip",
+       "id": "o2",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "c2",
+        "offset_ms": -967
+       }
+      }
+     ]
+    },
+    {
+     "id": "a1",
+     "kind": "audio",
+     "items": [
+      {
+       "type": "clip",
+       "id": "s1",
+       "media": "m",
+       "start_ms": 9999,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "c2",
+        "offset_ms": 0
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 1000,
+   "c2": 3000,
+   "o1": 1500,
+   "o2": 2033,
+   "s1": 3000
+  },
+  "expected_end": {}
+ },
+ {
+  "name": "a connected text keeps its length",
+  "doc": {
+   "version": 3,
+   "rate": 25,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 400,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "Hi",
+       "start_ms": 0,
+       "end_ms": 800,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": -200
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 400,
+   "t": 200
+  },
+  "expected_end": {
+   "t": 1000
+  }
+ },
+ {
+  "name": "an anchor whose parent is not on the main track is left as it is",
+  "doc": {
+   "version": 3,
+   "rate": 30,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "video",
+     "items": [
+      {
+       "type": "clip",
+       "id": "o1",
+       "media": "m",
+       "start_ms": 100,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      },
+      {
+       "type": "clip",
+       "id": "o2",
+       "media": "m",
+       "start_ms": 2500,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "o1",
+        "offset_ms": 0
+       }
+      },
+      {
+       "type": "clip",
+       "id": "o3",
+       "media": "m",
+       "start_ms": 5000,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "gone",
+        "offset_ms": 0
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 0,
+   "o1": 100,
+   "o2": 2500,
+   "o3": 5000
+  },
+  "expected_end": {}
+ },
+ {
+  "name": "inside a compound, anchors follow the compound main track",
+  "doc": {
+   "version": 3,
+   "rate": 60,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    }
+   ],
+   "compounds": {
+    "cp1": {
+     "name": "Nest",
+     "tracks": [
+      {
+       "id": "cv1",
+       "kind": "video",
+       "main": true,
+       "items": [
+        {
+         "type": "clip",
+         "id": "k1",
+         "media": "m",
+         "start_ms": 0,
+         "source_in_ms": 0,
+         "source_out_ms": 2000
+        },
+        {
+         "type": "clip",
+         "id": "k2",
+         "media": "m",
+         "start_ms": 2000,
+         "source_in_ms": 0,
+         "source_out_ms": 2000
+        }
+       ]
+      },
+      {
+       "id": "cv2",
+       "kind": "video",
+       "items": [
+        {
+         "type": "clip",
+         "id": "k3",
+         "media": "m",
+         "start_ms": 0,
+         "source_in_ms": 0,
+         "source_out_ms": 2000,
+         "anchor": {
+          "clip": "k2",
+          "offset_ms": 117
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "c1": 0,
+   "k1": 0,
+   "k2": 2000,
+   "k3": 2117
+  },
+  "expected_end": {}
+ },
+ {
+  "name": "an offset that starts before zero is kept (validate refuses it)",
+  "doc": {
+   "version": 3,
+   "rate": 30,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "v2",
+     "kind": "video",
+     "items": [
+      {
+       "type": "clip",
+       "id": "o1",
+       "media": "m",
+       "start_ms": 0,
+       "source_in_ms": 0,
+       "source_out_ms": 2000,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": -500
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 0,
+   "o1": -500
+  },
+  "expected_end": {}
+ },
+ {
+  "name": "counted in frames at 30 fps: parent frame 1, offset 33 ms",
+  "doc": {
+   "version": 3,
+   "rate": 30,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 33,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "x",
+       "start_ms": 0,
+       "end_ms": 100,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": 33
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 33,
+   "t": 67
+  },
+  "expected_end": {
+   "t": 167
+  }
+ },
+ {
+  "name": "counted in frames at 24 fps: parent frame 1, offset 42 ms",
+  "doc": {
+   "version": 3,
+   "rate": 24,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 42,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "x",
+       "start_ms": 0,
+       "end_ms": 125,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": 42
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 42,
+   "t": 83
+  },
+  "expected_end": {
+   "t": 208
+  }
+ },
+ {
+  "name": "counted in frames at 60 fps: parent frame 1, offset 17 ms",
+  "doc": {
+   "version": 3,
+   "rate": 60,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 17,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "x",
+       "start_ms": 0,
+       "end_ms": 50,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": 17
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 17,
+   "t": 33
+  },
+  "expected_end": {
+   "t": 83
+  }
+ },
+ {
+  "name": "counted in frames at 30 fps: parent frame 7, offset -67 ms",
+  "doc": {
+   "version": 3,
+   "rate": 30,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 233,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "x",
+       "start_ms": 0,
+       "end_ms": 100,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": -67
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 233,
+   "t": 167
+  },
+  "expected_end": {
+   "t": 267
+  }
+ },
+ {
+  "name": "counted in frames at 24 fps: parent frame 29, offset 542 ms",
+  "doc": {
+   "version": 3,
+   "rate": 24,
+   "tracks": [
+    {
+     "id": "v1",
+     "kind": "video",
+     "main": true,
+     "items": [
+      {
+       "type": "clip",
+       "id": "c1",
+       "media": "m",
+       "start_ms": 1208,
+       "source_in_ms": 0,
+       "source_out_ms": 2000
+      }
+     ]
+    },
+    {
+     "id": "t1",
+     "kind": "text",
+     "items": [
+      {
+       "type": "text",
+       "id": "t",
+       "text": "x",
+       "start_ms": 0,
+       "end_ms": 125,
+       "anchor": {
+        "clip": "c1",
+        "offset_ms": 542
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expected": {
+   "c1": 1208,
+   "t": 1750
+  },
+  "expected_end": {
+   "t": 1875
+  }
+ }
+]

@@ -33,12 +33,14 @@ beforeEach(() => {
 })
 
 describe('VideoStudioHelp', () => {
-  it('covers what you can make, the process, models, recipes, library, prompts, costs, refunds, keeping and trouble', async () => {
+  it('covers what you can make, the process, models, recipes, library, the clip editor, prompts, costs, refunds, keeping and trouble', async () => {
     const w = mount(VideoStudioHelp, { global: { stubs } })
-    for (const id of ['kinds', 'process', 'models', 'recipes', 'library', 'prompts', 'costs', 'refunds', 'keeping', 'trouble']) {
+    for (const id of ['kinds', 'process', 'models', 'recipes', 'library', 'editor', 'prompts', 'costs', 'refunds', 'keeping', 'trouble']) {
       expect(w.find('#' + id).exists()).toBe(true)
     }
-    expect(w.findAll('.toc-link')).toHaveLength(10)
+    expect(w.findAll('.toc-link')).toHaveLength(11)
+    // The clip editor's section says what the keys do and that the shortcuts can be switched off (WCAG 2.1.4).
+    expect(w.get('#editor').text()).toContain('Switch the shortcuts off')
     expect(w.findAll('.strip-step')).toHaveLength(6)
     expect(w.text()).toContain('The estimate card shows its expiry.')
     expect(w.get('.doc').text()).not.toMatch(/[→·]/)

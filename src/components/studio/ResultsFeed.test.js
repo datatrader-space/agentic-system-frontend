@@ -115,11 +115,11 @@ describe('My results cards', () => {
     expect(state.video.start).not.toHaveBeenCalled()
   })
   it('Edit opens the edit flow with this result as the base', async () => {
-    state.video.editFrom = vi.fn(() => ({ path: '/video-studio/edit', query: { useIn: '1' } }))
+    state.video.editFrom = vi.fn(() => ({ path: '/dashboard/video-studio/edit', query: { useIn: '1' } }))
     wrapper = mount(ResultsFeed, { props: { kind: 'image', conversationId: 'c1' }, global: { stubs } }); await flushPromises()
     await wrapper.get('[data-test="rf-edit"]').trigger('click')
     expect(state.video.editFrom).toHaveBeenCalledWith(expect.objectContaining({ attachment_id: 7 }), { conversationId: 'c1' })
-    expect(state.push).toHaveBeenCalledWith({ path: '/video-studio/edit', query: { useIn: '1' } })
+    expect(state.push).toHaveBeenCalledWith({ path: '/dashboard/video-studio/edit', query: { useIn: '1' } })
     expect(state.video.start).not.toHaveBeenCalled()
   })
 })

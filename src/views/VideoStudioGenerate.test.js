@@ -4,7 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 const state = vi.hoisted(() => ({ chat: null, route: null, replace: vi.fn() }))
-const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn(), getStudioQuote: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn(), getStudioQuote: vi.fn(), getStudioRecipes: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => state.route, useRouter: () => ({ replace: state.replace }) }))
 vi.mock('../stores/useChatStore', () => ({ useChatStore: () => state.chat }))
 vi.mock('../services/api', () => ({ default: api }))
@@ -12,7 +12,11 @@ vi.mock('../composables/useNotify', () => ({ notify: { warning: vi.fn(), error: 
 import VideoStudioGenerate from './VideoStudioGenerate.vue'
 import { useVideoStore } from '../stores/useVideoStore'
 import { clearStudioDraftMemory } from '../services/studioDraftMemory'
-import { presetsFor, composePreset } from '../services/studioPresets'
+import { presetsFor, composePreset, loadPresets } from '../services/studioPresets'
+// The Image and Video presets as the Recipe API serves them (a copy of video_studio/services/studio_presets.json).
+import SERVED from '../services/__fixtures__/studioPresets.json'
+api.getStudioRecipes.mockImplementation(page => Promise.resolve({ data: { page, recipes: [], presets: SERVED.filter(p => p.feature === page) } }))
+await loadPresets('image'); await loadPresets('video')
 import { studioDraftKey, keepLocalDraft } from '../services/studioDrafts'
 import { provideStudioTemplates } from '../composables/useStudioTemplates'
 let wrapper, video
@@ -25,7 +29,7 @@ const stubs = {
 }
 beforeEach(() => {
   vi.clearAllMocks(); clearStudioDraftMemory(); sessionStorage.clear(); localStorage.clear(); setActivePinia(createPinia())
-  state.route = reactive({ path: '/video-studio/image', query: {} })
+  state.route = reactive({ path: '/dashboard/video-studio/image', query: {} })
   state.replace.mockImplementation(async location => { state.route.query = location.query })
   state.chat = reactive({ agents: [], selectedAgentId: '', conversationId: null, isBusy: false, hitlRequests: [], error: '', messages: [], studioMode: '',
     get currentAgent() { return this.agents.find(agent => String(agent.id) === this.selectedAgentId) },
@@ -43,7 +47,7 @@ beforeEach(() => {
 })
 afterEach(() => { wrapper?.unmount(); document.body.innerHTML = ''; vi.unstubAllGlobals() })
 async function render(kind = 'image', userId = null, mode = 'manual') {
-  state.route.path = `/video-studio/${kind}`
+  state.route.path = `/dashboard/video-studio/${kind}`
   wrapper = mount(VideoStudioGenerate, { attachTo: document.body, props: { kind }, global: { stubs, provide: { studioUser: ref(userId ? { id: userId } : null) } } })
   await flushPromises(); if (mode) { video.setStudioMode(mode); await flushPromises() }; return wrapper
 }
@@ -74,7 +78,7 @@ describe('Image and Video pages: per-run approval boundary', () => {
     else { expect(body.operation).toBe('generate'); expect(body.prompt).toContain('supplied') }
     expect(video.jobs.j1.state).toBe('awaiting_authorization')
     expect(video.start).not.toHaveBeenCalled()
-    expect(state.replace).toHaveBeenCalledWith({ path: `/video-studio/${kind}`, query: expect.objectContaining({ conversation: 'new-owned-chat', mode: 'manual', preset: presetsFor(kind)[0].id }) })
+    expect(state.replace).toHaveBeenCalledWith({ path: `/dashboard/video-studio/${kind}`, query: expect.objectContaining({ conversation: 'new-owned-chat', mode: 'manual', preset: presetsFor(kind)[0].id }) })
   })
 
   it('keeps inputs after a send failure, and choosing or shuffling a preset never sends', async () => {
@@ -463,7 +467,7 @@ describe('Using one of My templates', () => {
   async function renderWithTemplates(query) {
     const base = api.get.getMockImplementation()
     api.get.mockImplementation(async path => path === '/video/templates/' ? { data: { templates: [{ id: 7, page: 'image', base_look: 'image-look-1', title: 'Blue teapot', prompt, variables: texts, settings: { aspect_ratio: '3:4', n: 2 } }, { id: 8, page: 'video', base_look: '', title: 'Elsewhere', prompt: 'x', variables: {}, settings: {} }] } } : base(path))
-    state.route.path = '/video-studio/image'; state.route.query = query
+    state.route.path = '/dashboard/video-studio/image'; state.route.query = query
     const user = ref({ id: 'person' })
     const Host = defineComponent({ setup() { provide('studioUser', user); provideStudioTemplates(user); return () => h(VideoStudioGenerate, { kind: 'image' }) } })
     wrapper = mount(Host, { attachTo: document.body, global: { stubs } })

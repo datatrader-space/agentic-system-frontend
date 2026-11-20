@@ -16,7 +16,7 @@
       <label class="st-field" data-field="aspect_ratio">Output shape<select v-model="aspect" class="st-input"><option v-for="s in shapes" :key="s">{{ s }}</option></select></label>
       <button class="st-button" :disabled="busy || !topic.trim()" @click="plan">{{ faceless ? 'Plan faceless video' : 'Plan explainer' }}</button>
       <template v-if="projectId">
-        <RouterLink :to="{ path:'/video-studio/storyboard', query:{ project_id:projectId } }" class="st-button">Choose scene pictures in Storyboard</RouterLink>
+        <RouterLink :to="{ path:studioPath('storyboard'), query:{ project_id:projectId } }" class="st-button">Choose scene pictures in Storyboard</RouterLink>
         <section class="creative-card" data-test="explainer-pictures" aria-labelledby="explainer-pictures-title">
           <h3 id="explainer-pictures-title">Scene pictures</h3>
           <p class="st-muted">One picture for each scene that has none, each with its own estimate.</p>
@@ -37,7 +37,7 @@
         <button class="st-button primary" :disabled="busy" @click="cut">Cut the video (free)</button>
       </template>
     </template>
-    <RouterLink v-if="resultProject" :to="{ path:'/video-studio/editor', query:{ project_id:resultProject } }">Open resulting project in Editor</RouterLink>
+    <RouterLink v-if="resultProject" :to="{ path:studioPath('editor'), query:{ project_id:resultProject } }">Open the short in the clip editor</RouterLink>
   </div>
 </template>
 <script setup>
@@ -53,6 +53,7 @@ import MediaRoutePicker from './MediaRoutePicker.vue'
 import VoicePicker from './VoicePicker.vue'
 import { modelAliases, studioError, useStudioChat } from './studioForm'
 import { routeOptionLabel } from '../../utils/studioPrice'
+import { studioPath } from '../../services/studioPaths'
 const props = defineProps({ kind:String }), emit = defineEmits(['job']), route = useRoute(), video = useVideoStore(), { busy,error,run } = useCreativeForm()
 const routeId = ref(''), voiceId = ref(''), source = ref(null), language = ref(''), transcriptId = ref(''), count = ref(3), moments = ref([]), aspect = ref(props.kind === 'shorts' ? '9:16' : '16:9'), captions = ref(true), resultProject = ref('')
 const topic = ref(''), title = ref(''), audience = ref(''), maxSeconds = ref(90), projectId = ref(route.query.project_id || ''), scenes = ref([])

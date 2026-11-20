@@ -1,0 +1,8858 @@
+{
+ "version": 1,
+ "png_chroma": "bilinear",
+ "width": 320,
+ "height": 180,
+ "about": "Golden frames (VIDEO_EDITOR_PRO_CONTRACT.md section 10): manage.py editor_golden <out_dir> renders each sample at 320x180, one PNG per time: <id>_<time ms>.png. Media names map to files in media/; derived maps \"<media>:<op>\" to the derived file the export would use.",
+ "media": {
+  "bars": "media/bars.mp4",
+  "test": "media/test.mp4",
+  "green": "media/green.mp4",
+  "still": "media/still.png",
+  "voice": "media/voice.m4a",
+  "music": "media/music.m4a",
+  "warm": "media/warm.cube",
+  "matte": "media/matte.mp4",
+  "test_reversed": "media/test_reversed.mp4"
+ },
+ "derived": {
+  "test:reverse": "test_reversed",
+  "test:bg_removal": "matte"
+ },
+ "samples": [
+  {
+   "id": "fx_adjust_light",
+   "covers": "adjust: exposure, contrast, highlights, shadows",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "a",
+          "kind": "adjust",
+          "enabled": true,
+          "params": {
+           "exposure": 0.6,
+           "contrast": 1.3,
+           "highlights": -0.4,
+           "shadows": 0.3
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_adjust_colour",
+   "covers": "adjust: saturation, vibrance, temperature, tint",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "a",
+          "kind": "adjust",
+          "enabled": true,
+          "params": {
+           "saturation": 1.5,
+           "vibrance": 0.5,
+           "temperature": 0.6,
+           "tint": -0.4
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_adjust_mono",
+   "covers": "adjust: saturation 0",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "a",
+          "kind": "adjust",
+          "enabled": true,
+          "params": {
+           "saturation": 0
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_curves",
+   "covers": "curves",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "c",
+          "kind": "curves",
+          "enabled": true,
+          "params": {
+           "master": [
+            [
+             0,
+             0
+            ],
+            [
+             0.4,
+             0.55
+            ],
+            [
+             1,
+             1
+            ]
+           ],
+           "r": [
+            [
+             0,
+             0.05
+            ],
+            [
+             1,
+             0.95
+            ]
+           ],
+           "g": [
+            [
+             0,
+             0
+            ],
+            [
+             0.5,
+             0.45
+            ],
+            [
+             1,
+             1
+            ]
+           ],
+           "b": [
+            [
+             0,
+             0
+            ],
+            [
+             1,
+             1
+            ]
+           ]
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_hsl",
+   "covers": "hsl",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "h",
+          "kind": "hsl",
+          "enabled": true,
+          "params": {
+           "red": {
+            "h": 25,
+            "s": 0.3,
+            "l": 0
+           },
+           "blue": {
+            "h": -20,
+            "s": -0.5,
+            "l": 0.2
+           },
+           "green": {
+            "h": 0,
+            "s": 0.4,
+            "l": -0.2
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_lut_full",
+   "covers": "lut, intensity 1",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "l",
+          "kind": "lut",
+          "enabled": true,
+          "params": {
+           "media": "warm",
+           "intensity": 1
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_lut_half",
+   "covers": "lut, intensity 0.5",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "l",
+          "kind": "lut",
+          "enabled": true,
+          "params": {
+           "media": "warm",
+           "intensity": 0.5
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_blur",
+   "covers": "blur",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "b",
+          "kind": "blur",
+          "enabled": true,
+          "params": {
+           "radius": 12
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_sharpen",
+   "covers": "sharpen",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "s",
+          "kind": "sharpen",
+          "enabled": true,
+          "params": {
+           "amount": 1.5
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_vignette",
+   "covers": "vignette",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "v",
+          "kind": "vignette",
+          "enabled": true,
+          "params": {
+           "amount": 0.8,
+           "size": 0.4
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_mask_rect",
+   "covers": "mask rect",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "m",
+          "kind": "mask",
+          "enabled": true,
+          "params": {
+           "shape": "rect",
+           "x": 0.45,
+           "y": 0.5,
+           "w": 0.5,
+           "h": 0.6,
+           "feather": 0.15,
+           "rotation": 15
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_mask_ellipse",
+   "covers": "mask ellipse",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "m",
+          "kind": "mask",
+          "enabled": true,
+          "params": {
+           "shape": "ellipse",
+           "x": 0.45,
+           "y": 0.5,
+           "w": 0.5,
+           "h": 0.6,
+           "feather": 0.15,
+           "rotation": 15
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_mask_linear",
+   "covers": "mask linear",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "m",
+          "kind": "mask",
+          "enabled": true,
+          "params": {
+           "shape": "linear",
+           "x": 0.45,
+           "y": 0.5,
+           "w": 0.5,
+           "h": 0.6,
+           "feather": 0.15,
+           "rotation": 20
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_mask_mirror",
+   "covers": "mask mirror",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "m",
+          "kind": "mask",
+          "enabled": true,
+          "params": {
+           "shape": "mirror",
+           "x": 0.45,
+           "y": 0.5,
+           "w": 0.5,
+           "h": 0.6,
+           "feather": 0.15,
+           "rotation": 15,
+           "invert": true
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_chroma_key",
+   "covers": "chroma key over a lower track",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "green",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "k",
+          "kind": "chroma_key",
+          "enabled": true,
+          "params": {
+           "color": "#00FF00",
+           "similarity": 0.2,
+           "smoothness": 0.1,
+           "spill": 0.6
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500,
+    1500
+   ]
+  },
+  {
+   "id": "fx_bg_removal",
+   "covers": "background removal by a matte",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "r",
+          "kind": "bg_removal",
+          "enabled": true,
+          "params": {}
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "fx_stack",
+   "covers": "effects applied in order",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "a",
+          "kind": "adjust",
+          "enabled": true,
+          "params": {
+           "exposure": 0.3
+          }
+         },
+         {
+          "id": "b",
+          "kind": "blur",
+          "enabled": true,
+          "params": {
+           "radius": 4
+          }
+         },
+         {
+          "id": "v",
+          "kind": "vignette",
+          "enabled": true,
+          "params": {
+           "amount": 0.5,
+           "size": 0.6
+          }
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_normal",
+   "covers": "blend normal",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_multiply",
+   "covers": "blend multiply",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "multiply"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_screen",
+   "covers": "blend screen",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "screen"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_overlay",
+   "covers": "blend overlay",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "overlay"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_darken",
+   "covers": "blend darken",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "darken"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_lighten",
+   "covers": "blend lighten",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "lighten"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_add",
+   "covers": "blend add",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "add"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "blend_difference",
+   "covers": "blend difference",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 0.9
+        },
+        "blend": "difference"
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "tr_crossfade",
+   "covers": "transition crossfade",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "crossfade",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_dissolve",
+   "covers": "transition dissolve",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "dissolve",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_fade_black",
+   "covers": "transition fade_black",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "fade_black",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_fade_white",
+   "covers": "transition fade_white",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "fade_white",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_wipe_left",
+   "covers": "transition wipe_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "wipe_left",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_wipe_right",
+   "covers": "transition wipe_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "wipe_right",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_wipe_up",
+   "covers": "transition wipe_up",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "wipe_up",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_wipe_down",
+   "covers": "transition wipe_down",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "wipe_down",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_slide_left",
+   "covers": "transition slide_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "slide_left",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_slide_right",
+   "covers": "transition slide_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "slide_right",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_slide_up",
+   "covers": "transition slide_up",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "slide_up",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_slide_down",
+   "covers": "transition slide_down",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "slide_down",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_smooth_left",
+   "covers": "transition smooth_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "smooth_left",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_smooth_right",
+   "covers": "transition smooth_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "smooth_right",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_circle_open",
+   "covers": "transition circle_open",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "circle_open",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_circle_close",
+   "covers": "transition circle_close",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "circle_close",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_radial",
+   "covers": "transition radial",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "radial",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_pixelize",
+   "covers": "transition pixelize",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "pixelize",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_zoom_in",
+   "covers": "transition zoom_in",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "zoom_in",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "tr_blur",
+   "covers": "transition blur",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       },
+       {
+        "type": "transition",
+        "id": "x1",
+        "kind": "blur",
+        "ms": 1000,
+        "between": [
+         "c1",
+         "c2"
+        ]
+       },
+       {
+        "type": "clip",
+        "id": "c2",
+        "media": "test",
+        "start_ms": 1000,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    1233,
+    1500,
+    1767
+   ]
+  },
+  {
+   "id": "ease_linear",
+   "covers": "keyframe easing linear",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "linear"
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "ease_ease_in",
+   "covers": "keyframe easing ease_in",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "ease_in"
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "ease_ease_out",
+   "covers": "keyframe easing ease_out",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "ease_out"
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "ease_ease_in_out",
+   "covers": "keyframe easing ease_in_out",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "ease_in_out"
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "ease_hold",
+   "covers": "keyframe easing hold",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "hold"
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "ease_bezier",
+   "covers": "keyframe easing bezier",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.35,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.x": [
+          {
+           "t_ms": 0,
+           "v": 0.2,
+           "ease": "bezier",
+           "bez": [
+            0.2,
+            0.9,
+            0.3,
+            1.0
+           ]
+          },
+          {
+           "t_ms": 1800,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    900,
+    1500
+   ]
+  },
+  {
+   "id": "kf_opacity_rotation_scale",
+   "covers": "keyframed opacity, rotation and scale",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.5,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "transform.opacity": [
+          {
+           "t_ms": 0,
+           "v": 0
+          },
+          {
+           "t_ms": 1000,
+           "v": 1
+          }
+         ],
+         "transform.rotation": [
+          {
+           "t_ms": 0,
+           "v": -30,
+           "ease": "ease_out"
+          },
+          {
+           "t_ms": 1500,
+           "v": 45
+          }
+         ],
+         "transform.scale": [
+          {
+           "t_ms": 0,
+           "v": 0.3
+          },
+          {
+           "t_ms": 2000,
+           "v": 0.8
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    400,
+    1000,
+    1600
+   ]
+  },
+  {
+   "id": "kf_effect_param",
+   "covers": "keyframed effect parameter",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "effects": [
+         {
+          "id": "a",
+          "kind": "adjust",
+          "enabled": true,
+          "params": {}
+         }
+        ],
+        "keyframes": {
+         "fx.a.exposure": [
+          {
+           "t_ms": 0,
+           "v": -1
+          },
+          {
+           "t_ms": 1500,
+           "v": 1
+          }
+         ]
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    1200
+   ]
+  },
+  {
+   "id": "tf_rotate_flip",
+   "covers": "rotation and horizontal flip",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.4,
+         "y": 0.5,
+         "scale": 0.6,
+         "rotation": 30,
+         "flip_x": true,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "tf_flip_y_crop",
+   "covers": "vertical flip and crop",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v0",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "b1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.45,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": true,
+         "opacity": 1.0
+        },
+        "crop": {
+         "x": 0.1,
+         "y": 0.2,
+         "w": 0.5,
+         "h": 0.6
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "tf_scale_up",
+   "covers": "scale above 1",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.4,
+         "y": 0.6,
+         "scale": 2.5,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "tf_keyframed_crop",
+   "covers": "keyframed crop",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "keyframes": {
+         "crop.w": [
+          {
+           "t_ms": 0,
+           "v": 1
+          },
+          {
+           "t_ms": 1500,
+           "v": 0.5
+          }
+         ],
+         "crop.h": [
+          {
+           "t_ms": 0,
+           "v": 1
+          },
+          {
+           "t_ms": 1500,
+           "v": 0.5
+          }
+         ],
+         "crop.x": [
+          {
+           "t_ms": 0,
+           "v": 0
+          },
+          {
+           "t_ms": 1500,
+           "v": 0.25
+          }
+         ],
+         "crop.y": [
+          {
+           "t_ms": 0,
+           "v": 0
+          },
+          {
+           "t_ms": 1500,
+           "v": 0.25
+          }
+         ]
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    1200
+   ]
+  },
+  {
+   "id": "bg_color",
+   "covers": "canvas colour",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#203A60"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "still",
+        "start_ms": 0,
+        "hold_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.6,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "bg_blur_1",
+   "covers": "canvas blur 1",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "9:16",
+     "background": {
+      "kind": "blur",
+      "strength": 1
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "still",
+        "start_ms": 0,
+        "hold_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "bg_blur_2",
+   "covers": "canvas blur 2",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "9:16",
+     "background": {
+      "kind": "blur",
+      "strength": 2
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "still",
+        "start_ms": 0,
+        "hold_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "bg_blur_3",
+   "covers": "canvas blur 3",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "9:16",
+     "background": {
+      "kind": "blur",
+      "strength": 3
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "still",
+        "start_ms": 0,
+        "hold_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "bg_blur_4",
+   "covers": "canvas blur 4",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "9:16",
+     "background": {
+      "kind": "blur",
+      "strength": 4
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "still",
+        "start_ms": 0,
+        "hold_ms": 2000,
+        "fit": "contain",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.7,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "bg_image",
+   "covers": "canvas picture",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "image",
+      "media": "still"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 0.5,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    500
+   ]
+  },
+  {
+   "id": "speed_curve",
+   "covers": "speed curve",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 3000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "speed_curve": [
+         {
+          "x": 0,
+          "y": 0.5
+         },
+         {
+          "x": 0.5,
+          "y": 2
+         },
+         {
+          "x": 1,
+          "y": 1
+         }
+        ]
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    1000,
+    2000
+   ]
+  },
+  {
+   "id": "speed_constant",
+   "covers": "constant speed",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 3000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "speed": 2.0
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    400,
+    1200
+   ]
+  },
+  {
+   "id": "reverse",
+   "covers": "reverse",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "source_in_ms": 500,
+        "source_out_ms": 2500,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        },
+        "reverse": true
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    0,
+    1000,
+    1967
+   ]
+  },
+  {
+   "id": "freeze",
+   "covers": "freeze frame",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "test",
+        "start_ms": 0,
+        "freeze_at_ms": 1200,
+        "hold_ms": 1500,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     }
+    ]
+   },
+   "times_ms": [
+    100,
+    1400
+   ]
+  },
+  {
+   "id": "font_inter",
+   "covers": "font inter",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "inter",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_roboto",
+   "covers": "font roboto",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "roboto",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_montserrat",
+   "covers": "font montserrat",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "montserrat",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_poppins",
+   "covers": "font poppins",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "poppins",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_oswald",
+   "covers": "font oswald",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "oswald",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_bebas-neue",
+   "covers": "font bebas-neue",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "bebas-neue",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_anton",
+   "covers": "font anton",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "anton",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_playfair-display",
+   "covers": "font playfair-display",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "playfair-display",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_lora",
+   "covers": "font lora",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "lora",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_merriweather",
+   "covers": "font merriweather",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "merriweather",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_dm-serif-display",
+   "covers": "font dm-serif-display",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "dm-serif-display",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_source-code-pro",
+   "covers": "font source-code-pro",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "source-code-pro",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_pacifico",
+   "covers": "font pacifico",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "pacifico",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_permanent-marker",
+   "covers": "font permanent-marker",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "permanent-marker",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_caveat",
+   "covers": "font caveat",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "caveat",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_noto-sans",
+   "covers": "font noto-sans",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "noto-sans",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_sans",
+   "covers": "font sans",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "sans",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_sans-bold",
+   "covers": "font sans-bold",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "sans-bold",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_serif",
+   "covers": "font serif",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "serif",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "font_mono",
+   "covers": "font mono",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Quick fox 42",
+        "style": {
+         "font": "mono",
+         "size": 0.16,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_stroke",
+   "covers": "text stroke",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Styled 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "stroke_color": "#E02040",
+         "stroke_width": 0.012
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_shadow",
+   "covers": "text shadow",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Styled 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "shadow_color": "#000000",
+         "shadow_x": 0.01,
+         "shadow_y": 0.015
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_box",
+   "covers": "text box",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Styled 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFD400",
+         "box": "#10203080"
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_bold_italic",
+   "covers": "text bold_italic",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Styled 42",
+        "style": {
+         "font": "poppins",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "bold": true,
+         "italic": true
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_spacing",
+   "covers": "text spacing",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Two lines\nof text",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "letter_spacing": 0.25,
+         "line_spacing": 1.6
+        },
+        "x": 0.5,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_align_left",
+   "covers": "text align_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Two lines\nof text",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "align": "left"
+        },
+        "x": 0.15,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "text_align_right",
+   "covers": "text align_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Two lines\nof text",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF",
+         "align": "right"
+        },
+        "x": 0.85,
+        "y": 0.5
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1000
+   ]
+  },
+  {
+   "id": "anim_in_fade",
+   "covers": "animation in fade",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "fade",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_fade",
+   "covers": "animation out fade",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "fade",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_slide_up",
+   "covers": "animation in slide_up",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "slide_up",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_slide_up",
+   "covers": "animation out slide_up",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "slide_up",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_slide_down",
+   "covers": "animation in slide_down",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "slide_down",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_slide_down",
+   "covers": "animation out slide_down",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "slide_down",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_slide_left",
+   "covers": "animation in slide_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "slide_left",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_slide_left",
+   "covers": "animation out slide_left",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "slide_left",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_slide_right",
+   "covers": "animation in slide_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "slide_right",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_slide_right",
+   "covers": "animation out slide_right",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "slide_right",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_pop",
+   "covers": "animation in pop",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "pop",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_pop",
+   "covers": "animation out pop",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "pop",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_zoom",
+   "covers": "animation in zoom",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "zoom",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_zoom",
+   "covers": "animation out zoom",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "zoom",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_rise",
+   "covers": "animation in rise",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "rise",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_rise",
+   "covers": "animation out rise",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "rise",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_in_typewriter",
+   "covers": "animation in typewriter",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "in": {
+          "kind": "typewriter",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    600
+   ]
+  },
+  {
+   "id": "anim_out_typewriter",
+   "covers": "animation out typewriter",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "out": {
+          "kind": "typewriter",
+          "ms": 1000
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    1400,
+    1800
+   ]
+  },
+  {
+   "id": "anim_loop_pulse",
+   "covers": "loop pulse",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "loop": {
+          "kind": "pulse"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    250,
+    700,
+    1250
+   ]
+  },
+  {
+   "id": "anim_loop_float",
+   "covers": "loop float",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "anim": {
+         "loop": {
+          "kind": "float"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    250,
+    700,
+    1250
+   ]
+  },
+  {
+   "id": "text_keyframes",
+   "covers": "text keyframes with an animation",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Golden 42",
+        "style": {
+         "font": "inter",
+         "size": 0.14,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.5,
+        "keyframes": {
+         "x": [
+          {
+           "t_ms": 0,
+           "v": 0.3,
+           "ease": "ease_in_out"
+          },
+          {
+           "t_ms": 1500,
+           "v": 0.7
+          }
+         ],
+         "opacity": [
+          {
+           "t_ms": 0,
+           "v": 0.2
+          },
+          {
+           "t_ms": 1000,
+           "v": 1
+          }
+         ]
+        },
+        "anim": {
+         "in": {
+          "kind": "zoom",
+          "ms": 500
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    200,
+    800,
+    1700
+   ]
+  },
+  {
+   "id": "caption_word",
+   "covers": "caption word",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Every word counts",
+        "style": {
+         "font": "inter",
+         "size": 0.1,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.85,
+        "words": [
+         {
+          "text": "Every",
+          "start_ms": 100,
+          "end_ms": 500
+         },
+         {
+          "text": "word",
+          "start_ms": 550,
+          "end_ms": 900
+         },
+         {
+          "text": "counts",
+          "start_ms": 1000,
+          "end_ms": 1600
+         }
+        ],
+        "caption_style": {
+         "mode": "word",
+         "highlight_color": "#FFD400"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    700,
+    1300
+   ]
+  },
+  {
+   "id": "caption_karaoke",
+   "covers": "caption karaoke",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Every word counts",
+        "style": {
+         "font": "inter",
+         "size": 0.1,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.85,
+        "words": [
+         {
+          "text": "Every",
+          "start_ms": 100,
+          "end_ms": 500
+         },
+         {
+          "text": "word",
+          "start_ms": 550,
+          "end_ms": 900
+         },
+         {
+          "text": "counts",
+          "start_ms": 1000,
+          "end_ms": 1600
+         }
+        ],
+        "caption_style": {
+         "mode": "karaoke",
+         "highlight_color": "#FFD400"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    700,
+    1300
+   ]
+  },
+  {
+   "id": "caption_box",
+   "covers": "caption box",
+   "doc": {
+    "version": 3,
+    "rate": 30,
+    "canvas": {
+     "aspect": "16:9",
+     "background": {
+      "kind": "color",
+      "color": "#000000"
+     }
+    },
+    "settings": {
+     "magnet": false
+    },
+    "markers": [],
+    "compounds": {},
+    "tracks": [
+     {
+      "id": "v1",
+      "kind": "video",
+      "items": [
+       {
+        "type": "clip",
+        "id": "c1",
+        "media": "bars",
+        "start_ms": 0,
+        "source_in_ms": 0,
+        "source_out_ms": 2000,
+        "fit": "cover",
+        "transform": {
+         "x": 0.5,
+         "y": 0.5,
+         "scale": 1.0,
+         "rotation": 0,
+         "flip_x": false,
+         "flip_y": false,
+         "opacity": 1.0
+        }
+       }
+      ],
+      "main": true
+     },
+     {
+      "id": "t1",
+      "kind": "text",
+      "items": [
+       {
+        "type": "text",
+        "id": "x1",
+        "start_ms": 0,
+        "end_ms": 2000,
+        "text": "Every word counts",
+        "style": {
+         "font": "inter",
+         "size": 0.1,
+         "color": "#FFFFFF"
+        },
+        "x": 0.5,
+        "y": 0.85,
+        "words": [
+         {
+          "text": "Every",
+          "start_ms": 100,
+          "end_ms": 500
+         },
+         {
+          "text": "word",
+          "start_ms": 550,
+          "end_ms": 900
+         },
+         {
+          "text": "counts",
+          "start_ms": 1000,
+          "end_ms": 1600
+         }
+        ],
+        "caption_style": {
+         "mode": "box",
+         "highlight_color": "#FFD400"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "times_ms": [
+    300,
+    700,
+    1300
+   ]
+  }
+ ]
+}

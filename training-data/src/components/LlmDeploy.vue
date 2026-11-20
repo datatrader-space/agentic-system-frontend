@@ -3,13 +3,16 @@
 // production): approving a version, deploying it, cancelling a start, going back, stopping. The chat API's address
 // and a call in three languages. "Use in AADML": the live model in the person's own AADML model list. For the
 // project's Owner: the apps that may call it with their keys, and the downloads (the adapter, or the merged weights
-// made by a job). Backend: llm/app_api.py (deploy/, models/<v>/approvals|merge|download).
+// made by a job). Dedicated Deployment: an approved version on a machine of its own (a GPU AADML rents, or one of the
+// workspace's own machines), with an address of its own (DedicatedDeployments.vue, the same tab as the photo projects'
+// Deploy page; backend dedicated.start_chat). Backend: llm/app_api.py (deploy/, models/<v>/approvals|merge|download).
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { Ban, Bot, Check, Copy, Download, KeyRound, Layers, Plus, RotateCcw, ShieldCheck, Square, Upload, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import MachinePicker from './MachinePicker.vue';
+import DedicatedDeployments from './DedicatedDeployments.vue';
 import { llmApi, chatSnippet, chatLiveTag, downloadUrl, verdictLabel, verdictTone } from '../api/llm.js';
 import { bytesText } from '../api/analytics.js';
 import './llm.css';
@@ -196,6 +199,11 @@ const revoked = m => m.approvals.filter(a => !a.active);
             </details>
           </article>
         </div>
+      </section>
+
+      <!-- Dedicated Deployment: an approved version on a machine of its own, with its own address -->
+      <section class="llm-dedicated ws-deployments deployments-workspace" aria-label="Dedicated Deployment">
+        <DedicatedDeployments :project-ref="ref_" chat @navigate="page => emit('navigate', page)"/>
       </section>
 
       <!-- Approvals -->

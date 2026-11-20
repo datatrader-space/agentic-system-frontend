@@ -1,9 +1,15 @@
+import { nodeSize } from './wfFlow'
+
+// The room an unmeasured node is assumed to take (one not yet drawn by Vue Flow).
+const UNMEASURED = { width: 230, height: 110 }
+
 // Place new content near the requested point without moving the person's existing graph.
-export function freeWorkflowPosition(nodes, preferred, size = { width: 230, height: 110 }) {
+export function freeWorkflowPosition(nodes, preferred, size = UNMEASURED) {
   const gap = 28
+  const sizeOf = node => nodeSize(node) || UNMEASURED
   const clear = p => nodes.every(node => {
     const pos = node.position || { x: 0, y: 0 }
-    const width = node.dimensions?.width || 230, height = node.dimensions?.height || 110
+    const { width, height } = sizeOf(node)
     return p.x + size.width + gap <= pos.x || p.x >= pos.x + width + gap || p.y + size.height + gap <= pos.y || p.y >= pos.y + height + gap
   })
   if (clear(preferred)) return { ...preferred }
@@ -19,5 +25,5 @@ export function freeWorkflowPosition(nodes, preferred, size = { width: 230, heig
     }
   }
   // Oversized imported nodes may cover several grid cells; step beyond the graph's right edge.
-  return { x: Math.max(preferred.x, ...nodes.map(n => (n.position?.x || 0) + (n.dimensions?.width || 230))) + gap, y: preferred.y }
+  return { x: Math.max(preferred.x, ...nodes.map(n => (n.position?.x || 0) + sizeOf(n).width)) + gap, y: preferred.y }
 }

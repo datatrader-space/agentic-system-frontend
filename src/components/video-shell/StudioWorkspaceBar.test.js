@@ -4,7 +4,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, expect, it, vi } from 'vitest'
 import Bar from './StudioWorkspaceBar.vue'
 import api from '../../services/api'
-vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn()}}))
+// The Image page's looks are served by the Recipe API (F-D4); one of them is searched for below.
+vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),getStudioRecipes:vi.fn(page=>Promise.resolve({data:{presets:page==='image'?[{id:'image-look-1',feature:'image',title:'Softbox product portrait',purpose:'A clean campaign image.',category:'Images',slots:[],settings:{},promptTemplate:'x',variants:['a'],clientOnly:true}]:[]}}))}}))
 const stubs={RouterLink:{props:['to'],template:'<a :data-to="JSON.stringify(to)"><slot /></a>'},VideoJobCard:true}
 beforeEach(()=>{setActivePinia(createPinia());vi.clearAllMocks()})
 function render(){const w=mount(Bar,{props:{title:'Video',user:{id:'one',username:'Maker'}},global:{stubs}});for(const dialog of w.findAll('dialog')){dialog.element.showModal=vi.fn();dialog.element.close=vi.fn()}return w}
@@ -84,4 +85,20 @@ it('the tray shows a picture result as a picture and never scrolls sideways at p
   expect(src).toMatch(/\.swb-job-list\{[^}]*grid-template-columns:minmax\(0,1fr\)/)
   expect(src).toMatch(/\.swb-recent\{[^}]*grid-template-columns:minmax\(0,1fr\)/)
   w.unmount()
+})
+
+it('says "Not available yet" on a tool the server says cannot run yet, still linked to its page (ISSUE-8)',async()=>{
+  const { studioFeatures } = await import('../../services/studioFeatures')
+  const before = studioFeatures.value
+  studioFeatures.value = before.map(f => f.id === 'lipsync' ? { ...f, ready: false, reason: 'No model for this page has been proven yet.' } : f.id === 'image' ? { ...f, ready: true } : f)
+  try {
+    api.get.mockResolvedValue({data:{projects:[]}})
+    const w=render();await w.get('[aria-label="Search templates, tools and projects"]').trigger('click');await flushPromises()
+    await w.get('input').setValue('Lip-sync')
+    expect(w.get('[data-test="swb-badge-lipsync"]').text()).toBe('Not available yet')
+    expect(w.get('.swb-results a').attributes('data-to')).toContain('/dashboard/video-studio/lipsync')
+    await w.get('input').setValue('Image edit')
+    expect(w.find('[data-test="swb-badge-edit"]').exists()).toBe(false)
+    w.unmount()
+  } finally { studioFeatures.value = before }
 })

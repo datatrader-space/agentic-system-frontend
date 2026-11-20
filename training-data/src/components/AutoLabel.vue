@@ -9,20 +9,19 @@
 // first. A photo opens in the editor as it is: the model is asked (and charged) only when the person presses Find
 // objects there (e6e32a1c took away the run on opening), and what it finds is a head start the person checks and sends
 // to review; a model never makes a label by itself.
-// A model with SAM 3 may run SAM 3 on one of the workspace's own machines (agentic-docs/SAM3_ON_MY_MACHINE_PLAN.md):
-// the picker's "Where SAM 3 runs", the machine's fee, the SAM License accepted once, and the machine's own stage while
-// SAM 3 gets ready there ("Downloading SAM 3").
+// Nobody chooses where a model runs, and no place is sent or kept in a workflow. A ready-to-use model (SAM 3, a vision +
+// SAM 3 pair) is hosted by AADML: it is charged per image, and while AADML is not running it the page says so
+// (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, ArrowRight, ChevronRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Wallet, Maximize2, RotateCcw, SlidersHorizontal, PanelRight, Sparkles } from 'lucide-vue-next';
 import AutoLabelAgent from './AutoLabelAgent.vue';
 import LabelingWorkflow from './LabelingWorkflow.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
-import { blockedAt, costAt, detailAt, licenceAccepted, placeOf, startsServer } from '../sourceFamilies.js';
+import { costOf, fillOpacityOf, reasonOnly, sameAnswer, sentence, startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { api, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
-import { edgeApi } from '../api/edge.js';
+import { api, classesOf, askedClasses, keepAskedClasses, rolesOf, geometryLabel, nextClassColor } from '../api/annotate.js';
 import { tidyUp } from '../geometry.js';
 
 const props = defineProps({ batch: Object, state: Object, media: Array, busy: Boolean, optionsOpen: Boolean });
@@ -34,17 +33,15 @@ function openAgent() { agentVisited.value = true; agentOpen.value = true; }
 function openWorkflow() { workflowVisited.value = true; tab.value = 'workflow'; }
 function back() { if (agentOpen.value) agentOpen.value = false; else emit('close'); }
 const choosing = ref(false); const confirmOpen = ref(false);
-const where = ref(''); const licenceBusy = ref(false); const placeError = ref('');     // where SAM 3 runs: '' or machine:<id>
 const showLabels = ref(true); const focus = ref(0); const canvas = ref(null);
 const picked = ref(props.media.slice(0, 1).map(m => m.id));
 const previews = ref([]);                      // [{image, state: 'asking'|'waiting'|'ready'|'refused', shapes, now, error, width, height}]
 let timers = []; let stopped = false;
 
 const current = computed(() => sources.value.find(s => s.id === chosen.value) || null);
-const place = computed(() => placeOf(current.value, where.value));
-const blocked = computed(() => blockedAt(current.value, place.value));
-const detail = computed(() => detailAt(current.value, place.value));
-const cost = computed(() => costAt(current.value, place.value));
+const blocked = computed(() => !current.value || !!current.value.unavailable);
+const detail = computed(() => current.value?.detail || '');
+const cost = computed(() => costOf(current.value));
 const shown = computed(() => previews.value[Math.min(focus.value, previews.value.length - 1)] || null);
 
 // What the bottom bar says the page is doing.
@@ -52,9 +49,7 @@ const stateWords = computed(() => {
   if (loading.value) return ['Loading the models', ''];
   if (!current.value) return ['Choose a model', 'Pick the model that draws the head start.'];
   if (!asked.value.length) return ['Add your classes', 'Add a class or use a saved workflow before previewing.'];
-  if (current.value.unavailable) return ['This model cannot be used now', current.value.unavailable];
-  if (place.value?.unavailable) return [`SAM 3 cannot run on ${place.value.name} now`, place.value.unavailable];
-  if (place.value?.state === 'licence') return ['Accept the SAM License', `SAM 3 runs on ${place.value.name} only under Meta's SAM License.`];
+  if (current.value.unavailable) return ['This model cannot be used now', reasonOnly(current.value.unavailable)];
   if (generating.value) return ['Generating the preview', 'The model is looking at the preview photos.'];
   // The reason itself, not a pointer to it (live, 2026-11-16: the refusal sat below the photo, out of view).
   if (previews.value.some(p => p.state === 'refused')) return ['Preview needs attention', (shown.value?.state === 'refused' && shown.value.error) || previews.value.find(p => p.state === 'refused').error];
@@ -65,8 +60,8 @@ const pickedImages = computed(() => props.media.filter(m => picked.value.include
 const generating = computed(() => previews.value.some(p => p.state === 'asking' || p.state === 'waiting'));
 const colour = kind => props.state.classes.find(c => c.name === kind)?.color || '#8b5cf6';
 const label = s => `${s.mode ? `${s.mode}: ` : ''}${s.name}`;
-// A mask is the same outline, filled: it is drawn more solid than a polygon.
-const fillOpacity = computed(() => (current.value?.labels === 'masks' ? 0.55 : 0.25));
+// A mask is the same outline, filled: it is drawn more solid than a polygon (sourceFamilies.fillOpacityOf).
+const fillOpacity = computed(() => fillOpacityOf(current.value?.labels));
 async function loadSources() {
   loading.value = true; error.value = '';
   try {
@@ -74,27 +69,34 @@ async function loadSources() {
     sources.value = body.sources;
     const usable = body.sources.filter(s => !s.unavailable);
     chosen.value = body.preference || usable.find(s => s.tidy)?.id || usable[0]?.id || '';
-    where.value = body.preference ? (body.where || '') : '';
   } catch (e) { error.value = `The models could not be loaded. ${e.message}`; } finally { loading.value = false; }
 }
 onMounted(loadSources);
 
 // Names and descriptions come from the project. Never seed domain-specific classes in the page.
-const canChange = computed(() => !!props.state.canChangeClasses);
+const canChange = computed(() => !!props.state.canChangeClasses && !props.state.classesLocked);
 // The classes the AI is asked for (owner, 2026-11-09): every class at first; unticked, the models do not look for it,
 // and it stays in the project. Kept per project in this browser; the editor reads the same choice.
 const classNames = computed(() => props.state.classes.map(c => c.name));
 const asked = ref(askedClasses(props.state.ref, classNames.value));
-const definition = computed(() => ({ schema: 'aadml.labeling-workflow.v1', source: chosen.value, where: where.value,
+const definition = computed(() => ({ schema: 'aadml.labeling-workflow.v1', source: chosen.value,
   classes: props.state.classes.filter(c => asked.value.includes(c.name)).map(c => ({ name: c.name, color: c.color, description: c.description || '' })) }));
-watch(definition, () => { previews.value = []; focus.value = 0; });
+// Another model or other classes: the preview is of the one chosen before, so it goes. Polygons and Masks of the same
+// model are the same answer drawn two ways (sourceFamilies.sameAnswer): the preview stays and is drawn the new way, and
+// nothing is asked (or charged) again (live, 2026-11-20: the switch threw SAM 3's preview away).
+watch(definition, (now, before) => {
+  const byId = id => sources.value.find(s => s.id === id);
+  const sameClasses = before && JSON.stringify(now.classes) === JSON.stringify(before.classes);
+  if (sameClasses && sameAnswer(byId(now.source), byId(before.source))) return;
+  previews.value = []; focus.value = 0;
+});
 const agentContext = computed(() => JSON.stringify({ project: props.state.ref, batch: { id: props.batch.id, source: props.batch.source },
   selected_image_ids: picked.value.slice(0, 4), configuration: definition.value }, null, 2));
 async function applyWorkflow(body) {
   props.state.classes = classesOf(body.classes);
   await nextTick();
   const config = body.workflow.definition;
-  chosen.value = config.source; where.value = config.where;
+  chosen.value = config.source;
   asked.value = config.classes.map(c => c.name);
   keepAskedClasses(props.state.ref, classNames.value, asked.value);
   previews.value = []; tab.value = 'preview';
@@ -107,10 +109,9 @@ function toggleAsked(name) {
   asked.value = now; keepAskedClasses(props.state.ref, classNames.value, now); previews.value = [];
 }
 const adding = ref(null); const classBusy = ref(false); const classError = ref(''); const newName = ref(null);
-const PALETTE = ['#ef4444', '#0ea5e9', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#6366f1', '#a855f7'];
 function startAdd() {
   classError.value = '';
-  adding.value = { name: '', color: PALETTE.find(c => !props.state.classes.some(k => k.color === c)) || PALETTE[0], description: '' };
+  adding.value = { name: '', color: nextClassColor(props.state.classes), description: '' };
   nextTick(() => newName.value?.focus());
 }
 async function changeClasses(call) {
@@ -123,20 +124,6 @@ function saveClass(c, change) { return changeClasses(() => api.updateClass(props
 function removeClass(c) { return changeClasses(() => api.removeClass(props.state.ref, c.name)); }
 onUnmounted(() => { stopped = true; timers.forEach(clearTimeout); });
 
-// Another model, another way of showing it, or another place it runs: the preview is of the one chosen before, so it goes.
-watch([chosen, where], () => { previews.value = []; focus.value = 0; placeError.value = ''; });
-// The SAM License, accepted once for the workspace: every machine waiting for it can take SAM 3 now.
-async function acceptLicence() {
-  licenceBusy.value = true; placeError.value = '';
-  try { await api.acceptSamLicence(props.state.ref); licenceAccepted(sources.value); }
-  catch (e) { placeError.value = `The SAM License was not recorded. ${e.message}`; } finally { licenceBusy.value = false; }
-}
-// SAM 3 stopped on the machine at the person's word (its weights stay there for the next time).
-async function stopOnMachine(chosenPlace) {
-  placeError.value = '';
-  try { await edgeApi.stop(chosenPlace.running.job); chosenPlace.running = null; }
-  catch (e) { placeError.value = `SAM 3 was not stopped. ${e.message}`; }
-}
 function fullScreen() { canvas.value?.requestFullscreen?.(); }
 function toggle(image) {
   const at = picked.value.indexOf(image.id);
@@ -184,14 +171,14 @@ const stripImages = computed(() => (choosing.value ? props.media : previews.valu
 async function ask(preview) {
   while (!stopped) {
     try {
-      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value, where.value);
+      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value);
       if (body.state === 'waiting') {
         preview.state = 'waiting'; preview.now = `${body.title}: ${body.now}${body.seconds ? ` (${body.seconds} s)` : ''}`;
         await new Promise(resolve => timers.push(setTimeout(resolve, 4000)));
         continue;
       }
       let shapes = body.shapes;
-      if (body.tidy && shapes.length) shapes = tidyUp(JSON.parse(JSON.stringify(shapes))).shapes;
+      if (body.tidy && shapes.length) shapes = tidyUp(JSON.parse(JSON.stringify(shapes)), rolesOf(props.state.classes)).shapes;
       Object.assign(preview, { state: 'ready', shapes });
     } catch (e) { Object.assign(preview, { state: 'refused', error: e.message }); }
     return;
@@ -200,7 +187,7 @@ async function ask(preview) {
 function stop() { stopped = true; timers.forEach(clearTimeout); previews.value.forEach(p => { if (p.state !== 'ready') Object.assign(p, { state: 'refused', error: 'Stopped.' }); }); }
 function loaded(preview, event) { preview.width = event.target.naturalWidth; preview.height = event.target.naturalHeight; }
 function counts(shapes) { return props.state.classes.map(c => ({ ...c, n: shapes.filter(s => s.kind === c.name).length })).filter(c => c.n); }
-function start() { confirmOpen.value = false; emit('autolabel', chosen.value, where.value); }
+function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
 </script>
 
 <template>
@@ -210,7 +197,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
       <h2>Auto Label</h2>
       <nav class="auto-breadcrumb" aria-label="Auto Label navigation"><button @click="emit('annotate')">Annotate</button><ChevronRight :size="11" aria-hidden="true"/><span class="auto-batch-link" :title="batch.givenName || batch.name">{{ batch.givenName || batch.name }} · {{ media.length }} images</span></nav>
       <ol class="auto-progress" aria-label="Labeling progress"><li :aria-current="!previews.length && !confirmOpen ? 'step' : undefined"><span>1</span>Configure</li><li :aria-current="previews.length && !confirmOpen ? 'step' : undefined"><span>2</span>Preview</li><li :aria-current="confirmOpen ? 'step' : undefined"><span>3</span>Label batch</li></ol>
-      <div class="auto-header-actions"><UiButton class="auto-options-toggle" :aria-expanded="optionsOpen" :aria-controls="`labeling-options-${batch.id}`" @click="emit('options')"><PanelRight :size="14"/>Labeling options</UiButton><span v-if="current" class="auto-cost" :title="detail"><Wallet :size="14"/><span>{{ place ? place.price : 'Uses balance' }}</span></span>
+      <div class="auto-header-actions"><UiButton class="auto-options-toggle" :aria-expanded="optionsOpen" :aria-controls="`labeling-options-${batch.id}`" @click="emit('options')"><PanelRight :size="14"/>Labeling options</UiButton><span v-if="current" class="auto-cost" :title="detail"><Wallet :size="14"/><span>{{ current.hosted?.price || 'Uses balance' }}</span></span>
       <UiButton v-if="generating" @click="stop">Stop</UiButton>
       <UiButton v-else :variant="previews.some(p => p.state==='ready') ? 'secondary' : 'primary'" :disabled="blocked||!picked.length||!asked.length||classBusy||!!adding" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
       <UiButton :variant="previews.some(p => p.state==='ready') ? 'primary' : 'secondary'" :disabled="blocked||busy||!media.length||!asked.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>
@@ -219,10 +206,8 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
     <div class="auto-body">
       <aside v-show="!agentOpen" class="auto-side">
         <h3 class="auto-step-heading">Model</h3>
-        <ModelSourcePicker v-model="chosen" v-model:where="where" :sources="sources" :loading="loading" :disabled="generating||busy" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"
-                           :licence-busy="licenceBusy" :place-error="placeError" @accept-licence="acceptLicence" @stop-machine="stopOnMachine"/>
+        <ModelSourcePicker v-model="chosen" :sources="sources" :loading="loading" :disabled="generating||busy" :empty="error ? 'The models could not be loaded' : 'No model is ready here yet'"/>
         <p v-if="error" class="field-error" role="alert">{{ error }} <UiButton @click="loadSources">Try again</UiButton></p>
-        <p v-else-if="current?.unavailable" class="field-error" role="status">{{ current.unavailable }}</p>
 
 
         <h3 class="auto-gap auto-step-heading">Classes <UiBadge>{{ asked.length }} / {{ state.classes.length }}</UiBadge></h3>
@@ -240,7 +225,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
             <label class="class-colour" :style="{background:c.color}" :title="canChange?`Change the colour of ${c.name}`:c.name"><input type="color" :value="c.color" :disabled="!canChange||classBusy||generating||c.editable===false" :aria-label="`Colour of ${c.name}`" @change="saveClass(c,{color:$event.target.value})"></label>
             <input class="text-input class-desc" :value="c.description" :readonly="!canChange||generating||classBusy||c.editable===false" placeholder="Visual description of the class" :aria-label="`Visual description of ${c.name}`" maxlength="300" @change="saveClass(c,{description:$event.target.value})">
             <label class="auto-ask" :title="asked.includes(c.name) ? `The AI looks for ${c.name}` : `The AI does not look for ${c.name}`"><input type="checkbox" :checked="asked.includes(c.name)" :disabled="generating||(asked.length===1&&asked.includes(c.name))" :aria-label="`Ask the AI for ${c.name}`" @change="toggleAsked(c.name)"> Ask the AI</label>
-            <div class="auto-class-meta"><UiBadge :class="c.trained?'':'label-only'">{{ c.trained ? 'Model class' : 'Label only' }}</UiBadge><button v-if="canChange&&c.removable!==false" class="icon-button" :disabled="classBusy||generating" :aria-label="`Remove class ${c.name}`" :title="`Remove class ${c.name}`" @click="removeClass(c)"><Trash2 :size="15"/></button></div>
+            <div class="auto-class-meta"><UiBadge v-if="c.geometry" :title="`Wall geometry: ${geometryLabel(c.geometry)}`">{{ geometryLabel(c.geometry) }}</UiBadge><button v-if="canChange&&c.removable!==false" class="icon-button" :disabled="classBusy||generating" :aria-label="`Remove class ${c.name}`" :title="`Remove class ${c.name}`" @click="removeClass(c)"><Trash2 :size="15"/></button></div>
           </div>
         </div>
         <button v-if="canChange" class="auto-add" type="button" :disabled="!!adding||generating" @click="startAdd"><Plus :size="15"/> Add Class</button>
@@ -252,7 +237,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
           <summary><SlidersHorizontal :size="16" aria-hidden="true"/> Model details &amp; usage</summary>
           <dl v-if="current">
             <dt>Model</dt><dd>{{ label(current) }}</dd><template v-if="current.what"><dt>About this model</dt><dd>{{ current.what }}</dd></template>
-            <dt>Where it runs and its cost</dt><dd>{{ detail }}.<template v-if="place"> SAM 3 is started on {{ place.name }} the first time and stopped after 15 minutes without a photo; its weights stay on the machine for the next time.</template><template v-else-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
+            <dt>Where it runs and its cost</dt><dd>{{ sentence(detail) }}<template v-if="current.hosted"> AADML starts and stops it; each photo it answers is charged as one image.</template><template v-else-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
             <template v-if="current.licence"><dt>Licence</dt><dd>{{ current.licence }}. A label started from its answer says so, so that it can be left out later.</dd></template>
           </dl>
           <p v-else class="auto-help">Choose a model to see where it runs and what it costs.</p>
@@ -307,9 +292,9 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
       </div>
     </div>
     <UiDialog :open="confirmOpen" title="Label this batch" @close="confirmOpen=false">
-      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every corner and send the photo to review.</p>
+      <p class="dialog-description">The {{ media.length }} photo{{ media.length===1?'':'s' }} of this batch are given to you to label. Each photo opens in the editor as it is. To start from what <strong>{{ current ? label(current) : '' }}</strong> finds, press “Find Objects with AI” (M), then Find objects; you check every shape it drew and send the photo to review.</p>
       <p class="dialog-description">{{ current ? label(current) : '' }} becomes the model “Find Objects with AI” offers you first in this project. You can change it there.</p>
-      <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ cost }}.</p>
+      <p v-if="cost" class="dialog-description">A model runs only when you ask it. Each photo you ask it about is charged to you: {{ sentence(cost) }}</p>
       <p v-else-if="current&&detail" class="dialog-description">A model runs only when you ask it. {{ label(current) }}: {{ detail }}.</p>
       <p v-if="current?.research_only" class="dialog-description">This model is for research or evaluation use only. A label started from its answer says so, so that it can be left out later.</p>
       <div class="dialog-actions"><UiButton @click="confirmOpen=false">Cancel</UiButton><UiButton variant="primary" :disabled="busy" @click="start"><Check :size="15"/> Start labelling</UiButton></div>
@@ -326,7 +311,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value, wh
 .auto-progress{display:flex;align-items:center;gap:12px;list-style:none;padding:0;margin:0;color:#94a3b8;font-size:10px}.auto-progress li{display:flex;align-items:center;gap:5px;white-space:nowrap}.auto-progress li>span{width:11px;height:11px;border:1px solid #cbd5e1;border-radius:50%;font-size:0}.auto-progress [aria-current=step]{color:#1d4ed8;font-weight:600}.auto-progress [aria-current=step]>span{border-color:#2563eb;background:#eff6ff}
 .auto-header-actions{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:wrap}.auto-header-actions .button{min-height:31px;padding:6px 9px;font-size:10px;gap:5px;white-space:nowrap}.auto-cost{display:flex;align-items:center;gap:5px;padding:7px;border-radius:5px;background:#f1f5f9;color:#475569;font-size:10px;white-space:nowrap;cursor:help}
 .auto-body{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:0;flex:1;overflow:hidden}.auto-side{display:flex;flex-direction:column;gap:11px;padding:22px 20px;border-right:1px solid #e2e8f0;min-width:0;overflow-y:auto;background:#fff}.auto-side h3{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#334155;margin:0}.auto-gap{margin-top:15px!important}.auto-help{font-size:11px;line-height:1.6;color:#64748b;margin:0}
-.auto-classes{border:1px solid #e2e8f0;border-radius:8px}.auto-class{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;padding:12px;border-bottom:1px solid #eef2f6}.auto-class:last-child{border-bottom:0}.auto-class.adding{background:#f8fafc}.auto-class .text-input{width:100%;min-width:0;padding:8px 9px;font-size:11px;border-color:#e2e8f0}.class-name{grid-column:1;grid-row:1;font-weight:500}.class-desc{grid-column:1/-1;grid-row:2}.class-colour{grid-column:2;grid-row:1;width:14px;height:14px;border-radius:50%;position:relative;justify-self:center;box-shadow:0 0 0 2px #fff,0 0 0 3px #e2e8f0}.class-colour input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.auto-ask{grid-column:1;grid-row:3;display:flex;align-items:center;gap:6px;font-size:10px;min-height:22px;color:#475569}.auto-ask input{accent-color:var(--accent);width:13px;height:13px}.auto-class-meta{grid-column:2;grid-row:3;display:flex;align-items:center;gap:3px}.auto-class-meta .badge{font-size:8px;padding:3px 5px}.auto-class-meta .icon-button{width:20px;height:20px;padding:3px}.label-only{background:#fffbeb;color:#92400e}.auto-class-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:5px}.auto-class-actions .button{font-size:10px;padding:5px 7px}.auto-add{display:flex;align-items:center;align-self:flex-start;gap:5px;padding:7px 0;border:0;background:none;color:#2563eb;font-size:11px;min-height:30px}
+.auto-classes{border:1px solid #e2e8f0;border-radius:8px}.auto-class{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;padding:12px;border-bottom:1px solid #eef2f6}.auto-class:last-child{border-bottom:0}.auto-class.adding{background:#f8fafc}.auto-class .text-input{width:100%;min-width:0;padding:8px 9px;font-size:11px;border-color:#e2e8f0}.class-name{grid-column:1;grid-row:1;font-weight:500}.class-desc{grid-column:1/-1;grid-row:2}.class-colour{grid-column:2;grid-row:1;width:14px;height:14px;border-radius:50%;position:relative;justify-self:center;box-shadow:0 0 0 2px #fff,0 0 0 3px #e2e8f0}.class-colour input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.auto-ask{grid-column:1;grid-row:3;display:flex;align-items:center;gap:6px;font-size:10px;min-height:22px;color:#475569}.auto-ask input{accent-color:var(--accent);width:13px;height:13px}.auto-class-meta{grid-column:2;grid-row:3;display:flex;align-items:center;gap:3px}.auto-class-meta .badge{font-size:8px;padding:3px 5px}.auto-class-meta .icon-button{width:20px;height:20px;padding:3px}.auto-class-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:5px}.auto-class-actions .button{font-size:10px;padding:5px 7px}.auto-add{display:flex;align-items:center;align-self:flex-start;gap:5px;padding:7px 0;border:0;background:none;color:#2563eb;font-size:11px;min-height:30px}
 .auto-advanced{border-top:1px solid #e2e8f0;margin-top:10px;padding-top:10px}.auto-advanced summary{display:flex;align-items:center;gap:7px;font-size:11px;color:#475569;min-height:32px;cursor:pointer;list-style:none}.auto-advanced dl{font-size:11px;line-height:1.6;margin:8px 0}.auto-advanced dt{font-weight:600;margin-top:8px}.auto-advanced dd{margin:3px 0;color:#64748b}
 .auto-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fbfcfe;padding:12px 16px 0;gap:12px}.auto-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.auto-preview-head h3{font-size:12px;font-weight:500;margin:0}.auto-bar-state{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;color:#64748b}.auto-bar-state strong{font-weight:400}.auto-bar-state small{font-size:10px;max-width:300px}.auto-canvas{position:relative;flex:1;min-height:280px;border:1px solid #e2e8f0;border-radius:12px;background:#f3f4f6;display:flex;align-items:safe center;justify-content:safe center;padding:20px;overflow:auto}.auto-canvas:fullscreen{background:#101828}.auto-preview-idle{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:0}.auto-original-image{display:block;width:100%;height:100%;object-fit:contain}.auto-before-note{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;padding:7px 10px;border:1px solid #e2e8f0;border-radius:20px;background:#ffffffd9;color:#64748b;font-size:10px;pointer-events:none}.auto-welcome{display:flex;flex-direction:column;align-items:center;gap:12px;color:#64748b;text-align:center;font-size:13px}
 .auto-tools{position:absolute;top:12px;right:12px;z-index:2;display:flex;align-items:center;gap:6px;padding:4px 6px;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 2px 4px #0f172a08}.auto-switch{display:flex;align-items:center;gap:6px;font-size:11px;color:#475569;padding:0 6px;min-height:30px}.auto-switch input{position:absolute;opacity:0;width:1px;height:1px}.auto-switch span{width:28px;height:16px;position:relative;border-radius:8px;background:#cbd5e1}.auto-switch span::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:white}.auto-switch input:checked+span{background:#2563eb}.auto-switch input:checked+span::after{transform:translateX(12px)}.auto-switch input:focus-visible+span{outline:2px solid #60a5fa;outline-offset:3px}.auto-tools .icon-button{width:28px;height:28px;padding:5px}

@@ -192,7 +192,7 @@
         <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection">
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection" @send-review="onSendReview">
               <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). -->
               <template #chat>
                 <UnifiedAgentChat
@@ -200,7 +200,8 @@
                   :key="active.repo_id"
                   :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
                   :chat-id="linkedChatId" @chat-opened="onChatOpened"
-                  @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @open-preview="onOpenPreview"
+                  @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @review-changes="onReviewChanges"
+                  @open-preview="onOpenPreview"
                 />
               </template>
             </CodeBrowser>
@@ -288,6 +289,14 @@ watch(() => [planReview.open, planReview.review && planReview.review.key, codeBr
   codeBrowser.value.openMarkdownPreview(review.path || 'plan.md', review.content, { focus: planReview.focus })
   planReview.closePanel()
 })
+
+// The Review tab's comments (ADM-1329): one message, sent in the chat that made the change; the tab hears whether the
+// chat took it (its comments are cleared only then).
+async function onSendReview({ conversationId, text, done }) {
+  let ok = false
+  try { ok = !!(await agentChat.value?.sendReview({ conversationId, text })) } catch { ok = false }
+  if (typeof done === 'function') done(ok)
+}
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
   if (bottomPanel.value) bottomPanel.value.openPreview(port)
@@ -737,6 +746,8 @@ function onBranchSeen(branch) {
 function onChanges() { codeBrowser.value?.refresh?.() }
 // "View changes" under an answer: the Source control list, where each file opens its diff.
 function onViewChanges() { codeBrowser.value?.showSourceControl?.() }
+// "Review changes" under an answer (ADM-1314): that turn's changes, one at a time, in the editor's Review tab.
+function onReviewChanges(p) { codeBrowser.value?.openReview?.(p) }
 function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
 
 onMounted(async () => { await loadProjects(); openLinkedProject(); loadGithubRepos() })

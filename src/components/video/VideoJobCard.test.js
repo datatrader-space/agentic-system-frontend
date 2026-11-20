@@ -143,6 +143,21 @@ describe('VideoJobCard', () => {
     expect(out.find('[data-test="video-job-extras"] a').attributes('href')).toBe('/p2.png')
   })
 
+  it('a small picture of a video that is not made yet is asked for again until it comes, then shown as the poster', async () => {
+    vi.useFakeTimers()
+    const tried = []
+    class FakeImage { set src(u) { tried.push(u); setTimeout(() => (tried.length < 3 ? this.onerror() : this.onload()), 0) } }
+    vi.stubGlobal('Image', FakeImage)
+    try {
+      const job = { ...base, state: 'ready', output: { attachment_id: 'v9', url: '/media/v9.mp4', media_type: 'video' } }
+      const w = mount(VideoJobCard, { props: { job } })
+      expect(w.find('video').attributes('poster')).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(10000)
+      expect(tried).toEqual(['/api/library/v9/thumbnail/', '/api/library/v9/thumbnail/?try=1', '/api/library/v9/thumbnail/?try=2'])
+      expect(w.find('video').attributes('poster')).toBe('/api/library/v9/thumbnail/?try=2')
+    } finally { vi.unstubAllGlobals(); vi.useRealTimers() }
+  })
+
   it('an uncertain submission says it was not resent', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'submission_uncertain', phase: 'Checking' } } })
     expect(w.text()).toContain('NOT sent again')
@@ -182,6 +197,15 @@ describe('VideoJobCard', () => {
     expect(at('0.038731')).toContain('Cost $0.039')
     expect(at('0.002000')).toContain('Cost $0.002')
     expect(at('0.560000')).toContain('Cost $0.56')
+  })
+
+  it('a clip shorter than asked says so in the words the server gives; a clip of the right length says nothing (ADM-1291)', () => {
+    const out = { attachment_id: 'v1', url: '/media/v.mp4', media_type: 'video', duration_ms: 5167 }
+    const short = { ...base, state: 'ready', output: { ...out, short_by_ms: 4833, length_note: 'It came back 5.2 s of the 10 s asked.' } }
+    const w = mount(VideoJobCard, { props: { job: short } })
+    expect(w.find('[data-test="video-job-length-note"]').text()).toBe('It came back 5.2 s of the 10 s asked.')
+    const fine = mount(VideoJobCard, { props: { job: { ...base, state: 'ready', output: { ...out, length_note: null } } } })
+    expect(fine.find('[data-test="video-job-length-note"]').exists()).toBe(false)
   })
 
   it('a failure shows the reason', () => {
@@ -263,6 +287,6 @@ it('opens a completed result in the dedicated studio with its conversation', asy
   setActivePinia(createPinia())
   const wrapper = mount(VideoJobCard, { props: { job: { ...base, state: 'ready', output: { attachment_id: 'out', url: '/clip.mp4' } } } })
   await wrapper.findAll('button').find((b) => b.text() === 'Open in Video Studio').trigger('click')
-  expect(push).toHaveBeenCalledWith({ path: '/video-studio', query: { conversation: 'c1' } })
+  expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { conversation: 'c1' } })
   wrapper.unmount()
 })

@@ -137,7 +137,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @chat-branches="onChatBranches" @published="emit('published', $event)" @branch="emit('branch', $event)" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @open-merge="openMerge" @changed="refreshAfterScm" @chat-branches="onChatBranches" @published="emit('published', $event)" @branch="emit('branch', $event)" />
         </div>
 
         <!-- Run and Debug (ADM-1205 phase F item 17). -->
@@ -147,7 +147,7 @@
 
         <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
         <div v-show="sidebarTab === 'search'" class="search-pane">
-          <ContentSearch ref="contentSearch" :system-id="systemId" :repo-id="repositoryId" @open="openAt" />
+          <ContentSearch ref="contentSearch" :system-id="systemId" :repo-id="repositoryId" :is-unsaved="isUnsavedPath" @open="openAt" @written="onSearchWritten" />
         </div>
       </div>
       <ExplorerMenu :open="menu.open" :x="menu.x" :y="menu.y" :items="menu.items" :label="menu.label"
@@ -197,6 +197,8 @@
           @keydown.enter.self="showFile(tab.id)"
           :class="['tab', { active: !chatFront && activeTabId === tab.id }]">
           <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
+          <Icon v-else-if="tab.type === 'review'" class="tab-icon" icon="lucide:list-checks" aria-hidden="true" />
+          <Icon v-else-if="tab.type === 'merge'" class="tab-icon" icon="lucide:git-merge" aria-hidden="true" />
           <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
                 :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
           <span class="tab-name">{{ tab.name }}</span>
@@ -204,6 +206,12 @@
           <button type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
         </div>
         <div v-if="editable" class="tab-actions">
+          <!-- Blame (ADM-1321): who last changed each line, read once when turned on, never on each keystroke. -->
+          <button v-if="activeTab && activeTab.type === 'file' && !chatFront" type="button" class="tab-tool" :class="{ on: blameOn }"
+                  :aria-pressed="blameOn ? 'true' : 'false'" aria-label="Show who changed each line"
+                  :title="blameOn ? 'Hide who changed each line' : 'Blame: who changed each line, and when'" @click="toggleBlame">
+            <Icon icon="lucide:user-round-search" aria-hidden="true" />
+          </button>
           <button ref="settingsBtn" type="button" class="tab-gear" title="Editor settings" aria-label="Editor settings"
                   :aria-expanded="settingsOpen ? 'true' : 'false'" @click="openSettings">
             <Icon icon="lucide:settings-2" aria-hidden="true" />
@@ -219,10 +227,28 @@
         <!-- The Coding Agent's chat (the page passes it in): kept mounted while a file is in front, so a running chat
              is never stopped or reloaded by switching tabs. -->
         <div v-show="chatFront" class="chat-host" data-test="cb-chat-host"><slot name="chat" /></div>
+        <!-- Review the Coding Agent's changes since a message (ADM-1314, ADM-1329): one per message, kept mounted while
+             another tab is in front, so the change shown, the cursor and comments not sent yet are still there. -->
+        <ReviewChanges
+          v-for="rt in reviewTabs" v-show="!chatFront && activeTabId === rt.id" :key="rt.id"
+          :system-id="systemId" :repo-id="repositoryId" :message-id="rt.messageId" :conversation-id="rt.conversationId"
+          :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :theme="monacoTheme" :monaco="() => monacoNs"
+          :is-unsaved="isUnsavedPath" :send="sendReview"
+          @written="onReviewWritten" @loaded="(n) => onReviewLoaded(rt, n)" @comments="(n) => { rt.comments = n }"
+          @open-file="openFile"
+        />
         <template v-if="!chatFront">
         <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
              as VS Code shows it. Read-only: edits are made in the file's own tab. -->
-        <template v-if="activeTab && activeTab.type === 'diff'">
+        <!-- A conflicted file in the 3-way merge editor (ADM-1321). -->
+        <MergeEditor
+          v-if="activeTab && activeTab.type === 'merge'" :key="activeTab.id"
+          :system-id="systemId" :repo-id="repositoryId" :path="activeTab.path" :language="activeTab.language"
+          :editor="MonacoEditor" :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :editor-options="editorOptions"
+          :theme="monacoTheme" :monaco="() => monacoNs"
+          @resolved="onMergeResolved(activeTab, $event)" @open-file="openFile" @edited="(on) => { activeTab.edited = on }"
+        />
+        <template v-else-if="activeTab && activeTab.type === 'diff'">
           <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
             <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the changes…' }}</p>
           </div>
@@ -231,17 +257,39 @@
             <p class="empty-editor-t">{{ activeTab.path }}</p>
             <p class="empty-editor-s">{{ activeTab.note }}</p>
           </div>
-          <MonacoDiffEditor
-            v-else
-            :value="activeTab.modified"
-            :original="activeTab.originalText"
-            :language="activeTab.language"
-            :theme="monacoTheme"
-            :options="diffOptions"
-            class="monaco-editor"
-            @editorDidMount="onDiffMount"
-          />
+          <div v-else class="diff-wrap">
+            <!-- Stage or unstage ONE change of the file (ADM-1321), as VS Code's Stage Selected Ranges. -->
+            <div v-if="activeTab.hunks && !activeTab.hunks.redacted && (hunkCount(activeTab) || activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole)" class="hunk-bar" role="group" aria-label="Changes in this file">
+              <template v-for="side in hunkSides(activeTab)" :key="side.key">
+                <span v-if="side.items.length" class="hunk-side">{{ side.label }}</span>
+                <span v-for="(h, i) in side.items" :key="side.key + h.header" class="hunk">
+                  <button type="button" class="hunk-go" :aria-label="`Go to ${side.label.toLowerCase()} change ${i + 1}, ${hunkLines(h)}`" @click="revealHunk(h)">
+                    {{ hunkLines(h) }}
+                  </button>
+                  <button type="button" class="hunk-act" :disabled="activeTab.staging"
+                          :aria-label="`${side.unstage ? 'Unstage' : 'Stage'} change ${i + 1}, ${hunkLines(h)}`"
+                          :title="side.unstage ? 'Unstage this change' : 'Stage this change'" @click="stageHunk(activeTab, h, side.unstage)">
+                    <Icon :icon="side.unstage ? 'lucide:minus' : 'lucide:plus'" aria-hidden="true" />
+                  </button>
+                </span>
+              </template>
+              <span v-if="activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole" class="hunk-note">
+                A new, deleted, renamed or binary file is staged whole, from Source control.
+              </span>
+            </div>
+            <MonacoDiffEditor
+              :value="activeTab.modified"
+              :original="activeTab.originalText"
+              :language="activeTab.language"
+              :theme="monacoTheme"
+              :options="diffOptions"
+              class="monaco-editor"
+              @editorDidMount="onDiffMount"
+            />
+          </div>
         </template>
+        <!-- A Review tab is drawn above (ReviewChanges); nothing else shows under it. -->
+        <span v-else-if="activeTab && activeTab.type === 'review'" hidden></span>
         <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
              also be opened as its code. -->
         <div v-else-if="activeTab && activeTab.type === 'image'" class="image-view">
@@ -324,6 +372,9 @@ let monacoNs = null
 // Monaco's own language list, once it has loaded: every file opens in the language Monaco knows for it (ADM-1200).
 const monacoLanguages = shallowRef(null)
 function noteMonacoLoaded(ns) {
+  // Before Monaco holds a file: rename, code actions, inlay hints and formatting come from the language servers only
+  // (ADM-1319). A read-only editor loses nothing by it: it neither renames, fixes nor formats.
+  if (monacoNs !== ns) leaveEditingToServers(ns)
   monacoNs = ns
   if (!monacoLanguages.value) {
     try { monacoLanguages.value = ns.languages.getLanguages() } catch { /* the fallback list stays */ }
@@ -363,10 +414,14 @@ import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { projectCache } from '@/services/projectCache'
 import { languageFor } from '@/utils/editorLanguage'
 import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
-import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
+import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf, setupLogNotification } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
 import { bindConflictActions } from '@/utils/mergeConflicts'
+import { SIDE_BY_SIDE_MIN_PX } from '@/utils/diffLayout'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
+import ReviewChanges from '@/components/letscode/ReviewChanges.vue'
+import MergeEditor from '@/components/letscode/MergeEditor.vue'
+import { blameDecorations } from '@/utils/blame'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -425,7 +480,9 @@ const props = defineProps({
 })
 // A new project was published to GitHub from Source control: the page reloads the project (its GitHub address,
 // its branches).
-const emit = defineEmits(['published', 'branch', 'ask-selection'])
+// send-review: the Review tab's comments, as one message for the chat that made the change ({ conversationId, text,
+// done(ok) }: the page answers whether the chat took it).
+const emit = defineEmits(['published', 'branch', 'ask-selection', 'send-review'])
 
 // State
 const sidebarTab = ref('files')
@@ -506,6 +563,7 @@ const diffOptions = computed(() => ({
   readOnly: true,
   originalEditable: false,
   renderSideBySide: true,
+  renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_PX,     // inline only when two columns do not fit (diffLayout.js)
   automaticLayout: true,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
@@ -523,7 +581,7 @@ const nextTabId = () => Date.now() * 1000 + (_tabSeq++ % 1000)
 // From a chat's branch in Source control, ``chat`` (and ``chatLabel``): the file as that chat's own copy changed it.
 async function openDiff({ path, sha = '', short = '', from = '', chat = '', chatLabel = '' }) {
   showFilesInFront()
-  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path && (t.sha || '') === sha && (t.chat || '') === String(chat || ''))
+  const existing = openTabs.value.find(t => t.type === 'diff' && !t.compare && t.path === path && (t.sha || '') === sha && (t.chat || '') === String(chat || ''))
   if (existing) { activeTabId.value = existing.id; return }
   const tag = sha ? (short || sha.slice(0, 7)) : (chat ? (chatLabel || 'chat') : 'changes')
   const tab = {
@@ -535,6 +593,7 @@ async function openDiff({ path, sha = '', short = '', from = '', chat = '', chat
   await loadDiffInto(openTabs.value.find(t => t.id === tab.id))
 }
 async function loadDiffInto(live) {
+  if (live.compare) return            // a "Compare first" tab holds what was read then; nothing to fetch
   live.loading = true
   live.note = ''
   live.noteIcon = ''
@@ -550,7 +609,10 @@ async function loadDiffInto(live) {
     else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
     // Discarded or committed since the tab opened: say so instead of two identical sides.
     else if (!live.sha && (data.original || '') === (data.modified || '')) { live.note = 'This file has no changes now.'; live.noteIcon = 'lucide:check-circle-2' }
-    else { live.originalText = data.original || ''; live.modified = data.modified || '' }
+    else {
+      live.originalText = data.original || ''; live.modified = data.modified || ''
+      if (!live.sha) await loadHunksInto(live)
+    }
   } catch (e) {
     live.note = e?.response?.data?.error || 'The changes could not be loaded.'
   } finally {
@@ -568,20 +630,239 @@ function onEditorChange(value) {
   if (tab && tab.type === 'file') tab.content = value
 }
 
+// SAVE NEVER REPLACES A CHANGE UNSEEN (ADM-1323). Each file tab keeps `diskSha`, the sha256 of the file on disk as the
+// editor last read or wrote it (`tab.sha` is a diff tab's commit). Save sends it; a file the Coding Agent, a command
+// or the terminal changed since answers 409 CHANGED_ON_DISK, nothing is written, and the person chooses.
+// A tab whose unsaved edits started from a copy older than the file on disk, with no sha to say which: a well-formed
+// sha no file has, so its next Save is asked about instead of overwriting.
+const CHANGED_SINCE_OPENED = '0'.repeat(64)
+const compareName = (path) => `${path.split('/').pop()} (on disk ↔ yours)`
+
+async function writeTab(tab, sha) {
+  const text = tab.content
+  const { data } = await api.saveFileContent(props.systemId, props.repositoryId, tab.path, text, sha || undefined)
+  tab.original = text
+  tab.diskSha = data?.sha ?? null
+  projectCache.file.set(props.repositoryId, tab.path, text)
+  notify.success(`Saved ${tab.name}`)
+  blameRead.delete(tab.path)
+  nextTick(applyBlame)
+}
+
+// ── Staging one change, the merge editor and blame (ADM-1321) ──────────────────────────────────────────────────
+// A working-tree diff tab also holds the file's hunks: each change not staged yet (Stage) and each staged one
+// (Unstage). A hunk is staged exactly as read; a file changed since is refused by the server and read again here.
+async function loadHunksInto(live) {
+  try {
+    const { data } = await api.getSourceControlHunks(props.systemId, props.repositoryId, live.path)
+    live.hunks = data
+  } catch {
+    live.hunks = null                     // the diff still shows; the file is staged whole from Source control
+  }
+}
+const hunkCount = (tab) => (tab.hunks?.unstaged?.hunks?.length || 0) + (tab.hunks?.staged?.hunks?.length || 0)
+function hunkSides(tab) {
+  return [
+    { key: 'u', label: 'Not staged', unstage: false, items: tab.hunks?.unstaged?.hunks || [] },
+    { key: 's', label: 'Staged', unstage: true, items: tab.hunks?.staged?.hunks || [] },
+  ]
+}
+function hunkLines(h) {
+  const n = Math.max(1, h.new_lines)
+  return n === 1 ? `line ${h.new_start}` : `lines ${h.new_start}–${h.new_start + n - 1}`
+}
+function revealHunk(h) {
+  try {
+    const ed = diffInst?.getModifiedEditor?.()
+    ed?.revealLineInCenter(Math.max(1, h.new_start))
+    ed?.setPosition({ lineNumber: Math.max(1, h.new_start), column: 1 })
+    ed?.focus()
+  } catch { /* the diff went away */ }
+}
+async function stageHunk(tab, h, unstage) {
+  if (tab.staging) return
+  tab.staging = true
+  try {
+    const { data } = await whileSandboxStarts(() => api.stageSourceControlChange(props.systemId, props.repositoryId,
+      { path: tab.path, patch: h.patch, index: tab.hunks.index, unstage }), _wait)
+    tab.hunks = data.hunks
+    notify.success(unstage ? `Unstaged a change in ${tab.path}` : `Staged a change in ${tab.path}`)
+  } catch (e) {
+    const data = e?.response?.data
+    if (data?.hunks) tab.hunks = data.hunks
+    else await loadHunksInto(tab)
+    notify.error(data?.error || 'That change could not be staged. Look at the changes again.')
+  } finally {
+    tab.staging = false
+  }
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+}
+
+// A conflicted file opens in its own tab, "app.py (merge)".
+function openMerge(path) {
+  showFilesInFront()
+  const existing = openTabs.value.find(t => t.type === 'merge' && t.path === path)
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = { id: nextTabId(), type: 'merge', path, name: `${path.split('/').pop()} (merge)`, language: detectLanguage(path) }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+}
+async function onMergeResolved(tab) {
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+  if (tab) await closeTab(tab.id)
+  await reloadOpenTabs()
+}
+
+// Blame: read once per file while it is on (and again after a save or a change in the project); a tab with unsaved
+// edits shows none, as its lines no longer match the file the blame was read for.
+const blameOn = ref(false)
+const blameRead = new Map()
+let blameDecos = null
+function clearBlame() {
+  try { blameDecos && blameDecos.clear() } catch { /* the editor went away */ }
+  blameDecos = null
+}
+function toggleBlame() {
+  blameOn.value = !blameOn.value
+  applyBlame()
+}
+async function applyBlame() {
+  clearBlame()
+  const tab = activeTab.value
+  if (!blameOn.value || chatFront.value || !tab || tab.type !== 'file' || isDirty(tab)) return
+  let data = blameRead.get(tab.path)
+  if (!data) {
+    try {
+      ({ data } = await whileSandboxStarts(() => api.getSourceControlBlame(props.systemId, props.repositoryId, tab.path), _wait))
+    } catch (e) {
+      if (activeTab.value === tab) notify.info(e?.response?.data?.error || `Who changed ${tab.name} could not be read.`)
+      return
+    }
+    blameRead.set(tab.path, data)
+  }
+  if (!blameOn.value || activeTab.value !== tab || isDirty(tab) || !editorInst || !monacoNs) return
+  clearBlame()
+  try { blameDecos = editorInst.createDecorationsCollection(blameDecorations(monacoNs.Range, data)) } catch { /* gone */ }
+}
+
 async function saveActive() {
   const tab = openTabs.value.find(t => t.id === activeTabId.value)
-  if (!tab || !isDirty(tab)) return
+  if (!tab || !isDirty(tab) || saving.value) return
   saving.value = true
   try {
-    await api.saveFileContent(props.systemId, props.repositoryId, tab.path, tab.content)
-    tab.original = tab.content
-    projectCache.file.set(props.repositoryId, tab.path, tab.content)
-    notify.success(`Saved ${tab.name}`)
+    await formatBeforeSave(tab)
+    await writeTab(tab, tab.diskSha)
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to save file')
+    if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') await changedOnDisk(tab)
+    else notify.error(e?.response?.data?.error || 'Failed to save file')
   } finally {
     saving.value = false
   }
+}
+
+// FORMAT ON SAVE (ADM-1319; the editor's settings, off unless chosen). A TypeScript, JavaScript or Python file is
+// formatted first and its text takes the result. A formatter that fails never stops the save: the text is saved as it
+// is and one notification says why it was not formatted.
+async function formatBeforeSave(tab) {
+  if (!editorSettings.formatOnSave || !languages || !languages.canFormat(tab.path)) return
+  const text = tab.content
+  let edits
+  try {
+    edits = await languages.formatEdits(tab.path, text)
+  } catch (e) {
+    // Python formatting still being set up (the project's first format) or not set up: the save goes on unformatted.
+    if (e.preparing) {
+      notify.info(`${tab.name} was saved without formatting: Python formatting is being set up in your project `
+        + '(first time only). It will format once setup finishes.')
+    } else {
+      notify.warning(...setupLogNotification(`${tab.name} was saved without formatting: ${e.message}`, e))
+    }
+    return
+  }
+  if (!edits.length) return
+  if (tab.content !== text) {
+    notify.warning(`${tab.name} was saved without formatting: its text changed while it was being formatted.`)
+    return
+  }
+  editOpenFile(tab.path, edits)
+}
+
+// A language server's change to a file open in a tab (ADM-1319: a rename, a quick fix, formatting): it goes into the
+// tab's text, so the tab becomes unsaved and the person saves it. The tab shown changes through Monaco, so Undo takes
+// it back. Returns the tab's new text, or null when the file is not open in a tab (the change is then written to the
+// file on disk by the language servers' store).
+function editOpenFile(path, edits) {
+  const tab = openTabs.value.find(t => t.type === 'file' && t.path === path)
+  if (!tab || tab.content == null) return null
+  const model = tab.id === activeTabId.value && !chatFront.value && editorInst && editorInst.getModel ? editorInst.getModel() : null
+  if (model && model.getValue() === tab.content && typeof editorInst.executeEdits === 'function') {
+    editorInst.pushUndoStop?.()
+    editorInst.executeEdits('lets-code-language-server', edits.map((e) => ({ range: rangeOf(e.range), text: e.newText ?? '',
+      forceMoveMarkers: true })))
+    editorInst.pushUndoStop?.()
+    tab.content = model.getValue()
+  } else {
+    tab.content = applyTextEdits(tab.content, edits)
+  }
+  return tab.content
+}
+
+async function changedOnDisk(tab) {
+  const overwrite = await confirm({
+    title: `${tab.name} changed in the project`,
+    message: `The Coding Agent, a command or the terminal changed ${tab.path} after you opened it. `
+      + 'Overwrite it with your version, or compare the two first.',
+    confirmText: 'Overwrite with mine',
+    cancelText: 'Compare first',
+    danger: true,
+  })
+  if (!openTabs.value.some(t => t.id === tab.id)) return       // closed meanwhile
+  if (overwrite) {
+    try {
+      await writeTab(tab, null)                                // no sha: the person chose to replace it
+    } catch (e) {
+      notify.error(e?.response?.data?.error || 'Failed to save file')
+    }
+    return
+  }
+  await compareWithDisk(tab)
+}
+
+// "Compare first": the file as it is on disk now beside the person's unsaved text, in a read-only compare tab next to
+// the file's. Their text is not touched. The tab now names the version just read, so their next Save is a deliberate
+// overwrite of what they have seen; a file that changes again has another sha and is asked about again.
+async function compareWithDisk(tab) {
+  let data
+  try {
+    ({ data } = await whileSandboxStarts(() => api.getFileContent(props.systemId, props.repositoryId, tab.path), _wait))
+  } catch (e) {
+    notify.error(e?.response?.data?.error || `${tab.name} could not be read from the project.`)
+    return
+  }
+  const live = openTabs.value.find(t => t.id === tab.id)
+  if (!live) return
+  const disk = data.content
+  live.original = disk
+  live.diskSha = data.sha ?? null
+  projectCache.file.set(props.repositoryId, live.path, disk)
+  if (live.content === disk) {
+    notify.info(`${live.name} in the project is already the same as your version.`)
+    return
+  }
+  const sides = { originalText: disk, modified: live.content, loading: false, note: '', noteIcon: '' }
+  let cmp = openTabs.value.find(t => t.type === 'diff' && t.compare && t.path === live.path)
+  if (cmp) Object.assign(cmp, sides)
+  else {
+    cmp = {
+      id: nextTabId(), type: 'diff', compare: true, path: live.path, sha: '', from: '', name: compareName(live.path),
+      language: live.language, ...sides,
+    }
+    openTabs.value.splice(openTabs.value.findIndex(t => t.id === live.id) + 1, 0, cmp)
+  }
+  activeTabId.value = cmp.id
+  notify.info(`Your text in ${live.name} is unchanged. Saving it now will overwrite the version on disk.`)
 }
 
 function onKeydown(e) {
@@ -631,9 +912,11 @@ function onEditorMount(editor) {
   applyLanguage()
   revealPending()
   // The project's language servers (ADM-1205 phase F item 16): hover, completion, go to definition, references and
-  // problems for the files open in tabs; another file opens here through openAt.
+  // problems for the files open in tabs; another file opens here through openAt. Rename, quick fixes and formatting
+  // change a file open in a tab through editOpenFile (ADM-1319).
   if (languages && props.editable) {
-    releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt })
+    releaseLanguages = languages.bind({ monaco: () => monacoNs, editor: () => editorInst, activeTab, openTabs, openAt,
+      editOpenFile })
   }
   // The debugger (ADM-1205 phase F item 17): breakpoints in the gutter, the paused line, F5 / F9.
   if (debuggerStore && props.editable) {
@@ -708,6 +991,8 @@ const activeTab = computed(() => {
 })
 // The model's language follows the tab shown (see applyLanguage).
 watch(() => [activeTabId.value, activeTab.value && activeTab.value.language, editorSettings.tabSize], () => nextTick(applyLanguage), { flush: 'post' })
+// Blame follows the tab shown, and steps aside while it has unsaved edits (ADM-1321).
+watch(() => [activeTabId.value, activeTab.value && isDirty(activeTab.value), chatFront.value], () => nextTick(applyBlame))
 
 // Build a reactive tree node from a server entry. `expanded`/`loaded`/`loading`/`children` are plain
 // fields — they live inside the reactive `rootNodes` array, so mutating them updates the tree.
@@ -875,14 +1160,16 @@ async function reloadTree() {
 }
 // Open files without unsaved edits show their new content; an open diff shows the change as it is now.
 async function reloadOpenTabs() {
+  blameRead.clear()
+  nextTick(applyBlame)
   for (const tab of openTabs.value) {
     if (tab.type === 'diff') { await loadDiffInto(tab); continue }
     if (tab.type === 'image') { await loadImageInto(tab); continue }
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
-      tab.content = data.content
-      tab.original = data.content
+      // Edits typed while it was read are never replaced.
+      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content; tab.diskSha = data.sha ?? null }
       projectCache.file.set(props.repositoryId, tab.path, data.content)
     } catch { /* a file the change removed keeps its last content in its tab */ }
   }
@@ -946,7 +1233,7 @@ async function applyFileChanges() {
     if (tab.type !== 'file' || isDirty(tab)) continue
     try {
       const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
-      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content }
+      if (!isDirty(tab)) { tab.content = data.content; tab.original = data.content; tab.diskSha = data.sha ?? null }
       projectCache.file.set(props.repositoryId, tab.path, data.content)
     } catch { /* removed: its tab keeps its last content */ }
   }
@@ -962,7 +1249,33 @@ function showSourceControl() {
 }
 // How many open files have edits that are not saved: the IDE asks before leaving the project or the page (ADM-1200).
 const unsavedCount = computed(() => openTabs.value.filter(isDirty).length)
-defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openMarkdownPreview })
+
+// "Review changes" from the chat (ADM-1314): the changes since that message, in a Review tab of their own. One tab per
+// message: asked again, the tab already open comes in front.
+const reviewTabs = computed(() => openTabs.value.filter(t => t.type === 'review'))
+// Until the review has loaded, a tab opened without a count (from the person's message) is just "Review".
+const reviewName = (n) => (n == null ? 'Review' : `Review: ${n} ${n === 1 ? 'file' : 'files'}`)
+function openReview({ messageId, conversationId = null, count = null } = {}) {
+  if (messageId == null || messageId === '') return
+  showFilesInFront()
+  const existing = openTabs.value.find(t => t.type === 'review' && String(t.messageId) === String(messageId))
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = { id: nextTabId(), type: 'review', path: '', messageId, conversationId, name: reviewName(count), comments: 0 }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+}
+function onReviewLoaded(tab, n) { tab.name = reviewName(n) }
+// A file the review wrote or deleted: its folder is read again, as when the project's watcher reports it, so its tab
+// (without unsaved edits) shows it at once.
+function onReviewWritten(path) { onFilesChanged({ dirs: [dirOf(path || '')] }) }
+// Files a Search replace changed (ADM-1320): their folders are read again, so a tab without unsaved edits shows the new
+// text; a tab with unsaved edits keeps them (Search asked first), and saving it later asks which version to keep.
+function onSearchWritten(paths) { onFilesChanged({ dirs: [...new Set((paths || []).map(dirOf))] }) }
+function isUnsavedPath(path) { return openTabs.value.some(t => t.type === 'file' && t.path === path && isDirty(t)) }
+function sendReview({ conversationId, text }) {
+  return new Promise((resolve) => emit('send-review', { conversationId, text, done: (ok) => resolve(!!ok) }))
+}
+defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openMarkdownPreview, openReview })
 
 // PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
 // bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a
@@ -1051,12 +1364,13 @@ async function openFile(filePath, { asCode = false } = {}) {
   }
 
   const repoId = props.repositoryId
-  const newTab = (content) => ({
+  const newTab = (content, diskSha = null) => ({
     id: nextTabId(),
     name: filePath.split('/').pop(),
     path: filePath,
     content,
     original: content,   // baseline for dirty tracking (editable mode)
+    diskSha,             // the version on disk `original` is (ADM-1323); a copy kept from before has none yet
     language: detectLanguage(filePath),
     type: 'file'
   })
@@ -1071,17 +1385,24 @@ async function openFile(filePath, { asCode = false } = {}) {
   try {
     const response = await whileSandboxStarts(() => api.getFileContent(props.systemId, repoId, filePath), _wait)
     const content = response.data.content
+    const sha = response.data.sha ?? null
     projectCache.file.set(repoId, filePath, content)
     noteOpened(repoId, filePath)                        // Go to file lists it among the recently opened
     const live = id !== null ? openTabs.value.find(t => t.id === id) : null
     if (id === null) {
-      const tab = newTab(content)
+      const tab = newTab(content, sha)
       openTabs.value.push(tab)
       activeTabId.value = tab.id
-    } else if (live && live.original !== content) {
-      // Changed since it was last read. Unsaved edits are never replaced: the person is told instead.
-      if (!isDirty(live)) { live.content = content; live.original = content }
-      else notify.warning(`${live.name} changed in the project since you opened it. Save to keep your version.`)
+    } else if (live && live.original === content) {
+      live.diskSha = sha                                // the copy kept is the file on disk: edits start from it
+    } else if (live) {
+      // Changed since it was last read. Unsaved edits are never replaced: the person is told instead, and their
+      // Save asks which version to keep (never the new sha: that would overwrite a version they have not seen).
+      if (!isDirty(live)) { live.content = content; live.original = content; live.diskSha = sha }
+      else {
+        live.diskSha = live.diskSha || CHANGED_SINCE_OPENED
+        notify.warning(`${live.name} changed in the project since you opened it. Saving will ask which version to keep.`)
+      }
     }
   } catch (error) {
     console.error('Failed to load file:', error)
@@ -1101,6 +1422,22 @@ async function closeTab(tabId) {
   if (index === -1) return
 
   const tab = openTabs.value[index]
+  if (tab.type === 'review' && tab.comments > 0) {
+    const ok = await confirm({
+      title: 'Discard your comments?',
+      message: `"${tab.name}" has ${tab.comments} ${tab.comments === 1 ? 'comment' : 'comments'} not sent to the Coding Agent. Close without sending?`,
+      confirmText: 'Close', cancelText: 'Keep reviewing', danger: true,
+    })
+    if (!ok) return
+  }
+  if (tab.type === 'merge' && tab.edited) {
+    const ok = await confirm({
+      title: 'Discard the merge result?',
+      message: `The result for ${tab.path} is not saved. Close without marking it resolved?`,
+      confirmText: 'Close', cancelText: 'Keep merging', danger: true,
+    })
+    if (!ok) return
+  }
   if (isDirty(tab)) {
     const ok = await confirm({
       title: 'Discard unsaved changes?',
@@ -1328,7 +1665,8 @@ function retargetTabs(oldPath, newPath) {
     const moved = newPath + tab.path.slice(oldPath.length)
     projectCache.file.set(props.repositoryId, tab.path, null)
     tab.path = moved
-    tab.name = tab.type === 'diff' ? `${baseOf(moved)} (${tab.sha ? tab.sha.slice(0, 7) : 'changes'})` : baseOf(moved)
+    tab.name = tab.type !== 'diff' ? baseOf(moved)
+      : tab.compare ? compareName(moved) : `${baseOf(moved)} (${tab.sha ? tab.sha.slice(0, 7) : 'changes'})`
     if (tab.type === 'file') projectCache.file.set(props.repositoryId, moved, tab.original)
   }
 }
@@ -1967,13 +2305,30 @@ const FileTreeNode = {
 .chat-host { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
 .chat-host > * { flex: 1; min-height: 0; }
 .tab-actions { margin-left: auto; display: flex; align-items: center; padding: 0 8px; }
-.tab-gear {
+.tab-gear, .tab-tool {
   display: grid; place-items: center; width: 30px; height: 30px; margin-right: 6px; border: 0; border-radius: 6px;
   background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: background-color .15s, color .15s;
 }
-.tab-gear :deep(svg) { width: 16px; height: 16px; }
-.tab-gear:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
-.tab-gear:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.tab-gear :deep(svg), .tab-tool :deep(svg) { width: 16px; height: 16px; }
+.tab-gear:hover, .tab-tool:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
+.tab-gear:focus-visible, .tab-tool:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.tab-tool.on { color: var(--vm-violet-ink); background: var(--vm-violet-soft); }
+.code-browser.narrow .tab-tool { width: 44px; height: 44px; }
+/* A diff tab's changes, each staged or unstaged on its own (ADM-1321). */
+.diff-wrap { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+.diff-wrap .monaco-editor { flex: 1 1 auto; min-height: 0; height: auto; }
+.hunk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--vm-line); background: var(--vm-surface-soft); font: 12px var(--vm-font-sans); color: var(--vm-ink-soft); max-height: 30%; overflow: auto; }
+.hunk-side { font-weight: 600; color: var(--vm-ink-soft); }
+.hunk { display: inline-flex; align-items: center; border: 1px solid var(--vm-line-2); border-radius: 7px; background: var(--vm-surface); overflow: hidden; }
+.hunk-go, .hunk-act { border: 0; background: transparent; color: var(--vm-ink); cursor: pointer; font: 12px var(--vm-font-mono); min-height: 26px; transition: background-color .15s, color .15s; }
+.hunk-go { padding: 0 8px; }
+.hunk-act { display: grid; place-items: center; width: 26px; border-left: 1px solid var(--vm-line-2); color: var(--vm-ink-soft); }
+.hunk-go:hover, .hunk-act:hover:not(:disabled) { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.hunk-act:disabled { opacity: .5; cursor: progress; }
+.hunk-go:focus-visible, .hunk-act:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; }
+.hunk-act :deep(svg) { width: 13px; height: 13px; }
+.hunk-note { font-size: 11.5px; color: var(--vm-ink-faint); }
+@media (max-width: 640px) { .hunk-go, .hunk-act { min-height: 44px; } .hunk-act { width: 44px; } }
 .save-btn { background: var(--vm-violet); color: var(--cb-on-solid); border: none; border-radius: 6px; padding: 5px 12px; font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, opacity .15s; }
 .save-btn:hover:not(:disabled) { background: var(--vm-violet-d); }
 .save-btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -2186,4 +2541,6 @@ const FileTreeNode = {
 .code-browser .lc-conflict-sep { background: color-mix(in srgb, #8a8a8a 30%, transparent); }
 .code-browser .lc-conflict-incoming { background: color-mix(in srgb, #40a6ff 18%, transparent); }
 .code-browser .lc-conflict-incoming-head { background: color-mix(in srgb, #40a6ff 45%, transparent); }
+/* Blame (ADM-1321): who changed the line, faint after its end, as GitLens shows it. */
+.code-browser .lc-blame-after { color: var(--vm-ink-faint); font-style: italic; opacity: .85; }
 </style>

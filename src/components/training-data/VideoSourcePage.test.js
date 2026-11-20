@@ -10,13 +10,19 @@ vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
   return {
     ...actual,
     streamingApi: { ...actual.streamingApi, get: vi.fn(async id => ({ stream: { ...RUNNING, id } })) },
-    videoSources: { ...actual.videoSources, recording: vi.fn(async (id, body) => { calls.push(['recording', id, body]); return { said: 'ok' }; }) },
+    videoSources: {
+      ...actual.videoSources,
+      recording: vi.fn(async (id, body) => { calls.push(['recording', id, body]); return { said: 'ok' }; }),
+      rotateKey: vi.fn(async id => { calls.push(['rotate', id]); return { said: 'Drone has a new stream key.', source: { id, push: { ...PUSH, stream_key: NEW_KEY, url: `${PUSH.server}${NEW_KEY}` } } }; }),
+    },
     recordingsApi: {
       list: vi.fn(async query => { calls.push(['list', query]); return { recordings: [REC], may: { delete: true } }; }),
       remove: vi.fn(async id => { calls.push(['remove', id]); return {}; }),
     },
   };
 });
+const PUSH = { server: 'rtmps://ingest.aadml.com:1936/', path: 'src3', available: true, key_set_at: '2026-11-18T09:00:00+00:00' };
+const NEW_KEY = 'src3?user=src3&pass=NewKey_0123456789abcdefghijklmnopqrstuvw';
 const REC = { id: 5, source: { id: 1, name: 'Gate' }, started_at: '2026-11-17T10:05:00+00:00', ended_at: '2026-11-17T10:10:00+00:00',
   bytes: 52428800, play_url: 'https://bucket.example/r.mp4?sig=1', download_url: 'https://bucket.example/r.mp4?sig=2' };
 const RECORDING_OFF = { on: false, days: 30, max_days: 30, unpaid: false, stored_bytes: 0, day_price_usd: '0',
@@ -41,8 +47,8 @@ describe('a video source page', () => {
     expect(w.find('h2').text()).toBe('Test stream (Mux)');
     expect(w.find('.sp-kind').text()).toContain('HLS stream');
     expect(w.findAll('.sp-card-title').map(h => h.text())).toEqual(['Source', 'Model']);
-    // Events and Rules on the camera's own page (phase 6); Recordings only where it can record
-    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results', 'Events', 'Rules']);
+    // Events, Rules and Zones on the camera's own page (phase 6, SMART_CAMERA_AI_PLAN Phase A); Recordings only where it can record
+    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results', 'Events', 'Rules', 'Zones']);
     expect(w.text()).toContain('Choose a model to run on this camera, or read its barcodes.');
     expect(w.text()).toContain('Results appear here');
     expect(w.text()).not.toMatch(/Roboflow|Workflow to run/);
@@ -65,6 +71,10 @@ describe('a video source page', () => {
     // Phase 6: it opens the Workflow Builder with this camera's events as the trigger (a link, not a disabled button)
     const workflow = w.findAll('a').find(a => a.text().includes('Build a workflow'));
     expect(workflow.attributes('href')).toContain('training.stream_event');
+    // It names the camera's own workspace, so the workflow is made there (the owner's decision, 2026-11-18).
+    const inWorkspace = page({ source: { ...HLS, workspace: { id: 7, name: 'Site' } } });
+    const link = inWorkspace.findAll('a').find(a => a.text().includes('Build a workflow'));
+    expect(link.attributes('href')).toContain('workspace=7');
   });
 
   it('turns cloud recording on only with its consent, for an RTSP camera', async () => {
@@ -114,6 +124,37 @@ describe('a video source page', () => {
     await stop.trigger('click');
     expect(w.emitted('stop-stream')[0][0].id).toBe(9);
     expect(w.findAll('button').some(b => b.text().includes('Run a model'))).toBe(false);
+    w.unmount();
+  });
+  it('shows where an RTMP stream sends, never its key, and rotates the key only after asking', async () => {
+    const source = { id: 3, name: 'Drone', kind: 'rtmp', state: 'offline', shown_address: 'rtmps://ingest.aadml.com:1936',
+      push: PUSH, may: { change: true, rotate: true }, recording: RECORDING_OFF };
+    const w = page({ source, may: { change: true, rotate: true } });
+    expect(w.find('.sp-kind').text()).toContain('RTMP stream');
+    expect(w.findComponent({ name: 'LiveView' }).exists()).toBe(true);            // the relay plays a push
+    const push = w.find('.sp-push');
+    expect(push.text()).toContain('Send to AADML');
+    expect(push.find('#sp-push-server').element.value).toBe('rtmps://ingest.aadml.com:1936/');
+    expect(push.find('#sp-push-key').exists()).toBe(false);                        // shown once, never again
+    expect(push.text()).toContain('shown once');
+    await push.findAll('button').find(b => b.text().includes('Rotate key')).trigger('click');
+    expect(calls.some(c => c[0] === 'rotate')).toBe(false);                        // asked first
+    expect(w.find('.sp-rotate-ask').text()).toContain('stops working now');
+    await w.find('.sp-rotate-ask').findAll('button').find(b => b.text().includes('Rotate key')).trigger('click');
+    await flushPromises();
+    expect(calls).toContainEqual(['rotate', 3]);
+    expect(w.find('#sp-push-key').element.value).toBe(NEW_KEY);
+    expect(w.find('#sp-push-url').element.value).toBe(`rtmps://ingest.aadml.com:1936/${NEW_KEY}`);
+    expect(w.find('.pd-warn').text()).toContain('Keep the stream key secret');
+    expect(w.emitted('refresh')).toBeTruthy();
+    w.unmount();
+  });
+
+  it('offers no key rotation to someone who may not change the camera', () => {
+    const source = { id: 3, name: 'Drone', kind: 'rtmp', state: 'online', push: PUSH, may: { change: false, rotate: false } };
+    const w = page({ source, may: { change: false, rotate: false } });
+    expect(w.find('.sp-push').exists()).toBe(true);
+    expect(w.find('.sp-push').findAll('button').some(b => b.text().includes('Rotate key'))).toBe(false);
     w.unmount();
   });
 });

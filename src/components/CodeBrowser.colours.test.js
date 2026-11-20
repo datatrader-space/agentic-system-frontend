@@ -23,6 +23,8 @@ const m = vi.hoisted(() => {
 vi.mock('@/utils/lazyComponent', () => ({ lazyComponent: (loader) => defineAsyncComponent(loader) }))
 vi.mock('@/utils/monacoWorkers', () => ({}))
 vi.mock('monaco-editor', () => ({
+  // No TypeScript worker here: the editor's load asks for it (leaveEditingToServers, ADM-1319) and finds none.
+  typescript: undefined,
   editor: { setTheme: vi.fn(), setModelLanguage: vi.fn((model, lang) => { model.lang = lang }) },
   languages: { getLanguages: () => [
     { id: 'typescript', extensions: ['.ts', '.tsx'] },

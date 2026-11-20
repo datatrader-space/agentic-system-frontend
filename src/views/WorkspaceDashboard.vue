@@ -214,6 +214,7 @@
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
                 <option value="viewer">Viewer</option>
+                <option value="billing">Billing: sees spend, cannot make or edit</option>
               </select>
               <button class="btn-primary btn-sm" @click="addWSMember" :disabled="addingMember || !addMemberEmail">
                 {{ addingMember ? 'Adding…' : 'Add' }}
@@ -834,6 +835,7 @@ onMounted(loadAll)
 .role-admin  { background: rgba(139,92,246,0.15); color: var(--vm-link); }
 .role-member { background: rgba(16,185,129,0.12); color: var(--vm-green-ink); }
 .role-viewer { background: rgba(156,163,175,0.12); color: var(--vm-ink-faint); }
+.role-billing { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 
 .add-member-row {
   margin-bottom: 14px; padding: 16px 20px;

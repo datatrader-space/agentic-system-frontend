@@ -67,6 +67,30 @@ export const CHOICES = [
 ]
 
 /**
+ * Resolve the block that starts at ``startLine`` in Monaco editor ``ed`` as ``choice``, as ONE undoable edit (the
+ * code lenses below and the merge editor's buttons, ADM-1321). The block is found again in the text as it is now (an
+ * edit above it may have moved it). Returns whether a block was resolved.
+ */
+export function acceptConflict(m, ed, startLine, choice) {
+  const model = ed?.getModel?.()
+  if (!m || !model) return false
+  const text = model.getValue()
+  const block = findConflicts(text).find((b) => b.start === startLine)
+  if (!block) return false
+  // The block's lines and the line break after the last one; at the end of the file there is none to take.
+  const last = block.end === model.getLineCount()
+  const range = last ? new m.Range(block.start, 1, block.end, model.getLineMaxColumn(block.end))
+    : new m.Range(block.start, 1, block.end + 1, 1)
+  let kept = resolvedText(text, block, choice)
+  if (last) kept = kept.replace(LINES_END, '')
+  ed.pushUndoStop()
+  ed.executeEdits('merge-conflict', [{ range, text: kept, forceMoveMarkers: true }])
+  ed.pushUndoStop()
+  ed.focus()
+  return true
+}
+
+/**
  * The actions and colours in the text editor ``editor()`` (Monaco's), for whatever file it shows. Returns the
  * release function. ``monaco()`` and ``editor()`` are read when needed: the editor is re-created when the project
  * turns ready.
@@ -79,25 +103,7 @@ export function bindConflictActions({ monaco, editor }) {
   let decorations = null
   // One command for every block: it is given the block's first line and the choice, and finds the block again in
   // the text as it is now (an edit above it may have moved it).
-  const command = ed.addCommand(0, (_accessor, startLine, choice) => accept(startLine, choice))
-
-  function accept(startLine, choice) {
-    const model = ed.getModel()
-    if (!model) return
-    const text = model.getValue()
-    const block = findConflicts(text).find((b) => b.start === startLine)
-    if (!block) return
-    // The block's lines and the line break after the last one; at the end of the file there is none to take.
-    const last = block.end === model.getLineCount()
-    const range = last ? new m.Range(block.start, 1, block.end, model.getLineMaxColumn(block.end))
-      : new m.Range(block.start, 1, block.end + 1, 1)
-    let kept = resolvedText(text, block, choice)
-    if (last) kept = kept.replace(LINES_END, '')
-    ed.pushUndoStop()
-    ed.executeEdits('merge-conflict', [{ range, text: kept, forceMoveMarkers: true }])
-    ed.pushUndoStop()
-    ed.focus()
-  }
+  const command = ed.addCommand(0, (_accessor, startLine, choice) => acceptConflict(m, ed, startLine, choice))
 
   function paint() {
     const model = ed.getModel()

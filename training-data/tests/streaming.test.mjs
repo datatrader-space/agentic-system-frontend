@@ -7,9 +7,11 @@ import {
   SOURCE_SCHEMES_HELP, sourceStateKey, sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, thumbnailOf,
   lastFrameText, limitText, summaryItems, sourceAddressProblem, sourceForm, sourceFormProblems, sourceBody, sourceLine, runningText,
   canWatch, liveAnswer, liveErrorText, LIVE_NOT_LIVE, LIVE_UNAVAILABLE, LIVE_GONE, LIVE_NO_ANSWER, LIVE_NOT_PLAYABLE,
+  notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
-  streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT,
+  linksFresh, LINKS_FRESH_MS, recordingWhen, keptUntilText, cameraChoices, storageText, deletionText, deletionWhy, RECORDING_STATES,
+  streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT, isPairingLink, PAIRING_SCANNED,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
 
@@ -381,7 +383,7 @@ test('a connector camera is not played until its machine is sending it, and its 
 
 test('the live answer gives the playlist, the token and when to renew it', () => {
   assert.deepEqual(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 300, renew_after: 240 }),
-    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000, ready: true, job: null, said: '' });
+    { playlist: '/live/src4/index.m3u8', token: 'abc', renewInMs: 240000, ready: true, job: null, said: '', video: '', videoNote: '' });
   // No renew_after: four fifths of the token's life; never at or past its end, never sooner than 5 seconds.
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 100 }).renewInMs, 80000);
   assert.equal(liveAnswer({ playlist: '/live/src4/index.m3u8', token: 'abc', expires_in: 60, renew_after: 600 }).renewInMs, 55000);
@@ -437,6 +439,26 @@ test('a camera that answered but whose video could not be played is not said to 
   assert.doesNotMatch(LIVE_NOT_PLAYABLE, /did not answer/);
 });
 
+test('"could not be played" is said only when AADML could not re-encode the camera', () => {
+  // 2026-11-18: a camera whose video the relay cannot carry as it is (H.264 with B-frames) is re-encoded for live view.
+  const base = { playlist: '/live/src4/index.m3u8', token: 't' };
+  const read = video => liveAnswer({ ...base, ...video });
+  assert.equal(notPlayableText(read({ video: 'reencoded' })), LIVE_STOPPED);
+  assert.equal(notPlayableText(read({ video: 'as_is' })), LIVE_STOPPED);
+  assert.equal(notPlayableText(read({ video: 'unknown' })), LIVE_CHECK_FIRST);
+  assert.match(LIVE_CHECK_FIRST, /Check the camera/);
+  const old = read({ video: 'not_reencoded', video_note: 'Gate PC runs agent 1.6.0: re-encoding this camera for live view needs 1.7.0 or later.' });
+  assert.equal(notPlayableText(old), `${LIVE_NOT_PLAYABLE} Gate PC runs agent 1.6.0: re-encoding this camera for live view needs 1.7.0 or later.`);
+  assert.equal(notPlayableText(read({})), LIVE_NOT_PLAYABLE);                     // a server that does not say
+  assert.equal(notPlayableText(read({ video: 'something else' })), LIVE_NOT_PLAYABLE);
+  assert.equal(notPlayableText(null), LIVE_NOT_PLAYABLE);
+  assert.match(LIVE_NOT_PLAYABLE, /could not re-encode/);
+  assert.doesNotMatch(LIVE_STOPPED, /re-encode/);
+  assert.equal(read({ video: 'reencoded' }).video, 'reencoded');
+  assert.equal(read({ video: 7 }).video, '');
+  assert.equal(read({ video_note: 'x'.repeat(400) }).videoNote.length, 300);
+});
+
 // ── camera management (CLOUD_STREAMING_PLAN.md §3.6) ─────────────────────────────────────────────────────────────
 test('a camera\'s state history reads as badges, reasons, what found it and whether the Admins were told', () => {
   const now = Date.parse('2026-11-17T12:00:00Z');
@@ -468,10 +490,11 @@ test('this month\'s spend on a camera is its frames, its recording storage and t
   assert.deepEqual(spendItems(null), []);
 });
 
-test('the Connectors card lists the machines that have cameras, with their state, agent and cameras', () => {
+test('the Machines card lists every machine, with its state, agent and cameras (one with none too, so it can be removed)', () => {
   const machines = [
     { id: 3, name: 'Shop PC', state: 'online', agent_version: '1.5.0' },
-    { id: 4, name: 'Spare', state: 'online', agent_version: '1.5.0' },                     // no camera: not listed
+    { id: 4, name: 'Spare', state: 'online', agent_version: '1.5.0' },                     // no camera yet: listed, 0
+    { id: 11, name: 'Gone', state: 'removed', agent_version: '1.5.0' },                    // removed, no camera: not listed
     { id: 5, name: 'Back office', state: 'offline', agent_version: '1.4.0' },
   ];
   const sources = [
@@ -484,9 +507,10 @@ test('the Connectors card lists the machines that have cameras, with their state
   ];
   const rows = connectorRows(machines, sources);
   assert.deepEqual(rows.map(r => [r.name, r.badge[1], r.agent, r.cameras]), [
-    ['Back office', 'Offline', '1.4.0', 1], ['Old laptop', 'Removed', '', 1], ['Shop PC', 'Online', '1.5.0', 2],
+    ['Back office', 'Offline', '1.4.0', 1], ['Old laptop', 'Removed', '', 1], ['Shop PC', 'Online', '1.5.0', 2], ['Spare', 'Online', '1.5.0', 0],
   ]);
   assert.equal(connectorLine(rows[2]), '2 cameras · agent 1.5.0');
+  assert.equal(connectorLine(rows[3]), '0 cameras · agent 1.5.0');
   assert.equal(connectorLine(rows[1]), '1 camera');
   assert.deepEqual(connectorRows([], []), []);
   assert.deepEqual(connectorRows(undefined, [{ kind: 'connector', machine: { id: 3, name: 'Shop PC', state: 'online' } }]).map(r => r.badge), [['green', 'Online']]);
@@ -566,6 +590,15 @@ test('a start that reads barcodes says so, and one without a model sends none', 
   assert.deepEqual(JSON.parse(calls[3].init.body), { project: 'leads', model: 1, fps: 1, address: 'rtsp://cam.example.com/live' });
 });
 
+test('a scan of AADML\'s own pairing code is never taken as a camera (live, 2026-11-18)', () => {
+  const link = 'https://aadml.com/dashboard/training-data/?camera=cZ2XojgjTncEckFNzB_GAaFnG0Dne9qGJvkS';
+  assert.equal(isPairingLink(link), true);
+  assert.deepEqual(formFromScan(link), { refused: PAIRING_SCANNED });
+  assert.equal(isPairingLink('rtsp://192.168.1.20:554/stream1'), false);
+  assert.equal(isPairingLink('https://cam.example.com/live.m3u8'), false);
+  assert.equal(isPairingLink('https://evil.aadml.com.example.org/?camera=x'), false);
+});
+
 test('what a phone scanned fills the add form: an address with its user and password apart, else the name', () => {
   assert.deepEqual(formFromScan('rtsp://admin:p%40ss@192.168.1.20:554/stream1'),
     { address: 'rtsp://192.168.1.20:554/stream1', username: 'admin', password: 'p@ss' });
@@ -599,7 +632,7 @@ test('the pairing calls use the contract\'s paths, with the workspace', async ()
 // ── a camera's rules and events, and a recording used in a project (CLOUD_STREAMING_PLAN.md §3.5, phase 6) ──────────
 import {
   streamRules, streamEvents, ruleText, cooldownText, ruleForm, ruleProblems, ruleBody, ruleClasses, matchedText, eventTime,
-  workflowFromCamera, CAMERA_TRIGGER, COOLDOWN_MIN, COOLDOWN_DEFAULT,
+  workflowFromCamera, CAMERA_TRIGGER, COOLDOWN_MIN, COOLDOWN_DEFAULT, readCalls, readPriceText, callsAFrame, chargeText,
 } from '../src/api/streaming.js';
 
 async function asked(call) {
@@ -625,14 +658,17 @@ test('a rule reads as its class and count, and its cooldown in words', () => {
 });
 
 test('a new rule is a class, a count of at least 1 and a cooldown of at least ten seconds', () => {
-  assert.deepEqual(ruleForm(['person', 'car']), { class_name: 'person', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT });
+  assert.deepEqual(ruleForm(['person', 'car']), { class_name: 'person', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '',
+    kind: 'seen', minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
+    start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
+    approve_actions: false, device: '', share: false });   // zone, kind, timer, line, schedule, alert, AI, approval, device, share (A to I)
   assert.equal(COOLDOWN_MIN, 10);
   assert.deepEqual(ruleProblems({ class_name: 'person', min_count: 1, cooldown_seconds: 60 }), {});
   const bad = ruleProblems({ class_name: ' ', min_count: 0, cooldown_seconds: 9 });
   assert.deepEqual(Object.keys(bad).sort(), ['class_name', 'cooldown_seconds', 'min_count']);
   assert.ok(ruleProblems({ class_name: 'x'.repeat(65), min_count: 1, cooldown_seconds: 60 }).class_name);
   assert.ok(ruleProblems({ class_name: 'car', min_count: 1.5, cooldown_seconds: 60 }).min_count);
-  assert.deepEqual(ruleBody({ class_name: ' person ', min_count: '2', cooldown_seconds: '30' }), { class_name: 'person', min_count: 2, cooldown_seconds: 30 });
+  assert.deepEqual(ruleBody({ class_name: ' person ', min_count: '2', cooldown_seconds: '30' }), { class_name: 'person', min_count: 2, cooldown_seconds: 30, alert: 'managers' });   // a new rule alerts the camera managers (Phase C)
 });
 
 test('a rule offers the classes the camera\'s stream found, then the ones the server saw, each once', () => {
@@ -650,8 +686,28 @@ test('an event says what matched and when, in UTC', () => {
 
 test('Build a workflow opens the builder with this camera\'s event trigger', () => {
   assert.equal(CAMERA_TRIGGER, 'training.stream_event');
-  assert.equal(workflowFromCamera({ id: 12, name: 'Gate camera' }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate+camera');
-  assert.equal(workflowFromCamera({ id: 12, name: 'Gate' }, { id: 3 }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate&rule=3');
+  // The camera's own workspace goes with it, so the workflow is made there (the owner's decision, 2026-11-18).
+  const gate = { id: 12, name: 'Gate camera', workspace: { id: 7, name: 'Site' } };
+  assert.equal(workflowFromCamera(gate), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate+camera&workspace=7');
+  assert.equal(workflowFromCamera({ ...gate, name: 'Gate' }, { id: 3 }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate&workspace=7&rule=3');
+  // A camera the server names no workspace for (another workspace's), or a workspace id that is not one: none is sent.
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate', workspace: null }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate');
+  assert.equal(workflowFromCamera({ id: 12, name: 'Gate', workspace: { id: '7&x=1' } }), '/dashboard/workflow-builder?trigger=training.stream_event&source=12&camera=Gate');
+});
+
+test('a barcode read costs the server\'s share of a photo call, a tenth by default, and the dialog says it', () => {
+  assert.equal(readCalls({ photo_calls_a_read: '0.1' }), 0.1);
+  assert.equal(readCalls({ photo_calls_a_read: '0.25' }), 0.25);
+  for (const none of [null, {}, { photo_calls_a_read: '0' }, { photo_calls_a_read: 'x' }]) assert.equal(readCalls(none), 0.1);
+  assert.equal(readPriceText(0.1), 'a tenth of a photo call');
+  assert.equal(readPriceText(1), 'one photo call');
+  assert.equal(readPriceText(0.25), '0.25 of a photo call');
+  assert.equal(readPriceText(2), '2 photo calls');
+  const codes = { photo_calls_a_read: '0.1' };
+  assert.equal(callsAFrame({ useModel: true, readCodes: true, codes }), 1.1);
+  assert.equal(chargeText({ useModel: true, readCodes: false, codes, fps: 1 }), 'Each frame is one photo call from your balance: at 1 a second, 3,600 photo calls an hour.');
+  assert.equal(chargeText({ useModel: false, readCodes: true, codes, fps: 2 }), 'Each frame read costs a tenth of a photo call from your balance: at 2 a second, 720 photo calls an hour.');
+  assert.equal(chargeText({ useModel: true, readCodes: true, codes, fps: 1 }), 'Each frame is charged for the model and for reading its barcodes (a tenth of a photo call) from your balance: at 1 a second, 3,960 photo calls an hour.');
 });
 
 test('rules and events are asked for on the camera\'s own paths, with the workspace', async () => {
@@ -673,4 +729,95 @@ test('a recording used in a project is started by its id, never as a continuous 
   const seen = await asked(() => streamingApi.start({ project: 'leads', model: 1, fps: 1, recording: 5, continuous: true }));
   assert.equal(seen.url, '/api/training-data/app/workspace/streams/');
   assert.deepEqual(JSON.parse(seen.init.body), { project: 'leads', model: 1, fps: 1, recording: 5 });
+});
+
+// ── RTMP streams (CLOUD_STREAMING_PLAN.md §14) ──
+import { pushDetails, PUSH_KEY_WARNING } from '../src/api/streaming.js';
+
+const PUSHED = { server: 'rtmps://ingest.aadml.com:1936/', path: 'src12', available: true, key_set_at: '2026-11-18T09:00:00+00:00',
+  stream_key: 'src12?user=src12&pass=Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRST',
+  url: 'rtmps://ingest.aadml.com:1936/src12?user=src12&pass=Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRST' };
+
+test('an RTMP stream shows its rtmps server, and its key only from the answer that made it', () => {
+  const made = pushDetails(PUSHED);
+  assert.equal(made.server, 'rtmps://ingest.aadml.com:1936/');
+  assert.equal(made.streamKey, PUSHED.stream_key);
+  assert.equal(made.url, PUSHED.url);
+  const later = pushDetails({ server: PUSHED.server, path: 'src12', key_set_at: PUSHED.key_set_at });
+  assert.equal(later.streamKey, '');
+  assert.equal(later.url, '');
+  // never a plain rtmp:// server, never another server's address for the key, nothing from a broken answer
+  assert.equal(pushDetails({ ...PUSHED, server: 'rtmp://ingest.aadml.com:1935/' }), null);
+  assert.equal(pushDetails({ ...PUSHED, server: 'javascript:alert(1)' }), null);
+  assert.equal(pushDetails({ ...PUSHED, url: 'rtmps://evil.example.com/src12?user=src12&pass=x' }).url, '');
+  assert.equal(pushDetails({ ...PUSHED, stream_key: 'src12?user=src12&pass=<script>' }).streamKey, '');
+  for (const broken of [null, undefined, 'x', 7, {}]) assert.equal(pushDetails(broken), null);
+  assert.match(PUSH_KEY_WARNING, /secret/);
+  assert.match(PUSH_KEY_WARNING, /rotate/);
+});
+
+test('an RTMP stream is added by its name and consent alone, and edited by its name and project', () => {
+  const form = { name: 'Drone', address: 'rtsp://cam.example.com/x', username: 'u', password: 'p', project: 'leads', consent: true, machine: '' };
+  assert.deepEqual(sourceFormProblems({ ...form, address: '' }, { pushing: true }), {});
+  assert.equal(sourceFormProblems({ ...form, consent: false }, { pushing: true }).consent !== undefined, true);
+  assert.equal(sourceFormProblems({ ...form, name: '' }, { pushing: true }).name, 'Give the source a name.');
+  assert.deepEqual(sourceBody(form, { pushing: true }), { name: 'Drone', kind: 'rtmp', project: 'leads', consent: true });
+  const original = { name: 'Drone', kind: 'rtmp', project: { ref: 'leads' } };
+  assert.deepEqual(sourceBody({ ...form, name: 'Roof drone' }, { editing: true, original, pushing: true }), { name: 'Roof drone' });
+  assert.equal(canWatch({ kind: 'rtmp', shown_address: 'rtmps://ingest.aadml.com:1936' }), true);   // the relay plays it
+  assert.equal(sourceKindLabel({ kind: 'rtmp' }), 'RTMP stream');
+  assert.equal(historyRows([{ at: '2026-11-18T09:00:00Z', state: 'online', cause: 'push' }])[0].cause, 'Its camera started or stopped sending to AADML');
+});
+
+test('a stream key is rotated on the camera\'s own path, and a live view asked again is said so', async () => {
+  let seen = await asked(() => videoSources.rotateKey(12));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/rotate-key/');
+  assert.equal(seen.init.method, 'POST');
+  assert.equal(seen.init.headers['X-Workspace-ID'], '7');
+  seen = await asked(() => videoSources.live(12, null, { again: true }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/?again=1');
+  seen = await asked(() => videoSources.live(12));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/');
+  seen = await asked(() => videoSources.live(12, 5, { again: true }));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/12/live/?job=5');
+});
+
+test('spend under a cent is said as it is, not as $0.00', () => {
+  const items = spendItems({ month: '2026-11', frames: 0, frames_usd: '0.0000', recording_days: 1, recording_usd: '0.0002', total_usd: '0.0002' });
+  assert.deepEqual(items.map(i => i.value), ['$0.00', '$0.0002', '$0.0002']);
+  assert.equal(items[1].hint, '1 day charged');
+  assert.equal(spendItems({ recording_usd: '0.00004', total_usd: '0.00004' })[1].value, 'under $0.0001');
+});
+
+test('the Recordings tab: fresh links, when, kept until, the camera filter and the storage line', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(linksFresh(now - 60_000, now), true);
+  assert.equal(linksFresh(now - LINKS_FRESH_MS - 1, now), false);
+  assert.equal(linksFresh(0, now), false);
+  assert.equal(linksFresh(undefined, now), false);
+  assert.equal(recordingWhen({ started_at: '2026-11-18T14:10:00+00:00', ended_at: '2026-11-18T14:15:00+00:00' }), '18 Nov 2026, 14:10 to 14:15 UTC');
+  assert.equal(keptUntilText('2026-11-25T14:10:00+00:00'), 'Kept until 25 Nov 2026');
+  assert.equal(keptUntilText(''), '');
+  const choices = cameraChoices([
+    { id: 9, name: 'Dock', removed: false, recordings: 3 },
+    { id: 4, name: 'Gate', removed: true, recordings: 1 },
+    { id: null, name: 'Old', removed: true, recordings: 2 },
+  ]);
+  assert.deepEqual(choices, [
+    { value: '', label: 'All cameras' },
+    { value: '9', label: 'Dock: 3 recordings' },
+    { value: '4', label: 'Gate (removed): 1 recording' },
+  ]);
+  assert.deepEqual(cameraChoices(null), [{ value: '', label: 'All cameras' }]);
+  assert.equal(storageText(1.5 * 1024 ** 3, 50 * 1024 ** 3), '1.5 GB of 50.0 GB kept');
+  assert.equal(storageText(5, 0), '');
+});
+
+test('a recording scheduled for deletion says when and why (the 14-day recovery period)', () => {
+  assert.equal(deletionText({ on: '2026-12-03T08:00:00+00:00' }), 'Deletes on 3 Dec 2026');
+  assert.equal(deletionText({}), 'Scheduled for deletion');
+  assert.equal(deletionWhy({ reason: 'expired' }), 'Scheduled for deletion: its days were over. Free until then, and it can be restored.');
+  assert.equal(deletionWhy({ reason: 'camera_removed' }), 'Scheduled for deletion: its camera was removed. Free until then, and it can be restored.');
+  assert.equal(deletionWhy({ reason: 'other' }), 'Scheduled for deletion: deleted by a person. Free until then, and it can be restored.');
+  assert.deepEqual(RECORDING_STATES.map(([v]) => v), ['', 'kept', 'scheduled']);
 });

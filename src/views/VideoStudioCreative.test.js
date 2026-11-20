@@ -52,8 +52,8 @@ describe('Creative suite readiness', () => {
     expect(api.post).not.toHaveBeenCalled(); w.unmount()
   })
   it('keeps local-tools refusals free of irrelevant provider links',async () => {
-    api.getStudioFeatures.mockResolvedValue({data:{features:[{id:'editor',ready:false,code:'no_local_tools',reason:'ffmpeg is unavailable.'}]}})
-    const w = mountPage('editor'); await flushPromises(); expect(w.text()).toContain('ffmpeg is unavailable.'); expect(w.find('[data-test="studio-not-ready"] a').exists()).toBe(false); w.unmount()
+    api.getStudioFeatures.mockResolvedValue({data:{features:[{id:'shorts',ready:false,code:'no_local_tools',reason:'ffmpeg is unavailable.'}]}})
+    const w = mountPage('shorts'); await flushPromises(); expect(w.text()).toContain('ffmpeg is unavailable.'); expect(w.find('[data-test="studio-not-ready"] a').exists()).toBe(false); w.unmount()
   })
   it('does not act when the availability service fails',async () => {
     api.getStudioFeatures.mockRejectedValue(Error('offline')); const w=mountPage('music'); await flushPromises(); expect(w.text()).toContain('Could not check availability'); expect(api.post).not.toHaveBeenCalled(); w.unmount()

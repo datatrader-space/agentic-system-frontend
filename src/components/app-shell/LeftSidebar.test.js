@@ -24,7 +24,7 @@ async function mountAt(path, provide = {}, props = { forceExpanded: true }) {
     history: createMemoryHistory(),
     routes: [
       { path: '/dashboard/:rest(.*)*', component: Blank },
-      { path: '/video-studio/:rest(.*)*', component: Blank },
+      { path: '/dashboard/video-studio/:rest(.*)*', component: Blank },
       { path: '/admin-dashboard', component: Blank },
     ],
   })
@@ -40,13 +40,13 @@ describe('LeftSidebar: Video Studio', () => {
     const w = await mountAt('/dashboard')
     const a = videoLink(w)
     expect(a).toBeTruthy()
-    expect(a.attributes('href')).toBe('/video-studio')
+    expect(a.attributes('href')).toBe('/dashboard/video-studio')
     expect(a.classes()).not.toContain('active')
     w.unmount()
   })
 
   it('is active on every Video Studio page', async () => {
-    for (const path of ['/video-studio', '/video-studio/projects', '/video-studio/library', '/video-studio/ingredients']) {
+    for (const path of ['/dashboard/video-studio', '/dashboard/video-studio/projects', '/dashboard/video-studio/library', '/dashboard/video-studio/ingredients']) {
       const w = await mountAt(path)
       expect(videoLink(w).classes()).toContain('active')
       w.unmount()

@@ -17,6 +17,9 @@ vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: v
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn() }))
 vi.mock('@/composables/useGithubConnect', () => ({ connectGithubService: vi.fn() }))
 
+// Imported once, before the tests: the page's first import is slow and must not count against a test's time.
+import WorkflowsList from './WorkflowsList.vue'
+
 const stubs = { Icon: true, PageLoader: true, RouterLink: true, 'router-link': true }
 
 function deferred() {
@@ -29,14 +32,13 @@ beforeEach(() => { vi.clearAllMocks() })
 
 describe('WorkflowsList', () => {
   it('Duplicate clicked twice creates ONE copy', async () => {
-    const WorkflowsList = (await import('./WorkflowsList.vue')).default
     api.getWorkflowGraphs.mockResolvedValue({ data: [{ id: 1, name: 'Flow' }] })
     const d = deferred()
     api.getWorkflowGraph.mockReturnValue(d.p)
     api.createWorkflowGraph.mockResolvedValue({ data: { id: 2 } })
     const w = mount(WorkflowsList, { global: { stubs } })
     await flushPromises()
-    const dup = w.findAll('span').find((s) => s.text() === 'Duplicate')
+    const dup = w.find('button[aria-label="Duplicate Flow"]')
     await dup.trigger('click')
     await dup.trigger('click')
     d.resolve({ data: { graph: {} } })
@@ -46,13 +48,12 @@ describe('WorkflowsList', () => {
   })
 
   it('Import is disabled while a create is in flight', async () => {
-    const WorkflowsList = (await import('./WorkflowsList.vue')).default
     api.getWorkflowGraphs.mockResolvedValue({ data: [{ id: 1, name: 'Flow' }] })
     const d = deferred()
     api.getWorkflowGraph.mockReturnValue(d.p)
     const w = mount(WorkflowsList, { global: { stubs } })
     await flushPromises()
-    await w.findAll('span').find((s) => s.text() === 'Duplicate').trigger('click')
+    await w.find('button[aria-label="Duplicate Flow"]').trigger('click')
     const importBtn = w.findAll('button').find((b) => b.text().includes('Import'))
     expect(importBtn.attributes('disabled')).toBeDefined()
     d.resolve({ data: { graph: {} } })

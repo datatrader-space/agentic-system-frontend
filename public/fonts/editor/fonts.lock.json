@@ -1,0 +1,135 @@
+{
+  "note": "Checksums of the Video Studio editor fonts (ADM-1199, contract sections 3 and 8). These must equal the files in the backend image under video_studio/fonts/ byte for byte, so libass draws the same letters in the preview and in the export. Copied from the backend builder on 2026-11-19; upstream: github.com/google/fonts at cc5661d4 and DejaVu 2.37.",
+  "files": [
+    {
+      "file": "anton/Anton-Regular.ttf",
+      "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+      "bytes": 170812
+    },
+    {
+      "file": "bebasneue/BebasNeue-Regular.ttf",
+      "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+      "bytes": 61400
+    },
+    {
+      "file": "caveat/Caveat-Variable.ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988",
+      "bytes": 403648
+    },
+    {
+      "file": "dejavu/DejaVuSans-Bold.ttf",
+      "sha256": "e6476c1b80502924294eed40894c5b18e06c181444ca953e5334262df9c27724",
+      "bytes": 705684
+    },
+    {
+      "file": "dejavu/DejaVuSans.ttf",
+      "sha256": "7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954",
+      "bytes": 757076
+    },
+    {
+      "file": "dejavu/DejaVuSansMono-Bold.ttf",
+      "sha256": "bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769",
+      "bytes": 331992
+    },
+    {
+      "file": "dejavu/DejaVuSansMono.ttf",
+      "sha256": "b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582",
+      "bytes": 340712
+    },
+    {
+      "file": "dejavu/DejaVuSerif-Bold.ttf",
+      "sha256": "c47b5527bcdc8dcf9ea8c77054454c5a884beaca2f44851a2a823ee639cbf07f",
+      "bytes": 356088
+    },
+    {
+      "file": "dejavu/DejaVuSerif.ttf",
+      "sha256": "42d1edeb7952f31b1f96d767ed7030b08a39e0c372b0071641518864e2bffb51",
+      "bytes": 380132
+    },
+    {
+      "file": "dmserifdisplay/DMSerifDisplay-Regular.ttf",
+      "sha256": "8cc3643535edf039aa5d95440a8542735e9197e4f4b8d9303e980fefbf5ab616",
+      "bytes": 76580
+    },
+    {
+      "file": "inter/Inter-Variable.ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "bytes": 876576
+    },
+    {
+      "file": "lora/Lora-Variable.ttf",
+      "sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+      "bytes": 212196
+    },
+    {
+      "file": "merriweather/Merriweather-Bold.ttf",
+      "sha256": "55139769a87085bff777f68e3ecf92450c21a04c5ddd1e9e9528960ba4088c9f",
+      "bytes": 149112
+    },
+    {
+      "file": "merriweather/Merriweather-Regular.ttf",
+      "sha256": "bc38fe756b3e259248183fc0b75ad81b02774f3ca68e5e544e925827b0186d40",
+      "bytes": 156096
+    },
+    {
+      "file": "montserrat/Montserrat-Bold.ttf",
+      "sha256": "c4c8cb572a5a2c43d78b3701f4b2349684e6ca4d1557e469af6065b1e099c26c",
+      "bytes": 261588
+    },
+    {
+      "file": "montserrat/Montserrat-Regular.ttf",
+      "sha256": "81ebc3916b524007b756d91d9df13c7673ec401161f2cad161662d08dcf1cc72",
+      "bytes": 263192
+    },
+    {
+      "file": "notosans/NotoSans-Variable.ttf",
+      "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+      "bytes": 2049096
+    },
+    {
+      "file": "oswald/Oswald-Variable.ttf",
+      "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+      "bytes": 172088
+    },
+    {
+      "file": "pacifico/Pacifico-Regular.ttf",
+      "sha256": "5b6c0d5334a7bf77dea52b975c5a0c408878c0f7115ed5b6fb151f634b7bf701",
+      "bytes": 329380
+    },
+    {
+      "file": "permanentmarker/PermanentMarker-Regular.ttf",
+      "sha256": "28f82c8a7943cb8e9d599f8554da1d4fc75dbcf69b9885ad6c0611d20c6946c5",
+      "bytes": 74632
+    },
+    {
+      "file": "playfairdisplay/PlayfairDisplay-Variable.ttf",
+      "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+      "bytes": 300724
+    },
+    {
+      "file": "poppins/Poppins-Bold.ttf",
+      "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+      "bytes": 155996
+    },
+    {
+      "file": "poppins/Poppins-Regular.ttf",
+      "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+      "bytes": 160316
+    },
+    {
+      "file": "roboto/Roboto-Variable.ttf",
+      "sha256": "d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134",
+      "bytes": 488584
+    },
+    {
+      "file": "sourcecodepro/SourceCodePro-Bold.ttf",
+      "sha256": "0e0e7549a4eaaa46d142336b4338718d3f96ef2ee3a5fa6ace056bb188bfea54",
+      "bytes": 211716
+    },
+    {
+      "file": "sourcecodepro/SourceCodePro-Regular.ttf",
+      "sha256": "50b50d9fad5a49ac34129b606027a80e1b7ccd799bb91734bb4f60cdaaeb0ac0",
+      "bytes": 212880
+    }
+  ]
+}

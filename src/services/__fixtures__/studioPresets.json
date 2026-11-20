@@ -1,0 +1,707 @@
+[
+  {
+    "id": "tabletop-product",
+    "feature": "image",
+    "title": "Quiet tabletop",
+    "purpose": "A product study with a simple surface and controlled light.",
+    "category": "Product",
+    "slots": [
+      {
+        "id": "product",
+        "label": "Your product",
+        "role": "subject",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "1:1"
+    },
+    "promptTemplate": "Photograph {product} on a matte tabletop. Keep its proportions and markings. Use broad side light, a soft grounded shadow and an uncluttered background.",
+    "variants": [
+      "Use a pale stone surface and cool morning light.",
+      "Use a warm paper surface and late afternoon light.",
+      "Use a dark surface with gentle edge lighting."
+    ]
+  },
+  {
+    "id": "window-portrait",
+    "feature": "image",
+    "title": "Window-light portrait",
+    "purpose": "A natural portrait with a calm background.",
+    "category": "People",
+    "slots": [
+      {
+        "id": "person",
+        "label": "Portrait reference",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "3:4"
+    },
+    "promptTemplate": "Create an expressive portrait of {person}. Place the subject near a large window with soft directional light, natural detail and a quiet background.",
+    "variants": [
+      "Frame from the shoulders with a relaxed expression.",
+      "Frame from the waist with an informal pose.",
+      "Use a close crop with the eyes in sharp focus."
+    ]
+  },
+  {
+    "id": "everyday-scene",
+    "feature": "image",
+    "title": "An everyday moment",
+    "purpose": "Place a subject in a believable lived-in setting.",
+    "category": "Scenes",
+    "slots": [
+      {
+        "id": "subject",
+        "label": "Your subject",
+        "role": "subject",
+        "required": false,
+        "limit": 4,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "16:9"
+    },
+    "promptTemplate": "Show {subject} in a believable everyday setting. Build a thoughtful composition with natural light, practical details and space around the main subject.",
+    "variants": [
+      "Set the scene in a small sunlit kitchen.",
+      "Set the scene beside a shaded garden table.",
+      "Set the scene in a tidy workshop."
+    ]
+  },
+  {
+    "id": "editorial-poster",
+    "feature": "image",
+    "title": "Editorial poster",
+    "purpose": "A strong composition with room for your headline.",
+    "category": "Design",
+    "slots": [],
+    "settings": {
+      "aspect_ratio": "3:4"
+    },
+    "promptTemplate": "Design an editorial poster around a single striking visual idea. Use a deliberate visual hierarchy and generous empty space for a headline added later. Do not invent brand marks or long text.",
+    "variants": [
+      "Use a large central geometric form.",
+      "Use an asymmetrical still life.",
+      "Use a restrained collage of simple shapes."
+    ]
+  },
+  {
+    "id": "clear-thumbnail",
+    "feature": "image",
+    "title": "One clear idea",
+    "purpose": "A thumbnail that stays readable at a small size.",
+    "category": "Design",
+    "slots": [
+      {
+        "id": "subject",
+        "label": "Subject reference",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "16:9"
+    },
+    "promptTemplate": "Make a thumbnail about {subject}. Use one recognizable focal point, clear separation from the background and a strong silhouette. Leave space for short text added later.",
+    "variants": [
+      "Place the focal point on the left.",
+      "Place the focal point on the right.",
+      "Use a centered close view."
+    ]
+  },
+  {
+    "id": "opening-light",
+    "feature": "image",
+    "title": "The opening frame",
+    "purpose": "A composed first image for a later video shot.",
+    "category": "Scenes",
+    "slots": [
+      {
+        "id": "scene",
+        "label": "Scene reference",
+        "role": "subject",
+        "required": false,
+        "limit": 4,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "16:9"
+    },
+    "promptTemplate": "Compose the opening frame of a video featuring {scene}. Establish the place clearly, keep the subject away from the edges and leave room for a slow camera move.",
+    "variants": [
+      "Use early morning light.",
+      "Use a soft overcast atmosphere.",
+      "Use warm light just before sunset."
+    ]
+  },
+  {
+    "id": "reference-language",
+    "feature": "image",
+    "title": "A visual language",
+    "purpose": "Follow the lighting and material character of a reference.",
+    "category": "Style",
+    "slots": [
+      {
+        "id": "style",
+        "label": "Style reference",
+        "role": "style",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      },
+      {
+        "id": "subject",
+        "label": "Your subject",
+        "role": "subject",
+        "required": false,
+        "limit": 3,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "aspect_ratio": "1:1"
+    },
+    "promptTemplate": "Create a new composition of {subject}, guided by the lighting, materials and visual rhythm of {style}. Keep a new composition; do not reproduce text, logos or an existing artwork.",
+    "variants": [
+      "Use a clean, spacious composition.",
+      "Use a closer, more tactile composition.",
+      "Use a wider composition with layered depth."
+    ]
+  },
+  {
+    "id": "character-anchor",
+    "feature": "image",
+    "title": "Character anchor",
+    "purpose": "A fictional character reference designed for reuse.",
+    "category": "People",
+    "slots": [],
+    "settings": {
+      "aspect_ratio": "3:4"
+    },
+    "promptTemplate": "Design an original fictional character in a neutral standing pose against a simple background. Show the face, outfit and distinguishing details clearly, with even light and a coherent silhouette.",
+    "variants": [
+      "A friendly field researcher with practical clothing.",
+      "A thoughtful craftsperson with a work apron.",
+      "An energetic urban courier with a light jacket."
+    ]
+  },
+  {
+    "id": "image-look-1",
+    "feature": "image",
+    "title": "Softbox product portrait",
+    "purpose": "A clean campaign image with precise materials.",
+    "category": "Images",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference image",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Create a refined image of {Subject}. Use {Background} and {Lighting}. Preserve reference identity, accurate materials and natural proportions.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "Your product"
+      },
+      {
+        "id": "background",
+        "label": "Background",
+        "default": "Warm ivory"
+      },
+      {
+        "id": "lighting",
+        "label": "Lighting",
+        "default": "Large softbox"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Reference optional"
+  },
+  {
+    "id": "image-look-2",
+    "feature": "image",
+    "title": "Editorial colour story",
+    "purpose": "A bold, colour-led image for your feed.",
+    "category": "Images",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference image",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Use the supplied references for this image treatment. Subject: {Subject}; Palette: {Palette}; Style: {Style}. Preserve identity, visual consistency and the original creative intent. Produce a polished, coherent result.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "An adult fashion creator"
+      },
+      {
+        "id": "palette",
+        "label": "Palette",
+        "default": "Cobalt and butter yellow"
+      },
+      {
+        "id": "style",
+        "label": "Style",
+        "default": "Modern editorial"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Reference optional"
+  },
+  {
+    "id": "image-look-3",
+    "feature": "image",
+    "title": "Quiet architecture",
+    "purpose": "Turn a place into a considered visual story.",
+    "category": "Images",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Reference image",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Use the supplied references for this image treatment. Subject: {Subject}; Time: {Time}; Style: {Style}. Preserve identity, visual consistency and the original creative intent. Produce a polished, coherent result.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "A modern city building"
+      },
+      {
+        "id": "time",
+        "label": "Time",
+        "default": "Blue hour"
+      },
+      {
+        "id": "style",
+        "label": "Style",
+        "default": "Architectural editorial"
+      }
+    ],
+    "durationLabel": "1 image",
+    "referenceLabel": "Reference optional"
+  },
+  {
+    "id": "product-unveil",
+    "feature": "video",
+    "title": "A measured reveal",
+    "purpose": "Introduce a product with one deliberate camera move.",
+    "category": "Product",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Opening frame",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Reveal {opening} in one continuous shot. Begin with the subject partially framed, then move gently to a clear full view. Keep the product geometry and markings stable.",
+    "variants": [
+      "A slow lateral slide.",
+      "A gentle rising move.",
+      "A subtle forward move."
+    ]
+  },
+  {
+    "id": "gentle-push",
+    "feature": "video",
+    "title": "Closer, slowly",
+    "purpose": "Let a scene unfold through a restrained push-in.",
+    "category": "Camera",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Opening frame",
+        "role": "first_frame",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Make a single shot based on {opening}. Move the camera slowly forward while keeping the main subject stable and the background movement natural.",
+    "variants": [
+      "Keep the move low and level.",
+      "Move at eye height.",
+      "Approach from slightly above."
+    ]
+  },
+  {
+    "id": "partial-orbit",
+    "feature": "video",
+    "title": "Around the subject",
+    "purpose": "See a subject from a gently changing viewpoint.",
+    "category": "Camera",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Opening frame",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Make a restrained partial orbit around {opening}. Keep the subject coherent while the background reveals depth. Avoid a full spin or sudden camera acceleration.",
+    "variants": [
+      "Orbit a little to the left.",
+      "Orbit a little to the right.",
+      "Combine a short orbit with a slight push-in."
+    ]
+  },
+  {
+    "id": "walk-conversation",
+    "feature": "video",
+    "title": "A walking conversation",
+    "purpose": "A steady moving shot with a fictional presenter.",
+    "category": "People",
+    "slots": [
+      {
+        "id": "reference",
+        "label": "Character reference",
+        "role": "subject",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Show {reference} walking at a comfortable pace while speaking naturally. Use a steady tracking shot, believable gestures and an environment with clear depth. The subject is fictional unless an authorized reference is supplied.",
+    "variants": [
+      "Track from the front.",
+      "Track from a three-quarter view.",
+      "Track beside the subject."
+    ]
+  },
+  {
+    "id": "two-moments",
+    "feature": "video",
+    "title": "Between two moments",
+    "purpose": "Connect an opening and closing composition.",
+    "category": "Transitions",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Opening frame",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      },
+      {
+        "id": "closing",
+        "label": "Closing frame",
+        "role": "last_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Create a coherent transition from {opening} to {closing}. Preserve a believable sense of space and let the visual change develop smoothly rather than as an abrupt cut.",
+    "variants": [
+      "Use a calm, even pace.",
+      "Hold briefly at the start before moving.",
+      "Slow the movement near the closing frame."
+    ]
+  },
+  {
+    "id": "ambient-loop",
+    "feature": "video",
+    "title": "A small repeating motion",
+    "purpose": "Build a quiet clip with a repeatable rhythm.",
+    "category": "Scenes",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Opening frame",
+        "role": "first_frame",
+        "required": false,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Make a calm ambient shot of {opening}. Keep the camera fixed and use a small, repeatable movement that can return close to its starting state. Do not promise a perfectly seamless loop.",
+    "variants": [
+      "A gentle movement of leaves.",
+      "A slow change in reflected light.",
+      "A subtle drift of steam."
+    ]
+  },
+  {
+    "id": "place-first",
+    "feature": "video",
+    "title": "A sense of place",
+    "purpose": "Establish the setting before the story begins.",
+    "category": "Scenes",
+    "slots": [],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Create a wide establishing shot of an original location. Show clear foreground, middle distance and background, with a restrained camera move and a consistent atmosphere.",
+    "variants": [
+      "A quiet coastal workshop at dawn.",
+      "A neighborhood market before opening.",
+      "A hillside observatory in soft evening light."
+    ]
+  },
+  {
+    "id": "photo-breath",
+    "feature": "video",
+    "title": "Let the photo breathe",
+    "purpose": "Animate a photo without changing its main composition.",
+    "category": "Scenes",
+    "slots": [
+      {
+        "id": "opening",
+        "label": "Your photo",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {
+      "duration": 5
+    },
+    "promptTemplate": "Animate {opening} with subtle environmental motion. Keep the main composition and subject identity stable. Avoid sudden movement, added people or invented lettering.",
+    "variants": [
+      "A light breeze with almost no camera move.",
+      "A subtle forward drift.",
+      "A gentle shift of light and shadow."
+    ]
+  },
+  {
+    "id": "video-look-1",
+    "feature": "video",
+    "title": "The slow reveal",
+    "purpose": "A measured reveal that makes a product feel special.",
+    "category": "Cinematic",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your starting image",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Use the supplied references for this video treatment. Subject: {Subject}; Movement: {Movement}; Lighting: {Lighting}. Preserve identity, visual consistency and the original creative intent. Produce a polished, coherent result.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "Your product"
+      },
+      {
+        "id": "movement",
+        "label": "Movement",
+        "default": "Slow push-in"
+      },
+      {
+        "id": "lighting",
+        "label": "Lighting",
+        "default": "Soft studio"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Your starting image"
+  },
+  {
+    "id": "video-look-2",
+    "feature": "video",
+    "title": "Golden-hour walk",
+    "purpose": "A relaxed lifestyle shot with gentle camera movement.",
+    "category": "Cinematic",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your starting image",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Create a continuous video shot of {Subject} in {Setting}. Use {Movement}, subtle natural movement, consistent identity and believable lighting.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "subject",
+        "label": "Subject",
+        "default": "An adult creator"
+      },
+      {
+        "id": "setting",
+        "label": "Setting",
+        "default": "A sunlit city street"
+      },
+      {
+        "id": "movement",
+        "label": "Movement",
+        "default": "Gentle tracking"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Your starting image"
+  },
+  {
+    "id": "video-look-3",
+    "feature": "video",
+    "title": "After hours",
+    "purpose": "A moody city sequence with controlled movement.",
+    "category": "Cinematic",
+    "slots": [
+      {
+        "id": "reference-0",
+        "label": "Your starting image",
+        "role": "first_frame",
+        "required": true,
+        "limit": 1,
+        "kinds": [
+          "image"
+        ]
+      }
+    ],
+    "settings": {},
+    "promptTemplate": "Use the supplied references for this video treatment. Setting: {Setting}; Movement: {Movement}; Lighting: {Lighting}. Preserve identity, visual consistency and the original creative intent. Produce a polished, coherent result.",
+    "variants": [
+      "Keep the prepared direction.",
+      "Use a subtle variation while keeping the subject consistent."
+    ],
+    "clientOnly": true,
+    "variables": [
+      {
+        "id": "setting",
+        "label": "Setting",
+        "default": "A neon city after rain"
+      },
+      {
+        "id": "movement",
+        "label": "Movement",
+        "default": "Slow tracking shot"
+      },
+      {
+        "id": "lighting",
+        "label": "Lighting",
+        "default": "Blue and amber"
+      }
+    ],
+    "durationLabel": "8 s",
+    "referenceLabel": "Your starting image"
+  }
+]

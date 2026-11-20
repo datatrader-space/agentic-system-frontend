@@ -1,44 +1,45 @@
-# Workflow Node — Visual QA Checklist (Phase 2B)
+# Workflow step card: visual checklist (ADM-1333, plan §3.2)
 
-Manual checks for `WfNode.vue` (pure logic is covered by `scripts/wf_node_view_smoke.mjs`).
-Open `/dashboard/workflow-builder/<id>` and verify on the canvas.
+`WfNode.vue` draws one step. The automated checks are `WfNode.test.js` (state to look and words) and
+`tests/e2e/workflow-builder.spec.js` (in a browser, both themes). Check by eye in light and dark.
 
-## Category colors (left stripe + top accent + icon tint)
-- [ ] **Trigger** nodes — teal `#0d9488`
-- [ ] **Agent** (`agent.run`) — indigo `#4f46e5`
-- [ ] **Action** nodes — violet `#7c3aed`
-- [ ] **Logic** nodes — slate `#64748b`
-- [ ] Left stripe, top border, and icon background all share the category accent.
+## Card
+- [ ] 200 × 64 px. A trigger has a rounded left edge.
+- [ ] A 36 px category tile on the left with the type's Lucide icon, in one colour per category: trigger emerald,
+      AI violet, action blue, logic slate, media amber (`--wf-cat-*` tokens).
+- [ ] A bold title on one line (the person's name for the step, else the type's name), cut with an ellipsis.
+- [ ] ONE badge line: the model, the trigger kind, the tool, or "Needs setup" (amber, with an icon). No fields and no
+      notes on the card; every setting is in the node window.
 
-## Status indicators (header dot + border treatment) — subtle, no heavy gradients
-- [ ] **idle / unconfigured** — grey hollow dot, **dashed** grey border, “⚠ Needs setup” chip
-- [ ] **configured** (set, not yet run) — blue dot, solid neutral border
-- [ ] **pending** (run queued) — amber dot
-- [ ] **running** — green dot pulsing + soft green glow animation
-- [ ] **waiting / approval** — amber dot pulsing + soft amber glow
-- [ ] **success** — green dot, faint green border
-- [ ] **failed** — red dot, faint red border
-- [ ] **skipped** — grey dot, node dimmed (~70% opacity)
-- [ ] **invalid** (validation `__error`) — red dot, dashed red border, red “⚠ <error>” chip
-- [ ] Hover any dot → tooltip shows the human label (Ready / Running / Waiting / approval / …).
+## Run state (run state comes from useWorkflowRun only; the words are the engine's: C2)
+| State | Look |
+|---|---|
+| idle / ready | plain border (idle says "Needs setup") |
+| queued | dashed ring, clock badge |
+| running | ring that pulses (still with reduced motion), spinning badge |
+| waiting | amber ring, hand badge (also while waiting on a sub-workflow run) |
+| succeeded | green border, check badge; the outgoing connection turns green with "N items" when the step returned a list |
+| failed | red ring, alert badge; the error is on the badge's tooltip and in the node window |
+| skipped / cancelled | faded |
+| invalid (validation or save) | dashed red border, alert badge, the reason on the tooltip |
+- [ ] Every state also has its icon and its word in the step's accessible name, so colour is never the only signal.
 
-## Compact config preview (mono chip under the header)
-- [ ] **schedule** → `cron 0 8 * * *`
-- [ ] **http** → `POST api.host.com/path` (host+path, query stripped; templated URL shows raw)
-- [ ] **tool** → tool name; **MCP** → `server.tool`
-- [ ] **agent** → `output: json/schema` (only when non-text)
-- [ ] **condition** → expression; **delay** → `wait 30s`
-- [ ] **foreach** → items source; **approval** → approvers; **subworkflow** → graph name
-- [ ] Long values truncate with ellipsis (no wrap/overflow).
+## Outputs
+- [ ] An output with nothing connected shows a short line ending in +; the + opens the picker and connects the new step.
+- [ ] A condition has labelled `true` and `false` outputs, each with its own +; the new connection keeps the branch.
+- [ ] The `error` output (bottom, "on error") shows only on the types with reliability settings
+      (`WF_RELIABILITY_TYPES` in `wfNodeData.js`).
+- [ ] A trigger has no input.
 
-## Selected / hover / handles
-- [ ] **Selected** node — brand violet border + 3px violet ring (overrides status border).
-- [ ] **Handles**: inbound (left, slate), outbound (right, category accent); grow ~1.25× on node hover.
-- [ ] **Condition** node shows green `true` (top-right) + red `false` (bottom-right) labelled handles.
-- [ ] **Failable** nodes (action.* / agent.run / foreach / approval) show amber `on error` handle (bottom).
-- [ ] **Quick-add (+)**: appears bottom-right on hover; click → command palette opens and the chosen node is **auto-connected** from this node (edge created), placed to the right.
+## Hover toolbar
+- [ ] Open, Test up to here, Rename, Duplicate, Delete; each with a name and a tooltip. It stays while the pointer moves
+      onto it.
 
-## Regression (must be UNCHANGED)
-- [ ] Node IDs, `data` shape, edges, and saved graph JSON are identical (no new keys written by visuals).
-- [ ] Drag from palette, connect, select, delete, run, and the Data Picker all still work.
-- [ ] Backend execution / runtime untouched.
+## Agent proposals (plan §3.4)
+- [ ] A proposed new step is a ghost: dashed green, "+" badge, not draggable, no + or toolbar.
+- [ ] A changed step has an amber border and "~"; a step to remove has a dashed red outline and "−".
+- [ ] Each marked step and connection has Accept and Reject buttons.
+
+## Connections
+- [ ] A 40 px hover target; in the middle a + (insert a step) and a delete button that never pan the canvas.
+- [ ] A connection going backwards loops under its source instead of crossing the cards.

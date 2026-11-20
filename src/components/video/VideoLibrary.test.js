@@ -194,7 +194,7 @@ describe('VideoLibrary preview and source chat', () => {
     await flush()
     const links = Array.from(document.querySelectorAll('[data-test="lib-chat"]'))
     expect(links.map((a) => a.textContent.trim())).toEqual(['From Candle reel', 'From Old chat'])
-    expect(JSON.parse(links[0].dataset.to)).toEqual({ path: '/video-studio', query: { conversation: '2874' } })
+    expect(JSON.parse(links[0].dataset.to)).toEqual({ path: '/dashboard/video-studio', query: { conversation: '2874' } })
     expect(JSON.parse(links[1].dataset.to)).toBe('/dashboard/chat/15')
     links[0].click()                                    // following it leaves the Library
     expect(useVideoStore().libraryOpen).toBe(false)
@@ -241,6 +241,40 @@ describe('VideoLibrary thumbnails', () => {
     expect(document.querySelector('[data-test="lib-thumbnail"]')).toBeNull()
     expect(document.querySelector('[data-test="lib-preview"] video')).not.toBeNull()
     w.unmount()
+  })
+  // ISSUE-9: a card shows a loading placeholder until its picture has loaded, and says so when it cannot be shown.
+  it('shows a loading placeholder until the picture loads, never a bare black box', async () => {
+    const w = mount(VideoLibrary, { attachTo: document.body })
+    await flush()
+    const card = document.querySelector('[data-test="lib-preview"]')
+    expect(card.classList.contains('is-loading')).toBe(true)
+    expect(card.getAttribute('aria-busy')).toBe('true')
+    const thumb = document.querySelector('[data-test="lib-thumbnail"]')
+    expect(thumb.getAttribute('loading')).toBe('lazy')
+    thumb.dispatchEvent(new Event('load'))
+    await flush()
+    expect(card.classList.contains('is-loading')).toBe(false)
+    expect(card.getAttribute('aria-busy')).toBeNull()
+    w.unmount()
+  })
+  it('says "Preview unavailable" when neither the thumbnail nor the file can be shown', async () => {
+    const w = mount(VideoLibrary, { attachTo: document.body })
+    await flush()
+    document.querySelector('[data-test="lib-thumbnail"]').dispatchEvent(new Event('error'))
+    await flush()
+    // The video itself is tried next; offscreen it asks for nothing until it is near the view.
+    const film = document.querySelector('[data-test="lib-preview"] video')
+    expect(document.querySelector('[data-test="lib-preview"]').classList.contains('is-loading')).toBe(true)
+    film.dispatchEvent(new Event('error'))
+    await flush()
+    expect(document.querySelector('[data-test="lib-thumb-failed"]').textContent).toBe('Preview unavailable')
+    expect(document.querySelector('[data-test="lib-preview"]').classList.contains('is-loading')).toBe(false)
+    w.unmount()
+  })
+  it('keeps the shimmer still for people who ask for reduced motion', async () => {
+    const src = (await import('./VideoLibrary.vue?raw')).default
+    expect(src).toContain('@media (prefers-reduced-motion: reduce) { .lib-thumb-btn.is-loading::after { animation: none;')
+    expect(src).toContain(':src="it.url" muted preload="none" class="lib-thumb"')
   })
   it('picks only accepted Library kinds without creating a project or starting a job', async () => {
     api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'

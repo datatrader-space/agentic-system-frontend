@@ -1,2 +1,46 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#F8FAFC"><title>Training Data | AADML</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet"></head><body><div id="training-data-app"></div><script type="module" src="/src/main.js"></script></body></html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#F8FAFC"><title>Training Data | AADML</title>
+<script>
+// Boot guard (live, 2026-11-18: a phone showed a blank page and asked AADML for nothing; its page could not run the
+// app's script, which an AADML update had replaced). The app's script is a module Vite adds after this one.
+// - The script does not load: the page is one from before an update, asking for a file that update removed. It
+//   reloads once by itself, which brings the current page (this HTML is never cached without asking the server);
+//   not again within a minute, so a script that keeps failing cannot reload the page for ever.
+// - Nothing on the page after 20 seconds (a slow or broken connection, or the app stopped before it started): it says
+//   so, with Reload. The app replaces this message if it starts after all.
+// The address is kept as it is, so a phone link (#phonecam=..., ?phone=...) still works after the reload.
+(function (win, doc) {
+  var KEY = 'tmd.bootReload', WAIT = 20000, AGAIN = 60000, said = false;
+  function root() { return doc.getElementById('training-data-app'); }
+  function started() { var r = root(); return !r || r.hasChildNodes(); }
+  function say(text) {
+    var r = root();
+    if (said || !r || r.hasChildNodes()) return;
+    said = true;
+    r.setAttribute('role', 'alert');
+    r.style.cssText = 'font:15px/1.6 Inter,system-ui,sans-serif;color:#334155;padding:48px 24px;text-align:center;max-width:520px;margin:0 auto';
+    var p = doc.createElement('p'); p.textContent = text;
+    var b = doc.createElement('button'); b.type = 'button'; b.textContent = 'Reload';
+    b.style.cssText = 'font:inherit;font-weight:600;min-height:48px;padding:10px 28px;border:0;border-radius:12px;background:#2563eb;color:#fff;cursor:pointer';
+    b.onclick = function () { win.location.reload(); };
+    r.appendChild(p); r.appendChild(b);
+  }
+  // No storage (blocked): no automatic reload, since it could not be limited to once; the message says to reload.
+  function reloadOnce() {
+    try {
+      var last = Number(win.sessionStorage.getItem(KEY)) || 0;
+      if (Date.now() - last < AGAIN) return false;
+      win.sessionStorage.setItem(KEY, String(Date.now()));
+    } catch (e) { return false; }
+    win.location.reload();
+    return true;
+  }
+  win.addEventListener('error', function (event) {
+    var t = event && event.target;
+    if (!t || t.tagName !== 'SCRIPT' || !t.src || started()) return;
+    if (!reloadOnce()) say('This page did not load. Check your connection, then reload it.');
+  }, true);
+  win.setTimeout(function () { if (!started()) say('This page did not load. Check your connection, then reload it.'); }, WAIT);
+})(window, document);
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet"></head><body><div id="training-data-app"></div><script type="module" src="/src/main.js"></script></body></html>

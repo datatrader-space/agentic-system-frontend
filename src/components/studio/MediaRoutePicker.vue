@@ -20,10 +20,11 @@ import { routeOptionLabel } from '../../utils/studioPrice'
 // The models a person may use for one media operation; only proven ones can be chosen (the others are shown greyed).
 // `model`: offer only that model (e.g. the one that takes trained identities). `only`: offer only these route ids (a
 // recipe that needs more than the task, e.g. a model that can change a picture's shape); `onlyNote` says why none fits.
-const props = defineProps({ modelValue: { type: String, default: '' }, operation: { type: String, required: true }, label: { type: String, default: 'Model' }, model: { type: String, default: '' }, only: { type: Array, default: null }, onlyNote: { type: String, default: 'None of the models you can use can do this yet.' } })
+// A model that edits ONLY a marked area (requires_mask, ADM-1251) is offered only where the page sends a mask (`masked`).
+const props = defineProps({ modelValue: { type: String, default: '' }, operation: { type: String, required: true }, label: { type: String, default: 'Model' }, model: { type: String, default: '' }, only: { type: Array, default: null }, onlyNote: { type: String, default: 'None of the models you can use can do this yet.' }, masked: { type: Boolean, default: false } })
 const emit = defineEmits(['update:modelValue','routes'])
 const all = ref([]), loading = ref(false), failure = ref('')
-const offered = route => (!props.model || route.model === props.model) && (!props.only || props.only.map(String).includes(String(route.route_id)))
+const offered = route => (!props.model || route.model === props.model) && (!props.only || props.only.map(String).includes(String(route.route_id))) && (props.masked || !route.requires_mask)
 const routes = computed(() => all.value.filter(offered))
 const ready = computed(() => routes.value.filter(route => route.ready)), unproven = computed(() => routes.value.filter(route => !route.ready))
 let sequence = 0, disposed = false

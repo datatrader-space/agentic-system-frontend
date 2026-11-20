@@ -17,12 +17,13 @@ export function unsavedQuestion(n) {
   }
 }
 
-export function useUnsavedGuard(getCount) {
+// `question` replaces the default "unsaved file" wording: the Workflow Builder passes its own (ADM-1333).
+export function useUnsavedGuard(getCount, question = null) {
   const count = () => Number(unref(getCount()) || 0)
 
   async function mayLeave() {
     const n = count()
-    return n ? confirm(unsavedQuestion(n)) : true
+    return n ? confirm(question || unsavedQuestion(n)) : true
   }
 
   function onBeforeUnload(e) {

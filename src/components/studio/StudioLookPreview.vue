@@ -1,6 +1,6 @@
 <template>
   <section v-if="look" class="slp" aria-label="Look preview">
-    <div class="slp-intro"><span>YOUR RESULTS WITH THIS LOOK</span><RouterLink v-if="LOOK_ID.test(look.id || '')" class="slp-all" :to="{ path: '/video-studio/library', query: { preset: look.id } }" data-test="look-see-all" :aria-label="`See all your results with ${look.title}`">See all</RouterLink></div>
+    <div class="slp-intro"><span>YOUR RESULTS WITH THIS LOOK</span><RouterLink v-if="LOOK_ID.test(look.id || '')" class="slp-all" :to="{ path: studioPath('library'), query: { preset: look.id } }" data-test="look-see-all" :aria-label="`See all your results with ${look.title}`">See all</RouterLink></div>
     <StudioLookMedia :key="look.id" :look="look" controls />
     <div class="slp-copy"><div><h2>{{ look.title }}</h2><p>{{ look.purpose }}</p></div><button type="button" class="st-button primary" @click="emit('select', look)">Use this look ↗</button></div>
     <StudioLookDetails :key="look.id" :look="look" :disabled="disabled" :settings="settings" @apply="emit('select', $event)" />
@@ -11,6 +11,7 @@
 import StudioLookMedia from './StudioLookMedia.vue'
 import StudioLookDetails from './StudioLookDetails.vue'
 import { LOOK_ID } from '../../services/studioLooks'
+import { studioPath } from '../../services/studioPaths'
 defineProps({ look: Object, disabled: Boolean, settings: { type: Object, default: null } })
 const emit = defineEmits(['select'])
 </script>

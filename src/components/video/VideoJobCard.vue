@@ -64,11 +64,14 @@
     <template v-else-if="job.state === 'ready' && job.output">
       <!-- Shown by what the file IS (output.media_type from the jobs API): a frame job's PNG is a picture although the
            job works on a video, a caption job's WebVTT file is a link (live 2026-11-17). -->
-      <video v-if="outputKind === 'video'" class="vjc-video" :src="job.output.url" :poster="thumbnailFor({ ...job.output, media_type: 'video' }) || undefined"
+      <video v-if="outputKind === 'video'" class="vjc-video" :src="job.output.url" :poster="poster || undefined"
              controls preload="none" playsinline></video>
       <audio v-else-if="outputKind === 'audio'" class="vjc-audio" :src="job.output.url" controls preload="metadata" />
       <MediaThumb v-else-if="outputKind === 'image'" eager class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
       <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open the {{ fileWord }}</a>
+      <!-- A clip shorter than the length asked, or an edit whose result is not the length it was predicted to be
+           (ADM-1291): said in words from the server (output.length_note), never hidden behind a plain "Ready". -->
+      <p v-if="lengthNote" class="vjc-warn" role="status" data-test="video-job-length-note">{{ lengthNote }}</p>
       <!-- The other pictures of the same request (extra_outputs), beside the first one. -->
       <ul v-if="extras.length" class="vjc-extras" :aria-label="`${extras.length} more result${extras.length > 1 ? 's' : ''}`" data-test="video-job-extras">
         <li v-for="(x, i) in extras" :key="x.attachment_id">
@@ -99,12 +102,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import MediaThumb from '../common/MediaThumb.vue'
 import { jobOutputKind, thumbnailFor } from '../../utils/mediaThumb'
 import { priceAmount, priceRule } from '../../utils/studioPrice'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { studioPath } from '../../services/studioPaths'
 
 const props = defineProps({ job: { type: Object, required: true }, inStudio: { type: Boolean, default: false } })
 const emit = defineEmits(['open'])
@@ -118,7 +122,7 @@ const OPS = { generate: 'New clip', change: 'Video change', extend: 'Continue cl
               // Media jobs (media_ops.OPERATIONS) share this card.
               speech: 'Speech', sound: 'Sound effect', sfx: 'Sound effect', music: 'Music', voice_change: 'Voice change',
               transcribe: 'Transcript', image: 'Image', edit_image: 'Image edit', upscale: 'Upscale', lipsync: 'Lip-sync',
-              motion: 'Motion transfer', avatar: 'Talking avatar', train: 'Identity training' }
+              motion: 'Motion transfer', avatar: 'Talking avatar', train: 'Identity training', segment: 'Area selection' }
 // An operation this list does not name yet is titled by what the job makes, never as a video by default.
 const KINDS = { video: 'Video', image: 'Image', audio: 'Audio', text: 'Transcript', training: 'Identity training' }
 const STATES = { awaiting_authorization: 'Estimate', queued: 'Queued', submitting: 'Sending', running: 'Rendering',
@@ -137,6 +141,27 @@ const extras = computed(() => (props.job.state === 'ready' && Array.isArray(prop
   ? props.job.extra_outputs.filter((x) => x && x.attachment_id && x.url) : []))
 // What each result file is, read from the file's own media type (ADM-1161), never from the operation name.
 const outputKind = computed(() => jobOutputKind(props.job))
+// The video's small picture, loaded before it is shown. A job that has just finished may not have one yet (the
+// Library makes it a moment later), and a <video> never asks for its poster again: the card showed an empty box
+// (live, 2026-11-20). So it is asked for again, a few times, further apart each time.
+const posterUrl = computed(() => (outputKind.value === 'video' && props.job.output
+  ? thumbnailFor({ ...props.job.output, media_type: 'video' }) : null))
+const poster = ref('')
+let posterTimer = 0
+function loadPoster(url, attempt = 0) {
+  clearTimeout(posterTimer)
+  if (!url || typeof Image === 'undefined') { poster.value = url || ''; return }
+  const src = attempt ? `${url}${url.includes('?') ? '&' : '?'}try=${attempt}` : url
+  const img = new Image()
+  img.onload = () => { if (posterUrl.value === url) poster.value = src }
+  img.onerror = () => {
+    if (attempt < 4 && posterUrl.value === url) posterTimer = setTimeout(() => loadPoster(url, attempt + 1), 1500 * 2 ** attempt)
+  }
+  img.src = src
+}
+watch(posterUrl, url => { poster.value = ''; loadPoster(url) }, { immediate: true })
+onBeforeUnmount(() => clearTimeout(posterTimer))
+const lengthNote = computed(() => (props.job.output && typeof props.job.output.length_note === 'string' ? props.job.output.length_note : ''))
 const kindOf = (x) => jobOutputKind(props.job, x)
 const fileWord = computed(() => (props.job.output && /vtt|srt/i.test(String(props.job.output.mime_type || '')) ? 'captions' : 'file'))
 const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',
@@ -178,7 +203,7 @@ function openPanel() {
     emit('open')
     return
   }
-  router.push({ path: '/video-studio', query: { conversation: props.job.conversation_id || undefined } })
+  router.push({ path: studioPath(), query: { conversation: props.job.conversation_id || undefined } })
 }
 
 const now = ref(Date.now())

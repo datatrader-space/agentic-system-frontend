@@ -50,7 +50,7 @@ test('the Use model dialog says what a call costs, and no amount while no price 
 
 test('no page still says a paid feature waits for charging (2026-10-29: Dedicated, Use model and Cloud Streaming are open)', async () => {
   const { readFile } = await import('node:fs/promises');
-  for (const name of ['WorkspaceModels.vue', 'WorkspaceDeployments.vue', 'StreamingTab.vue']) {
+  for (const name of ['WorkspaceModels.vue', 'DedicatedDeployments.vue', 'StreamingTab.vue']) {
     const page = await readFile(new URL(`../src/components/${name}`, import.meta.url), 'utf8');
     assert.ok(!page.includes('not_open'), name);
     assert.ok(!/charging is connected|opens with calls/.test(page), name);
@@ -159,11 +159,11 @@ test('a try on the person\'s own machine says that machine, never AADML\'s share
   const { readFile } = await import('node:fs/promises');
   const page = await readFile(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
   const machineReady = page.indexOf('<p v-if="ready&&state.machine" class="muted">');
-  const sharedReady = page.indexOf('Its GPU is running');
   assert.ok(machineReady > 0, 'the machine\'s ready line opens the chain');
-  assert.ok(sharedReady > machineReady, 'the shared GPU\'s words come only after the machine\'s line');
-  assert.match(page, /your photo on \{\{ state\.machine\.name \}\}, your own machine/);
-  assert.doesNotMatch(page.slice(machineReady, page.indexOf('</p>', machineReady)), /photos_tried/);
+  assert.match(page.slice(machineReady, page.indexOf('</p>', machineReady)), /goes to \{\{ state\.machine\.name \}\} and is not kept/);
+  assert.doesNotMatch(page.slice(machineReady, page.indexOf('</p>', machineReady)), /photos_tried|AADML's GPU server/);
+  // SAM 3 is hosted by AADML since 2026-11-19 (ADM-1182): no shared-GPU words are left on the Try panel.
+  assert.doesNotMatch(page, /Its GPU is running/);
   const result = await readFile(new URL('../src/components/PredictionResult.vue', import.meta.url), 'utf8');
   assert.match(result, /answer\.served_by==='machine' \? `on \$\{answer\.served_on \|\| 'your machine'\}`/);
 });
@@ -174,4 +174,24 @@ test('a read of the Try state that failed once is cleared by the next read that 
   const load = page.slice(page.indexOf('async function loadState() {'), page.indexOf('function follow()'));
   assert.match(load, /if \(pollFailed\) \{ tryError\.value = ''; pollFailed = false; \}/);
   assert.match(load, /catch \(e\) \{ tryError\.value = e\.message; pollFailed = true; \}/);
+});
+
+// ADM-1310 (owner, 2026-11-18): the Train page said only "Nano, Small, Medium, Large". Each size now says its photo side and
+// what it is for, the chosen one is explained with Roboflow's published figures, and every size can be compared.
+test('the Train page describes the chosen model size and offers a comparison of every size', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const studio = await readFile(new URL('../src/components/ProjectStudio.vue', import.meta.url), 'utf8');
+  assert.ok(studio.includes('const sizeDetails=computed(()=>trainModel.value?.size_details||[]);'), 'sizes come from the server');
+  assert.ok(studio.includes('${forcedSide||sizeDetailOf(s).side} px · ${sizeDetailOf(s).best_for}'), 'each option says its side and use');
+  // Live, 2026-11-20: the page said "Nano · photos seen at 312 × 312 px" and the run trained at 648, the chosen
+  // version's 640 resize. The side said is the one the run is given: the version's (the server's `sides`) when it sets one.
+  assert.ok(studio.includes('?.sides?.[trainModel.value?.value]||null'), 'a version that resizes sets the side said');
+  assert.ok(studio.includes("photos seen at {{ seenSide.side }} × {{ seenSide.side }} px{{ seenSide.fromVersion ? ' (the size this dataset version resizes them to)' : '' }}"),
+    'the chosen size says the side the run sees, and why when the version sets it');
+  assert.ok(studio.includes('class="size-about"') && studio.includes('{{ sizeAbout.description }}'), 'the chosen size is explained');
+  assert.ok(studio.includes('Measured on everyday objects, not on your photos'), 'the published figures say what they measure');
+  assert.ok(studio.includes('<summary>Compare all sizes</summary>'), 'every size can be compared');
+  assert.ok(studio.includes('<option>XLarge</option><option>2XLarge</option>'), 'the preview lists every size');
+  // Live, 2026-11-19: below the form the panel sat under "GPU it trains on" and read as the GPU's; it follows the size row.
+  assert.ok(studio.includes(`max="500"></label><section v-if="live&&page==='train'&&!openChoice&&sizeDetails.length" class="size-about"`), 'the panel sits under the Model size row');
 });

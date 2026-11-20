@@ -34,7 +34,7 @@ const charge = { id: 31, created_at: '2026-10-27T10:00:00Z', kind: 'charge', usa
 
 const settings = () => ({ markup: '1.25', min_topup_usd: '5', max_topup_usd: '500', preset_amounts: [10, 25],
   starting_credit_usd: '1', low_balance_usd: '2', training_photo_call_usd: '0.002',
-  training_chat_input_per_1m_usd: '0.15', training_chat_output_per_1m_usd: null })
+  training_chat_input_per_1m_usd: '0.15', training_chat_output_per_1m_usd: null, training_code_read_photo_calls: '0.1' })
 
 let w
 beforeEach(() => {
@@ -201,6 +201,17 @@ describe('Admin billing settings: Training API prices', () => {
     expect(sent.training_chat_input_per_1m_usd).toBe('0.15')
     expect(sent.training_chat_output_per_1m_usd).toBe('0.6')
     expect(sent.markup).toBe('1.25')                       // the other settings still go with it
+  })
+
+  it('shows and sends the barcode read price in photo calls, a required number', async () => {
+    await openSettings()
+    const field = w.find('#f-training_code_read_photo_calls')
+    expect(field.element.value).toBe('0.1')
+    expect(w.find('label[for="f-training_code_read_photo_calls"]').text()).toContain('Barcode read (photo calls)')
+    expect(w.find('#h-training_code_read_photo_calls').text()).toContain('0.1 is a tenth of the photo call price')
+    await field.setValue(' 0.05 ')
+    await w.find('form.grid-form').trigger('submit'); await flushPromises()
+    expect(api.billingAdminSaveSettings.mock.calls[0][0].training_code_read_photo_calls).toBe('0.05')
   })
 
   it('a 400 field error is shown next to that field and tied to it', async () => {

@@ -90,17 +90,18 @@ describe('DelegationsPage', () => {
 })
 
 describe('WorkflowRunsPage', () => {
-  it('pages with offset while has_more is true', async () => {
+  // Contract C5 (ADM-1333): the server's cursor pages the list, so a run that starts meanwhile shifts nothing.
+  it('pages with the server cursor while has_more is true', async () => {
     api.get
-      .mockResolvedValueOnce({ data: { items: [{ id: 1, status: 'success' }], has_more: true, attention: {} } })
-      .mockResolvedValueOnce({ data: { items: [{ id: 2, status: 'dead' }], has_more: false } })
+      .mockResolvedValueOnce({ data: { results: [{ id: 1, status: 'succeeded' }], next_cursor: 'c1', has_more: true, attention: {} } })
+      .mockResolvedValueOnce({ data: { results: [{ id: 2, status: 'dead' }], next_cursor: null, has_more: false } })
     const w = mount(WorkflowRunsPage, { global: { stubs } })
     await flushPromises()
-    expect(api.get).toHaveBeenLastCalledWith('/workflow-runs/', expect.objectContaining({ params: { limit: 50, offset: 0 } }))
+    expect(api.get).toHaveBeenLastCalledWith('/workflow-runs/', expect.objectContaining({ params: { limit: 50 } }))
     const more = w.findAll('button').find((b) => b.text() === 'Load more')
     await more.trigger('click')
     await flushPromises()
-    expect(api.get).toHaveBeenLastCalledWith('/workflow-runs/', expect.objectContaining({ params: { limit: 50, offset: 1 } }))
+    expect(api.get).toHaveBeenLastCalledWith('/workflow-runs/', expect.objectContaining({ params: { limit: 50, cursor: 'c1' } }))
     expect(w.findAll('tbody tr').filter((r) => r.find('.pill').exists()).length).toBe(2)
     expect(w.findAll('button').some((b) => b.text() === 'Load more')).toBe(false)
   })
@@ -114,7 +115,7 @@ describe('WorkflowRunsPage', () => {
   })
 
   it('a click on run B drops the late timeline of run A', async () => {
-    api.get.mockResolvedValueOnce({ data: { items: [{ id: 1, status: 'success', workflow_name: 'A' }, { id: 2, status: 'success', workflow_name: 'B' }], has_more: false } })
+    api.get.mockResolvedValueOnce({ data: { results: [{ id: 1, status: 'succeeded', workflow_name: 'A' }, { id: 2, status: 'succeeded', workflow_name: 'B' }], next_cursor: null, has_more: false } })
     const w = mount(WorkflowRunsPage, { global: { stubs } })
     await flushPromises()
     const pending = deferredGet()

@@ -192,11 +192,31 @@ export class ChatConnection {
     if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return
     const delay = reconnectDelay(this._reconnectAttempts)
     this._reconnectAttempts += 1
-    if (this._reconnectAttempts === RECONNECT_LOST_AFTER) this.handlers.onConnectionState?.('lost')
+    if (this._reconnectAttempts === RECONNECT_LOST_AFTER) {
+      this.handlers.onConnectionState?.('lost')
+      this._checkSignedIn()
+    }
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null
       this.connect(this.repoId)
     }, delay)
+  }
+
+  // A refused handshake reaches the browser as a plain close (1006), the same as a network drop, so a signed-out page
+  // retried forever (one tab: 83 refusals in 40 minutes, 2026-11-18). After a few failures ask the server once: a
+  // 401 means the session is gone, so stop retrying; the global 401 handler (services/api.js) then lands on /login.
+  // The check is the caller's (handlers.checkSignedIn -> false when the session is gone): this file is shared with the
+  // Training Data app, which has its own API and build, so it imports neither app's API itself (CI of b6df47a/c29a21b).
+  async _checkSignedIn() {
+    const check = this.handlers.checkSignedIn
+    if (!check) return
+    let signedIn = true
+    try { signedIn = (await check()) !== false } catch { signedIn = true }
+    if (!signedIn) {
+      this.closedByUs = true
+      if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+      this.handlers.onConnectionState?.('signed_out')
+    }
   }
 
   _raw(obj) {
@@ -283,6 +303,9 @@ export class ChatConnection {
       // The Studio page (and preset) this message is sent from: the agent is told it on every turn and the chat is
       // named from it. Only known page ids are kept by the backend.
       studio_context: opts.studioContext || undefined,
+      // Workflow Builder agent bar (ADM-1333): the workflow open in the builder, {graph_id: <int>}. The server
+      // checks the person owns it before the turn gets the two read-only workflow tools.
+      workflow_context: opts.workflowContext || undefined,
       // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
       // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
       // deliberate choice rather than whatever the model happens to pick. Backend enforces both.

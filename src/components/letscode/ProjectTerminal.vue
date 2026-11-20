@@ -22,6 +22,7 @@ import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { useIdeTheme } from '@/composables/useIdeTheme'
 import { notify } from '@/composables/useNotify'
 import { loadXterm } from './loadXterm'
+import { terminalShortcut } from './terminalKeys'
 
 const props = defineProps({
   mode: { type: String, default: 'shell' },          // 'shell' | 'agent'
@@ -39,8 +40,9 @@ const props = defineProps({
 })
 let freshPending = props.fresh
 // info: {shell, root, project} once connected; cwd: the folder the shell is in (OSC 7, each prompt);
-// find / font(+1 | -1 | 0) / menu({x, y}): the keys and right-click the panel acts on; results: {index, count} of a find.
-const emit = defineEmits(['ended', 'info', 'cwd', 'find', 'font', 'menu', 'results'])
+// find / font(+1 | -1 | 0) / menu({x, y}): the keys and right-click the panel acts on; results: {index, count} of a find;
+// limit: the most shells a project has at once, as the server says on every status (ADM-1325).
+const emit = defineEmits(['ended', 'info', 'cwd', 'find', 'font', 'menu', 'results', 'limit'])
 
 const host = ref(null)
 const overlay = ref(null)
@@ -90,6 +92,7 @@ const sock = reconnectingSocket({
     let msg
     try { msg = JSON.parse(ev.data) } catch { return }
     if (msg.type !== 'status') return
+    if (Number.isInteger(msg.max_terminals) && msg.max_terminals > 0) emit('limit', msg.max_terminals)
     if (msg.state === 'starting') overlay.value = { kind: 'wait', icon: 'lucide:loader', text: "The project's sandbox is starting…" }
     else if (msg.state === 'connected') {
       overlay.value = null; sendSize(); if (props.active) term?.focus()
@@ -202,11 +205,13 @@ function end() { sock.send(JSON.stringify({ type: 'close' })) }
 // ── As in VS Code's terminal (ADM-1211) ────────────────────────────────────────────────────────────────────────
 // Ctrl+Shift+C copies, and so does Ctrl+C while text is selected (with nothing selected it interrupts, as always);
 // Ctrl+V / Ctrl+Shift+V paste (the browser's paste reaches the terminal); Ctrl+F finds; Ctrl+= / Ctrl+- / Ctrl+0 set
-// the font size. Every other key goes to the shell, Ctrl+R, Ctrl+L and the rest included.
+// the font size; Ctrl+` and Ctrl+Shift+` are left to the page (the bottom panel hides the Terminal or opens a new
+// shell, ADM-1325). Every other key goes to the shell, Ctrl+R, Ctrl+L and the rest included.
 let search = null
 function keyAction(e) {
   const ctrl = e.ctrlKey || e.metaKey
   if (!ctrl || e.altKey) return null
+  if (terminalShortcut(e)) return 'page'
   const k = (e.key || '').toLowerCase()
   if (k === 'c' && (e.shiftKey || term?.hasSelection?.())) return 'copy'
   if (k === 'v') return 'paste'
@@ -219,6 +224,7 @@ function keyAction(e) {
 function onKey(e) {
   const action = keyAction(e)
   if (!action) return true
+  if (action === 'page') return false               // not typed, not stopped: it reaches the page's own listener
   if (action === 'paste') return false              // not typed as ^V; the browser's paste event pastes
   e.preventDefault?.()                              // never the browser's own find or zoom
   if (e.type !== 'keydown') return false

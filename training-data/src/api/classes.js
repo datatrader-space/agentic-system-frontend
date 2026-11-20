@@ -15,10 +15,10 @@ export const classesApi = {
   removeClass: annotateApi.removeClass,
 };
 
-// What the Usage column says for a class: shapes drawn, and for a class the project added, on how many labels.
+// What the Usage column says for a class: shapes drawn, and on how many labels (every class is the project's own).
 export function usageText(row) {
-  const shapes = `${row.shapes} shape${row.shapes === 1 ? '' : 's'}`;
-  return row.labels === null || row.labels === undefined ? shapes : `${shapes} · on ${row.labels} label${row.labels === 1 ? '' : 's'}`;
+  const shapes = Number(row.shapes) || 0; const labels = Number(row.labels) || 0;
+  return `${shapes} shape${shapes === 1 ? '' : 's'} · on ${labels} label${labels === 1 ? '' : 's'}`;
 }
 
 // The rows of the table, filtered by the search box (by name, case-insensitive).

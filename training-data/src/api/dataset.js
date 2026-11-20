@@ -7,6 +7,13 @@ const base = ref => `/training-data/app/projects/${enc(ref)}`;
 const post = (path, body) => apiFetch(path, { method: 'POST', body });
 
 export const FILTERS = { split: '', group: '', origin: '', golden: '', tag: '' };
+// The name a new version gets when the person types none: the next number of its purpose, as datasets.publish numbers
+// it (live, 2026-11-18: train_val-v2 was offered "Version 1" and listed as a second "Version 1").
+export function nextVersionTitle(versions, kind) {
+  const top = (Array.isArray(versions) ? versions : []).filter(v => v && v.kind === kind)
+    .reduce((n, v) => Math.max(n, Number(v.number) || 0), 0);
+  return `Version ${top + 1}`;
+}
 
 export function query(params) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== 'All')).toString();
@@ -34,7 +41,7 @@ export async function loadDataset(store, { q = '', status = 'All', filters = FIL
 export async function loadVersions(store) {
   const body = await apiFetch(`${base(store.ref)}/versions/`);
   store.versions = body.versions;
-  store.versionMeta = { kinds: body.kinds, sizes: body.sizes, canPublish: body.can_publish, refused: body.refused, withoutWalls: body.without_walls };
+  store.versionMeta = { kinds: body.kinds, sizes: body.sizes, canPublish: body.can_publish, refused: body.refused };
   return body;
 }
 

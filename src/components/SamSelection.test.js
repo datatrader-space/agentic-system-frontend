@@ -3,15 +3,15 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
 import { useSamSelection } from '../../training-data/src/useSamSelection.js';
 afterEach(()=>vi.useRealTimers());
-const context = () => ({project:'~project',photo:'photo-1',name:'helmet',where:'machine:1',width:1200,height:800,allowed:true});
+const context = () => ({project:'~project',photo:'photo-1',name:'helmet',width:1200,height:800,allowed:true});
 test('clicks and exclusions use photo pixels and remain candidates until explicitly applied by the editor',async()=>{
   const request=vi.fn().mockResolvedValue({state:'ready',shapes:[{kind:'helmet',points:[[1,1],[2,1],[2,2]]}]});
   const s=useSamSelection(context,request); expect(request).not.toHaveBeenCalled();
   s.add([300,150]); await flushPromises();
-  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[[600,400]],labels:[1]},'machine:1');
+  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[[600,400]],labels:[1]});
   expect(s.candidate.value).toHaveLength(1);
   s.add([450,225],0); await flushPromises();
-  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[[600,400],[900,600]],labels:[1,0]},'machine:1');
+  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[[600,400],[900,600]],labels:[1,0]});
   s.clear(); expect(s.candidate.value).toEqual([]); expect(s.points.value).toEqual([]);
 });
 test('a late response cannot affect another image or a discarded selection',async()=>{

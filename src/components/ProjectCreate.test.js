@@ -69,3 +69,58 @@ test('malformed capability response is retryable, never available', async () => 
   await expect(resource.requireKind(instance.key)).rejects.toThrow('could not be loaded');
   expect(resource.status.value).toBe('error');
 });
+
+// FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 4.3: "Find objects" (your own classes) is the default and comes first;
+// the card is made from the API's row, and its own kind and task are sent.
+// The API's rows as aadml.com sends them (families.KINDS): "Find objects" is the instance_segmentation kind, which this
+// screen also has a card (and a picture) for. Live, 2026-11-20, the card's old name "Instance Segmentation" and its walls
+// example were shown instead of the API's words; an earlier version of this test used a made-up key and missed it.
+test('the New project dialog offers the first kind the API lists, Find objects, first, by default and in its own words', async () => {
+  const find = { key: 'instance_segmentation', label: 'Find objects', task: 'segment', family: 'vision', available: true,
+    description: 'Finds each object of the classes you name and draws its outline.', gives: ['Outlines', 'Counting'],
+    examples: ['Each product on a shelf, with its exact shape'], you_label: 'The outline of each object, with its class' };
+  const walls = { key: 'fmw_walls', label: 'Find the walls in room photos', task: 'fmw_walls', family: 'vision', available: true,
+    description: 'Finds every wall, window and door of a room photo.', gives: ['Outlines', 'Corners'] };
+  const resource = projectKinds(async () => ({ kinds: [find, walls] }));
+  const submit = vi.fn(async () => ({ ref: '~fixture' }));
+  const w = mount(ProjectCreate, { props: { submit }, global: { provide: { kinds: resource.kinds, projectKinds: resource } } }); wrappers.push(w);
+  await flushPromises();
+  const cards = w.findAll('.task-option');
+  expect(cards[0].text()).toContain('Find objects');
+  expect(cards[0].text()).toContain('Finds each object of the classes you name');
+  expect(cards[0].text()).toContain('Counting');
+  expect(cards[0].find('input').element.checked).toBe(true);
+  expect(cards[1].text()).toContain('Find the walls in room photos');
+  expect(w.text()).not.toContain('Instance Segmentation');
+  expect(w.text()).toContain('Each product on a shelf, with its exact shape');
+  expect(w.text()).not.toContain('Outline each wall, window and door in a room');
+  expect(w.find('.task-example img').exists()).toBe(true);                // the card's picture is kept
+  await review(w);
+  await button(w, 'Create project').trigger('click'); await flushPromises();
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ task: 'Find objects', kind: 'instance_segmentation' }));
+  // Defaulting to it is not a change of the person's: cancelling a fresh dialog asks nothing.
+  const fresh = mount(ProjectCreate, { props: { submit }, global: { provide: { kinds: resource.kinds, projectKinds: resource } } }); wrappers.push(fresh);
+  await flushPromises();
+  await button(fresh, 'Cancel').trigger('click');
+  expect(fresh.emitted('cancel')).toBeTruthy();
+});
+
+test('a card made from the API sends its own kind, and the backend task comes from that kind', async () => {
+  const find = { key: 'instance_segmentation', label: 'Find objects', task: 'segment', family: 'vision', available: true };
+  const create = vi.fn(async () => ({ ref: '~fixture', family: 'vision' }));
+  const requireKind = vi.fn(async () => find);
+  const submit = projectSubmission({ requireKind, create, savePolicy: async () => ({}), dataUse: () => ({}), typeKind: { 'Instance Segmentation': instance.key } });
+  await submit({ task: 'Find objects', kind: 'instance_segmentation', name: 'Shelf', purpose: 'Products' });
+  expect(requireKind).toHaveBeenCalledWith('instance_segmentation');
+  expect(create).toHaveBeenCalledWith({ name: 'Shelf', description: 'Products', task: 'segment' });
+});
+
+test('Classification keeps its single- or multi-label choice whatever the API calls the kind', async () => {
+  const sort = { key: 'classification', label: 'Sort photos', task: 'classification', family: 'vision', available: true,
+    description: 'Gives the whole picture a label, or several.', gives: ['Labels'] };
+  const resource = projectKinds(async () => ({ kinds: [sort] }));
+  const w = mount(ProjectCreate, { props: { submit: vi.fn() }, global: { provide: { kinds: resource.kinds, projectKinds: resource } } }); wrappers.push(w);
+  await flushPromises();
+  expect(w.findAll('.task-option')[0].text()).toContain('Sort photos');
+  expect(w.find('.classification-options').exists()).toBe(true);
+});

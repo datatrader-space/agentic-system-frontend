@@ -1,0 +1,32 @@
+Text rendering in the Video Studio editor preview
+==================================================
+
+The editor draws text and captions with JASSUB 2.5.23 (https://github.com/ThaUnknown/jassub), a build of libass for
+the browser. Its WebAssembly files (2.5.23/jassub-worker.wasm, 2.5.23/jassub-worker-modern.wasm) and Emscripten's
+glue (2.5.23/jassub-worker.js) are shipped UNMODIFIED, exactly as published in the npm package jassub@2.5.23, and are
+loaded as separate files only when the first text item is drawn. 2.5.23/worker.js is JASSUB's worker bundled with
+the two small libraries below (scripts/build-jassub-worker.mjs).
+Source code: https://github.com/ThaUnknown/jassub and the libraries below, each at the address given.
+JASSUB's licence expression (from its package): LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND
+MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0
+
+Inside the WebAssembly files:
+- libass (ISC): https://github.com/libass/libass - libass-ISC.txt
+- FriBiDi (LGPL-2.1-or-later): https://github.com/fribidi/fribidi - fribidi-LGPL-2.1.txt
+  You may replace the WebAssembly files with your own build of JASSUB from the sources above; the editor loads them
+  as they are and does not depend on their internals.
+- FreeType (used under the FreeType License, FTL): https://gitlab.freedesktop.org/freetype/freetype - freetype-FTL.txt
+- HarfBuzz ("Old MIT"): https://github.com/harfbuzz/harfbuzz - harfbuzz-MIT.txt
+- Brotli (MIT): https://github.com/google/brotli - brotli-MIT.txt
+- The Emscripten runtime (MIT / University of Illinois NCSA): https://github.com/emscripten-core/emscripten
+
+Bundled JavaScript (in the editor's worker file):
+- JASSUB's worker code (MIT) - jassub-MIT.txt
+- abslink 1.3.1 (Apache-2.0): https://www.npmjs.com/package/abslink - abslink-Apache-2.0.txt
+- lfa-ponyfill 1.1.1 (MIT): https://www.npmjs.com/package/lfa-ponyfill
+
+Not shipped: JASSUB's front module (dist/jassub.js), which imports rvfc-polyfill (GPL-3.0). The editor uses its own
+client for the worker instead (src/components/clip-editor/render/textRenderer.js).
+
+Fonts: public/fonts/editor/, each with its licence file (SIL Open Font License 1.1; Permanent Marker: Apache-2.0;
+DejaVu: the Bitstream Vera and Arev licences).

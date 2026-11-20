@@ -19,9 +19,16 @@ export const streamingApi = {
   // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
   // continuously (until it is stopped, the balance runs out or the camera stops answering). `readCodes`: read the
   // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
-  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording }) => {
+  // `detector`: the key of the hosted detector chosen (a camera model AADML hosts, never on AADML's server); `find`:
+  // names SAM 3 finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one
+  // answered is not sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most. `soundModel`: the
+  // hosted sound model it is listened with.
+  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill, listen,
+    soundModel }) => {
     const noModel = model === null || model === undefined || model === '';
-    const extra = { ...(readCodes ? { read_codes: true } : {}) };
+    const extra = { ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
+      ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}),
+      ...(listen ? { listen: true, listen_consent: true, ...(soundModel ? { sound_model: soundModel } : {}) } : {}) };
     const head = noModel ? { project } : { project, model };
     // A kept recording ("Use in project", CLOUD_STREAMING_PLAN.md §3.5): read in place, never continuous.
     if (recording !== undefined && recording !== null && recording !== '') {
@@ -34,6 +41,13 @@ export const streamingApi = {
       const body = new FormData();
       body.append('project', project); if (!noModel) body.append('model', String(model)); body.append('fps', String(fps));
       if (readCodes) body.append('read_codes', 'true');
+      if (detector) body.append('detector', detector);
+      if (find) body.append('find', find);
+      if (skipStill) body.append('skip_still', 'true');
+      if (listen) {
+        body.append('listen', 'true'); body.append('listen_consent', 'true');
+        if (soundModel) body.append('sound_model', soundModel);
+      }
       body.append('file', file, file.name);
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body, timeoutMs: UPLOAD_MS });
     }
@@ -63,7 +77,13 @@ export const videoSources = {
   // A short-lived token for the camera's live view through AADML's media relay: {playlist, token, expires_in,
   // renew_after}. Anyone who may see the source may watch it.
   // ``job``: a connector camera's live job the page follows (CLOUD_STREAMING_PLAN.md §12): its failure is said, not retried.
-  live: (id, job) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : ''}`, { timeoutMs: SLOW }),
+  // ``again``: the page asking once more for the same view (an RTMP stream waiting for its camera, a renewal): the
+  // server audits the first ask only.
+  live: (id, job, { again = false } = {}) => apiFetch(`${SOURCES}${enc(id)}/live/${job ? `?job=${enc(job)}` : again ? '?again=1' : ''}`, { timeoutMs: SLOW }),
+  // An RTMP stream's new stream key (an Admin; CLOUD_STREAMING_PLAN.md §14): in this answer only, the old one stops.
+  rotateKey: id => apiFetch(`${SOURCES}${enc(id)}/rotate-key/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // A phone camera's new phone link (an Admin; CLOUD_STREAMING_PLAN.md §16): in this answer only, the old one stops.
+  newPhoneLink: id => apiFetch(`${SOURCES}${enc(id)}/phone-link/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
   // Cloud recording (CLOUD_STREAMING_PLAN.md §9): {on, days?, consent?}; an Admin of the workspace, rtsp:// cameras.
   recording: (id, body) => apiFetch(`${SOURCES}${enc(id)}/recording/`, { method: 'POST', body, timeoutMs: SLOW }),
 };
@@ -71,6 +91,16 @@ export const videoSources = {
 // "Scan from phone" in the Add video source dialog (backend camera_pairing.py): a one-time pairing code an Admin shows
 // as a QR code; the phone sends what it scanned, and the dialog is given it once (state waiting | scanned | ended).
 const PAIRING = `${APP}/workspace/camera-pairing/`;
+// Accepting the Terms and the Privacy Policy before a first camera or stream (backend streaming_terms.py).
+const TERMS = `${APP}/workspace/streaming-terms/`;
+export const termsApi = {
+  get: () => apiFetch(TERMS),
+  accept: version => apiFetch(TERMS, { method: 'POST', body: { version, agree: true } }),
+};
+// The server's refusal of a person who has not accepted them yet (428 terms_required).
+export function termsRequired(error) {
+  return !!error && error.status === 428 && error.serverCode === 'terms_required';
+}
 export const pairingApi = {
   make: () => apiFetch(PAIRING, { method: 'POST', body: {}, timeoutMs: SLOW }),
   get: id => apiFetch(`${PAIRING}${enc(id)}/`),
@@ -81,10 +111,23 @@ export const PAIRING_POLL_MS = 2000;
 // What a phone scanned from a camera's label, as the Add form's fields. A camera address fills the address, its user
 // name and password (taken out of the address: the form sends them on their own, and the server seals them); anything
 // else (a serial, a model number) becomes the name, to change if needed. The value is untrusted text: one line, cut.
+// AADML's own pairing link (the QR the Add dialog shows): never a camera. Live, 2026-11-18: the owner's phone read the
+// pairing QR still on the computer's screen and its link was put in as the camera address.
+export const PAIRING_SCANNED = 'That is the pairing code on your computer\'s screen, not a camera. Point the phone at the QR code or barcode on the camera\'s own label.';
+export function isPairingLink(raw) {
+  const text = String(raw ?? '').trim();
+  if (!/^https?:\/\//i.test(text)) return false;
+  const url = parse(text);
+  if (!url) return false;
+  const ours = /(^|\.)aadml\.com$/i.test(url.hostname) || (typeof location !== 'undefined' && url.host === location.host);
+  return ours && (url.searchParams.has('camera') || /\/dashboard\//.test(url.pathname));
+}
+
 export function formFromScan(raw) {
   // eslint-disable-next-line no-control-regex
   const text = String(raw ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, ADDRESS_LIMIT);
   if (!text) return {};
+  if (isPairingLink(text)) return { refused: PAIRING_SCANNED };
   if (/^(rtsps?|https):\/\//i.test(text)) {
     const url = parse(text);
     if (url && url.hostname) {
@@ -100,15 +143,19 @@ export function formFromScan(raw) {
 // The workspace's kept recordings, newest first, each with signed links to play and download it (15 minutes).
 const RECORDINGS = `${APP}/workspace/recordings/`;
 export const recordingsApi = {
-  list: ({ source = '', from = '', to = '', limit = 100 } = {}) => {
+  list: ({ source = '', from = '', to = '', limit = 100, offset = 0, state = '' } = {}) => {
     const query = new URLSearchParams();
+    if (state) query.set('state', state);
     if (source !== '' && source !== null && source !== undefined) query.set('source', String(source));
     if (from) query.set('from', from);
     if (to) query.set('to', to);
     if (limit) query.set('limit', String(limit));
+    if (offset) query.set('offset', String(offset));
     return apiFetch(`${RECORDINGS}?${query.toString()}`, { timeoutMs: SLOW });
   },
+  // Deleting schedules it: kept GRACE days (the server's grace_days), free, then deleted for good; restore cancels it.
   remove: id => apiFetch(`${RECORDINGS}${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  restore: id => apiFetch(`${RECORDINGS}${enc(id)}/restore/`, { method: 'POST', timeoutMs: SLOW }),
 };
 
 // The UTC day [from, to) a date picker's YYYY-MM-DD names, as the recordings list takes it; '' for no day.
@@ -126,6 +173,52 @@ export function windowText(recording) {
   const t = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '');
   return `${t(recording?.started_at)} to ${t(recording?.ended_at)} UTC`;
 }
+// ── the Recordings tab (CameraRecordings.vue): every kept recording of the workspace, a removed camera's too ────────
+// A recording's links are signed for 15 minutes (backend storage.url): a list older than this asks for new ones first
+// (live, 2026-11-19: a recording that would not play).
+export const LINKS_FRESH_MS = 10 * 60 * 1000;
+export function linksFresh(loadedAt, now = Date.now()) {
+  return Number.isFinite(loadedAt) && loadedAt > 0 && now - loadedAt < LINKS_FRESH_MS;
+}
+const DAY = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
+// "18 Nov 2026, 14:10 to 14:15 UTC".
+export function recordingWhen(recording) {
+  const start = new Date(recording?.started_at || '');
+  if (Number.isNaN(start.getTime())) return windowText(recording);
+  return `${start.toLocaleDateString('en-GB', DAY)}, ${windowText(recording)}`;
+}
+// "Kept until 25 Nov 2026" ('' when unknown): the nightly clean-up deletes it after this.
+export function keptUntilText(iso) {
+  const until = new Date(iso || '');
+  return Number.isNaN(until.getTime()) ? '' : `Kept until ${until.toLocaleDateString('en-GB', DAY)}`;
+}
+// The camera filter: every camera with kept recordings, a removed one said as removed. A recording whose camera row is
+// gone altogether (id null) cannot be filtered on, so it is in "All cameras" only.
+export function cameraChoices(cameras) {
+  const rows = (Array.isArray(cameras) ? cameras : []).filter(c => c && c.id !== null && c.id !== undefined);
+  return [{ value: '', label: 'All cameras' }, ...rows.map(c => {
+    const n = Number(c.recordings) || 0;
+    return { value: String(c.id), label: `${c.name || 'Camera'}${c.removed ? ' (removed)' : ''}: ${n} recording${n === 1 ? '' : 's'}` };
+  })];
+}
+// The recovery period (the owner, 2026-11-19): a recording scheduled for deletion says when, and why.
+export const RECORDING_STATES = [['', 'All recordings'], ['kept', 'Kept'], ['scheduled', 'Scheduled for deletion']];
+export function deletionText(deletion) {
+  const on = new Date(deletion?.on || '');
+  return Number.isNaN(on.getTime()) ? 'Scheduled for deletion' : `Deletes on ${on.toLocaleDateString('en-GB', DAY)}`;
+}
+const WHY = { expired: 'its days were over', deleted: 'deleted by a person', camera_removed: 'its camera was removed' };
+export function deletionWhy(deletion) {
+  const why = WHY[deletion?.reason] || WHY.deleted;
+  return `Scheduled for deletion: ${why}. Free until then, and it can be restored.`;
+}
+
+// "1.2 GB of 50.0 GB kept" ('' when the server did not say).
+export function storageText(stored, limit) {
+  if (!Number.isFinite(Number(stored)) || !Number(limit)) return '';
+  return `${sizeText(stored)} of ${sizeText(limit)} kept`;
+}
+
 export function sizeText(bytes) {
   const n = Number(bytes) || 0;
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
@@ -317,7 +410,9 @@ export function countsSaid(last) {
 // ── barcodes (backend barcodes.py) ───────────────────────────────────────────────────────────────
 // What runs on each frame of a stream: "walls 1.0.0", "walls 1.0.0 and the barcode reader", or "Barcode reader".
 export function streamWhat(stream) {
-  const model = stream?.model ? `${stream.model.name} ${stream.model.version}` : '';
+  const model = stream?.model ? `${stream.model.name} ${stream.model.version}`
+    : stream?.detector ? stream.detector.name
+      : Array.isArray(stream?.find) && stream.find.length ? `Finding ${stream.find.join(', ')}` : '';
   if (!stream?.read_codes) return model;
   return model ? `${model} and the barcode reader` : 'Barcode reader';
 }
@@ -331,6 +426,37 @@ export function codesRead(stream, most = 50) {
     .slice(0, most)
     .map((c, i) => ({ key: `${c.frame}-${i}`, type: String(c.type || 'Barcode').slice(0, 40), value: c.value.slice(0, CODE_VALUE_LIMIT),
       frame: Number(c.frame) || 0, t: Number(c.t) || 0 }));
+}
+
+// How many photo calls one frame read for barcodes costs: the server's own figure (options.codes.photo_calls_a_read,
+// the super admin's setting); the owner's default, a tenth, when it says none (CLOUD_STREAMING_PLAN.md section 6).
+export const DEFAULT_READ_CALLS = 0.1;
+export function readCalls(codes) {
+  const calls = Number(codes?.photo_calls_a_read);
+  return Number.isFinite(calls) && calls > 0 ? calls : DEFAULT_READ_CALLS;
+}
+// A read's price in words: "a tenth of a photo call", "one photo call", "0.25 of a photo call", "2 photo calls".
+export function readPriceText(calls) {
+  if (calls === 0.1) return 'a tenth of a photo call';
+  if (calls === 1) return 'one photo call';
+  return calls > 1 ? `${calls} photo calls` : `${calls} of a photo call`;
+}
+// What one frame of a stream costs, in photo calls: one for the model's answer, a read's share for its barcodes.
+export function callsAFrame({ useModel = true, readCodes = false, codes = null, detector = false } = {}) {
+  return (useModel ? 1 : 0) + (readCodes ? readCalls(codes) : 0) + (detector ? readCalls(codes) : 0);
+}
+// What the start dialog says a continuous stream costs: per frame, and in photo calls an hour at ``fps``.
+export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1, detector = false, find = false } = {}) {
+  const price = readPriceText(readCalls(codes));
+  if (find) {
+    return `Each frame is one SAM 3 image from your balance${readCodes ? `, and reading its barcodes costs ${price}` : ''}: at ${Number(fps) || 1} a second, ${Math.round((Number(fps) || 1) * 3600).toLocaleString('en-US')} images an hour, fewer with Skip still frames.`;
+  }
+  const calls = callsAFrame({ useModel: useModel && !detector, readCodes, codes, detector });
+  const perHour = Math.round((Number(fps) || 1) * 3600 * calls).toLocaleString('en-US');
+  const each = detector ? `Each frame the ready detector answers costs ${price}${readCodes ? ', and reading its barcodes as much again' : ''}`
+    : useModel && readCodes ? `Each frame is charged for the model and for reading its barcodes (${price})`
+      : readCodes ? `Each frame read costs ${price}` : 'Each frame is one photo call';
+  return `${each} from your balance: at ${Number(fps) || 1} a second, ${perHour} photo calls an hour.`;
 }
 
 // One frame's codes in words: "QR Code SN-1; EAN-13 4006381333931", "no code", or why it was not read.
@@ -358,7 +484,7 @@ export function recentBars(recent, height = 32) {
 }
 
 // ── video sources ────────────────────────────────────────────────────────────────────────────────
-export const SOURCE_KINDS = { url: 'Camera URL', connector: 'Connected camera', rtmp: 'RTMP stream', verkada: 'Verkada camera' };
+export const SOURCE_KINDS = { url: 'Camera URL', connector: 'Connected camera', rtmp: 'RTMP stream', phone: 'Phone camera', verkada: 'Verkada camera' };
 // The chips above the list. "Public" is a camera AADML publishes for every workspace to try (read-only), whatever its
 // state; the others are states. A source that needs attention or was never checked is counted in All only.
 export const SOURCE_FILTERS = [
@@ -511,12 +637,17 @@ export function connectorAddressProblem(raw) {
   return ['rtsp:', 'rtsps:'].includes(url.protocol) && url.hostname ? '' : CONNECTOR_ADDRESS_HELP;
 }
 
-export function sourceFormProblems(form, { editing = false, connector = false } = {}) {
+export function sourceFormProblems(form, { editing = false, connector = false, pushing = false } = {}) {
   const f = form || {};
   const problems = {};
   const name = String(f.name || '').trim();
   if (!name) problems.name = 'Give the source a name.';
   else if (name.length > SOURCE_NAME_LIMIT) problems.name = `A name is at most ${SOURCE_NAME_LIMIT} characters.`;
+  // An RTMP stream (§14) has no address, user name or password: the camera pushes to AADML with its stream key.
+  if (pushing) {
+    if (!editing && f.consent !== true) problems.consent = 'Confirm you own this camera or have permission to connect to it.';
+    return problems;
+  }
   const address = String(f.address || '').trim();
   if (!editing || address) {
     const problem = connector ? connectorAddressProblem(address) : sourceAddressProblem(address);
@@ -531,12 +662,15 @@ export function sourceFormProblems(form, { editing = false, connector = false } 
 
 // What is sent: on add, every field the person filled and the consent; on edit, only what changes (a blank address or
 // password keeps the saved one; `project: null` clears the default project).
-export function sourceBody(form, { editing = false, original = null } = {}) {
+// ``pushing``: a camera that sends to AADML itself (an RTMP stream, or with ``kind: 'phone'`` a phone camera): no
+// address, user name or password.
+export function sourceBody(form, { editing = false, original = null, pushing = false, kind = 'rtmp' } = {}) {
   const f = form || {};
   const name = String(f.name || '').trim();
-  const address = String(f.address || '').trim();
-  const username = String(f.username || '').trim();
-  const password = String(f.password || '');
+  const address = pushing ? '' : String(f.address || '').trim();
+  const username = pushing ? '' : String(f.username || '').trim();
+  const password = pushing ? '' : String(f.password || '');
+  if (!editing && pushing) return { name, kind: kind === 'phone' ? 'phone' : 'rtmp', ...(f.project ? { project: f.project } : {}), consent: f.consent === true };
   if (!editing) {
     return {
       name, kind: f.machine ? 'connector' : 'url', address, ...(f.machine ? { machine: String(f.machine) } : {}),
@@ -549,7 +683,7 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
   if (name !== was.name) body.name = name;
   if ((f.project || '') !== was.project) body.project = f.project || null;
   if (address) body.address = address;
-  if (username !== was.username) body.username = username;
+  if (!pushing && username !== was.username) body.username = username;
   if (password) body.password = password;
   return body;
 }
@@ -558,15 +692,60 @@ export function sourceBody(form, { editing = false, original = null } = {}) {
 // Live view goes through AADML's media relay, which reads rtsp:// and rtsps:// cameras only for now.
 // A connector camera is read by its machine, not by AADML's relay: no live view of it yet (CLOUD_STREAMING_PLAN.md §11).
 // A camera address the relay pulls, or a connector camera its machine sends to the relay (§12).
-export const canWatch = source => /^rtsps?:\/\//i.test(sourceShown(source));
+// An RTMP stream (§14): its camera pushes to the relay, which plays it as any camera.
+// A phone camera (§16): the phone's browser sends to the relay, which plays it the same way.
+export const canWatch = source => source?.kind === 'rtmp' || source?.kind === 'phone' || /^rtsps?:\/\//i.test(sourceShown(source));
+
+// ── phone cameras (CLOUD_STREAMING_PLAN.md §16; backend phone_camera.py) ─────────────────────────────
+export const PHONE_STEPS = ["Scan this with the phone's camera.", 'Tap Start and allow the camera.', 'Keep the page open while it sends.'];
+export const PHONE_LINK_WARNING = 'Anyone who has this link can send video as this camera: share it only with the phone that films. It is shown only now.';
+// What the page shows of a phone camera's link, checked: the link itself only when the answer that made it carried it,
+// and only a link to this app's phone page (https, or http on this machine) with a secret that looks like one.
+export function phoneLinkDetails(phone) {
+  if (!phone || typeof phone !== 'object') return null;
+  const raw = typeof phone.url === 'string' ? phone.url.trim() : '';
+  const url = /^(https:\/\/[^\s/?#]+|http:\/\/(localhost|127\.0\.0\.1|testserver)(:[0-9]+)?)\/dashboard\/training-data\/#phonecam=[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+  const when = v => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : '');
+  return { url, expiresAt: when(phone.expires_at), linkSetAt: when(phone.link_set_at), expired: phone.expired === true,
+    available: phone.available !== false, lifetimeDays: Number(phone.lifetime_days) || 7 };
+}
+// "Works until 25 Nov, 14:05, or until you make a new link." (or that it has ended)
+export function phoneLinkUntil(details, locale) {
+  if (!details) return '';
+  if (details.expired) return "This camera's phone link has ended. Make a new one to send from a phone again.";
+  if (!details.expiresAt) return 'It works until you make a new link.';
+  const at = new Date(details.expiresAt).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `The link works until ${at}, or until you make a new one.`;
+}
+
+// ── RTMP streams (CLOUD_STREAMING_PLAN.md §14; backend rtmp_push.py) ─────────────────────────────────
+export const PUSH_KEY_WARNING = 'Keep the stream key secret: anyone who has it can send video as this camera. It is shown only now. If it is lost or shared, rotate it.';
+export const PUSH_OBS_HELP = 'In OBS: Settings, Stream, Service "Custom...", then paste the Server and the Stream key. A device with one address field takes the full address.';
+// What the page shows of an RTMP stream's push details, checked: only an rtmps:// server (never plain RTMP), and the
+// stream key and full address only when the answer that made the key carried them. null when there is nothing usable.
+export function pushDetails(push) {
+  if (!push || typeof push !== 'object') return null;
+  const server = typeof push.server === 'string' ? push.server.trim() : '';
+  if (!/^rtmps:\/\/[^\s/?#]+\/$/i.test(server)) return null;
+  const path = typeof push.path === 'string' && /^src[1-9][0-9]*$/.test(push.path) ? push.path : '';
+  const key = typeof push.stream_key === 'string' && /^src[1-9][0-9]*\?user=src[1-9][0-9]*&pass=[A-Za-z0-9_-]{20,}$/.test(push.stream_key) ? push.stream_key : '';
+  const url = key && typeof push.url === 'string' && push.url === `${server}${key}` ? push.url : '';
+  return { server, path, streamKey: key, url, keySetAt: typeof push.key_set_at === 'string' ? push.key_set_at : '', available: push.available !== false };
+}
 
 export const LIVE_NOT_LIVE = 'Live view works for rtsp:// and rtsps:// cameras only for now.';
 export const LIVE_UNAVAILABLE = 'Live view is not available right now. Try again in a few minutes.';
 export const LIVE_GONE = 'This camera is not in this workspace any more.';
 export const LIVE_NO_ANSWER = 'The camera did not answer.';
-// The relay reached the camera and served its playlist, and the video still could not be played (live, 2026-11-17: an
-// RTSP feed with H.264 B-frames, which the relay's live muxer cannot carry yet). Not "did not answer": it did.
-export const LIVE_NOT_PLAYABLE = 'The camera answered, but its video could not be played live here: live view does not support its video encoding yet. Checks and streams still read it.';
+// The relay reached the camera and served its playlist, and the video still could not be played. A camera whose video
+// the relay cannot carry as it is (H.264 with B-frames; live, 2026-11-17) is re-encoded for live view since 2026-11-18
+// (the live answer's ``video``: reencoded, as_is, unknown, not_reencoded), so these words are only for a camera AADML
+// could not re-encode, with the server's reason (``video_note``). Not "did not answer": it did.
+export const LIVE_NOT_PLAYABLE = 'The camera answered, but its video could not be played live here, and AADML could not re-encode it for live view. Checks and streams still read it.';
+// Not checked since re-encoding came: a check finds whether its video needs it.
+export const LIVE_CHECK_FIRST = 'The camera answered, but its video could not be played live as it is. Check the camera: a check finds whether AADML must re-encode its video for live view, and it is then re-encoded.';
+// It plays as it is or AADML re-encodes it, and the player still stopped: the camera or the connection dropped.
+export const LIVE_STOPPED = 'The camera answered, but its live video stopped. Try again in a moment.';
 // The page's own words when a refusal carried none of the server's (client.js apiFetch).
 const GENERIC = ['AADML did not answer just now. Try again in a moment.', 'The request was refused.'];
 
@@ -584,7 +763,18 @@ export function liveAnswer(body) {
   // follow, ``said`` what is happening meanwhile. A camera address is always ready.
   const job = Number.isInteger(body.job) && body.job > 0 ? body.job : null;
   const said = typeof body.said === 'string' ? body.said.trim().slice(0, 300) : '';
-  return { playlist, token, renewInMs: Math.round(seconds * 1000), ready: body.ready !== false, job, said };
+  // What the server knows of the camera's video (CLOUD_STREAMING_PLAN.md §14); '' from a server before 2026-11-18.
+  const video = ['reencoded', 'as_is', 'unknown', 'not_reencoded'].includes(body.video) ? body.video : '';
+  const videoNote = typeof body.video_note === 'string' ? body.video_note.trim().slice(0, 300) : '';
+  return { playlist, token, renewInMs: Math.round(seconds * 1000), ready: body.ready !== false, job, said, video, videoNote };
+}
+
+// Why the player stopped after the relay served the playlist: LIVE_NOT_PLAYABLE only when AADML could not re-encode
+// the camera (with the server's reason) or the server does not say.
+export function notPlayableText(live) {
+  if (live?.video === 'reencoded' || live?.video === 'as_is') return LIVE_STOPPED;
+  if (live?.video === 'unknown') return LIVE_CHECK_FIRST;
+  return live?.videoNote ? `${LIVE_NOT_PLAYABLE} ${live.videoNote}` : LIVE_NOT_PLAYABLE;
 }
 
 // Why live view did not start, in words: the server's own sentence where it gave one.
@@ -597,7 +787,7 @@ export function liveErrorText(error) {
 }
 
 // ── camera management (CLOUD_STREAMING_PLAN.md §3.6; streaming_api._source_detail ``history`` and ``spend_month``) ──
-const CAUSES = { check: 'Found by a check', machine: 'Found by its machine', stream: 'Found by a stream on it', change: 'Its address or sign-in was changed' };
+const CAUSES = { check: 'Found by a check', machine: 'Found by its machine', stream: 'Found by a stream on it', change: 'Its address or sign-in was changed', push: 'Its camera started or stopped sending to AADML' };
 
 // A camera's state changes, newest first, as the page lists them: when, the state as a badge, the reason and what
 // found it; ``told`` when the workspace's Admins were sent a notice about it.
@@ -619,7 +809,13 @@ export function monthText(month) {
 // What the camera cost this workspace this month: its streams' answered frames, its kept recordings, and the total.
 export function spendItems(spend) {
   if (!spend || typeof spend !== 'object') return [];
-  const money = v => usdText(Number(v) || 0) || '$0.00';
+  // Under a cent is said as it is (live, 2026-11-19: a day of 200 MB kept, $0.0002, showed as $0.00, as if not charged).
+  const money = v => {
+    const n = Number(v) || 0;
+    if (n > 0 && n < 0.0001) return 'under $0.0001';
+    if (n > 0 && n < 0.01) return `$${n.toFixed(4)}`;
+    return usdText(n) || '$0.00';
+  };
   const frames = Number(spend.frames) || 0; const days = Number(spend.recording_days) || 0;
   return [
     { key: 'frames', label: 'Frames answered', value: money(spend.frames_usd), hint: `${frames.toLocaleString('en-US')} frame${frames === 1 ? '' : 's'}` },
@@ -640,11 +836,14 @@ export function connectorRows(machines, sources) {
     if (!named.has(id)) named.set(id, m);
   }
   const known = new Map((machines || []).filter(m => m && m.id !== undefined && m.id !== null).map(m => [String(m.id), m]));
-  return [...cameras.keys()].map(id => {
+  // Every machine of the workspace that is not removed (one with no camera yet too: it can be removed or given cameras
+  // here), and a removed one still named by a camera. Live, 2026-11-18: the owner found no way to remove a machine.
+  const ids = new Set([...cameras.keys(), ...[...known.values()].filter(m => m.state !== 'removed').map(m => String(m.id))]);
+  return [...ids].map(id => {
     const m = known.get(id) || named.get(id) || {};
     const state = m.state === 'online' ? 'online' : m.state === 'removed' ? 'removed' : 'offline';
     return { id, name: m.name || 'A machine', state, badge: state === 'online' ? ['green', 'Online'] : ['neutral', state === 'removed' ? 'Removed' : 'Offline'],
-      agent: typeof m.agent_version === 'string' ? m.agent_version : '', cameras: cameras.get(id) };
+      agent: typeof m.agent_version === 'string' ? m.agent_version : '', cameras: cameras.get(id) || 0 };
   }).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
@@ -661,12 +860,19 @@ export const streamRules = {
   add: (source, body) => apiFetch(`${SOURCES}${enc(source)}/rules/`, { method: 'POST', body, timeoutMs: SLOW }),
   update: (source, rule, body) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
   remove: (source, rule) => apiFetch(`${SOURCES}${enc(source)}/rules/${enc(rule)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  // Ready-made rules (Phase G): fire or smoke, a package left, no hard hat, a person fallen, an empty desk...
+  presets: source => apiFetch(`${SOURCES}${enc(source)}/presets/`),
+  applyPreset: (source, preset, zone) => apiFetch(`${SOURCES}${enc(source)}/presets/`, { method: 'POST', body: { preset, ...(zone ? { zone: Number(zone) } : {}) }, timeoutMs: SLOW }),
 };
 export const streamEvents = {
   list: (source, { page = 1, limit = 20 } = {}) => {
     const query = new URLSearchParams({ page: String(Math.max(1, Number(page) || 1)), limit: String(Math.max(1, Number(limit) || 20)) });
     return apiFetch(`${SOURCES}${enc(source)}/events/?${query.toString()}`);
   },
+  // "Wrong? Fix it" (Phase B): a camera manager marks an event right or wrong; '' clears the mark.
+  verdict: (event, verdict) => apiFetch(`${APP}/stream-events/${enc(event)}/verdict/`, { method: 'POST', body: { verdict }, timeoutMs: SLOW }),
+  // Phase D: a camera manager approves (its workflows start now) or declines an event's waiting actions.
+  actions: (event, approve) => apiFetch(`${APP}/stream-events/${enc(event)}/actions/`, { method: 'POST', body: { approve: !!approve }, timeoutMs: SLOW }),
 };
 
 // The server's own limits, as it says them when it is not asked (stream_events.py).
@@ -689,8 +895,33 @@ export function cooldownText(seconds) {
 }
 
 // A new rule's form, and what is wrong with it before it is sent (the server decides; this only says it early).
+export const RULE_KINDS = [
+  { key: 'seen', label: 'Seen', help: 'At least this many in one frame.' },
+  { key: 'stays', label: 'Stays', help: 'Seen without a break for a time: loitering, a bag left behind, a car parked too long.' },
+  { key: 'absent', label: 'Not there', help: 'Fewer than this many for a time: an empty desk, nobody at reception.' },
+  { key: 'cross', label: 'Crosses a line', help: 'An object crosses one of the camera\'s lines, in or out. Each crossing is also counted.' },
+];
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Whom a rule's events alert (camera_alerts.py, Phase C): a bell entry and an e-mail, grouped within 5 minutes.
+export const RULE_AI = [
+  { key: '', label: 'Off' },
+  { key: 'describe', label: 'Describe each event' },
+  { key: 'verify', label: 'Check each event (drop false alarms)' },
+];
+export const RULE_ALERTS = [
+  { key: 'managers', label: 'The camera managers' }, { key: 'everyone', label: 'Everyone who sees the cameras' },
+  { key: 'me', label: 'Only me' }, { key: '', label: 'Nobody (keep the event only)' },
+];
+// A person's own camera-alert settings: quiet hours (Pakistan time) and whether alerts e-mail them.
+export const myCameraAlerts = {
+  get: () => apiFetch(`${APP}/workspace/camera-alerts/me/`),
+  save: body => apiFetch(`${APP}/workspace/camera-alerts/me/`, { method: 'POST', body, timeoutMs: SLOW }),
+};
 export function ruleForm(classes = []) {
-  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT };
+  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
+    minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
+    start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
+    approve_actions: false, device: '', share: false };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -704,23 +935,57 @@ export function ruleProblems(form, limits = {}) {
   const high = Number(limits.cooldown_max) || 86400;
   const cooldown = Number(form?.cooldown_seconds);
   if (!Number.isInteger(cooldown) || cooldown < low || cooldown > high) problems.cooldown_seconds = `The cooldown is ${low} to ${high} seconds.`;
+  const kind = form?.kind || 'seen';
+  if (kind === 'stays' || kind === 'absent') {
+    const minutes = Number(form?.minutes);
+    if (!Number.isFinite(minutes) || minutes * 60 < 10 || minutes > 1440) problems.minutes = 'How long is from 10 seconds (0.2 minutes) to 1440 minutes.';
+  }
+  if (kind === 'cross' && !form?.line) problems.line = 'Choose the line it crosses. Draw one in the Zones tab first.';
+  if (form?.scheduled) {
+    if (!/^\d{1,2}:\d{2}$/.test(String(form.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(form.end || ''))) problems.schedule = 'The start and the end are times like 09:00.';
+    else if (form.start === form.end) problems.schedule = 'The start and the end are different times.';
+    else if (!(form.days || []).length) problems.schedule = 'Choose at least one day.';
+  }
   return problems;
 }
 export function ruleBody(form) {
-  return { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+  const body = { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+  if (form.zone) body.zone = Number(form.zone);
+  const kind = form.kind || 'seen';
+  if (kind !== 'seen') body.kind = kind;
+  if (kind === 'stays' || kind === 'absent') body.seconds = Math.round(Number(form.minutes) * 60);
+  if (kind === 'cross') { body.line = Number(form.line); body.direction = form.direction || 'any'; }
+  if ((kind === 'seen' || kind === 'cross') && form.once_per_object) body.once_per_object = true;
+  if (form.scheduled) body.schedule = { days: [...(form.days || [])].sort((a, b) => a - b), start: form.start, end: form.end, tz: 'Asia/Karachi' };
+  body.alert = form.alert ?? 'managers';
+  if (form.critical) body.critical = true;
+  if (form.ai) {
+    body.ai = form.ai;
+    if (String(form.ai_question || '').trim()) body.ai_question = String(form.ai_question).trim();
+    if (form.ai_model) body.ai_model = form.ai_model;
+  }
+  if (form.approve_actions) body.approve_actions = true;
+  if (form.device) body.device = Number(form.device);
+  if (form.share) body.share = true;
+  return body;
 }
 
 // The classes a rule may look for: the ones the camera's stream showed, then the ones the server saw, each once.
-export function ruleClasses(stream, seen = []) {
+export function ruleClasses(stream, seen = [], detector = []) {
   const names = classNames(stream, 50);
-  for (const name of seen || []) if (name && !names.includes(name)) names.push(name);
+  for (const name of [...(seen || []), ...(detector || [])]) if (name && !names.includes(name)) names.push(name);
   return names;
 }
 
 // What an event found: "wall 2" (what made its rule match), and when, in UTC.
 export function matchedText(event) {
-  const found = Object.entries(event?.matched || {}).map(([name, count]) => `${name} ${count}`);
-  return found.join(', ');
+  const matched = event?.matched || {};
+  const skip = ['zone', 'line', 'direction', 'track', 'tracks', 'seconds'];
+  const found = Object.entries(matched).filter(([name, count]) => !skip.includes(name) && typeof count === 'number').map(([name, count]) => `${name} ${count}`);
+  let text = found.join(', ') + (typeof matched.zone === 'string' && matched.zone ? ` in ${matched.zone}` : '');
+  if (typeof matched.line === 'string') text += ` across ${matched.line}${matched.direction ? ` (${matched.direction})` : ''}`;
+  if (Number(matched.seconds) > 0) text += ` for ${Math.round(Number(matched.seconds) / 60) >= 1 ? `${Math.round(Number(matched.seconds) / 60)} min` : `${matched.seconds} s`}`;
+  return text;
 }
 export function eventTime(event) {
   const iso = event?.frame_at || event?.at;
@@ -731,11 +996,88 @@ export function eventTime(event) {
 }
 
 // The Workflow Builder, opened with a camera-event trigger of this camera (and rule) already on the canvas
-// (WorkflowsList.vue reads these; src/utils/cameraWorkflow.js makes the canvas).
+// (WorkflowsList.vue reads these; src/utils/cameraWorkflow.js makes the canvas). The link carries the camera's own
+// workspace (``source.workspace``, as the server says it), so the workflow is made there and nowhere else.
 export const CAMERA_TRIGGER = 'training.stream_event';
 export function workflowFromCamera(source, rule = null) {
   const query = new URLSearchParams({ trigger: CAMERA_TRIGGER, source: String(source?.id ?? '') });
   if (source?.name) query.set('camera', String(source.name).slice(0, 80));
+  const workspace = source?.workspace?.id;
+  if (workspace != null && /^[1-9][0-9]{0,11}$/.test(String(workspace))) query.set('workspace', String(workspace));
   if (rule?.id) query.set('rule', String(rule.id));
   return `/dashboard/workflow-builder?${query.toString()}`;
+}
+
+// ── a camera's zones, privacy masks and lines (camera_zones_api.py; SMART_CAMERA_AI_PLAN.md Phase A) ───────────────
+// Points are fractions of the picture (0..1). Listed by anyone who may see the workspace's cameras, changed by its
+// camera managers; only the workspace's own cameras have them.
+export const cameraZones = {
+  list: source => apiFetch(`${SOURCES}${enc(source)}/zones/`),
+  add: (source, body) => apiFetch(`${SOURCES}${enc(source)}/zones/`, { method: 'POST', body, timeoutMs: SLOW }),
+  update: (source, zone, body) => apiFetch(`${SOURCES}${enc(source)}/zones/${enc(zone)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
+  remove: (source, zone) => apiFetch(`${SOURCES}${enc(source)}/zones/${enc(zone)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+};
+export const ZONE_KINDS = [
+  { key: 'zone', label: 'Zone', help: 'An area, such as a desk or a door. A rule can count only what is inside it.' },
+  { key: 'mask', label: 'Privacy mask', help: 'Painted black on every frame before any model, the detector or a snapshot sees it.' },
+  { key: 'line', label: 'Line', help: 'Two points. Counting people crossing in and out comes with the next update.' },
+];
+export const ZONE_POINTS_MAX = 50;
+// A point clicked on the picture, as fractions rounded to 4 places and kept inside it.
+export function zonePoint(x, y, width, height) {
+  const clamp = v => Math.min(1, Math.max(0, v));
+  return [Math.round(clamp(x / (width || 1)) * 10000) / 10000, Math.round(clamp(y / (height || 1)) * 10000) / 10000];
+}
+// The points as an SVG "points" attribute on a 1000 x 1000 view box (the picture is stretched to it).
+export function zoneSvgPoints(points) {
+  return (Array.isArray(points) ? points : []).map(([x, y]) => `${Math.round(x * 1000)},${Math.round(y * 1000)}`).join(' ');
+}
+// What is wrong with a shape before it is saved, as the server checks it.
+export function zoneProblems({ name, kind, points }) {
+  const problems = {};
+  const clean = String(name || '').trim();
+  if (!clean) problems.name = 'Name the shape.';
+  else if (clean.length > 60) problems.name = 'A name is at most 60 characters.';
+  const count = Array.isArray(points) ? points.length : 0;
+  if (kind === 'line') { if (count !== 2) problems.points = 'Click two points on the picture for a line.'; }
+  else if (count < 3) problems.points = 'Click at least three points on the picture.';
+  else if (count > ZONE_POINTS_MAX) problems.points = `A shape has at most ${ZONE_POINTS_MAX} points.`;
+  return problems;
+}
+
+// ── searching the workspace's camera events (camera_search.py; SMART_CAMERA_AI_PLAN.md Phase E) ─────────────────────
+// A time from a datetime-local field has no zone: the server reads it as Pakistan time.
+function eventQuery({ q = '', camera = '', class: klass = '', since = '', until = '', unusual = false, page = 1 } = {}) {
+  const query = new URLSearchParams();
+  if (String(q).trim()) query.set('q', String(q).trim());
+  if (camera) query.append('camera', String(camera));
+  if (String(klass).trim()) query.set('class', String(klass).trim());
+  if (since) query.set('since', since);
+  if (until) query.set('until', until);
+  if (unusual) query.set('unusual', '1');
+  if (Number(page) > 1) query.set('page', String(page));
+  return query.toString();
+}
+export const cameraEvents = {
+  search: (filters = {}) => { const text = eventQuery(filters); return apiFetch(`${APP}/workspace/stream-events/${text ? `?${text}` : ''}`, { timeoutMs: SLOW }); },
+  similar: event => apiFetch(`${APP}/stream-events/${enc(event)}/similar/`, { timeoutMs: SLOW }),
+  timeline: ({ since = '', until = '' } = {}) => {
+    const query = new URLSearchParams();
+    if (since) query.set('since', since);
+    if (until) query.set('until', until);
+    const text = query.toString();
+    return apiFetch(`${APP}/workspace/stream-events/timeline/${text ? `?${text}` : ''}`, { timeoutMs: SLOW });
+  },
+};
+export { eventQuery };
+// Where each event sits on its camera's strip (0..100 % of the time range), with its words for a tooltip.
+export function timelineDots(line) {
+  if (!line?.cameras) return [];
+  const start = Date.parse(line.since); const end = Date.parse(line.until);
+  const span = Math.max(1, end - start);
+  return line.cameras.map(c => ({ id: c.id, name: c.name, dots: (c.events || []).map(e => ({
+    id: e.id, rule: e.rule, unusual: !!e.unusual,
+    left: Math.min(100, Math.max(0, ((Date.parse(e.at) - start) / span) * 100)),
+    when: new Date(e.at).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+  })) }));
 }

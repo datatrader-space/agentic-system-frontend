@@ -27,8 +27,8 @@
         </button>
       </div>
 
-      <main class="center-main">
-        <AppBreadcrumbs />
+      <main class="center-main" :class="{ 'is-full-bleed': fullBleed }">
+        <AppBreadcrumbs v-if="!fullBleed" />
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
             <!-- timeout 150: a page that takes longer than that to resolve shows the skeleton below
@@ -82,13 +82,16 @@
     <!-- Help Center backend-driven guided tours (runs on any product page) -->
     <GuidedTourOverlay />
 
-    <!-- Product-wide AI Help Assistant (FAB + chat widget) on every product page -->
-    <GlobalHelpAssistant />
+    <!-- Product-wide AI Help Assistant (FAB + chat widget) on every product page. A full-bleed page (the Workflow
+         Builder) offers Help in its own menu instead, so the button does not cover its console; once opened from
+         there, the assistant shows as usual until it is closed. -->
+    <GlobalHelpAssistant v-if="!fullBleed || helpState.open" />
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, provide, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, provide, watch, onMounted, onUnmounted } from 'vue'
+import { useHelpAssistant } from '../../composables/useHelpAssistant'
 import { lazyComponent } from '../../utils/lazyComponent'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from '../common/BrandMark.vue'
@@ -130,6 +133,27 @@ provide('openSettings', (section = 'general') => {
 })
 provide('closeSettings', () => { settingsOpen.value = false })
 watch(() => route.path, () => { settingsOpen.value = false })
+
+// Full-bleed pages (ADM-1333 F1): the page fills the centre column. The breadcrumbs above it (which made the column
+// scroll by their height) and the help button are not shown, and the sidebar is collapsed while the page is open.
+// The collapse is not saved: the person's own setting comes back when they leave, unless they changed it meanwhile.
+const FULL_BLEED_ROUTES = new Set(['dashboard-workflow-canvas'])
+const fullBleed = computed(() => FULL_BLEED_ROUTES.has(route.name))
+const { state: helpState } = useHelpAssistant()
+let sidebarBefore = null
+let sidebarTouched = false
+watch(fullBleed, (on) => {
+  if (on) {
+    const before = layout.sidebarCollapsed
+    layout.sidebarCollapsed = true    // before `sidebarBefore` is set, so this write is not taken for the person's
+    sidebarBefore = before
+    sidebarTouched = false
+  } else if (sidebarBefore !== null) {
+    if (!sidebarTouched) layout.sidebarCollapsed = sidebarBefore
+    sidebarBefore = null
+  }
+}, { immediate: true })
+watch(() => layout.sidebarCollapsed, () => { if (fullBleed.value && sidebarBefore !== null) sidebarTouched = true }, { flush: 'sync' })
 
 // Close transient overlays whenever the route changes.
 watch(() => route.fullPath, () => layout.closeAllOverlays())
@@ -192,6 +216,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   min-height: 0;
   overflow-y: auto;
   background: var(--vm-bg);
+}
+/* A full-bleed page fills the column exactly and scrolls nothing itself (ADM-1333 F1). */
+.center-main.is-full-bleed {
+  overflow: hidden;
 }
 .route-loading {
   width: 100%;

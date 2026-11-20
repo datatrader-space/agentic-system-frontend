@@ -1,29 +1,55 @@
 // The Let's Code editor's language servers (ADM-1205 phase F, item 16; agentic-docs/LETS_CODE_LANGUAGE_SERVERS_PLAN.md):
 // TypeScript / JavaScript and Python, each a real language server in the project's sandbox, reached through AADML.
+// ADM-1324: also Go (gopls), Rust (rust-analyzer), Java (jdtls), C# (csharp-ls), PHP (Intelephense), HTML, CSS / SCSS /
+// Less and JSON (vscode-langservers-extracted). Each is installed in the sandbox the first time a file of its language
+// is shown; the server says when it needs a runtime the sandbox does not have, and nothing else stands in for it.
 //
 // One store per open project, provided by the Let's Code page (LANGUAGE_SERVERS) like the chat tabs:
-//   * the editor (CodeBrowser) `bind`s its Monaco, its editor, its tabs and `openAt`: the files open in tabs are
+//   * the editor (CodeBrowser) `bind`s its Monaco, its editor, its tabs, `openAt` and `editOpenFile(path, textEdits)`
+//     (a server's change to a file open in a tab goes into the tab's text; null when it is not open): the files open
+//     in tabs are
 //     synced to the servers (didOpen / didChange / didSave / didClose), and Monaco gets hover, completion, signature
 //     help, go to definition (another file opens through `openAt`) and find all references (Shift+F12);
 //   * the bottom panel's Problems tab reads `problems` (what the servers report, and Check project's tsc run) and its
 //     References tab reads `references`; a click opens the place through the same `openAt`.
-// A server starts the first time a file of its language is shown. While none is ready, Monaco's own TypeScript
-// support keeps working; once one is, Monaco's own hover, completion, definitions and diagnostics are switched off
-// so nothing is shown twice.
+// A server starts the first time a file of its language is shown. Until the TypeScript server is ready, Monaco's own
+// TypeScript support keeps working; once it is, Monaco's own hover, completion, definitions and diagnostics are
+// switched off so nothing is shown twice (the same for HTML, CSS and JSON with their own servers).
+//
+// Editing through the servers (ADM-1319): rename (F2), quick fixes and refactors (Ctrl+.), inlay hints and Format
+// Document (Shift+Alt+F) for TypeScript, JavaScript and Python. These come from the servers only: Monaco's own are
+// never registered (`leaveEditingToServers`, called when Monaco loads). Python is formatted by the project's own
+// formatter through AADML (api.formatRepositoryFile); pyright has none. A change to several files (a rename, a quick
+// fix, the server's own workspace/applyEdit) goes through ONE helper, `applyWorkspaceEdit`: a file open in a tab
+// changes in the tab (unsaved; the person saves it), any other file is read, changed and written with the version it
+// was read at, so a file changed meanwhile is never overwritten.
 import { reactive, ref, computed, watch, effectScope } from 'vue'
 import api from '@/services/api'
 import { LspConnection, lspSocketUrl } from '@/services/lspClient'
+import { notify } from '@/composables/useNotify'
+import { useEditorSettings } from '@/composables/useEditorSettings'
+import { whileSandboxStarts, retryAfterSeconds } from '@/utils/sandboxStarting'
+import { projectCache } from '@/services/projectCache'
 
 export const LANGUAGE_SERVERS = Symbol('lets-code-language-servers')
 
 // ── pure helpers (tested on their own) ────────────────────────────────────────────────────────────────────────
+// Which server a file belongs to (the backend's project_language.LANGUAGES keys, by the same extensions) and its LSP
+// languageId.
 const EXT_LANG = { ts: 'typescript', tsx: 'typescript', js: 'typescript', jsx: 'typescript', mjs: 'typescript',
-  cjs: 'typescript', mts: 'typescript', cts: 'typescript', py: 'python', pyi: 'python' }
+  cjs: 'typescript', mts: 'typescript', cts: 'typescript', py: 'python', pyi: 'python', go: 'go', rs: 'rust',
+  java: 'java', cs: 'csharp', csx: 'csharp', php: 'php', phtml: 'php', html: 'html', htm: 'html', css: 'css',
+  scss: 'css', less: 'css', json: 'json' }
 const EXT_ID = { ts: 'typescript', mts: 'typescript', cts: 'typescript', tsx: 'typescriptreact', js: 'javascript',
-  mjs: 'javascript', cjs: 'javascript', jsx: 'javascriptreact', py: 'python', pyi: 'python' }
+  mjs: 'javascript', cjs: 'javascript', jsx: 'javascriptreact', py: 'python', pyi: 'python', go: 'go', rs: 'rust',
+  java: 'java', cs: 'csharp', csx: 'csharp', php: 'php', phtml: 'php', html: 'html', htm: 'html', css: 'css',
+  scss: 'scss', less: 'less', json: 'json' }
+/** Each server's name, as the person reads it. */
+export const SERVER_NAMES = { typescript: 'TypeScript', python: 'Python', go: 'Go', rust: 'Rust', java: 'Java',
+  csharp: 'C#', php: 'PHP', html: 'HTML', css: 'CSS', json: 'JSON' }
 
 function extOf(path) { const m = /\.([^./]+)$/.exec(String(path || '')); return m ? m[1].toLowerCase() : '' }
-/** The language server a file belongs to (typescript | python), or null. */
+/** The language server a file belongs to (a key of SERVER_NAMES), or null. */
 export function serverFor(path) { return EXT_LANG[extOf(path)] || null }
 /** The LSP languageId of a file. */
 export function languageIdOf(path) { return EXT_ID[extOf(path)] || 'plaintext' }
@@ -58,6 +84,174 @@ export function rangeOf(r) {
 }
 /** An LSP position from Monaco's. */
 export function positionOf(p) { return { line: p.lineNumber - 1, character: p.column - 1 } }
+/** An LSP range from Monaco's. */
+export function lspRangeOf(r) {
+  return { start: { line: r.startLineNumber - 1, character: r.startColumn - 1 },
+    end: { line: r.endLineNumber - 1, character: r.endColumn - 1 } }
+}
+
+// ── text edits (LSP positions are UTF-16 code units, as JavaScript strings and Monaco's columns are) ──
+// Where each line starts; a line ends at \n, \r\n or \r.
+function lineStarts(text) {
+  const starts = [0]
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    if (c === 13) { if (text.charCodeAt(i + 1) === 10) i++; starts.push(i + 1) } else if (c === 10) starts.push(i + 1)
+  }
+  return starts
+}
+// The offset of an LSP position. A character past its line's end is the line's end (the LSP rule); a line past the
+// text's end is the text's end.
+function offsetAt(text, starts, pos) {
+  if (pos.line < 0) return 0
+  if (pos.line >= starts.length) return text.length
+  const start = starts[pos.line]
+  let end = text.length
+  if (pos.line + 1 < starts.length) {
+    end = starts[pos.line + 1] - 1
+    if (text[end] === '\n' && end > start && text[end - 1] === '\r') end -= 1
+  }
+  return start + Math.min(Math.max(pos.character || 0, 0), end - start)
+}
+/** The end of a text, as an LSP position. */
+export function endOf(text) {
+  const starts = lineStarts(text)
+  return { line: starts.length - 1, character: text.length - starts[starts.length - 1] }
+}
+/** `text` with LSP TextEdits applied. Ranges are read in the text as it was before any edit (the LSP rule), and edits
+ *  at the same place go in in the order given. */
+export function applyTextEdits(text, edits) {
+  const starts = lineStarts(text)
+  const list = (edits || []).map((e, i) => ({ i, from: offsetAt(text, starts, e.range.start),
+    to: offsetAt(text, starts, e.range.end), text: e.newText ?? '' }))
+  list.sort((a, b) => a.from - b.from || a.i - b.i)
+  let out = ''
+  let at = 0
+  for (const e of list) {
+    out += text.slice(at, Math.max(at, e.from)) + e.text
+    at = Math.max(at, e.to)
+  }
+  return out + text.slice(at)
+}
+
+export const RESOURCE_OPERATIONS_REFUSED = 'This change creates, renames or deletes files. The editor does not do that, '
+  + 'so nothing was changed.'
+
+// ── a TypeScript project loading (ADM-1335) ──
+// While tsserver loads a project, typescript-language-server sends `rename` (and references, definitions, ...) to its
+// syntax-only server, which knows the open files alone (SyntaxRoutingTsServer.syntaxAllowedCommands, 4.3.3), so a
+// rename then changed the open file only. The server reports the load as progress: window/workDoneProgress/create,
+// then $/progress begin ... end ("Initializing JS/TS language features…"). A rename waits for it to end, and is asked
+// again when a load began while it was being asked (the server's create reaches us before that answer).
+export const PROJECT_LOADING_WAIT_MS = 60000
+export const RENAME_WAITING = 'The project is still loading. The rename runs as soon as it has loaded, so it reaches every file.'
+export const RENAME_NOTHING = 'Nothing was renamed: the language server found nothing to change.'
+// Monaco only logs a rejectReason (standalone notification service), so this line is for the console, not a person.
+export const RENAME_DONE_HERE = 'Renamed through the language server; the editor applied the changes and said so.'
+export const RENAME_NOT_LOADED = 'Nothing was renamed: the project is still loading, and a rename now could miss files. '
+  + 'Try again in a moment.'
+function loadingBegan(entry, token) {
+  entry.loading.add(String(token))
+  entry.loadingEpoch += 1
+}
+function loadingEnded(entry, token) {
+  entry.loading.delete(String(token))
+  if (!entry.loading.size) for (const done of entry.loadingWaiters.splice(0)) done(true)
+}
+function loadingStopped(entry) {                     // the connection closed: nothing will end the loads it reported
+  entry.loading.clear()
+  for (const done of entry.loadingWaiters.splice(0)) done(false)
+}
+/** Resolves true once no load is going on, false after `ms` or when the connection closes. */
+function whenLoaded(entry, ms) {
+  if (!entry.loading.size) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const done = (ok) => { clearTimeout(timer); resolve(ok) }
+    const timer = setTimeout(() => {
+      const i = entry.loadingWaiters.indexOf(done)
+      if (i >= 0) entry.loadingWaiters.splice(i, 1)
+      resolve(false)
+    }, ms)
+    entry.loadingWaiters.push(done)
+  })
+}
+/** The files a WorkspaceEdit changes, in order: `{uri, version, steps: [TextEdit[], ...]}` (a file named twice in
+ *  documentChanges gets the second set of edits on the result of the first). A change that creates, renames or deletes
+ *  a file is refused whole: `{files: [], refused}`. */
+export function workspaceEditFiles(edit) {
+  const files = new Map()
+  const add = (uri, version, edits) => {
+    const f = files.get(uri) || { uri, version: null, steps: [] }
+    if (f.version == null && typeof version === 'number') f.version = version
+    f.steps.push(edits || [])
+    files.set(uri, f)
+  }
+  if (Array.isArray(edit && edit.documentChanges)) {
+    if (edit.documentChanges.some((c) => !c || c.kind || !c.textDocument)) return { files: [], refused: RESOURCE_OPERATIONS_REFUSED }
+    for (const c of edit.documentChanges) add(c.textDocument.uri, c.textDocument.version, c.edits)
+  } else {
+    for (const [uri, edits] of Object.entries((edit && edit.changes) || {})) add(uri, null, edits)
+  }
+  return { files: [...files.values()], refused: null }
+}
+
+/** An LSP inlay hint's answer as Monaco's hints. */
+export function inlayHintsOf(result) {
+  const tip = (t) => (t == null ? undefined : typeof t === 'string' ? t : { value: t.value })
+  return (Array.isArray(result) ? result : []).map((h) => ({
+    label: typeof h.label === 'string' ? h.label : (h.label || []).map((p) => ({ label: p.value, tooltip: tip(p.tooltip) })),
+    position: { lineNumber: h.position.line + 1, column: h.position.character + 1 },
+    kind: h.kind, paddingLeft: !!h.paddingLeft, paddingRight: !!h.paddingRight, tooltip: tip(h.tooltip),
+  }))
+}
+
+// Whether two LSP ranges touch (a cursor inside a problem's range asks about that problem).
+const before = (a, b) => a.line - b.line || a.character - b.character
+const touches = (a, b) => before(a.end, b.start) >= 0 && before(a.start, b.end) <= 0
+
+// Monaco's TypeScript support (`monaco.typescript` in Monaco 0.53 and later; `monaco.languages.typescript` before).
+function monacoTs(monaco) {
+  try {
+    return monaco && ((monaco.typescript && monaco.typescript.typescriptDefaults ? monaco.typescript : null)
+      || (monaco.languages && monaco.languages.typescript)) || null
+  } catch {
+    return null        // a namespace without a TypeScript part (a strict module mock throws on a missing export)
+  }
+}
+
+/** Called once Monaco has loaded, before it holds a TypeScript file: rename, code actions, inlay hints and formatting
+ *  of TypeScript and JavaScript are the language server's only, so Monaco's own are never registered. Monaco 0.57
+ *  registers its own TypeScript features once, when the first TypeScript file appears, and a later
+ *  setModeConfiguration changes nothing; two sources would show every quick fix twice and pick a formatter at random. */
+export function leaveEditingToServers(monaco) {
+  const ts = monacoTs(monaco)
+  for (const d of ts ? [ts.typescriptDefaults, ts.javascriptDefaults] : []) {
+    try {
+      d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), rename: false, codeActions: false, inlayHints: false,
+        documentRangeFormattingEdits: false })
+    } catch { /* an older Monaco: its own features stay on */ }
+  }
+  // HTML, CSS and JSON (ADM-1324): their servers rename and format; Monaco's own never do, so each is offered once.
+  for (const d of webDefaults(monaco)) {
+    try {
+      d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), rename: false, documentFormattingEdits: false,
+        documentRangeFormattingEdits: false })
+    } catch { /* an older Monaco: its own features stay on */ }
+  }
+}
+
+// Monaco's own HTML, CSS (and SCSS, Less) and JSON support, by the server that replaces it (`monaco.css` ... in Monaco
+// 0.53 and later). [] for a server Monaco has none for.
+function webDefaults(monaco, lang = null) {
+  try {
+    const of = { html: [monaco?.html?.htmlDefaults],
+      css: [monaco?.css?.cssDefaults, monaco?.css?.scssDefaults, monaco?.css?.lessDefaults],
+      json: [monaco?.json?.jsonDefaults] }
+    return (lang ? of[lang] || [] : Object.values(of).flat()).filter(Boolean)
+  } catch {
+    return []        // a strict module mock throws on a missing export
+  }
+}
 
 /** An LSP hover's contents as Monaco markdown strings. */
 export function hoverContents(contents) {
@@ -96,10 +290,38 @@ export function completionsOf(result, wordRange) {
 }
 
 // ── the store ─────────────────────────────────────────────────────────────────────────────────────────────────
-const MONACO_LANGS = ['typescript', 'javascript', 'python']
-// Each server's settings: pyright reports the whole project (plan D8), the TypeScript server its defaults.
+const MONACO_LANGS = ['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'csharp', 'php', 'html', 'css',
+  'scss', 'less', 'json']
+// Each server's settings: pyright reports the whole project (plan D8), the others their defaults.
 const SETTINGS = { python: { python: { analysis: { diagnosticMode: 'workspace' } } } }
+// What a server is told when it starts: the HTML, CSS and JSON servers format only when asked to (vscode-langservers).
+const INIT_OPTIONS = { html: { provideFormatter: true }, css: { provideFormatter: true },
+  json: { provideFormatter: true } }
+const serverName = (lang) => `The ${SERVER_NAMES[lang] || lang} language server`
+// The server behind a Monaco language (javascript is the TypeScript server's; scss and less the CSS server's).
+const serverOfMonaco = (id) => ({ javascript: 'typescript', scss: 'css', less: 'css' })[id] || id
 const val = (x) => (typeof x === 'function' ? x() : x)
+const CODE_ACTION_KINDS = ['', 'quickfix', 'refactor', 'refactor.extract', 'refactor.inline', 'refactor.rewrite',
+  'source', 'source.organizeImports', 'source.fixAll']
+// The Monaco command a code action runs: the action is applied here (resolved, its edit, its command), never by
+// Monaco's own edit service, which only knows the one file open in the editor.
+const CODE_ACTION_COMMAND = 'lets-code.lsp.code-action'
+const STARTING = 'The language server is still starting. Try again in a moment.'
+const notReady = (why) => Object.assign(new Error(why), { notReady: true })
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/** The arguments of a notification about a formatting error. One carrying the formatter's setup log (code
+ *  FORMATTER_UNAVAILABLE: the install log, whole) stays short: it says a click copies the log, and the click does. */
+export function setupLogNotification(message, error) {
+  const log = error && error.setupLog
+  if (!log) return [message]
+  const copy = () => {
+    const clip = typeof navigator !== 'undefined' ? navigator.clipboard : null
+    const done = clip && clip.writeText ? clip.writeText(log) : Promise.reject(new Error('no clipboard'))
+    done.then(() => notify.success('The setup log was copied.'), () => notify.error('The setup log could not be copied.'))
+  }
+  return [`${message} Click this notification to copy the setup log.`, { timeout: 15000, onClick: copy }]
+}
 
 // `systemId` / `repoId`: values, or functions giving the open project's (the page keeps one store and swaps projects).
 export function createLanguageServers({ systemId, repoId, Connection = LspConnection, urlFor = lspSocketUrl } = {}) {
@@ -111,6 +333,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   const checkError = ref('')
   const references = ref({ query: '', items: [], loading: false, error: '' })
   const panel = ref({ tab: '', at: 0 })   // the bottom panel is asked to show a tab (Problems / References)
+  const { settings: editorSettings } = useEditorSettings()
   let ctx = null
   let scope = null
   const disposables = []
@@ -139,15 +362,21 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   function ensure(lang) {
     const have = conns[lang]
     if (have && !['closed', 'error'].includes(have.conn.state)) return have
-    const entry = { conn: null, root: '', opened: new Map(), ready: false, pending: new Map(), timer: null }
-    servers[lang] = { state: 'connecting', error: '', root: '' }
+    // `caps`: what the server said it does (initialize); `raw`: its diagnostics of each file as sent, for code actions.
+    // `loading`: the TypeScript server's project loads in progress, by token (ADM-1335).
+    const entry = { conn: null, root: '', opened: new Map(), ready: false, pending: new Map(), timer: null, caps: {},
+      raw: new Map(), lang, loading: new Set(), loadingEpoch: 0, loadingWaiters: [] }
+    servers[lang] = { state: 'connecting', error: '', detail: '', root: '' }
     entry.conn = new Connection({
       url: urlFor(val(repoId), lang),
       onStatus: (s) => {
-        servers[lang] = { state: s.state === 'ready' ? 'initializing' : s.state, error: s.error || '', root: s.root || '' }
+        // `detail`: a failed install's log, whole (the Problems panel shows it under the error).
+        servers[lang] = { state: s.state === 'ready' ? 'initializing' : s.state, error: s.error || '',
+          detail: s.detail || '', root: s.root || '' }
         if (s.state === 'ready') { entry.root = s.root || ''; initialize(lang, entry) }
         if (s.state === 'closed' || s.state === 'error' || s.state === 'exited') {
           entry.ready = false
+          loadingStopped(entry)
           clearDiagnostics(lang)
         }
       },
@@ -162,8 +391,9 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   async function initialize(lang, entry) {
     const rootUri = toUri(entry.root, '').replace(/\/$/, '')
     try {
-      await entry.conn.request('initialize', {
+      const init = await entry.conn.request('initialize', {
         processId: null, rootUri, rootPath: entry.root,
+        ...(INIT_OPTIONS[lang] ? { initializationOptions: INIT_OPTIONS[lang] } : {}),
         workspaceFolders: [{ uri: rootUri, name: entry.root.split('/').pop() || 'project' }],
         capabilities: {
           textDocument: {
@@ -173,17 +403,30 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
             signatureHelp: { signatureInformation: { documentationFormat: ['markdown', 'plaintext'] } },
             definition: { linkSupport: true }, references: {},
             publishDiagnostics: { relatedInformation: false },
+            rename: { dynamicRegistration: false, prepareSupport: true },
+            codeAction: { dynamicRegistration: false, isPreferredSupport: true, disabledSupport: true, dataSupport: true,
+              codeActionLiteralSupport: { codeActionKind: { valueSet: CODE_ACTION_KINDS } },
+              resolveSupport: { properties: ['edit'] } },
+            inlayHint: { dynamicRegistration: false },
+            formatting: { dynamicRegistration: false },
+            rangeFormatting: { dynamicRegistration: false },
           },
-          workspace: { configuration: true, workspaceFolders: true },
+          workspace: { configuration: true, workspaceFolders: true, applyEdit: true,
+            // Text edits only: creating, renaming or deleting a file is refused (applyWorkspaceEdit).
+            workspaceEdit: { documentChanges: true, resourceOperations: [] },
+            executeCommand: { dynamicRegistration: false } },
+          // The TypeScript server then reports a project load, during which a rename would miss files (ADM-1335).
+          window: { workDoneProgress: true },
         },
       })
+      entry.caps = (init && init.capabilities) || {}
       entry.conn.notify('initialized', {})
       // The settings, pushed once, as VS Code's client does: pyright does no work at all until it is told its
       // configuration changed (live 2026-11-16: "ready", then no diagnostics and no hover reply).
       entry.conn.notify('workspace/didChangeConfiguration', { settings: SETTINGS[lang] || {} })
       entry.ready = true
       servers[lang] = { ...servers[lang], state: 'ready' }
-      quietBuiltins()
+      quietBuiltins(lang)
       syncDocs()
     } catch (e) {
       servers[lang] = { ...servers[lang], state: 'error', error: e.message }
@@ -200,23 +443,234 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       const uri = toUri(entry.root, '').replace(/\/$/, '')
       return [{ uri, name: entry.root.split('/').pop() || 'project' }]
     }
-    return null      // window/workDoneProgress/create, client/registerCapability, ...: accepted
+    if (method === 'workspace/applyEdit') {
+      // The server's own change (a command it ran, e.g. organize imports): applied like a rename, and answered.
+      return applyWorkspaceEdit(entry, params && params.edit).then((r) => (r.applied ? { applied: true }
+        : { applied: false, failureReason: r.failureReason }))
+    }
+    if (method === 'window/workDoneProgress/create') {
+      // Only the TypeScript server routes requests elsewhere while it loads; pyright's progress changes nothing.
+      if (entry.lang === 'typescript' && params && params.token != null) loadingBegan(entry, params.token)
+      return null
+    }
+    return null      // client/registerCapability, ...: accepted
   }
 
   function onNotification(lang, entry, method, params) {
+    if (method === '$/progress') {
+      if (entry.lang === 'typescript' && params && params.value && params.value.kind === 'end') loadingEnded(entry, params.token)
+      return
+    }
     if (method !== 'textDocument/publishDiagnostics' || !params) return
     const path = pathOfUri(entry.root, params.uri)
     if (path == null || path.startsWith('node_modules/')) return
     const key = `${lang}\n${path}`
     const rows = (params.diagnostics || []).map((d) => problemOf(path, d, lang))
-    if (rows.length) diagnostics[key] = rows
-    else delete diagnostics[key]
+    if (rows.length) { diagnostics[key] = rows; entry.raw.set(path, params.diagnostics) }
+    else { delete diagnostics[key]; entry.raw.delete(path) }
     applyMarkers()
   }
 
   function clearDiagnostics(lang) {
     for (const k of Object.keys(diagnostics)) if (k.startsWith(`${lang}\n`)) delete diagnostics[k]
+    if (conns[lang]) conns[lang].raw.clear()
     applyMarkers()
+  }
+
+  // ── a change to files (rename, a code action, the server's workspace/applyEdit) ──
+  // A file open in a tab changes there, through the editor (`ctx.editOpenFile`: the tab becomes unsaved and the
+  // person saves it). Any other file is read, changed and written back with the sha it was read at: a file changed
+  // meanwhile answers 409 CHANGED_ON_DISK and is left as it is.
+  async function editFile(path, steps) {
+    let text = null
+    if (ctx && typeof ctx.editOpenFile === 'function') {
+      for (const edits of steps) {
+        const now = ctx.editOpenFile(path, edits)
+        if (now == null) break
+        text = now
+      }
+    }
+    if (text != null) { changed({ path, content: text }); return }
+    const sys = val(systemId)
+    const repo = val(repoId)
+    let data
+    try {
+      ({ data } = await whileSandboxStarts(() => api.getFileContent(sys, repo, path)))
+    } catch (e) {
+      throw new Error(e?.response?.data?.error || 'it could not be read', { cause: e })
+    }
+    if (!data || typeof data.content !== 'string' || data.redacted) throw new Error('it could not be read as text')
+    const next = steps.reduce((t, edits) => applyTextEdits(t, edits), data.content)
+    if (next === data.content) return
+    try {
+      await whileSandboxStarts(() => api.saveFileContent(sys, repo, path, next, data.sha || undefined))
+    } catch (e) {
+      if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') {
+        throw new Error('it changed in the project meanwhile, so it was not overwritten', { cause: e })
+      }
+      throw new Error(e?.response?.data?.error || 'it could not be saved', { cause: e })
+    }
+    projectCache.file.set(repo, path, next)
+  }
+
+  /** Apply an LSP WorkspaceEdit (`changes` or `documentChanges`). `rename`: the notification says "Renamed".
+   *  -> { applied, failureReason, changed: [path], failed: [{path, why}] }; one notification for a change to several
+   *  files or one that failed. */
+  async function applyWorkspaceEdit(entry, edit, { rename = false } = {}) {
+    const { files, refused } = workspaceEditFiles(edit)
+    if (refused) {
+      notify.error(refused)
+      return { applied: false, failureReason: refused, changed: [], failed: [] }
+    }
+    flush(entry)
+    const done = []
+    const failed = []
+    for (const f of files) {
+      const path = pathOfUri(entry.root, f.uri)
+      if (path == null) { failed.push({ path: f.uri, why: 'it is outside the project' }); continue }
+      const doc = entry.opened.get(path)
+      if (f.version != null && doc && doc.version !== f.version) {
+        failed.push({ path, why: 'it changed while the change was being worked out' })
+        continue
+      }
+      try {
+        await editFile(path, f.steps)
+        done.push(path)
+      } catch (e) {
+        failed.push({ path, why: e.message })
+      }
+    }
+    const did = done.length ? `${rename ? 'Renamed in' : 'Changed'} ${plural(done.length, 'file')}` : ''
+    if (failed.length) {
+      const list = failed.map((x) => `${x.path} (${x.why})`).join('; ')
+      notify.error(`${did ? `${did}. ` : ''}${failed.length === 1 ? 'This file was' : 'These files were'} not changed: ${list}.`)
+    } else if (done.length > 1) {
+      notify.success(did)
+    }
+    const failureReason = failed.length ? failed.map((x) => `${x.path}: ${x.why}`).join('; ') : undefined
+    return { applied: !failed.length, failureReason, changed: done, failed }
+  }
+
+  // ── formatting ──
+  // The editor's tab size and spaces (its settings; "the file's own" reads the open file's).
+  function formattingOptions() {
+    const size = editorSettings.tabSize
+    if (size !== 'auto') return { tabSize: size, insertSpaces: true }
+    const ed = ctx && ctx.editor()
+    const model = ed && ed.getModel && ed.getModel()
+    const o = (model && typeof model.getOptions === 'function' && model.getOptions()) || {}
+    return { tabSize: o.tabSize || 4, insertSpaces: o.insertSpaces !== false }
+  }
+
+  /** Whether a file has a formatter (Python through the project's, every other language through its server). */
+  function canFormat(path) { return serverFor(path) != null }
+
+  /** The LSP TextEdits that format `text`, the file `path`'s text now (`range`: only that part, an LSP range).
+   *  Throws an Error saying why it could not be formatted; `notReady` when its server is still starting. */
+  async function formatEdits(path, text, range = null) {
+    const lang = serverFor(path)
+    if (lang === 'python') {
+      if (range) return []
+      let data
+      try {
+        ({ data } = await whileSandboxStarts(() => api.formatRepositoryFile(val(systemId), val(repoId), path, text)))
+      } catch (e) {
+        const d = e?.response?.data
+        if (d && d.code === 'FORMAT_FAILED') {
+          throw new Error([d.error || 'The formatter refused this file.', d.detail].filter(Boolean).join(' '), { cause: e })
+        }
+        // The project's first format: the formatter is being installed in the sandbox, in the background. Nothing waits
+        // or retries here (whileSandboxStarts retries only RUNNER_STARTING); the person tries again later.
+        if (d && d.code === 'FORMATTER_PREPARING') {
+          throw Object.assign(new Error(d.error || 'Python formatting is being set up in your project. Try again in a minute.',
+            { cause: e }), { preparing: true, retryAfter: retryAfterSeconds(e) })
+        }
+        // The install failed: its log (whole) goes with the error, for setupLogNotification.
+        if (d && d.code === 'FORMATTER_UNAVAILABLE') {
+          throw Object.assign(new Error(d.error || "Python formatting could not be set up in your project's sandbox.",
+            { cause: e }), { setupLog: typeof d.detail === 'string' && d.detail ? d.detail : '' })
+        }
+        // The sandbox did not answer within the request's budget: a passing state, said like a server still starting.
+        if (d && d.code === 'SANDBOX_NOT_ANSWERING') {
+          throw Object.assign(notReady(d.error || "The project's sandbox did not answer in time. Try again."), { cause: e })
+        }
+        throw new Error(d?.error || 'The file could not be formatted. Try again.', { cause: e })
+      }
+      if (!data || !data.changed || typeof data.content !== 'string' || data.content === text) return []
+      return [{ range: { start: { line: 0, character: 0 }, end: endOf(text) }, newText: data.content }]
+    }
+    if (!lang) throw new Error('This kind of file has no formatter.')
+    const entry = conns[lang]
+    const name = serverName(lang)
+    if (!entry || !entry.ready) {
+      const s = servers[lang]
+      if (s && s.state === 'error') throw new Error(s.error || `${name} is not running.`)
+      throw notReady(`${name} is still starting.`)
+    }
+    const cap = range ? entry.caps.documentRangeFormattingProvider : entry.caps.documentFormattingProvider
+    if (!cap) throw new Error(`${name} does not format ${range ? 'a selection' : 'files'}.`)
+    if (!entry.opened.has(path)) throw notReady(`${name} has not opened this file yet.`)
+    // The server formats the text it holds: it is given this text first.
+    changed({ path, content: text })
+    flush(entry)
+    const params = { textDocument: { uri: toUri(entry.root, path) }, options: formattingOptions() }
+    const edits = await entry.conn.request(range ? 'textDocument/rangeFormatting' : 'textDocument/formatting',
+      range ? { ...params, range } : params)
+    return Array.isArray(edits) ? edits : []
+  }
+
+  // Monaco's Format Document / Format Selection: the edits, or a notification saying why there are none. While Python
+  // formatting is being set up in a project, its notification is shown once per the server's retry window: pressing
+  // again within it still asks the server (setup may have finished) but says nothing new.
+  const preparingQuietUntil = new Map()      // `${systemId}/${repoId}` -> time (ms) until which it is not said again
+  async function monacoFormat(model, range) {
+    const path = activeFile(model)
+    if (!path) return []
+    try {
+      const edits = await formatEdits(path, model.getValue(), range ? lspRangeOf(range) : null)
+      return edits.map((e) => ({ range: rangeOf(e.range), text: e.newText ?? '' }))
+    } catch (e) {
+      if (e.preparing) {
+        const project = `${val(systemId)}/${val(repoId)}`
+        if (Date.now() >= (preparingQuietUntil.get(project) || 0)) {
+          preparingQuietUntil.set(project, Date.now() + e.retryAfter * 1000)
+          notify.info(e.message)
+        }
+      } else if (e.notReady) notify.info(`${e.message} The file was not formatted.`)
+      else notify.error(...setupLogNotification(`The file was not formatted: ${e.message}`, e))
+      return []
+    }
+  }
+
+  // ── code actions ──
+  async function runCodeAction(lang, action) {
+    const entry = conns[lang]
+    if (!entry || !entry.ready || !action) { notify.error('The language server is not running, so nothing was changed.'); return }
+    if (typeof action.command === 'string') { await executeCommand(entry, action); return }   // a plain Command
+    let a = action
+    const resolvable = entry.caps.codeActionProvider && typeof entry.caps.codeActionProvider === 'object'
+      && entry.caps.codeActionProvider.resolveProvider
+    if (!a.edit && resolvable) {
+      try {
+        a = (await entry.conn.request('codeAction/resolve', action)) || action
+      } catch (e) {
+        notify.error(`${action.title} could not be worked out: ${e.message}`)
+        return
+      }
+    }
+    if (a.edit) {
+      const r = await applyWorkspaceEdit(entry, a.edit)
+      if (!r.applied) return
+    }
+    if (a.command) await executeCommand(entry, a.command)
+  }
+
+  async function executeCommand(entry, cmd) {
+    try {
+      await entry.conn.request('workspace/executeCommand', { command: cmd.command, arguments: cmd.arguments })
+    } catch (e) {
+      notify.error(`${cmd.title || 'The action'} did not work: ${e.message}`)
+    }
   }
 
   // ── documents ──
@@ -271,15 +725,20 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
 
   // ── Monaco ──
   // The file a provider is asked about: the active tab, when the model is the editor's and its server is ready.
-  function current(model) {
+  function activeFile(model) {
     if (!ctx) return null
     const tab = ctx.activeTab.value
     const ed = ctx.editor()
     if (!tab || tab.type !== 'file' || !ed || ed.getModel() !== model) return null
-    const entry = conns[serverFor(tab.path)]
-    if (!entry || !entry.ready || !entry.opened.has(tab.path)) return null
+    return tab.path
+  }
+  function current(model) {
+    const path = activeFile(model)
+    const lang = serverFor(path)
+    const entry = conns[lang]
+    if (!path || !entry || !entry.ready || !entry.opened.has(path)) return null
     flush(entry)
-    return { entry, path: tab.path, uri: toUri(entry.root, tab.path) }
+    return { entry, lang, path, uri: toUri(entry.root, path) }
   }
 
   function applyMarkers() {
@@ -299,22 +758,139 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     } catch { /* the model went away */ }
   }
 
+  // Monaco's own support of a language is switched off once its server is ready, so nothing is shown twice
+  // (TypeScript's, HTML's, CSS's and JSON's; Monaco has none for the other servers' languages).
   let quieted = false
-  function quietBuiltins() {
-    const monaco = ctx && ctx.monaco()
-    // `monaco.typescript` in Monaco 0.53 and later; `monaco.languages.typescript` before.
-    const ts = monaco && ((monaco.typescript && monaco.typescript.typescriptDefaults ? monaco.typescript : null)
-      || (monaco.languages && monaco.languages.typescript))
-    if (!ts || quieted) return
+  function quietBuiltins(lang) {
+    for (const d of webDefaults(ctx && ctx.monaco(), ['html', 'css', 'json'].includes(lang) ? lang : '_')) {
+      try {
+        d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), completionItems: false, hovers: false,
+          definitions: false, references: false, diagnostics: false, rename: false, documentFormattingEdits: false,
+          documentRangeFormattingEdits: false })
+      } catch { /* an older Monaco: its own features stay on */ }
+    }
+    const ts = monacoTs(ctx && ctx.monaco())
+    if (lang !== 'typescript' || !ts || quieted) return
     quieted = true
     for (const d of [ts.typescriptDefaults, ts.javascriptDefaults]) {
       try {
         d.setDiagnosticsOptions?.({ noSemanticValidation: true, noSyntaxValidation: true, noSuggestionDiagnostics: true })
         d.setModeConfiguration?.({ completionItems: false, hovers: false, definitions: false, references: false,
           signatureHelp: false, diagnostics: false, rename: false, codeActions: false, inlayHints: false,
-          documentSymbols: true, documentHighlights: true, documentRangeFormattingEdits: true,
+          documentSymbols: true, documentHighlights: true, documentRangeFormattingEdits: false,
           onTypeFormattingEdits: true })
       } catch { /* an older Monaco: its own features stay on */ }
+    }
+  }
+
+  // Rename, code actions, inlay hints and formatting of one Monaco language (ADM-1319).
+  function registerEditing(monaco, lang) {
+    const L = monaco.languages
+    const add = (fn, ...args) => { if (typeof L[fn] === 'function') disposables.push(L[fn](lang, ...args)) }
+    const wordAt = (model, position) => {
+      const w = model.getWordAtPosition(position)
+      return w ? { range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
+        startColumn: w.startColumn, endColumn: w.endColumn }, text: w.word } : null
+    }
+    add('registerRenameProvider', {
+      // F2: the name to rename and its place. A reason shown at the cursor when there is none.
+      async resolveRenameLocation(model, position) {
+        const f = current(model)
+        if (!f) return { range: wordAt(model, position)?.range, text: '', rejectReason: STARTING }
+        const cap = f.entry.caps.renameProvider
+        if (!cap) return { range: wordAt(model, position)?.range, text: '', rejectReason: 'This language server cannot rename.' }
+        if (typeof cap === 'object' && cap.prepareProvider) {
+          let r
+          try {
+            r = await f.entry.conn.request('textDocument/prepareRename', { textDocument: { uri: f.uri },
+              position: positionOf(position) })
+          } catch (e) {
+            return { range: wordAt(model, position)?.range, text: '', rejectReason: e.message }
+          }
+          if (!r) return { range: wordAt(model, position)?.range, text: '', rejectReason: 'This cannot be renamed.' }
+          if (r.defaultBehavior) return wordAt(model, position)
+          if (r.start) return { range: rangeOf(r), text: model.getValueInRange(rangeOf(r)) }
+          return { range: rangeOf(r.range), text: r.placeholder ?? model.getValueInRange(rangeOf(r.range)) }
+        }
+        return wordAt(model, position)
+      },
+      // The edits are applied here, in every file (see applyWorkspaceEdit); Monaco is given none to apply, as its own
+      // edit service knows only the file shown. Every answer carries `rejectReason` (handledHere): with none, Monaco
+      // ran its empty edit and told screen readers "Made 0 edits in 0 files" after a rename of two files (live,
+      // 2026-11-20). With one it applies nothing, announces nothing and only logs it; the person's notification is ours.
+      async provideRenameEdits(model, position, newName) {
+        const handledHere = (why) => ({ edits: [], rejectReason: why })
+        const f = current(model)
+        if (!f) { notify.info(STARTING); return handledHere(STARTING) }
+        let edit
+        // ADM-1335: never while the project loads (the answer would cover the open files only). Asked again, at most
+        // twice, when a load began while it was being asked; never applied from a load's half-answer.
+        for (let attempt = 0; ; attempt++) {
+          if (f.entry.loading.size) {
+            if (attempt === 0) notify.info(RENAME_WAITING)
+            if (!(await whenLoaded(f.entry, PROJECT_LOADING_WAIT_MS))) { notify.warning(RENAME_NOT_LOADED); return handledHere(RENAME_NOT_LOADED) }
+          }
+          const epoch = f.entry.loadingEpoch
+          try {
+            edit = await f.entry.conn.request('textDocument/rename', { textDocument: { uri: f.uri },
+              position: positionOf(position), newName })
+          } catch (e) {
+            notify.error(`Nothing was renamed: ${e.message}`)
+            return handledHere(`Nothing was renamed: ${e.message}`)
+          }
+          if (f.entry.loadingEpoch === epoch) break
+          if (attempt >= 2) { notify.warning(RENAME_NOT_LOADED); return handledHere(RENAME_NOT_LOADED) }
+        }
+        if (!edit) { notify.info(RENAME_NOTHING); return handledHere(RENAME_NOTHING) }
+        await applyWorkspaceEdit(f.entry, edit, { rename: true })
+        return handledHere(RENAME_DONE_HERE)
+      },
+    })
+    add('registerCodeActionProvider', {
+      // Ctrl+. and the light bulb: the server's actions for the place, given the problems reported there.
+      async provideCodeActions(model, range, context) {
+        const none = { actions: [], dispose() {} }
+        const f = current(model)
+        if (!f || !f.entry.caps.codeActionProvider) return none
+        const where = lspRangeOf(range)
+        const diagnostics = (f.entry.raw.get(f.path) || []).filter((d) => d && d.range && touches(d.range, where))
+        let r
+        try {
+          r = await f.entry.conn.request('textDocument/codeAction', { textDocument: { uri: f.uri }, range: where,
+            context: { diagnostics, ...(context && context.only ? { only: [context.only] } : {}),
+              triggerKind: context && context.trigger === 2 ? 2 : 1 } })
+        } catch {
+          return none
+        }
+        const actions = (Array.isArray(r) ? r : []).filter((a) => a && a.title).map((a) => ({
+          title: a.title,
+          kind: typeof a.command === 'string' ? undefined : a.kind,
+          isPreferred: !!a.isPreferred,
+          disabled: a.disabled ? a.disabled.reason : undefined,
+          command: { id: CODE_ACTION_COMMAND, title: a.title, arguments: [f.lang, a] },
+        }))
+        return { actions, dispose() {} }
+      },
+    }, { providedCodeActionKinds: CODE_ACTION_KINDS.filter(Boolean) })
+    add('registerInlayHintsProvider', {
+      async provideInlayHints(model, range) {
+        const none = { hints: [], dispose() {} }
+        const f = current(model)
+        if (!f || !f.entry.caps.inlayHintProvider) return none
+        const r = await f.entry.conn.request('textDocument/inlayHint', { textDocument: { uri: f.uri },
+          range: lspRangeOf(range) }).catch(() => null)
+        return { hints: inlayHintsOf(r), dispose() {} }
+      },
+    })
+    add('registerDocumentFormattingEditProvider', {
+      displayName: lang === 'python' ? "The project's Python formatter" : serverName(serverOfMonaco(lang)),
+      provideDocumentFormattingEdits: (model) => monacoFormat(model, null),
+    })
+    if (lang !== 'python') {
+      add('registerDocumentRangeFormattingEditProvider', {
+        displayName: serverName(serverOfMonaco(lang)),
+        provideDocumentRangeFormattingEdits: (model, range) => monacoFormat(model, range),
+      })
     }
   }
 
@@ -371,6 +947,11 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
             range: rangeOf(l.range) }))
         },
       }))
+      registerEditing(monaco, lang)
+    }
+    // A code action chosen in the editor's menu runs here (see CODE_ACTION_COMMAND).
+    if (typeof monaco.editor.registerCommand === 'function') {
+      disposables.push(monaco.editor.registerCommand(CODE_ACTION_COMMAND, (_accessor, lang, action) => runCodeAction(lang, action)))
     }
     // Another file named by go to definition opens in the editor's own tabs, at the place.
     if (monaco.editor.registerEditorOpener) {
@@ -504,6 +1085,8 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   }
 
   return { servers, problems, counts, references, panel, checking, checkError, check, open, bind, unbind, reset, dispose,
+    canFormat, formatEdits,
     // for tests
-    _conns: conns, _diagnostics: diagnostics, _changed: changed, _flush: flush, _syncDocs: syncDocs }
+    _conns: conns, _diagnostics: diagnostics, _changed: changed, _flush: flush, _syncDocs: syncDocs,
+    _applyWorkspaceEdit: applyWorkspaceEdit }
 }

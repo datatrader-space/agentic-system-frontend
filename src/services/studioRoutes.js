@@ -1,21 +1,36 @@
 import { studioFeatures, CREATIVE_STUDIO_PAGES as creativePages } from './studioFeatures'
+import { STUDIO_BASE, LEGACY_STUDIO_BASE, currentStudioPath, studioPath } from './studioPaths'
 const existing = {
   home: () => import('../views/VideoStudioDiscover.vue'),
   projects: () => import('../views/VideoStudioProjects.vue'),
   library: () => import('../views/VideoStudioLibrary.vue'),
   elements: () => import('../views/VideoStudioElements.vue'),
   help: () => import('../views/VideoStudioHelp.vue'),
+  editor: () => import('../views/VideoClipEditor.vue'),
+  publish: () => import('../views/VideoStudioPublish.vue'),
+  community: () => import('../views/VideoStudioCommunity.vue'),
 }
 export const studioChildRoutes = studioFeatures.value.map(feature => ({
-  path: feature.route.slice('/video-studio'.length).replace(/^\//, ''),
+  path: feature.route.slice(STUDIO_BASE.length).replace(/^\//, ''),
   name: feature.id === 'home' ? 'video-studio' : `video-studio-${feature.id}`,
   component: existing[feature.id] || (['image','video'].includes(feature.id) ? () => import('../views/VideoStudioGenerate.vue') : feature.id === 'enhance' ? () => import('../views/VideoStudioEnhance.vue') : creativePages.includes(feature.id) ? () => import('../views/VideoStudioCreative.vue') : undefined),
   props: ['image','video'].includes(feature.id) ? { kind: feature.id } : { featureId: feature.id },
-  ...(feature.id === 'home' ? { beforeEnter: to => (to.query.conversation || to.query.project) ? { path: '/video-studio/dashboard', query: to.query, hash: to.hash } : true } : {}),
+  ...(feature.id === 'home' ? { beforeEnter: to => (to.query.conversation || to.query.project) ? { path: studioPath('dashboard'), query: to.query, hash: to.hash } : true } : {}),
   meta: { studioFeature: feature.id, ...(['library','elements'].includes(feature.id) ? { libraryTab: feature.id === 'elements' ? 'ingredients' : 'files' } : {}) },
 }))
-studioChildRoutes.push({ path: 'ingredients', name: 'video-studio-ingredients', redirect: to => ({ path: '/video-studio/elements', query: to.query, hash: to.hash }) })
+studioChildRoutes.push({ path: 'ingredients', name: 'video-studio-ingredients', redirect: to => ({ path: studioPath('elements'), query: to.query, hash: to.hash }) })
 
 // Dashboard reuses the existing production Studio composer/session, while Discover is the default landing.
 studioChildRoutes.push({ path: 'dashboard', name: 'video-studio-dashboard', component: () => import('../views/VideoStudio.vue'), meta: { studioFeature: 'dashboard' } })
-studioChildRoutes.push({ path: 'discover', redirect: to => ({ path: '/video-studio', query: to.query, hash: to.hash }) })
+studioChildRoutes.push({ path: 'discover', redirect: to => ({ path: STUDIO_BASE, query: to.query, hash: to.hash }) })
+// Team sharing (ADM-1248): a project's review, canvas and usage; a share link; the workspace's spend per member.
+studioChildRoutes.push({ path: 'projects/:projectId/:tab(review|canvas|usage)?', name: 'video-studio-project-room', component: () => import('../views/VideoStudioProjectRoom.vue'), props: true, meta: { studioFeature: 'projects' } })
+studioChildRoutes.push({ path: 'share/:token', name: 'video-studio-share', component: () => import('../views/VideoStudioShare.vue'), props: true, meta: { studioFeature: 'projects' } })
+studioChildRoutes.push({ path: 'team-spend', name: 'video-studio-team-spend', component: () => import('../views/VideoStudioTeamSpend.vue'), meta: { studioFeature: 'team-spend' } })
+
+// The Studio's old address (CR-2): every /video-studio and /video-studio/<page> link, with its query and hash, goes
+// to the same page under STUDIO_BASE. Links to the old address are in chats, emails and notifications.
+export const legacyStudioRoute = {
+  path: `${LEGACY_STUDIO_BASE}/:rest(.*)*`,
+  redirect: to => ({ path: currentStudioPath(to.path), query: to.query, hash: to.hash }),
+}

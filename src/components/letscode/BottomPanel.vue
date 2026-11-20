@@ -1,5 +1,5 @@
 <template>
-  <div class="bp">
+  <div ref="root" class="bp">
     <div class="bp-tabs" role="tablist" aria-label="Workspace output">
       <button
         v-for="t in tabs" :key="t.id" type="button" role="tab" class="bp-tab" :class="{ on: tab === t.id }"
@@ -24,7 +24,7 @@
     </div>
     <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
     <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
-      <TerminalPanel :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
+      <TerminalPanel ref="terminalPanel" :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
                      @maximize="$emit('maximize')" />
     </div>
     <!-- The Preview tab (ADM-1205 phase D): built the first time it is opened, then kept, so an app stays loaded. -->
@@ -35,9 +35,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, inject } from 'vue'
+import { ref, computed, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
 import TerminalPanel from './TerminalPanel.vue'
+import { terminalShortcut } from './terminalKeys'
 import PreviewPanel from './PreviewPanel.vue'
 import ProblemsPanel from './ProblemsPanel.vue'
 import DebugConsole from './DebugConsole.vue'
@@ -93,6 +94,35 @@ async function openPreview(port) {
   previewPanel.value?.openPort(port)
 }
 defineExpose({ openPreview })
+
+// ── The Terminal's shortcuts, as in VS Code (ADM-1325) ─────────────────────────────────────────────────────────
+// Ctrl+`: the panel opens on the Terminal, or, when it already shows the Terminal, closes. Ctrl+Shift+`: a new shell
+// (the first opening of the Terminal opens its shells as usual, so it never adds a second one at once). Heard on the
+// page after everything else: a key the editor (Monaco) or a field already handled is left alone, and a terminal lets
+// only these two through to here (ProjectTerminal).
+const root = ref(null)
+const terminalPanel = ref(null)
+async function onShortcut(e) {
+  if (!props.repoId || e.defaultPrevented) return
+  const which = terminalShortcut(e)
+  if (!which) return
+  e.preventDefault()
+  if (e.repeat) return
+  if (which === 'toggle' && !props.collapsed && tab.value === 'terminal') {
+    // Closed: the focus leaves the hidden terminal instead of staying in it.
+    if (root.value && root.value.contains(document.activeElement)) document.activeElement.blur?.()
+    emit('toggle')
+    return
+  }
+  const built = terminalOpened.value
+  selectTab('terminal')
+  await nextTick()
+  if (which === 'new' && built) terminalPanel.value?.addShell()
+  await nextTick()
+  terminalPanel.value?.focus()
+}
+onMounted(() => window.addEventListener('keydown', onShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
 
 // The editor's Find All References (Shift+F12) shows its results here.
 if (languages) watch(() => languages.panel.value.at, () => { if (languages.panel.value.tab) selectTab(languages.panel.value.tab) })

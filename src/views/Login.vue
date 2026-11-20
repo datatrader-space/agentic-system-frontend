@@ -290,6 +290,23 @@
             </button>
           </div>
 
+          <!-- Single sign-on (ADM-1248): the work email finds the organization's identity provider. -->
+          <div v-if="!twoFA.active && isLogin" class="sso-block">
+            <button v-if="!sso.open" type="button" class="social-btn sso-open" data-test="login-sso" @click="openSso">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+              <span>Continue with single sign-on</span>
+            </button>
+            <form v-else class="sso-form" data-test="login-sso-form" @submit.prevent="startSso">
+              <label for="sso-email" class="sso-label">Work email</label>
+              <input id="sso-email" ref="ssoInput" v-model.trim="sso.email" type="email" autocomplete="email" class="sso-input" placeholder="you@company.com" required />
+              <div class="sso-actions">
+                <button type="submit" class="social-btn sso-go" :disabled="sso.busy || !sso.email">{{ sso.busy ? 'Finding your sign-in…' : 'Continue' }}</button>
+                <button type="button" class="toggle-link" @click="sso.open = false">Cancel</button>
+              </div>
+              <p v-if="sso.message" class="sso-message" role="alert" data-test="login-sso-message">{{ sso.message }}</p>
+            </form>
+          </div>
+
           <!-- Toggle Mode -->
           <p v-if="!twoFA.active" class="toggle-text">
             {{ isLogin ? "Don't have an account?" : 'Already have an account?' }}
@@ -310,7 +327,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import BrandMark from '../components/common/BrandMark.vue'
 import api from '../services/api'
@@ -538,6 +555,11 @@ const handleSubmit = async () => {
   } catch (err) {
     console.error('Auth error:', err)
     error.value = err.response?.data?.error || 'An error occurred. Please try again.'
+    if (err.response?.status === 403 && err.response?.data?.code === 'sso_required') {
+      // The organization that verified this email's domain requires its identity provider.
+      sso.value = { open: true, email: formData.value.username, busy: false, message: '', redirect: err.response.data.redirect_url || '' }
+      if (sso.value.redirect) error.value = (err.response.data.error || 'Your organization signs you in through single sign-on.') + ' Select Continue to use it.'
+    }
     if (err.response?.status === 403 && err.response?.data?.code === 'email_not_verified') {
       verify.value = { pending: true, email: formData.value.username, sending: false, sent: '' }
     }
@@ -574,7 +596,29 @@ const socialLogin = (provider) => {
   window.location.href = `/api/auth/social/${provider}/start`
 }
 
+// Single sign-on: the server finds the identity provider from the email's verified domain (POST discover).
+const sso = ref({ open: false, email: '', busy: false, message: '', redirect: '' })
+const ssoInput = ref(null)
+async function openSso() {
+  sso.value = { open: true, email: formData.value.username && validateEmail(formData.value.username) ? formData.value.username : '', busy: false, message: '', redirect: '' }
+  await nextTick(); ssoInput.value?.focus?.()
+}
+async function startSso() {
+  if (sso.value.redirect) { window.location.href = sso.value.redirect; return }
+  sso.value.busy = true; sso.value.message = ''
+  try {
+    const { data } = await api.post('/auth/sso/discover/', { email: sso.value.email })
+    if (data?.sso && data.redirect_url) { window.location.href = data.redirect_url; return }
+    sso.value.message = 'Single sign-on is not set up for this email. Sign in with your password or another way above.'
+  } catch (e) {
+    sso.value.message = e?.response?.data?.error?.message || e?.response?.data?.error || 'Single sign-on could not be started. Please try again.'
+  } finally { sso.value.busy = false }
+}
+
 const SOCIAL_ERRORS = {
+  sso_required: 'Your organization signs you in through single sign-on. Continue with single sign-on below.',
+  sso_failed: 'Single sign-on did not finish. Please try again.',
+  sso_domain_not_verified: 'That email is not on a domain your organization has verified for single sign-on.',
   not_configured: 'That sign-in method isn’t configured yet.',
   no_email: 'We couldn’t read a verified email from that account.',
   exchange_failed: 'Sign-in failed. Please try again.',
@@ -587,6 +631,7 @@ onMounted(async () => {
   // Surface any social-login error passed back as ?social_error=...
   const se = route.query.social_error
   if (se) error.value = SOCIAL_ERRORS[se] || 'Social sign-in failed. Please try again.'
+  if (se === 'sso_required') sso.value = { open: true, email: '', busy: false, message: '', redirect: '' }
   // A social sign-in for an account with two-factor on comes back here for the code. The challenge
   // token rides in the URL FRAGMENT, which the browser never sends to a server or a log, and is
   // removed from the address bar at once.
@@ -1277,6 +1322,17 @@ watch(() => formData.value.password, () => {
   width: 20px;
   height: 20px;
 }
+
+/* Single sign-on */
+.sso-block { margin-top: 12px; }
+.sso-open { width: 100%; }
+.sso-form { display: grid; gap: 8px; }
+.sso-label { font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary); }
+.sso-input { padding: 12px; font: inherit; font-size: 0.9375rem; color: var(--text-primary, inherit); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.sso-input:focus-visible, .sso-open:focus-visible, .sso-go:focus-visible { outline: 2px solid var(--vm-sky, #2E90FA); outline-offset: 2px; }
+.sso-actions { display: flex; align-items: center; gap: 12px; }
+.sso-go { flex: 1; }
+.sso-message { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
 
 /* Toggle Text */
 .toggle-text {

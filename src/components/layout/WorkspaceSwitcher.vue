@@ -21,7 +21,7 @@
 
     <Teleport to="body">
       <transition name="ws-dropdown">
-        <div v-if="isOpen" :id="dropdownId" ref="dropdownRef" class="ws-dropdown" :style="dropdownStyle" role="dialog" aria-label="Switch workspace" @keydown="onDropdownKey">
+        <div v-if="isOpen" :id="dropdownId" ref="dropdownRef" class="ws-dropdown" :class="{ 'ws-dropdown--dark': tone === 'dark' }" :style="dropdownStyle" role="dialog" aria-label="Switch workspace" @keydown="onDropdownKey">
           <div class="ws-dropdown-heading">Switch workspace</div>
           <label class="ws-search"><Search :size="15" aria-hidden="true" /><input ref="searchRef" v-model="query" type="search" placeholder="Find a workspace..." aria-label="Find a workspace" /></label>
           <div class="ws-dropdown-content">
@@ -59,7 +59,7 @@
     <!-- Create Workspace Modal (also teleported) -->
     <Teleport to="body">
       <transition name="ws-modal">
-        <div v-if="showCreateModal" class="ws-modal-backdrop" @click.self="showCreateModal = false">
+        <div v-if="showCreateModal" class="ws-modal-backdrop" :class="{ 'ws-modal-backdrop--dark': tone === 'dark' }" @click.self="showCreateModal = false">
           <div class="ws-modal">
             <h3 class="ws-modal-title">New Workspace</h3>
             <div>
@@ -86,7 +86,7 @@
     <!-- Create Organisation Modal -->
     <Teleport to="body">
       <transition name="ws-modal">
-        <div v-if="showCreateOrgModal" class="ws-modal-backdrop" @click.self="showCreateOrgModal = false">
+        <div v-if="showCreateOrgModal" class="ws-modal-backdrop" :class="{ 'ws-modal-backdrop--dark': tone === 'dark' }" @click.self="showCreateOrgModal = false">
           <div class="ws-modal">
             <h3 class="ws-modal-title">Create Organisation</h3>
             <div>
@@ -122,6 +122,13 @@ import tenancyApi from '../../services/tenancyApi'
 import { notify } from '@/composables/useNotify'
 
 const router = useRouter()
+// tone: 'dark' draws the menu and its dialogs in the Studio's dark colours (they are teleported to <body>, so the
+// page's own styles never reach them). navigateOnSwitch: false keeps the person on the page they are on after a
+// switch (Video Studio, N-1/N-2 of the 2026-11-19 test); the main app keeps going to the workspace's page.
+const props = defineProps({
+  tone: { type: String, default: 'light' },
+  navigateOnSwitch: { type: Boolean, default: true },
+})
 const {
   activeWorkspace, activeOrg, myOrgs, loading, error, tenancyDisabled,
   switchWorkspace, clearWorkspace, loadMyOrgs,
@@ -226,13 +233,13 @@ function onFocusOutside(event) {
 function select(ws, org) {
   switchWorkspace(ws, org)
   close()
-  router.push(`/workspace/${ws.id}`)
+  if (props.navigateOnSwitch) router.push(`/workspace/${ws.id}`)
 }
 
 function exitWorkspaceMode() {
   clearWorkspace()
   close()
-  router.push('/')
+  if (props.navigateOnSwitch) router.push('/')
 }
 
 function openCreateWorkspace() {
@@ -435,4 +442,30 @@ button.ws-create-link {
   padding: 0;
 }
 button.ws-create-link:hover { text-decoration: underline; }
+
+/* --- Dark tone (Video Studio): the same menu and dialogs in the Studio's colours --- */
+.ws-dropdown--dark{background:#1b1d22;border-color:#353944;box-shadow:0 18px 48px #0009,0 2px 6px #0006;color:#eef0f4}
+.ws-dropdown--dark .ws-dropdown-heading{color:#eef0f4}
+.ws-dropdown--dark .ws-search{background:#15171b;border-color:#353944;color:#8d96a9}
+.ws-dropdown--dark .ws-search:focus-within{background:#15171b;border-color:#5b7fd6;box-shadow:0 0 0 2px #5b7fd633}
+.ws-dropdown--dark .ws-search input{color:#eef0f4}.ws-dropdown--dark .ws-search input::placeholder{color:#8d96a9}
+.ws-dropdown--dark .ws-personal-mode,.ws-dropdown--dark .ws-org-group+.ws-org-group{border-color:#2b2e36}
+.ws-dropdown--dark .ws-item{color:#dfe3ea}.ws-dropdown--dark .ws-item:hover{background:#262931}
+.ws-dropdown--dark .ws-item--active,.ws-dropdown--dark .ws-item--active:hover{background:#23324f;color:#a9c4ff}
+.ws-dropdown--dark .ws-item-icon{background:#202228;border-color:#353944}
+.ws-dropdown--dark .ws-personal-icon{background:#262931;color:#a9b2c3;border-color:transparent}
+.ws-dropdown--dark .ws-item--active .ws-personal-icon{background:#2c3d63;color:#a9c4ff}
+.ws-dropdown--dark .ws-item-description,.ws-dropdown--dark .ws-org-label,.ws-dropdown--dark .ws-group-empty,.ws-dropdown--dark .ws-empty,.ws-dropdown--dark .ws-loading{color:#8d96a9}
+.ws-dropdown--dark .ws-personal-badge{background:#202228;border-color:#353944;color:#a9b2c3}
+.ws-dropdown--dark .ws-check{color:#a9c4ff}
+.ws-dropdown--dark .ws-footer{background:#17191d;border-color:#2b2e36}
+.ws-dropdown--dark .ws-footer-link{color:#a9b2c3}.ws-dropdown--dark .ws-footer-link:hover:not(:disabled){background:#262931;color:#eef0f4}
+.ws-dropdown--dark button:focus-visible,.ws-dropdown--dark a:focus-visible{outline-color:#a9c4ff}
+.ws-modal-backdrop--dark{background:rgba(0,0,0,.6)}
+.ws-modal-backdrop--dark .ws-modal{background:#1b1d22;border-color:#353944;box-shadow:0 18px 45px #0009}
+.ws-modal-backdrop--dark .ws-modal-title{color:#eef0f4}.ws-modal-backdrop--dark .ws-form-group label{color:#c4cad6}
+.ws-modal-backdrop--dark .ws-input{background:#15171b;border-color:#353944;color:#eef0f4}
+.ws-modal-backdrop--dark .ws-input:focus{border-color:#5b7fd6}
+.ws-modal-backdrop--dark .ws-btn-cancel{background:#202228;border-color:#353944;color:#dfe3ea}
+.ws-modal-backdrop--dark .ws-btn-cancel:hover{background:#262931;color:#fff}
 </style>

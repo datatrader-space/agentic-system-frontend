@@ -11,10 +11,12 @@ test('new preview project starts empty and stays isolated from another project',
  assert.notEqual(a.images[0].id,a.batches[0].id);
  a.images[0].tags.push('review');assert.deepEqual(a.batches[0].tags,['synthetic']);
 });
-test('sample annotations are fresh for each project',()=>{
+test('a sample project assumes no class and no drawn shape, and its photos are fresh for each project',()=>{
  const a=getPreview('sample-a'),b=getPreview('sample-b');
- a.images[0].shapes[0].points[0][0]=42;
- assert.equal(b.images[0].shapes[0].points[0][0],178);
+ assert.deepEqual(a.classes,[]);                                  // no wall, window or door filled in
+ assert.ok(a.images.every(i=>i.shapes.length===0&&i.state==='Unlabeled'));
+ a.images[0].tags.push('checked');
+ assert.deepEqual(b.images[0].tags,['interior']);
  assert.equal(a.images[0].batchId,'demo-batch');
 });
 

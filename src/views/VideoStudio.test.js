@@ -98,7 +98,7 @@ describe('Video Studio', () => {
     expect(state.post).toHaveBeenCalledWith('/video/projects/p1/open/', { conversation_id: 'c1' })
     expect(state.video.project.project_id).toBe('p1')
     expect(state.video.loadVersions).toHaveBeenCalled()
-    expect(state.replace).toHaveBeenCalledWith({ path: '/video-studio/dashboard', query: { conversation: 'c1' } })
+    expect(state.replace).toHaveBeenCalledWith({ path: '/dashboard/video-studio/dashboard', query: { conversation: 'c1' } })
   })
 
   // Owner, 2026-10-20: a project is never put into whichever chat happened to be open; ?project= (a project not yet

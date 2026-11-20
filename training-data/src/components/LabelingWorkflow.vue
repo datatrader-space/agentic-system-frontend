@@ -49,7 +49,7 @@ defineExpose({ reload });
     <p v-if="error" class="field-error" role="alert">{{ error }} Reload before retrying if another person changed this workflow.</p>
     <p v-if="notice" class="workflow-notice" role="status">{{ notice }}</p>
     <div class="workflow-graph" aria-label="Workflow stages">
-      <article><span class="workflow-node-icon"><Boxes :size="20"/></span><div><small>1 · Model &amp; run location</small><h4>{{ shown.source === definition.source ? sourceName : shown.source || 'Choose a model' }}</h4><p>{{ shown.where || 'Default run location' }}</p></div></article>
+      <article><span class="workflow-node-icon"><Boxes :size="20"/></span><div><small>1 · Model</small><h4>{{ shown.source === definition.source ? sourceName : shown.source || 'Choose a model' }}</h4></div></article>
       <ArrowDown :size="20" aria-hidden="true"/>
       <article><span class="workflow-node-icon"><SlidersHorizontal :size="20"/></span><div><small>2 · Class instructions</small><div class="workflow-class-list"><span v-for="item in shown.classes" :key="item.name" :title="item.description"><i :style="{background:item.color}"/>{{ item.name }}</span></div><p>Descriptions guide supported models. Model capabilities still apply.</p></div></article>
       <ArrowDown :size="20" aria-hidden="true"/>

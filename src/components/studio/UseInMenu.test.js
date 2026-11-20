@@ -16,7 +16,7 @@ describe('UseInMenu', () => {
     expect(wrapper.findAll('[role="menuitem"][disabled]')).toHaveLength(3)
     await wrapper.get('[role="menuitem"]').trigger('click')
     expect(state.video.addExistingRef).toHaveBeenCalledWith(image, 'first_frame')
-    expect(state.push).toHaveBeenCalledWith({ path: '/video-studio/video', query: { conversation: 'owned-chat', useIn: '1', mode: 'manual' } })
+    expect(state.push).toHaveBeenCalledWith({ path: '/dashboard/video-studio/video', query: { conversation: 'owned-chat', useIn: '1', mode: 'manual' } })
     expect(state.video.start).not.toHaveBeenCalled(); expect(state.video.request).not.toHaveBeenCalled()
   })
   it('requires a name and an explicit save before creating an Element', async () => {
@@ -28,7 +28,7 @@ describe('UseInMenu', () => {
     await wrapper.get('input').setValue('Studio prop')
     await wrapper.get('form').trigger('submit'); await flushPromises()
     expect(state.video.createIngredient).toHaveBeenCalledWith({ name: 'Studio prop', kind: 'product', description: '', attachmentIds: [7] })
-    expect(state.push).toHaveBeenCalledWith({ path: '/video-studio/elements', query: {} })
+    expect(state.push).toHaveBeenCalledWith({ path: '/dashboard/video-studio/elements', query: {} })
   })
   it('keeps an existing opening shot instead of silently replacing it', async () => {
     state.video.refs = [{ attachment_id: 9, role: 'first_frame' }]

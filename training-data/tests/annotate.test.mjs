@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toUnits, toPixels, fromBackend, toBackend, photoState, loadSource } from '../src/api/annotate.js';
+import { toUnits, toPixels, fromBackend, toBackend, photoState, loadSource, classesOf, rolesOf, geometryOf, nextClassColor, PALETTE, GEOMETRIES } from '../src/api/annotate.js';
+
+const WALLS = { wall: 'wall', window: 'window', door: 'door' };
 
 test('a label survives the round trip to the editor and back, to the tenth of a pixel', () => {
   const W = 4032, H = 3024;
@@ -9,7 +11,7 @@ test('a label survives the round trip to the editor and back, to the tenth of a 
   const shapes = fromBackend(backend, W, H);
   assert.equal(shapes[0].corner, 'image_edge');                       // one corner touches the edge: the shape says so
   assert.equal(shapes[1].corner, 'room');
-  const back = toBackend(shapes, W, H);
+  const back = toBackend(shapes, W, H, WALLS);
   assert.deepEqual(back[0].points, backend[0].points);
   assert.deepEqual(back[0].corner_types, backend[0].corner_types);   // untouched corners keep their types
   assert.equal(back[1].corner_types, undefined);                      // windows and doors carry none
@@ -18,9 +20,47 @@ test('a label survives the round trip to the editor and back, to the tenth of a 
 test('a wall whose corners changed in number lets the backend decide its corner types', () => {
   const [wall] = fromBackend([{ kind: 'wall', points: [[0, 0], [10, 0], [10, 10]], corner_types: ['image_edge', 'image_edge', 'room'] }], 600, 300);
   wall.points.push([0, 10]);
-  assert.equal(toBackend([wall], 600, 300)[0].corner_types, undefined);
+  assert.equal(toBackend([wall], 600, 300, WALLS)[0].corner_types, undefined);
   const drawn = { kind: 'wall', points: [[1, 1], [2, 1], [2, 2]] };   // drawn in the editor: no types of its own
-  assert.equal(toBackend([drawn], 600, 300)[0].corner_types, undefined);
+  assert.equal(toBackend([drawn], 600, 300, WALLS)[0].corner_types, undefined);
+});
+
+// FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 12.2: corner types follow the class's geometry, never its name.
+test('corner types go back for a class whose geometry is wall, whatever its name, and never because a class is named "wall"', () => {
+  const types = ['room', 'image_edge', 'room'];
+  const named = kind => fromBackend([{ kind, points: [[0, 0], [10, 0], [10, 10]], corner_types: types }], 600, 300)[0];
+  // A class named "wall" that is a plain shape (geometry ''): no corner types.
+  assert.equal(toBackend([named('wall')], 600, 300, { wall: '' })[0].corner_types, undefined);
+  assert.equal(toBackend([named('wall')], 600, 300)[0].corner_types, undefined);                  // no roles: nothing is a wall
+  // A class "facade" marked as wall geometry: its corner types go back.
+  assert.deepEqual(toBackend([named('facade')], 600, 300, { facade: 'wall' })[0].corner_types, types);
+  // An opening carries none.
+  assert.equal(toBackend([named('hatch')], 600, 300, { hatch: 'window' })[0].corner_types, undefined);
+});
+
+test('a class carries its geometry from the API and nothing about training; roles map each class to its geometry', () => {
+  const rows = [{ name: 'facade', color: '#ef4444', geometry: 'wall', trained: true }, { name: 'sofa', color: '#0ea5e9' },
+    { name: 'hatch', color: '#ec4899', geometry: 'window' }, { name: 'odd', color: '#84cc16', geometry: 'roof' }];
+  const classes = classesOf(rows);
+  assert.deepEqual(classes.map(c => c.geometry), ['wall', '', 'window', '']);                   // an unknown value is a plain shape
+  assert.equal(classes.some(c => 'trained' in c), false);
+  const roles = rolesOf(classes);
+  assert.deepEqual(roles, { facade: 'wall', sofa: '', hatch: 'window', odd: '' });
+  assert.equal(geometryOf(roles, 'facade'), 'wall');
+  assert.equal(geometryOf(roles, 'wall'), '');                                                  // not a class here
+  assert.equal(geometryOf(roles, 'constructor'), '');
+  assert.deepEqual(GEOMETRIES.map(g => [g.value, g.label]), [['', 'None'], ['wall', 'Wall'], ['window', 'Window in a wall'], ['door', 'Door in a wall']]);
+});
+
+test('a new class takes the first palette colour no class of the project has', () => {
+  assert.equal(nextClassColor([]), PALETTE[0]);
+  // Live, 2026-11-19: "sofa" was added after "wall" (red) and got the same red.
+  assert.equal(nextClassColor([{ name: 'wall', color: '#EF4444' }]), PALETTE[1]);
+  assert.equal(nextClassColor([{ color: PALETTE[0] }, { color: PALETTE[2] }]), PALETTE[1]);
+  assert.equal(nextClassColor([{ color: '#8b5cf6' }]), PALETTE[0]);                           // a colour not in the palette
+  // Every colour taken: the one used least.
+  const all = [...PALETTE, ...PALETTE.slice(0, 3)].map(color => ({ color }));
+  assert.equal(nextClassColor(all), PALETTE[3]);
 });
 
 test('units and pixels convert both ways on a photo of any shape', () => {

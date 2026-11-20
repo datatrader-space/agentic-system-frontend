@@ -10,7 +10,7 @@ import { Database, Download, FileText, Search, Trash2, X, RefreshCw, Check } fro
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { RECORD_FILTERS, MOST_AT_ONCE, recordsApi, exportUrl, searchRefusal, filtered, payloadPreview, pretty, sizeText, deletedWords, refusalRows, tooMany, toggled } from '../api/records.js';
+import { RECORD_FILTERS, MOST_AT_ONCE, recordStatus, recordsApi, exportUrl, searchRefusal, filtered, payloadPreview, pretty, sizeText, deletedWords, refusalRows, tooMany, toggled } from '../api/records.js';
 import { KIND_LABEL, STATE_LABEL, SPLIT_LABEL } from '../api/llm.js';
 
 const props = defineProps({ project: { type: Object, required: true } });
@@ -161,7 +161,7 @@ const deleteTitle = computed(() => (targets.value.length === 1 ? 'Delete this re
                 <td data-label="Payload"><code class="records-preview" :title="r.payload?.full || ''" translate="no">{{ r.preview || '(nothing)' }}</code></td>
                 <td data-label="What it has"><div class="records-badges">
                   <UiBadge :tone="r.has_file ? 'purple' : 'neutral'">{{ r.has_file ? (r.file?.is_image ? 'Picture' : 'File') : 'No file' }}</UiBadge>
-                  <UiBadge :tone="r.annotated ? 'green' : 'neutral'">{{ r.annotated ? 'Annotated' : 'Not annotated' }}</UiBadge>
+                  <UiBadge :tone="r.annotated ? 'green' : 'neutral'">{{ recordStatus(r) }}</UiBadge>
                   <UiBadge v-if="r.assignees" :tone="r.assignees.length ? 'purple' : 'neutral'" :title="r.assignees.map(a => a.name).join(', ')">{{ r.assignees.length ? `Assigned to ${r.assignees.length === 1 ? r.assignees[0].name : `${r.assignees.length} people`}` : 'Not assigned' }}</UiBadge>
                 </div></td>
                 <td class="row-actions"><UiButton @click="open(r, $event)">Open<span class="sr-only"> the record received {{ when(r.received_at) }}</span></UiButton></td>
@@ -184,7 +184,7 @@ const deleteTitle = computed(() => (targets.value.length === 1 ? 'Delete this re
             <dt>Source</dt><dd>{{ sourceText(detail.source) || '—' }}</dd>
             <dt>Record id</dt><dd><code translate="no">{{ detail.id }}</code></dd>
             <template v-if="detail.idempotency_key"><dt>Idempotency key</dt><dd><code translate="no">{{ detail.idempotency_key }}</code></dd></template>
-            <dt>Annotated</dt><dd>{{ detail.annotated_at ? `${when(detail.annotated_at)}${detail.annotated_by ? ` by ${detail.annotated_by}` : ''}` : 'Not yet' }}</dd>
+            <dt>Annotated</dt><dd>{{ detail.annotated_at ? `${when(detail.annotated_at)}${detail.annotated_by ? ` by ${detail.annotated_by}` : ''}` : detail.label_accepted ? "Its photo's label is accepted" : 'Not yet' }}</dd>
             <template v-if="detail.assignees"><dt>Assigned to</dt><dd>{{ detail.assignees.length ? detail.assignees.map(a => a.name).join(', ') : 'Nobody' }}</dd></template>
           </dl>
           <p v-if="mismatch" class="records-note" role="note"><strong>The group this record names does not match its photo's.</strong> <span>{{ mismatch }}</span></p>

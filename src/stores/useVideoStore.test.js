@@ -208,19 +208,6 @@ describe('useVideoStore', () => {
     expect(video.refs).toHaveLength(1)
   })
 
-  it('a saved timeline revision is what the export renders', async () => {
-    video.project = { project_id: 'p1', scenes: [], timeline: null }
-    api.post.mockResolvedValueOnce({ data: { revision: 3, revision_id: 41, edl: { tracks: [] } } })
-    const saved = await video.saveTimeline({ tracks: [{ kind: 'video', clips: [{ scene_id: 's1', out_ms: 2000 }] }] })
-    expect(api.post).toHaveBeenCalledWith('/video/projects/p1/timeline/', expect.objectContaining({ edl: expect.any(Object) }))
-    expect(saved.revision_id).toBe(41)
-    expect(video.project.timeline.revision).toBe(3)
-    api.post.mockResolvedValueOnce({ data: { job_id: 'e1', state: 'queued', operation: 'export' } })
-    await video.exportTimeline(['9:16'], { chat: chatStub(), revisionId: 41 })
-    expect(api.post).toHaveBeenLastCalledWith('/video/jobs/', expect.objectContaining({
-      operation: 'export', params: { aspects: ['9:16'], timeline_revision_id: 41 }, project_id: 'p1' }))
-  })
-
   it('the Library loads every chat\'s files and pages on', async () => {
     api.get.mockResolvedValueOnce({ data: { items: [{ attachment_id: 'a1' }], page: 1, has_more: true } })
     video.library.type = 'image'

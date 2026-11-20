@@ -6,7 +6,7 @@
 import axios from 'axios'
 import { projectCache } from './projectCache'
 import { runProjectJob } from './projectJobs'
-import { MAX_BYTES_PER_PART } from '@/utils/droppedFiles'
+import { MAX_BYTES_PER_PART } from '../utils/droppedFiles'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
@@ -307,9 +307,24 @@ function _uploadId() {
 // API methods
 export default {
   getStudioFeatures: () => api.get('/video/features/'),
+  // Publishing (backend CREATIVE_SUITE_P7_P8_PLAN.md): the person's own platform sign-ins and publications.
+  getPublishConnections: () => api.get('/video/publishing/connections/', { noCache: true }),
+  getPublishDestinations: platform => api.get(`/video/publishing/${encodeURIComponent(platform)}/destinations/`, { noCache: true }),
+  getPublications: () => api.get('/video/publishing/publications/', { noCache: true }),
+  createPublication: (data, key) => api.post('/video/publishing/publications/', data, key ? { headers: { 'Idempotency-Key': key } } : undefined),
+  publicationAction: (id, action) => api.post(`/video/publishing/publications/${encodeURIComponent(id)}/${action}/`),
+  // Community templates: share a project as a remixable template, remix one, withdraw, report.
+  getCommunityTemplates: params => api.get('/video/community/templates/', { params, noCache: true }),
+  shareCommunityTemplate: data => api.post('/video/community/templates/', data),
+  communityTemplateAction: (id, action, data, key) => api.post(`/video/community/templates/${encodeURIComponent(id)}/${action}/`, data || {}, key ? { headers: { 'Idempotency-Key': key } } : undefined),
+  // P8: the timeline as Lottie, and a finished video as a downloadable web page.
+  getTimelineLottie: (projectId, revisionId) => api.get(`/video/projects/${encodeURIComponent(projectId)}/timeline/lottie/`, { params: revisionId ? { revision_id: revisionId } : {}, noCache: true }),
+  downloadWebPage: data => api.post('/video/webpage/', data, { responseType: 'blob' }),
   getMediaRoutes: operation => api.get('/video/media/routes/', { params: { operation } }),
   prepareMediaJob: data => api.post('/video/media/jobs/', data),
   getStudioJob: id => api.get(`/video/jobs/${encodeURIComponent(id)}/`),
+  // The mask a ready area selection made (ADM-1251), as PNG bytes through this API: the page reads its pixels.
+  getStudioJobMask: id => getBlob(`/video/jobs/${encodeURIComponent(id)}/mask/`),
   getStoryboard: id => api.get(`/video/projects/${encodeURIComponent(id)}/storyboard/`),
   getCinemaControls: () => api.get('/video/cinema/controls/'),
   getStudioRecipes: page => api.get('/video/recipes/', { params: { page } }),
@@ -530,15 +545,30 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/files/image/`, {
       params: { path: filePath }, responseType: 'blob', noCache: true,
     }),
-  saveFileContent: (systemId, repoId, path, content) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, { path, content }),
+  // `sha`: the version the editor opened (files/content's sha, ADM-1323). A file that changed since answers 409
+  // CHANGED_ON_DISK and nothing is written; without a sha the save overwrites what is there.
+  // `{ newFile: true }` writes only a file that is not there (409 { code: 'EXISTS' } otherwise): the review tab
+  // restoring a file the Coding Agent deleted (ADM-1314).
+  saveFileContent: (systemId, repoId, path, content, sha, { newFile = false } = {}) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`,
+      { path, content, ...(sha ? { sha } : {}), ...(newFile ? { new: true } : {}) }),
+  // A Python file's text formatted by the project's own formatter (ruff, else black) in its sandbox (ADM-1319). The
+  // text is sent, not read from disk, so unsaved edits are formatted; nothing is written.
+  // -> 200 { content, formatter: 'ruff' | 'black', changed }; 400 { error } not Python or a bad path; 403 { error,
+  // outside: true }; 422 { error, code: 'FORMAT_FAILED', detail } (the formatter refused, e.g. a syntax error);
+  // 503 { error, code: 'FORMATTER_PREPARING', retry_after_seconds } (the project's first format: the formatter is being
+  // installed, in the background); 502 { error, code: 'FORMATTER_UNAVAILABLE', detail } (that install failed; detail is
+  // its log, whole); 503 { error, code: 'SANDBOX_NOT_ANSWERING', retry_after_seconds } (the request's 45 s budget ran out).
+  formatRepositoryFile: (systemId, repoId, path, content) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/format/`, { path, content }),
   // The explorer's file actions (ADM-1205). Nothing is ever replaced unless `overwrite` says so.
   createRepositoryEntry: (systemId, repoId, path, type = 'file') =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/create/`, { path, type }),
   renameRepositoryEntry: (systemId, repoId, path, newPath) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/files/rename/`, { path, new_path: newPath }),
-  deleteRepositoryEntry: (systemId, repoId, path) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, { path }),
+  // With `sha` (one file's version, ADM-1314) nothing is deleted when the file changed since: 409 CHANGED_ON_DISK.
+  deleteRepositoryEntry: (systemId, repoId, path, sha) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/delete/`, sha ? { path, sha } : { path }),
   // files: [{ file: File, path: 'in/the/folder.txt' }] into `folder` ('' is the project's top). Sent as multipart, said
   // explicitly: the instance's JSON default otherwise went out with the form and the server read no files (live,
   // 2026-11-11: "Choose files to upload.").
@@ -594,11 +624,25 @@ export default {
   waitForProjectJob: (systemId, repoId, job, opts) => projectJob(systemId, repoId,
     async () => ({ status: 202, data: { job } }), opts),
   getProjectJobFile: (systemId, repoId, jobId) => getBlob(`${_projectBase(systemId, repoId)}/jobs/${jobId}/download/`),
-  // Search inside the files: { q, case, word, regex, ignored } -> { matches: [{ path, line, column, text | redacted }] }
-  searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored } = {}) =>
+  // Search inside the files: { q, case, word, regex, ignored, include, exclude } -> { matches: [{ path, line, column,
+  // text | redacted }], binary }. With `replace` (a string, '' included: Replace is open, ADM-1320) each match also
+  // has its preview { after, preview } or no_match, `versions` names each file's version and `replace_error` says
+  // why the pattern cannot be replaced.
+  searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored, include, exclude, replace } = {}) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/files/search/`, {
-      params: { q, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0, regex: regex ? 1 : 0, ignored: ignored ? 1 : 0 },
+      params: {
+        q, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0, regex: regex ? 1 : 0, ignored: ignored ? 1 : 0,
+        ...(include ? { include } : {}), ...(exclude ? { exclude } : {}),
+        ...(typeof replace === 'string' ? { replace } : {}),
+      },
       noCache: true,
+    }),
+  // Replace search matches (ADM-1320): the search's own { q, matchCase, wholeWord, regex, replace } and the files of
+  // one batch [{ path, sha, lines: [{ line, text }] }] -> { replaced: [{ path, lines, sha }], skipped: [{ path, code,
+  // reason }], count }. 409 CHANGED_ON_DISK (same body) when the files changed since the search.
+  replaceRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, replace, files }) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/replace/`, {
+      q, case: !!matchCase, word: !!wholeWord, regex: !!regex, replace, files,
     }),
   // Source Control (VS Code–style SCM over the repo clone)
   // `chat`: a chat that works in its own copy (its git worktree, backend phase 7b) is read there; without it, the
@@ -635,8 +679,38 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard-all/`, {}),
   createBranch: (systemId, repoId, name) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/branch/`, { name }),
-  getSourceControlLog: (systemId, repoId, page = 0) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/log/`, { params: { page }, noCache: true }),
+  // `graph`: every branch, GitHub's branches and the tags, in the order the commit graph draws them (ADM-1321).
+  getSourceControlLog: (systemId, repoId, page = 0, { graph = false } = {}) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/log/`, {
+      params: { page, ...(graph ? { graph: 1 } : {}) }, noCache: true,
+    }),
+  // More of git (ADM-1321): blame, staging one change, the merge editor, stash, tags.
+  getSourceControlBlame: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/blame/`, { params: { path }, noCache: true }),
+  getSourceControlHunks: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/hunks/`, { params: { path }, noCache: true }),
+  // { path, unstage } stages or unstages the file whole; with { patch, index } (a hunk from getSourceControlHunks) only
+  // that one change.
+  stageSourceControlChange: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stage-change/`, body),
+  getMergeSides: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/merge-sides/`, { params: { path }, noCache: true }),
+  // The merge editor's result: written into the file and marked resolved.
+  resolveWithContent: (systemId, repoId, path, content) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stage/`, { path, content }),
+  getStashes: (systemId, repoId) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/stashes/`, { noCache: true }),
+  // { op: 'push', message, include_untracked } | { op: 'apply' | 'pop' | 'drop', index, sha }
+  stashSourceControl: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stash/`, body),
+  getTags: (systemId, repoId) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/tags/`, { noCache: true }),
+  // { op: 'create', name, sha?, message? } | { op: 'delete', name }
+  changeTag: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/tag/`, body),
+  // Pushing a tag is a background job, as Push is.
+  pushTag: (systemId, repoId, name, opts) => projectJob(systemId, repoId,
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/push-tag/`, { name }), opts),
   getCommitFiles: (systemId, repoId, sha) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/commit-files/`, { params: { sha } }),
   // The person's own git actions (owner, 2026-11-09): the agent never commits, pushes or opens a pull request.
@@ -970,6 +1044,21 @@ export default {
   // What AWS charged both accounts in a month (?month=YYYY-MM); Refresh is rate-limited on the server (429).
   billingAdminInfraCost: (month) => api.get('/billing/admin/infra-cost/', { params: month ? { month } : {}, noCache: true }),
   billingAdminInfraCostRefresh: (month) => api.post('/billing/admin/infra-cost/refresh/', { month }),
+  // Ready-to-use models (SAM 3 ...) the platform admin starts, stops and prices (backend
+  // FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10.5). Platform administrators only; every other person gets 403.
+  readyModelsAdmin: () => api.get('/training-data/admin/ready-models/', { noCache: true }),
+  // body: {host: 'runpod'} or {host: 'machine', machine: <id>}
+  readyModelStart: (key, body) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/start/`, body),
+  readyModelStop: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/stop/`, {}),
+  // usdPerImage: '0.002', or null for not for sale (every paid call refused).
+  readyModelSetPrice: (key, usdPerImage) =>
+    api.patch(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`, { usd_per_image: usdPerImage }),
+  readyModelAcceptLicence: (machineId) => api.post('/training-data/admin/ready-models/licence/', { machine: machineId }),
+  // A camera model from Hugging Face (backend camera_models.py): {key, name, kind, gpu_gb, parts: [{repo, revision?,
+  // files?}], tuning?}. Its files are fetched in the background; it is hosted and priced like SAM 3.
+  readyModelCameraAdd: (body) => api.post('/training-data/admin/ready-models/camera/', body),
+  readyModelCameraFetch: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/fetch/`, {}),
+  readyModelCameraRemove: (key) => api.delete(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),
@@ -1006,6 +1095,12 @@ export default {
   // Put the project's files back to the checkpoint taken before a chat message's turn changed them (git-ignored files
   // are not touched). 200 on success; an error carries `error`.
   restoreLetsCodeMessage: (repoId, messageId) => api.post(`/lets-code/projects/${repoId}/messages/${messageId}/restore/`),
+  // What the Coding Agent changed since a chat message (that message's turn and later edits), to review one change at a
+  // time (ADM-1314). -> 200 { message_id, checkpoint, files: [{ path, status: 'added' | 'modified' | 'deleted',
+  // before, after, sha (sha256 of the file on disk now, null when it is gone), binary?, redacted? }] }; 404 not the
+  // person's; 409 { code: 'NO_CHECKPOINT' } the turn changed nothing; 503 RUNNER_STARTING / SANDBOX_NOT_ANSWERING.
+  getLetsCodeMessageReview: (repoId, messageId) =>
+    api.get(`/lets-code/projects/${repoId}/messages/${messageId}/review/`, { noCache: true }),
   // How the project is installed, built, tested, linted, type-checked and run, and its port: filled in by the Coding
   // Agent from commands that worked, editable by the person. { facts: { install, build, test, lint, typecheck, serve, port }, updated_at }
   getProjectFacts: (repoId) => api.get(`/lets-code/projects/${repoId}/facts/`, { noCache: true }),
@@ -1273,7 +1368,7 @@ export default {
   deleteWorkflowGraph: (id) => api.delete(`/workflow-graphs/${id}/`),
   validateWorkflowGraph: (id, graph) => api.post(`/workflow-graphs/${id}/validate/`, { graph }),
   runWorkflowGraph: (id, payload = {}) => api.post(`/workflow-graphs/${id}/run/`, payload),
-  getWorkflowGraphRuns: (id) => api.get(`/workflow-graphs/${id}/runs/`),
+  getWorkflowGraphRuns: (id, params) => api.get(`/workflow-graphs/${id}/runs/`, { params }),
   getWorkflowGraphRun: (runId) => api.get(`/workflow-graph-runs/${runId}/`),
   cancelWorkflowGraphRun: (runId) => api.post(`/workflow-graph-runs/${runId}/cancel/`),
   rerunWorkflowGraphRun: (runId, fromNode = null) =>
@@ -1284,7 +1379,7 @@ export default {
   getWorkflowGraphMetrics: (id) => api.get(`/workflow-graphs/${id}/metrics/`),
   exportWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/export/`),
   importWorkflowGraph: (payload) => api.post('/workflow-graphs/import/', payload),
-  getWorkflowGraphVersions: (id) => api.get(`/workflow-graphs/${id}/versions/`),
+  getWorkflowGraphVersions: (id, params) => api.get(`/workflow-graphs/${id}/versions/`, { params }),
   restoreWorkflowGraphVersion: (id, versionId) =>
     api.post(`/workflow-graphs/${id}/versions/${versionId}/restore/`),
   getWorkflowGraphTemplates: () => api.get('/workflow-graph-templates/'),

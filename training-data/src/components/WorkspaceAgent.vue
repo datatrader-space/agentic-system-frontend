@@ -74,7 +74,7 @@ const CAN = {
   TRAINING_PROJECTS: 'Find your projects and say where each one stands.',
   TRAINING_STATUS: 'Read everything about one project: photos, batches, dataset versions, runs, models, evaluations and what is deployed.',
   TRAINING_PROJECT_CREATE: 'Create a photo or chat-model project for you, after asking its name, its kind and each data-use answer. It asks you first.',
-  TRAINING_LABEL: 'Draw walls, windows and doors on photos nobody is working on and send them to review. Only where the project allows an outside AI provider. It asks you first.',
+  TRAINING_LABEL: 'Draw a first label of the project\'s classes on photos nobody is working on and send them to review. Only where the project allows an outside AI provider. It asks you first.',
   TRAINING_LABEL_REVIEW: 'Check the labels waiting for approval and say which need fixing.',
   TRAINING_LABEL_SEND_BACK: 'Send a label back to the person who drew it, with the reason.',
   TRAINING_LABEL_ACCEPT: 'Accept labels people drew, when you ask. It asks you first, and never accepts labels it drew itself.',

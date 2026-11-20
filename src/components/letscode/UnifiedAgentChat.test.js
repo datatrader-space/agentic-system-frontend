@@ -262,6 +262,19 @@ describe('UnifiedAgentChat: restore to before a message (AGENT_ENGINE_CAPABILITI
     w.unmount()
   })
 
+  it('offers Review changes beside it, kept after a reload (no turn card needed, ADM-1314)', async () => {
+    const w = await mountChat()
+    chat.conversationId = 31
+    chat.messages = thread()                                     // as read back from history: no lcCard anywhere
+    await flushPromises()
+    const review = w.findAll('[data-test="review-message"]')
+    expect(review).toHaveLength(1)
+    expect(review[0].text()).toBe('Review changes')
+    await review[0].trigger('click')
+    expect(w.emitted('review-changes')).toEqual([[{ messageId: 501, conversationId: 31, count: null }]])
+    w.unmount()
+  })
+
   it('asks first, and does nothing when the person cancels', async () => {
     const api = await apiOf()
     confirmMock.mockResolvedValueOnce(false)
@@ -619,5 +632,85 @@ describe('a chat in its own working copy', () => {
     await mountChat()
     expect(api.getChatWorktrees).toHaveBeenCalledWith(5, 14)
     expect(ctl.branches).toEqual({ 5: 'aadml/chat-5' })
+  })
+})
+
+describe('UnifiedAgentChat: review the changes one at a time, and send review comments (ADM-1314, ADM-1329)', () => {
+  const notifyOf = async () => (await import('@/composables/useNotify')).notify
+  const turn = () => [
+    { id: 'u0', serverId: 500, role: 'user', content: 'first' },
+    { id: 'a0', serverId: 501, role: 'assistant', content: 'ok' },
+    { id: 'u1', serverId: 502, role: 'user', content: 'add a route', restoreCheckpointId: 'cp-1' },
+    { id: 's1', serverId: 503, role: 'user', content: 'and a test' },            // sent while it worked: same turn
+    { id: 'a1', serverId: 504, role: 'assistant', content: 'Added.' },
+  ]
+  beforeEach(() => { chat.conversationId = '31'; chat.isBusy = false; chat.todos = [] })
+
+  it("shows Review changes beside View changes, for the turn's own message, in this chat", async () => {
+    const w = await mountChat()
+    chat.messages = turn()
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [{ path: 'a.py', status: 'modified' }, { path: 'b.py', status: 'added' }], total: 2 })
+    await flushPromises()
+    expect(w.find('.ai-changes-open').text()).toBe('View changes')             // kept
+    await w.find('[data-test="review-changes"]').trigger('click')
+    await flushPromises()
+    expect(w.emitted('review-changes')).toEqual([[{ messageId: 502, conversationId: '31', count: 2 }]])
+    w.unmount()
+  })
+
+  it('no Review changes when the turn changed nothing; a message not saved yet is read again first', async () => {
+    const w = await mountChat()
+    chat.messages = turn()
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [], total: 0 })
+    await flushPromises()
+    expect(w.find('[data-test="review-changes"]').exists()).toBe(false)
+
+    chat.messages = [{ id: 'u9', serverId: null, role: 'user', content: 'go' }, { id: 'a9', role: 'assistant', content: 'done' }]
+    chat.surfaceHandler({ type: 'lets_code_changes', files: [{ path: 'a.py', status: 'modified' }], total: 1 })
+    await flushPromises()
+    chat.refreshRestorePoints.mockImplementationOnce(async () => { chat.messages[0].serverId = 610 })
+    await w.find('[data-test="review-changes"]').trigger('click')
+    await flushPromises()
+    expect(chat.refreshRestorePoints).toHaveBeenCalled()
+    expect(w.emitted('review-changes')).toEqual([[{ messageId: 610, conversationId: '31', count: 1 }]])
+
+    chat.messages[0].serverId = null
+    await w.find('[data-test="review-changes"]').trigger('click')
+    await flushPromises()
+    expect((await notifyOf()).error).toHaveBeenCalledWith(expect.stringContaining('not saved yet'))
+    expect(w.emitted('review-changes')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it("sends the comments as ONE message in the chat that made the change, opening it; the box keeps the person's draft", async () => {
+    const w = await mountChat()
+    chat.conversationId = '40'
+    chat.openConversation.mockImplementationOnce(async (id) => { chat.conversationId = String(id) })
+    await w.find('textarea').setValue('my own draft')
+    chat.pendingAttachments = []
+    expect(await w.vm.sendReview({ conversationId: 31, text: '  ' })).toBe(false)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    const ok = await w.vm.sendReview({ conversationId: 31, text: 'I reviewed your changes...\n\na.py:2\nWhy?' })
+    expect(ok).toBe(true)
+    expect(chat.openConversation).toHaveBeenCalledWith('31')
+    expect(ctl.tabs.some((t) => t.id === '31')).toBe(true)
+    expect(ctl.front).toBe(true)
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chat.sendMessage).toHaveBeenCalledWith('I reviewed your changes...\n\na.py:2\nWhy?')
+    expect(w.find('textarea').element.value).toBe('my own draft')
+    w.unmount()
+  })
+
+  it("the files waiting in the box are not sent with the comments, and stay for the person's message", async () => {
+    const w = await mountChat()
+    chat.conversationId = '31'
+    chat.pendingAttachments = [{ name: 'shot.png' }]
+    let sentWith = null
+    chat.sendMessage.mockImplementationOnce(async () => { sentWith = chat.pendingAttachments.slice(); return true })
+    expect(await w.vm.sendReview({ conversationId: '31', text: 'a.py:1\nFix' })).toBe(true)
+    expect(chat.openConversation).not.toHaveBeenCalled()                         // already the chat in front
+    expect(sentWith).toEqual([])
+    expect(chat.pendingAttachments).toEqual([{ name: 'shot.png' }])
+    w.unmount()
   })
 })

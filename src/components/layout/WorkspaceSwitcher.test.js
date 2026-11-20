@@ -15,8 +15,8 @@ import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
 let wrapper
 const popup = () => document.querySelector('.ws-dropdown')
 const button = label => [...popup().querySelectorAll('button')].find(el => el.textContent.trim().includes(label))
-async function render(rect = { left: 16, right: 212, top: 72, bottom: 118, width: 196, height: 46 }) {
-  wrapper = mount(WorkspaceSwitcher, { attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+async function render(rect = { left: 16, right: 212, top: 72, bottom: 118, width: 196, height: 46 }, props = {}) {
+  wrapper = mount(WorkspaceSwitcher, { props, attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
   wrapper.element.getBoundingClientRect = () => rect
   await wrapper.get('.ws-trigger').trigger('click')
   await flushPromises()
@@ -102,5 +102,28 @@ describe('workspace switcher popover', () => {
     expect(popup().textContent).not.toContain('Create an organization to get started')
     button('Try again').click(); await flushPromises()
     expect(actions.loadMyOrgs).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the main app light and going to the workspace page by default', async () => {
+    await render()
+    expect(popup().classList.contains('ws-dropdown--dark')).toBe(false)
+    button('Customer support workspace').click(); await flushPromises()
+    expect(actions.push).toHaveBeenCalledWith('/workspace/11')
+  })
+
+  it('in Video Studio, draws the menu and its dialogs dark and keeps the person on the page after a switch (N-1, N-2)', async () => {
+    state.activeWorkspace.value = state.myOrgs.value[0].workspaces[0]
+    state.activeOrg.value = state.myOrgs.value[0]
+    await render(undefined, { tone: 'dark', navigateOnSwitch: false })
+    expect(popup().classList.contains('ws-dropdown--dark')).toBe(true)
+    button('Customer support workspace').click(); await flushPromises()
+    expect(actions.switchWorkspace).toHaveBeenCalledWith(state.myOrgs.value[0].workspaces[1], state.myOrgs.value[0])
+    await wrapper.get('.ws-trigger').trigger('click'); await flushPromises()
+    button('Personal mode').click(); await flushPromises()
+    expect(actions.clearWorkspace).toHaveBeenCalledOnce()
+    expect(actions.push).not.toHaveBeenCalled()
+    await wrapper.get('.ws-trigger').trigger('click'); await flushPromises()
+    button('New workspace').click(); await flushPromises()
+    expect(document.querySelector('.ws-modal-backdrop').classList.contains('ws-modal-backdrop--dark')).toBe(true)
   })
 })

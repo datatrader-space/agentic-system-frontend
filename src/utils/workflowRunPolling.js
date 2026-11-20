@@ -1,14 +1,14 @@
-// Workflow run status helpers shared by the Workflow Builder's run poller (page-speed plan Phase 5 item 1).
+// Workflow run status helpers, used by useWorkflowRun (the builder's run state).
 //
-// Statuses come from agent/workflow_graph_models.py WorkflowGraphRun: queued, running, waiting, paused,
-// success, failed, cancelled, blocked, dead.
+// These are RUN statuses, from agent/workflow_graph_models.py WorkflowGraphRun: queued, running, waiting, paused,
+// success, failed, cancelled, blocked, dead. A NODE's status is a different vocabulary (contract C2: queued, running,
+// waiting, succeeded, failed, skipped, cancelled); see composables/useWorkflowRun.js NODE_RUN_STATUSES.
 
 // Nothing more will happen to the run: stop polling and report the result.
 export const RUN_FINAL_STATUSES = ['success', 'failed', 'cancelled', 'dead']
 // The run is alive but nothing will change without a person (approval, operator resume) or a long
-// durable delay: stop the 1.2 s poll. A decision in the builder restarts it.
+// durable delay: stop polling. A decision in the builder restarts it.
 export const RUN_HELD_STATUSES = ['waiting', 'paused', 'blocked']
-export const RUN_STOP_STATUSES = [...RUN_FINAL_STATUSES, ...RUN_HELD_STATUSES]
 
 // 'final' | 'held' | null (still moving: queued / running / unknown)
 export function runStopKind(status) {

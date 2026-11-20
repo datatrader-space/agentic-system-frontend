@@ -1,8 +1,9 @@
 <template>
   <!-- The Terminal tab of a Let's Code project (ADM-1196; as VS Code's terminal since ADM-1211). "Coding Agent" shows
-       the commands the agent ran; up to three of the person's own shells in the project's sandbox, each named after
-       its shell and the folder it is in, kept running when the page is left (it reattaches) and ended by its close
-       button. -->
+       the commands the agent ran; the person's own shells in the project's sandbox (as many as the server allows: 10
+       since ADM-1325), each named after its shell and the folder it is in, kept running when the page is left (it
+       reattaches) and ended by its close button. Two shells can be shown side by side (Split); 640 px and less shows
+       one of the two at a time, chosen with its tab. -->
   <div class="tp">
     <div class="tp-bar">
       <div class="tp-tabs" role="tablist" aria-label="Terminals">
@@ -14,7 +15,7 @@
         <div v-for="s in shells" :key="s.n" class="tp-tabwrap" :class="{ on: current === s.n }">
           <button type="button" role="tab" class="tp-tab" :aria-selected="current === s.n ? 'true' : 'false'"
                   :title="tooltipOf(s)" @click="current = s.n">
-            <Icon icon="lucide:square-terminal" aria-hidden="true" />
+            <Icon :icon="inPair(s.n) ? 'lucide:columns-2' : 'lucide:square-terminal'" aria-hidden="true" />
             <span class="tp-name">{{ labelOf(s) }}</span>
             <span v-if="folderOf(s)" class="tp-dir">{{ folderOf(s) }}</span>
           </button>
@@ -22,8 +23,8 @@
             <Icon icon="lucide:x" aria-hidden="true" />
           </button>
         </div>
-        <div v-if="shells.length < MAX" class="tp-addwrap">
-          <button type="button" class="tp-add" aria-label="New terminal (bash)" title="New terminal (bash)" @click="addShell()">
+        <div v-if="canAdd" class="tp-addwrap">
+          <button type="button" class="tp-add" aria-label="New terminal (bash)" title="New terminal (bash) (Ctrl+Shift+`)" @click="addShell()">
             <Icon icon="lucide:plus" aria-hidden="true" />
           </button>
           <button ref="pickBtn" type="button" class="tp-add tp-pick" aria-label="Choose a shell for a new terminal"
@@ -33,6 +34,11 @@
         </div>
       </div>
       <div class="tp-tools" role="toolbar" aria-label="Terminal actions">
+        <button type="button" class="tp-tool tp-split" :class="{ on: splitOn }" :disabled="!splitOn && !canSplit"
+                :aria-pressed="splitOn ? 'true' : 'false'" :title="splitTitle"
+                :aria-label="splitOn ? 'Unsplit the terminal' : 'Split the terminal'" @click="toggleSplit">
+          <Icon icon="lucide:columns-2" aria-hidden="true" />
+        </button>
         <button type="button" class="tp-tool" title="Find (Ctrl+F)" aria-label="Find in the terminal" @click="openFind">
           <Icon icon="lucide:search" aria-hidden="true" />
         </button>
@@ -50,7 +56,7 @@
         </button>
       </div>
     </div>
-    <div class="tp-body">
+    <div class="tp-body" :class="{ split: splitOn }">
       <!-- Find in the terminal: every match is counted. Enter next, Shift+Enter previous, Escape closes. -->
       <div v-if="findOpen" class="tp-find" role="search">
         <input ref="findInput" v-model="findText" class="tp-find-in" type="text" aria-label="Find in the terminal"
@@ -74,12 +80,13 @@
       <ProjectTerminal v-show="current === 'agent'" :ref="(el) => setRef('agent', el)" mode="agent" :repo-id="repoId"
                        :entries="agentCommands" :active="current === 'agent'" :font-size="fontSize"
                        @find="openFind" @font="setFont" @menu="openTermMenu" @results="findResults = $event" />
-      <ProjectTerminal v-for="s in shells" v-show="current === s.n" :key="`${repoId}-${s.n}`"
+      <ProjectTerminal v-for="s in shells" v-show="shown(s.n)" :key="`${repoId}-${s.n}`" :class="paneClass(s.n)"
                        :ref="(el) => setRef(s.n, el)" mode="shell" :repo-id="repoId" :n="s.n" :shell="s.shell || ''"
                        :fresh="!!s.fresh"
                        :active="current === s.n" :font-size="fontSize"
                        @info="onInfo(s.n, $event)" @cwd="onCwd(s.n, $event)" @find="openFind" @font="setFont"
-                       @menu="openTermMenu" @results="findResults = $event" />
+                       @menu="openTermMenu" @results="findResults = $event" @limit="onLimit"
+                       @focusin="current = s.n" @pointerdown="current = s.n" />
       <p v-if="!ready" class="tp-wait">The terminal opens when the project is ready.</p>
     </div>
     <ExplorerMenu :open="menu.open" :x="menu.x" :y="menu.y" :items="menu.items" :label="menu.label"
@@ -92,6 +99,7 @@ import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import ProjectTerminal from './ProjectTerminal.vue'
 import ExplorerMenu from './ExplorerMenu.vue'
+import { notify } from '@/composables/useNotify'
 
 const props = defineProps({
   repoId: { type: Number, required: true },
@@ -101,7 +109,11 @@ const props = defineProps({
 })
 const emit = defineEmits(['maximize'])
 
-const MAX = 3
+// The most shells a project has at once is the server's (the LETS_CODE_MAX_TERMINALS setting, ADM-1325): every status
+// of a terminal's socket says it. 0 until the first one does; until then "+" stays, and the server refuses a number
+// above its limit in words, in that terminal.
+const limit = ref(0)
+function onLimit(n) { if (Number.isInteger(n) && n > 0) limit.value = n }
 // The shells a new terminal can start (the server accepts only these names; bash is VS Code's default on Linux).
 const SHELLS = [
   { id: 'bash', label: 'bash', icon: 'lucide:square-terminal' },
@@ -118,19 +130,57 @@ function setRef(key, el) { if (el) refs[key] = el; else delete refs[key] }
 // What each terminal is and where it is: {shell, root, project, cwd} by terminal number.
 const where = reactive({})
 
-function addShell(shell = DEFAULT_SHELL) {
-  if (!props.ready || shells.value.length >= MAX) return
-  const n = [1, 2, 3].find(x => !shells.value.some(s => s.n === x))
+const canAdd = computed(() => !limit.value || shells.value.length < limit.value)
+const LIMIT_TEXT = () => `A project can have at most ${limit.value} terminals open at once. End one to open another.`
+
+// A new shell under the lowest free number. `beside`: shown side by side with that terminal (Split).
+function addShell(shell = DEFAULT_SHELL, { beside = null } = {}) {
+  if (!props.ready) return null
+  if (!canAdd.value) { notify.info(LIMIT_TEXT()); return null }
+  let n = 1
+  while (shells.value.some(s => s.n === n)) n += 1
   shells.value = [...shells.value, { n, shell, fresh: true }].sort((a, b) => a.n - b.n)
   where[n] = { shell }
+  if (beside != null) pair.value = [beside, n]
   current.value = n
+  return n
 }
 function endShell(n) {
   if (n === 'agent') return
   try { refs[n]?.end() } catch { /* already gone */ }
+  const other = inPair(n) ? pair.value.find(x => x !== n) : null
+  if (inPair(n)) pair.value = null                      // the other shell keeps running, on its own
   shells.value = shells.value.filter(s => s.n !== n)
   delete where[n]
-  if (current.value === n) current.value = shells.value.length ? shells.value[shells.value.length - 1].n : 'agent'
+  if (current.value === n) {
+    current.value = other ?? (shells.value.length ? shells.value[shells.value.length - 1].n : 'agent')
+  }
+}
+
+// ── Split (ADM-1325; owner decision D2: at most two side by side) ─────────────────────────────────────────────
+// [left, right]: two shells shown together whenever either one's tab is chosen. Each keeps its own shell; unsplitting
+// keeps both running as separate tabs. Each pane fits its own half (its size observer sends the shell its size).
+const pair = ref(null)
+function inPair(n) { return !!pair.value && pair.value.includes(n) }
+const splitOn = computed(() => inPair(current.value))
+const canSplit = computed(() => current.value !== 'agent' && props.ready && canAdd.value)
+const splitTitle = computed(() => {
+  if (splitOn.value) return 'Unsplit: both shells keep running, each in its own tab'
+  if (current.value === 'agent') return 'Choose a terminal to split it'
+  if (!canAdd.value) return LIMIT_TEXT()
+  return 'Split: a new shell beside this one'
+})
+function toggleSplit() {
+  if (splitOn.value) { pair.value = null; return }
+  if (!canSplit.value) return
+  const n = current.value
+  const shell = where[n]?.shell || shells.value.find(s => s.n === n)?.shell || DEFAULT_SHELL
+  addShell(SHELLS.some(s => s.id === shell) ? shell : DEFAULT_SHELL, { beside: n })
+}
+function shown(n) { return current.value === n || (splitOn.value && inPair(n)) }
+function paneClass(n) {
+  if (!splitOn.value || !inPair(n)) return {}
+  return { 'pane-a': pair.value[0] === n, 'pane-b': pair.value[1] === n, cur: current.value === n }
 }
 function onInfo(n, info) {
   where[n] = { ...(where[n] || {}), ...info }
@@ -161,7 +211,8 @@ function tooltipOf(s) {
   const w = where[s.n] || {}
   const rel = relOf(s)
   const place = w.project ? `${w.project}${rel ? `/${rel}` : ''}` : (rel || 'the project folder')
-  return `${labelOf(s)} in ${place}`
+  const beside = inPair(s.n) ? shells.value.find(x => x.n !== s.n && inPair(x.n)) : null
+  return `${labelOf(s)} in ${place}${beside ? `, side by side with ${labelOf(beside)}` : ''}`
 }
 
 // Font size for every terminal of the editor (Ctrl+= / Ctrl+- / Ctrl+0), kept in this browser.
@@ -271,7 +322,7 @@ function remembered(repo) {
     if (!Array.isArray(v)) return null
     const seen = new Set()
     return v.map(x => (typeof x === 'number' ? { n: x, shell: '' } : x))
-      .filter(x => x && [1, 2, 3].includes(x.n) && !seen.has(x.n) && seen.add(x.n))
+      .filter(x => x && Number.isInteger(x.n) && x.n > 0 && !seen.has(x.n) && seen.add(x.n))
       .map(x => ({ n: x.n, shell: SHELLS.some(s => s.id === x.shell) ? x.shell : '' }))
       .sort((a, b) => a.n - b.n)
   } catch { return null }
@@ -280,6 +331,21 @@ function remember(repo, list) {
   try { localStorage.setItem(storeKey(repo), JSON.stringify(list)) } catch { /* storage blocked: nothing kept */ }
 }
 watch(shells, (list) => remember(props.repoId, list.map(({ n, shell }) => ({ n, shell }))))
+// The split, per project, kept beside the list: [left, right] or nothing.
+const splitKey = (repo) => `lets-code:terminal-split:${repo}`
+function rememberedPair(repo, list) {
+  try {
+    const v = JSON.parse(localStorage.getItem(splitKey(repo)) || 'null')
+    if (!Array.isArray(v) || v.length !== 2 || v[0] === v[1]) return null
+    return v.every(n => list.some(s => s.n === n)) ? v : null
+  } catch { return null }
+}
+watch(pair, (p) => {
+  try {
+    if (p) localStorage.setItem(splitKey(props.repoId), JSON.stringify(p))
+    else localStorage.removeItem(splitKey(props.repoId))
+  } catch { /* storage blocked: the split is kept for this visit */ }
+})
 
 // Open what was open; the first visit opens one bash terminal, as VS Code does. Once the project is ready.
 function restore() {
@@ -287,6 +353,7 @@ function restore() {
   if (list && list.length) {
     shells.value = list
     for (const s of list) where[s.n] = { shell: s.shell }
+    pair.value = rememberedPair(props.repoId, list)
     current.value = list[0].n
   } else addShell()
 }
@@ -295,11 +362,13 @@ watch(() => props.ready, (r) => { if (r && !shells.value.length) restore() }, { 
 watch(() => props.repoId, () => {
   shells.value = []
   for (const k of Object.keys(where)) delete where[k]
+  pair.value = null
   current.value = 'agent'
   if (props.ready) restore()
 })
 
-defineExpose({ addShell })
+// focus: the terminal shown (Ctrl+` opens the Terminal on it).
+defineExpose({ addShell, focus: () => refs[current.value]?.focus?.() })
 </script>
 
 <style scoped>
@@ -335,6 +404,11 @@ defineExpose({ addShell })
 }
 .tp-body { position: relative; flex: 1; min-height: 0; border-top: 1px solid var(--vm-line); }
 .tp-body > .pt { position: absolute; inset: 0; }
+/* Split: two shells, half each, a line between them; the one typed in has a thin accent along its top. */
+.tp-body.split > .pt.pane-a { right: 50%; }
+.tp-body.split > .pt.pane-b { left: 50%; border-left: 1px solid var(--vm-line); }
+.tp-body.split > .pt.cur { box-shadow: inset 0 2px 0 var(--vm-violet); }
+.tp-tool.on { color: var(--vm-violet-ink); background: var(--vm-violet-soft); }
 .tp-wait { position: absolute; left: 14px; top: 10px; margin: 0; color: var(--vm-ink-faint); font-size: 13px; }
 /* Find: a small bar over the terminal's top right, as in VS Code. */
 .tp-find {
@@ -351,8 +425,11 @@ defineExpose({ addShell })
 .tp-find-n { min-width: 7ch; padding: 0 6px; font: 12px var(--vm-font-sans); color: var(--vm-ink-soft); white-space: nowrap; }
 @media (max-width: 640px) {
   .tp-tab { min-height: 44px; }
-  .tp-x, .tp-add, .tp-tool, .tp-ft { width: 40px; height: 40px; }
+  .tp-x, .tp-add, .tp-tool, .tp-ft { width: 44px; height: 44px; }
   .tp-find-in { width: 120px; }
   .tp-dir { display: none; }
+  /* Split at 640 px and less: one of the two at a time, full width (its tab chooses which); never a sideways scroll. */
+  .tp-body.split > .pt:not(.cur) { display: none; }
+  .tp-body.split > .pt.pane-a, .tp-body.split > .pt.pane-b { left: 0; right: 0; border-left: 0; box-shadow: none; }
 }
 </style>

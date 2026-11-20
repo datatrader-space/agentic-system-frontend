@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-const api = vi.hoisted(() => ({ get: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), getStudioRecipes: vi.fn() }))
 vi.mock('./api', () => ({ default: api }))
 import { studioLooks, loadLookResult, safeMediaUrl, LOOK_ID } from './studioLooks'
-import { composePreset, presetsFor } from './studioPresets'
+import { composePreset, loadPresets, presetsFor } from './studioPresets'
 import { getStudioFeature } from './studioFeatures'
 
 describe('Approved Studio look presentation', () => {
-  it('covers all 23 creative tools with 74 unique looks that carry no media of their own', () => {
-    expect(studioLooks).toHaveLength(74)
-    expect(new Set(studioLooks.map(look => look.id)).size).toBe(74)
-    expect(new Set(studioLooks.map(look => look.feature)).size).toBe(23)
+  // The Image and Video looks are served by the Recipe API with those pages' presets (F-D4).
+  it('covers the other creative tools with unique looks that carry no media of their own', () => {
+    expect(studioLooks).toHaveLength(68)
+    expect(new Set(studioLooks.map(look => look.id)).size).toBe(68)
+    expect(new Set(studioLooks.map(look => look.feature)).size).toBe(21)
+    expect(studioLooks.some(look => ['image', 'video'].includes(look.feature))).toBe(false)
     for (const look of studioLooks) {
       expect(getStudioFeature(look.feature)).toBeTruthy()
       expect(look.clientOnly).toBe(true)
@@ -31,7 +33,12 @@ describe('Approved Studio look presentation', () => {
     expect([byId['explainer-look-faceless'].feature, byId['explainer-look-faceless'].faceless]).toEqual(['explainer', true])
     expect(studioLooks.filter(look => look.recipe).every(look => look.feature === 'effects')).toBe(true)
   })
-  it('retains existing server-recognized preset identifiers separately from client-only looks', () => {
+  it('retains existing server-recognized preset identifiers separately from client-only looks', async () => {
+    api.getStudioRecipes.mockImplementation(page => Promise.resolve({ data: { presets: page === 'image'
+      ? [{ id: 'tabletop-product', feature: 'image' }, { id: 'image-look-1', feature: 'image', clientOnly: true }]
+      : [{ id: 'product-unveil', feature: 'video' }] } }))
+    await loadPresets('image'); await loadPresets('video')
+    expect(presetsFor('image').find(preset => preset.id === 'image-look-1')?.clientOnly).toBe(true)
     expect(presetsFor('image').find(preset => preset.id === 'tabletop-product')?.clientOnly).toBeUndefined()
     expect(presetsFor('video').find(preset => preset.id === 'product-unveil')?.clientOnly).toBeUndefined()
     expect(presetsFor('missing-feature')).toEqual([])

@@ -23,6 +23,15 @@
     @font-face { font-family: 'Inter Fallback'; font-weight: 600 900; src: local('Arial Bold'), local('Arial-BoldMT');
       size-adjust: 103.28%; ascent-override: 93.82%; descent-override: 23.33%; line-gap-override: 0%; }
   </style>
+  <!-- Video Studio is dark (ISSUE-3): on a full load of a Studio page (its current address or the old one that
+       redirects), the page is dark from the first paint instead of white until the app's code has run. Only the
+       Studio's paths get the class; main.js removes it as soon as the router lands anywhere else. -->
+  <script>
+    if (/^\/(dashboard\/)?video-studio(\/|$)/.test(location.pathname)) document.documentElement.classList.add('vs-boot')
+  </script>
+  <style>
+    html.vs-boot, html.vs-boot body { background: #101216; color-scheme: dark; }
+  </style>
   <title>AADML — AI Agent Development & Management Layer</title>
   <meta name="description"
     content="Build, deploy, and manage AI agents that automate workflows with 50+ tools, multi-LLM routing, signals, and enterprise-grade security." />

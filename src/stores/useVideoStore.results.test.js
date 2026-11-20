@@ -119,8 +119,8 @@ describe('Use again and Edit', () => {
   it('Edit makes this result the edit base', () => {
     video.refs = [{ key: 'old', attachment_id: 'old', role: 'subject' }]
     expect(video.editFrom({ attachment_id: 'r1', media_type: 'image', url: '/r1.png' }, { conversationId: 'c1' }))
-      .toEqual({ path: '/video-studio/edit', query: { conversation: 'c1', useIn: '1', mode: video.studioMode } })
+      .toEqual({ path: '/dashboard/video-studio/edit', query: { conversation: 'c1', useIn: '1', mode: video.studioMode } })
     expect(video.refs).toEqual([expect.objectContaining({ attachment_id: 'r1', role: 'edit_source', base_attachment_id: 'r1' })])
-    expect(video.editFrom({ attachment_id: 'r2', media_type: 'video', url: '/r2.mp4' }).path).toBe('/video-studio/enhance')
+    expect(video.editFrom({ attachment_id: 'r2', media_type: 'video', url: '/r2.mp4' }).path).toBe('/dashboard/video-studio/enhance')
   })
 })

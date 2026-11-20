@@ -1,0 +1,1463 @@
+[
+ {
+  "name": "one key at 0",
+  "keys": [
+   {
+    "t_ms": 500,
+    "v": 0.7
+   }
+  ],
+  "t_ms": 0,
+  "expected": 0.7
+ },
+ {
+  "name": "one key at 500",
+  "keys": [
+   {
+    "t_ms": 500,
+    "v": 0.7
+   }
+  ],
+  "t_ms": 500,
+  "expected": 0.7
+ },
+ {
+  "name": "one key at 900",
+  "keys": [
+   {
+    "t_ms": 500,
+    "v": 0.7
+   }
+  ],
+  "t_ms": 900,
+  "expected": 0.7
+ },
+ {
+  "name": "linear at -100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": -100,
+  "expected": 0
+ },
+ {
+  "name": "linear at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 0,
+  "expected": 0
+ },
+ {
+  "name": "linear at 1",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 1,
+  "expected": 0.01
+ },
+ {
+  "name": "linear at 250",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 250,
+  "expected": 2.5
+ },
+ {
+  "name": "linear at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 500,
+  "expected": 5.0
+ },
+ {
+  "name": "linear at 999",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 999,
+  "expected": 9.99
+ },
+ {
+  "name": "linear at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 10
+ },
+ {
+  "name": "linear at 5000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 1000,
+    "v": 10
+   }
+  ],
+  "t_ms": 5000,
+  "expected": 10
+ },
+ {
+  "name": "linear down, negative values at 0",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 0,
+  "expected": 1
+ },
+ {
+  "name": "linear down, negative values at 100",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 100,
+  "expected": 1
+ },
+ {
+  "name": "linear down, negative values at 150",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 150,
+  "expected": 0.5
+ },
+ {
+  "name": "linear down, negative values at 200",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 200,
+  "expected": 0.0
+ },
+ {
+  "name": "linear down, negative values at 299",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 299,
+  "expected": -0.99
+ },
+ {
+  "name": "linear down, negative values at 300",
+  "keys": [
+   {
+    "t_ms": 100,
+    "v": 1
+   },
+   {
+    "t_ms": 300,
+    "v": -1
+   }
+  ],
+  "t_ms": 300,
+  "expected": -1
+ },
+ {
+  "name": "ease_in at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 0,
+  "expected": 1
+ },
+ {
+  "name": "ease_in at 100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 100,
+  "expected": 1.0008949231
+ },
+ {
+  "name": "ease_in at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 500,
+  "expected": 1.0186929301
+ },
+ {
+  "name": "ease_in at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 1.0630713625
+ },
+ {
+  "name": "ease_in at 1500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1500,
+  "expected": 1.1243723738
+ },
+ {
+  "name": "ease_in at 1900",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1900,
+  "expected": 1.1835515592
+ },
+ {
+  "name": "ease_in at 1999",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1999,
+  "expected": 1.1998282994
+ },
+ {
+  "name": "ease_in at 2000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 2000,
+  "expected": 1.2
+ },
+ {
+  "name": "ease_out at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 0,
+  "expected": 1
+ },
+ {
+  "name": "ease_out at 100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 100,
+  "expected": 1.0164484408
+ },
+ {
+  "name": "ease_out at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 500,
+  "expected": 1.0756276262
+ },
+ {
+  "name": "ease_out at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 1.1369286375
+ },
+ {
+  "name": "ease_out at 1500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1500,
+  "expected": 1.1813070699
+ },
+ {
+  "name": "ease_out at 1900",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1900,
+  "expected": 1.1991050769
+ },
+ {
+  "name": "ease_out at 1999",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1999,
+  "expected": 1.1999999056
+ },
+ {
+  "name": "ease_out at 2000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 2000,
+  "expected": 1.2
+ },
+ {
+  "name": "ease_in_out at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 0,
+  "expected": 1
+ },
+ {
+  "name": "ease_in_out at 100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 100,
+  "expected": 1.0009659499
+ },
+ {
+  "name": "ease_in_out at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 500,
+  "expected": 1.0258323862
+ },
+ {
+  "name": "ease_in_out at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 1.1
+ },
+ {
+  "name": "ease_in_out at 1500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1500,
+  "expected": 1.1741676138
+ },
+ {
+  "name": "ease_in_out at 1900",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1900,
+  "expected": 1.1990340501
+ },
+ {
+  "name": "ease_in_out at 1999",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 1999,
+  "expected": 1.1999999055
+ },
+ {
+  "name": "ease_in_out at 2000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 1,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 2000,
+    "v": 1.2
+   }
+  ],
+  "t_ms": 2000,
+  "expected": 1.2
+ },
+ {
+  "name": "hold at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 5,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 9
+   }
+  ],
+  "t_ms": 0,
+  "expected": 5
+ },
+ {
+  "name": "hold at 1",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 5,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 9
+   }
+  ],
+  "t_ms": 1,
+  "expected": 5
+ },
+ {
+  "name": "hold at 999",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 5,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 9
+   }
+  ],
+  "t_ms": 999,
+  "expected": 5
+ },
+ {
+  "name": "hold at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 5,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 9
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 9
+ },
+ {
+  "name": "hold at 1001",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 5,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 9
+   }
+  ],
+  "t_ms": 1001,
+  "expected": 9
+ },
+ {
+  "name": "bezier overshoot at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 0,
+  "expected": 0
+ },
+ {
+  "name": "bezier overshoot at 60",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 60,
+  "expected": 40.3933041979
+ },
+ {
+  "name": "bezier overshoot at 150",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 150,
+  "expected": 81.6289198692
+ },
+ {
+  "name": "bezier overshoot at 300",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 300,
+  "expected": 108.7400670219
+ },
+ {
+  "name": "bezier overshoot at 450",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 450,
+  "expected": 105.9646859964
+ },
+ {
+  "name": "bezier overshoot at 590",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 590,
+  "expected": 100.0392219617
+ },
+ {
+  "name": "bezier overshoot at 600",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.34,
+     1.56,
+     0.64,
+     1
+    ]
+   },
+   {
+    "t_ms": 600,
+    "v": 100
+   }
+  ],
+  "t_ms": 600,
+  "expected": 100
+ },
+ {
+  "name": "bezier steep start at 1",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.01,
+     0.99,
+     0.2,
+     1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 1,
+  "expected": 0.0677389009
+ },
+ {
+  "name": "bezier steep start at 5",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.01,
+     0.99,
+     0.2,
+     1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 5,
+  "expected": 0.1962595478
+ },
+ {
+  "name": "bezier steep start at 20",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.01,
+     0.99,
+     0.2,
+     1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 20,
+  "expected": 0.4004475646
+ },
+ {
+  "name": "bezier steep start at 100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.01,
+     0.99,
+     0.2,
+     1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 100,
+  "expected": 0.7316475014
+ },
+ {
+  "name": "bezier steep start at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.01,
+     0.99,
+     0.2,
+     1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 500,
+  "expected": 0.9819830155
+ },
+ {
+  "name": "bezier flat start at 100",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.9,
+     0,
+     1,
+     0.1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 100,
+  "expected": 0.0004801313
+ },
+ {
+  "name": "bezier flat start at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.9,
+     0,
+     1,
+     0.1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 500,
+  "expected": 0.0240161841
+ },
+ {
+  "name": "bezier flat start at 900",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.9,
+     0,
+     1,
+     0.1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 900,
+  "expected": 0.2458124151
+ },
+ {
+  "name": "bezier flat start at 990",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "bezier",
+    "bez": [
+     0.9,
+     0,
+     1,
+     0.1
+    ]
+   },
+   {
+    "t_ms": 1000,
+    "v": 1
+   }
+  ],
+  "t_ms": 990,
+  "expected": 0.6339726717
+ },
+ {
+  "name": "bezier y below zero at 40",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 2,
+    "ease": "bezier",
+    "bez": [
+     0.6,
+     -0.28,
+     0.735,
+     0.045
+    ]
+   },
+   {
+    "t_ms": 400,
+    "v": 4
+   }
+  ],
+  "t_ms": 40,
+  "expected": 1.9146458736
+ },
+ {
+  "name": "bezier y below zero at 120",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 2,
+    "ease": "bezier",
+    "bez": [
+     0.6,
+     -0.28,
+     0.735,
+     0.045
+    ]
+   },
+   {
+    "t_ms": 400,
+    "v": 4
+   }
+  ],
+  "t_ms": 120,
+  "expected": 1.8112748717
+ },
+ {
+  "name": "bezier y below zero at 200",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 2,
+    "ease": "bezier",
+    "bez": [
+     0.6,
+     -0.28,
+     0.735,
+     0.045
+    ]
+   },
+   {
+    "t_ms": 400,
+    "v": 4
+   }
+  ],
+  "t_ms": 200,
+  "expected": 1.8727563164
+ },
+ {
+  "name": "bezier y below zero at 360",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 2,
+    "ease": "bezier",
+    "bez": [
+     0.6,
+     -0.28,
+     0.735,
+     0.045
+    ]
+   },
+   {
+    "t_ms": 400,
+    "v": 4
+   }
+  ],
+  "t_ms": 360,
+  "expected": 3.3062011812
+ },
+ {
+  "name": "three keys, mixed eases at 0",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 0,
+  "expected": 0
+ },
+ {
+  "name": "three keys, mixed eases at 250",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 250,
+  "expected": 0.6846431874
+ },
+ {
+  "name": "three keys, mixed eases at 499",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 499,
+  "expected": 0.9999924585
+ },
+ {
+  "name": "three keys, mixed eases at 500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 500,
+  "expected": 1
+ },
+ {
+  "name": "three keys, mixed eases at 750",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 750,
+  "expected": 1
+ },
+ {
+  "name": "three keys, mixed eases at 1000",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 1000,
+  "expected": 0.5
+ },
+ {
+  "name": "three keys, mixed eases at 1250",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 1250,
+  "expected": 1.25
+ },
+ {
+  "name": "three keys, mixed eases at 1500",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 1500,
+  "expected": 2
+ },
+ {
+  "name": "three keys, mixed eases at 1600",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0,
+    "ease": "ease_out"
+   },
+   {
+    "t_ms": 500,
+    "v": 1,
+    "ease": "hold"
+   },
+   {
+    "t_ms": 1000,
+    "v": 0.5,
+    "ease": "ease_in_out"
+   },
+   {
+    "t_ms": 1500,
+    "v": 2
+   }
+  ],
+  "t_ms": 1600,
+  "expected": 2
+ },
+ {
+  "name": "fractional time at 16.5",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 33,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 67,
+    "v": 0
+   }
+  ],
+  "t_ms": 16.5,
+  "expected": 0.5
+ },
+ {
+  "name": "fractional time at 33",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 33,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 67,
+    "v": 0
+   }
+  ],
+  "t_ms": 33,
+  "expected": 1.0
+ },
+ {
+  "name": "fractional time at 50.25",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 33,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 67,
+    "v": 0
+   }
+  ],
+  "t_ms": 50.25,
+  "expected": 0.6767106586
+ },
+ {
+  "name": "fractional time at 66.9",
+  "keys": [
+   {
+    "t_ms": 0,
+    "v": 0
+   },
+   {
+    "t_ms": 33,
+    "v": 1,
+    "ease": "ease_in"
+   },
+   {
+    "t_ms": 67,
+    "v": 0
+   }
+  ],
+  "t_ms": 66.9,
+  "expected": 0.0050193078
+ }
+]

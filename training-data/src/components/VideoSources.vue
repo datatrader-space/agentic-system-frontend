@@ -1,7 +1,11 @@
 <script setup>
 // The Cloud Streaming tab's saved cameras (CLOUD_STREAMING_PLAN.md 3.1, 3.2 item 2 and section 7): the "Video sources"
 // card (chips by state, list or grid, a row opens the source's details), the Summary and Connectors cards beside it,
-// and the "Add video source" dialog (Camera URL works; a connector, Verkada and RTMP are said to be coming). From a
+// and the "Add video source" dialog (Camera URL, a connector camera and an RTMP stream work; Verkada is said to be
+// coming). An RTMP stream (CLOUD_STREAMING_PLAN.md §14): its camera or encoder pushes to AADML; adding it shows its
+// Server and Stream key once (PushDetails.vue), with a warning to keep the key secret. A phone camera
+// (CLOUD_STREAMING_PLAN.md §16): the phone's own camera, sent from its browser; adding it shows its phone link once, as a
+// QR code and a link to copy, with the steps (PhoneLinkDetails.vue). From a
 // source's own page (VideoSourcePage.vue, in the list's place; `page` tells the tab): watch it live, check it, run a
 // model on it (the tab's own dialog, through the `start` event), see its results, edit or remove it. Public cameras
 // AADML publishes are read-only. "Scan from phone" (CLOUD_STREAMING_PLAN.md 3.2 item 5): a one-time pairing code shown
@@ -9,25 +13,28 @@
 // camera_pairing.py). Nothing is added until the person checks the form and presses Add camera.
 // Backend: streaming_api.py workspace/video-sources/ (list, add), <id>/ (one, change, remove), <id>/check/,
 // <id>/live/. Seeing and watching need Overview in the workspace; every change needs Manage, and the server decides.
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
-  Activity, ArrowRight, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
+  Activity, ArrowRight, Camera, Cctv, Check, CircleQuestionMark, Cloud, Copy, Film, ImageOff, LayoutGrid, Link, List,
   LoaderCircle, Lock, Pencil, Play, Plug, RadioTower, RefreshCw, Smartphone, Trash2, TriangleAlert, Tv, Wallet, Webcam, Wifi,
 } from 'lucide-vue-next';
 import LiveView from './LiveView.vue';
+import PushDetails from './PushDetails.vue';
+import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import VideoSourcePage from './VideoSourcePage.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import MachineConnection from './MachineConnection.vue';
 import UiDialog from './UiDialog.vue';
 import { modelName, timeAgo } from '../api/workspace.js';
-import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT } from '../api/machines.js';
+import { machinesApi, discoverWhy, foundAddress, foundLine, FOUND_NEXT, MACHINE_COMMANDS } from '../api/machines.js';
 import { Search } from 'lucide-vue-next';
 import {
   videoSources, SOURCE_FILTERS, CONSENT_TEXT, SOURCE_NAME_LIMIT, CREDENTIAL_LIMIT, addressShown,
   sourceState, sourceCounts, filterSources, sourceShown, sourceKindLabel, sourceLine, runningText, isPublic,
   thumbnailOf, lastFrameText, limitText, summaryItems, sourceForm, sourceFormProblems, sourceBody, canWatch, streamState,
   connectorRows, connectorLine, sizeText,
-  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost,
+  pairingApi, PAIRING_POLL_MS, formFromScan, privateHost, pushDetails, phoneLinkDetails, termsRequired,
 } from '../api/streaming.js';
 import { qrOf } from '../api/phone.js';
 
@@ -74,6 +81,12 @@ async function load() {
     const body = await videoSources.list();
     page.value = body; error.value = ''; broken.value = new Set();
     emit('loaded', body);
+    // After a reload, the camera that was open in this tab opens again (if it is still in the list).
+    const kept = detailId.value === null ? keptOpen() : '';
+    if (kept) {
+      const again = (body?.sources || []).find(s => String(s.id) === kept);
+      if (again) openDetail(again); else keepOpen(null);
+    }
   } catch (e) { error.value = e.message; }
   finally { loading.value = false; schedule(); }
 }
@@ -100,7 +113,13 @@ const detail = computed(() => {
   return row ? { ...(detailFull.value?.id === detailId.value ? detailFull.value : {}), ...row } : null;
 });
 const detailStreams = computed(() => (Array.isArray(detailFull.value?.streams) ? detailFull.value.streams : []));
+// The camera open in this tab is kept for a reload (live, 2026-11-18: a reload went back to the list, so a camera that
+// was recording looked as if nothing happened). This tab only: sessionStorage.
+const OPEN_KEY = 'tmd.videoSources.open';
+function keepOpen(id) { try { if (id === null) sessionStorage.removeItem(OPEN_KEY); else sessionStorage.setItem(OPEN_KEY, String(id)); } catch { /* no storage: nothing kept */ } }
+function keptOpen() { try { return sessionStorage.getItem(OPEN_KEY) || ''; } catch { return ''; } }
 async function openDetail(source) {
+  keepOpen(source.id);
   detailId.value = source.id; detailFull.value = null; detailError.value = '';
   try {
     const body = await videoSources.get(source.id);
@@ -108,7 +127,7 @@ async function openDetail(source) {
     if (detailId.value === source.id && full) detailFull.value = { ...full, id: full.id ?? source.id, streams: full.streams ?? body?.streams };
   } catch (e) { if (detailId.value === source.id) detailError.value = e.message; }
 }
-function closeDetail() { detailId.value = null; detailFull.value = null; checkError.value = ''; }
+function closeDetail() { keepOpen(null); detailId.value = null; detailFull.value = null; checkError.value = ''; }
 // The source's own read again (a stream started or stopped on it).
 async function refreshDetail() {
   const id = detailId.value;
@@ -156,14 +175,18 @@ async function check(source) {
 const WAYS = [
   { id: 'connector', name: 'Connect a camera', icon: Webcam },
   { id: 'url', name: 'Camera URL', icon: Link },
+  { id: 'phonecam', name: 'Phone camera', icon: Camera },
   { id: 'phone', name: 'Scan from phone', icon: Smartphone },
   { id: 'verkada', name: 'Verkada', icon: Cloud },
-  { id: 'rtmp', name: 'RTMP stream', icon: RadioTower, chip: 'Pilot' },
+  { id: 'rtmp', name: 'RTMP stream', icon: RadioTower },
 ];
-const SYSTEMS = ['Windows', 'macOS', 'Linux'];
-const editorOpen = ref(false); const editing = ref(null); const way = ref('url'); const system = ref('Windows');
+const editorOpen = ref(false); const editing = ref(null); const way = ref('url');
 const form = ref(sourceForm()); const fieldErrors = ref({}); const formError = ref(''); const saving = ref(false);
 const consentNote = ref(''); const addedSaid = ref('');
+// The push details of the RTMP stream just added, its stream key with them: shown until the dialog closes, never kept.
+const addedPush = ref(null);
+// The phone link of the phone camera just added: shown until the dialog closes, never kept.
+const addedPhone = ref(null);
 // The projects offered: those a stream may start in, and the source's own default project when it is not one of them.
 const projectChoices = computed(() => {
   const list = props.projects.map(p => ({ ref: p.ref, name: p.name }));
@@ -173,10 +196,14 @@ const projectChoices = computed(() => {
 });
 const shownNow = computed(() => addressShown(form.value.address));
 
+// The Terms and the Privacy Policy first (StreamingTab.vue provides it; none: the server still refuses until then).
+const streamingTerms = inject('streamingTerms', null);
 function openAdd() {
   if (addWhy.value || !page.value) return;
+  if (streamingTerms && !streamingTerms.ensure(openAdd)) return;
   editing.value = null; way.value = 'url'; form.value = sourceForm();
   fieldErrors.value = {}; formError.value = ''; consentNote.value = ''; addedSaid.value = ''; said.value = '';
+  addedPush.value = null; addedPhone.value = null;
   stopPairing(); pairing.value = null; scannedSaid.value = '';
   editorOpen.value = true;
 }
@@ -196,7 +223,10 @@ async function showPairing() {
   try {
     pairing.value = await pairingApi.make(); pairState.value = 'waiting';
     pollPairing();
-  } catch (e) { pairError.value = e.message; }
+  } catch (e) {
+    if (termsRequired(e) && streamingTerms) { editorOpen.value = false; streamingTerms.needed(); return; }
+    pairError.value = e.message;
+  }
   finally { pairBusy.value = false; }
 }
 async function pollPairing() {
@@ -208,6 +238,11 @@ async function pollPairing() {
     if (pairing.value?.pairing?.id !== id) return;
     if (answer?.state === 'scanned') {
       const filled = formFromScan(answer.value);
+      if (filled.refused) {
+        pairing.value = null; pairState.value = '';
+        scannedSaid.value = filled.refused; tell(filled.refused);
+        return;
+      }
       form.value = { ...form.value, ...filled };
       fieldErrors.value = {}; pairing.value = null; pairState.value = '';
       // An address on the camera's own network (the usual CCTV case) is reached through one of your machines.
@@ -248,14 +283,31 @@ async function openEdit(source) {
     for (const key of ['name', 'username', 'project']) if (form.value[key] === was[key]) form.value[key] = now[key];
   } catch { /* the row's own values are enough to edit */ }
 }
-function closeEditor() { if (!saving.value) editorOpen.value = false; }
+function closeEditor() { if (!saving.value) { editorOpen.value = false; addedPush.value = null; addedPhone.value = null; } }
+// An RTMP stream: the "RTMP stream" tab, or editing one (its name and default project only).
+const pushing = computed(() => (editing.value ? editing.value.kind === 'rtmp' : way.value === 'rtmp'));
+// A phone camera: the "Phone camera" tab, or editing one (its name and default project only).
+const phoning = computed(() => (editing.value ? editing.value.kind === 'phone' : way.value === 'phonecam'));
+// Neither has an address, a user name or a password: the camera or the phone sends to AADML itself.
+const noAddress = computed(() => pushing.value || phoning.value);
+watch(way, () => { if (addedPush.value || addedPhone.value) { addedPush.value = null; addedPhone.value = null; addedSaid.value = ''; } });
+function addAnotherPush() { addedPush.value = null; addedPhone.value = null; addedSaid.value = ''; }
 function checkField(name) {
-  const problems = sourceFormProblems(form.value, { editing: !!editing.value });
+  const problems = sourceFormProblems(form.value, { editing: !!editing.value, pushing: noAddress.value });
   fieldErrors.value = { ...fieldErrors.value, [name]: problems[name] || '' };
 }
 const FIELDS = ['machine', 'name', 'address', 'username', 'password', 'project', 'consent'];
 // A camera on one of the workspace's machines (CLOUD_STREAMING_PLAN.md §11): the "Connect a camera" tab, or editing one.
 const machineRows = ref(null); const machinesError = ref('');
+// Adding the computer the cameras are near, here in the dialog: the one command (MachineConnection, as on the Machines
+// page) and, once it has joined, it is chosen for the camera. Live, 2026-11-18: the owner could not find where the
+// command was; this tab only said "the Machines page".
+const addingMachine = ref(false);
+async function machineAdded(machine) {
+  addingMachine.value = false;
+  await loadMachines();
+  if (machine?.id !== undefined) form.value.machine = String(machine.id);
+}
 const connecting = computed(() => (editing.value ? editing.value.kind === 'connector' : way.value === 'connector'));
 const usableMachines = computed(() => (machineRows.value || []).filter(m => m.state !== 'removed'));
 async function loadMachines() {
@@ -325,12 +377,12 @@ async function save() {
   formError.value = ''; addedSaid.value = '';
   const isEdit = !!editing.value;
   if (!isEdit && !connecting.value) form.value.machine = '';            // a camera address: no machine
-  const problems = sourceFormProblems(form.value, { editing: isEdit, connector: connecting.value });
+  const problems = sourceFormProblems(form.value, { editing: isEdit, connector: connecting.value, pushing: noAddress.value });
   fieldErrors.value = problems;
   const first = FIELDS.find(f => problems[f]);
   if (first) { await nextTick(); document.getElementById(`vs-${first}`)?.focus(); return; }
   if (saving.value) return;
-  const body = sourceBody(form.value, { editing: isEdit, original: editing.value });
+  const body = sourceBody(form.value, { editing: isEdit, original: editing.value, pushing: noAddress.value, kind: phoning.value ? 'phone' : 'rtmp' });
   if (isEdit && !Object.keys(body).length) { editorOpen.value = false; tell('Nothing changed.'); return; }
   saving.value = true;
   try {
@@ -343,10 +395,16 @@ async function save() {
       // The dialog stays open for another camera; Done closes it.
       addedSaid.value = answer?.said || `${name} is added. Open it in the list and press Check now to see a frame from it.`;
       tell(addedSaid.value);
+      if (pushing.value) addedPush.value = { details: pushDetails(answer?.source?.push) };
+      if (phoning.value) {
+        const details = phoneLinkDetails(answer?.source?.phone);
+        addedPhone.value = { details: details?.url ? details : null };
+      }
       form.value = sourceForm(); fieldErrors.value = {};
     }
     load(); emit('changed');
   } catch (e) {
+    if (termsRequired(e) && streamingTerms) { editorOpen.value = false; streamingTerms.needed(); return; }
     if (e.field && FIELDS.includes(e.field)) fieldErrors.value = { ...fieldErrors.value, [e.field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
@@ -384,12 +442,27 @@ async function confirmRemove() {
 }
 
 // ── the Connectors card: the workspace's machines that have cameras (the machines list and the sources) ────────────
-const connectorMachines = ref(null);
+const connectorMachines = ref(null); const mayManageMachines = ref(false);
+// Removing a machine from here (machinesApi.remove, as Manage machines does): its key stops at once, its cameras stop
+// being read, and the computer is cleared with MACHINE_COMMANDS.clean.
+const removingMachine = ref(null); const removeMachineBusy = ref(false); const removeMachineError = ref('');
+async function removeMachine() {
+  if (!removingMachine.value || removeMachineBusy.value) return;
+  removeMachineBusy.value = true; removeMachineError.value = '';
+  try {
+    const name = removingMachine.value.name;
+    await machinesApi.remove(removingMachine.value.id);
+    removingMachine.value = null;
+    tell(`${name} is removed. Its key no longer works; clear it from the computer with the command shown.`);
+    await loadConnectors(); await loadMachines(); load();
+  } catch (e) { removeMachineError.value = e.message; }
+  finally { removeMachineBusy.value = false; }
+}
 async function loadConnectors() {
-  try { connectorMachines.value = (await machinesApi.list())?.machines || []; }
+  try { const answer = await machinesApi.list(); connectorMachines.value = answer?.machines || []; mayManageMachines.value = !!answer?.may_manage; }
   catch { connectorMachines.value = []; }          // the sources' own machine names and states are shown then
 }
-watch(() => sources.value.some(s => s.kind === 'connector'), has => { if (has && connectorMachines.value === null) loadConnectors(); }, { immediate: true });
+watch(page, () => { if (connectorMachines.value === null) loadConnectors(); }, { immediate: true });   // every machine, cameras or not
 watch(page, () => { if (connectorMachines.value !== null) loadConnectors(); });
 const connectors = computed(() => connectorRows(connectorMachines.value || machineRows.value || [], sources.value));
 function connectCamera() {
@@ -469,6 +542,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
                 <span class="vs-badges">
                   <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
                   <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+                  <UiBadge v-if="s.recording_on" tone="red" class="vs-recording-badge">● Recording</UiBadge>
                 </span>
                 <small class="vs-when">{{ lastFrameText(s) }}</small>
               </td>
@@ -487,6 +561,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <span class="vs-tile-badges">
               <UiBadge :tone="sourceState(s)[0]">{{ sourceState(s)[1] }}</UiBadge>
               <UiBadge v-if="isPublic(s)" tone="purple">Public</UiBadge>
+              <UiBadge v-if="s.recording_on" tone="red" class="vs-recording-badge">● Recording</UiBadge>
             </span>
           </div>
           <div class="vs-tile-body">
@@ -516,15 +591,17 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
       <section class="vs-card vs-panel" aria-labelledby="vs-connectors-h">
         <header class="vs-bar">
           <div class="vs-title">
-            <h3 id="vs-connectors-h">Connectors</h3>
+            <h3 id="vs-connectors-h">Machines</h3>
             <button type="button" class="vs-help-btn" aria-label="About connectors" :aria-expanded="helpOpen==='connectors'" aria-controls="vs-help-connectors" @click="toggleHelp('connectors')"><CircleQuestionMark :size="15" aria-hidden="true"/></button>
           </div>
         </header>
         <p v-if="helpOpen==='connectors'" id="vs-help-connectors" class="vs-helptext">A connector is a small program on a computer in your own network. It reaches out to AADML, so cameras that are not on the internet can be used without opening a port on your router.</p>
-        <ul v-if="connectors.length" class="vs-connectors" aria-label="Machines with cameras">
+        <ul v-if="connectors.length" class="vs-connectors" aria-label="Your machines">
           <li v-for="c in connectors" :key="c.id">
             <span class="vs-connector-name"><strong>{{ c.name }}</strong><small>{{ connectorLine(c) }}</small></span>
             <UiBadge :tone="c.badge[0]">{{ c.badge[1] }}</UiBadge>
+            <button v-if="mayManageMachines && c.state !== 'removed'" type="button" class="icon-button vs-machine-remove" :aria-label="`Remove ${c.name}`" :title="`Remove ${c.name}`"
+                    @click="removingMachine = c; removeMachineError = ''"><Trash2 :size="15" aria-hidden="true"/></button>
           </li>
         </ul>
         <div v-else class="vs-empty vs-empty-plain">
@@ -540,6 +617,20 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
   </div>
 
 
+    <!-- Removing a machine -->
+    <UiDialog :open="!!removingMachine" :title="removingMachine ? `Remove ${removingMachine.name}?` : ''" @close="removingMachine = null">
+      <template v-if="removingMachine">
+        <p class="dialog-description">Its key stops working at once.{{ removingMachine.cameras ? ` Its ${removingMachine.cameras} camera${removingMachine.cameras === 1 ? '' : 's'} stop${removingMachine.cameras === 1 ? 's' : ''} being read (live view, recording and models on ${removingMachine.cameras === 1 ? 'it' : 'them'}); the camera${removingMachine.cameras === 1 ? ' stays' : 's stay'} listed until you remove ${removingMachine.cameras === 1 ? 'it' : 'them'} or move ${removingMachine.cameras === 1 ? 'it' : 'them'} to another machine.` : '' }} Training it has not finished fails, and models it serves stop.</p>
+        <p class="vs-help">Then clear it from the computer, in a terminal there:</p>
+        <code class="vs-code">{{ MACHINE_COMMANDS.clean }}</code>
+        <p v-if="removeMachineError" class="field-error" role="alert">{{ removeMachineError }}</p>
+        <div class="dialog-actions">
+          <UiButton @click="removingMachine = null">Cancel</UiButton>
+          <UiButton variant="primary" class="danger" :disabled="removeMachineBusy" @click="removeMachine"><Trash2 :size="14" aria-hidden="true"/> {{ removeMachineBusy ? 'Removing…' : 'Remove machine' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
+
     <!-- "Add video source" and "Edit" -->
     <UiDialog class="vs-dialog" :open="editorOpen" :title="editing ? `Edit ${editing.name}` : 'Add video source'" @close="closeEditor">
       <div v-if="!editing" class="vs-ways" role="tablist" aria-label="How the video reaches AADML">
@@ -551,29 +642,16 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 
       <div id="vs-way-panel" class="vs-way-panel" :role="editing ? undefined : 'tabpanel'" :aria-labelledby="editing ? undefined : `vs-way-${way}`">
         <!-- Connect a camera: the connector is not released yet; nothing here pretends it is. -->
-        <div v-if="!editing && way==='connector' && machineRows !== null && !usableMachines.length">
-          <ol class="vs-steps">
-            <li>
-              <span class="vs-step-n" aria-hidden="true">1</span>
-              <div class="vs-step-body">
-                <h4>Connect a machine on the cameras' network</h4>
-                <p>The connector is AADML's machine agent, on a computer in the same network as your cameras. It only reaches out to AADML, so no port is opened on your router. Add the computer on the Machines page (Models, Your machines), then come back here to add its cameras.</p>
-                <p v-if="machinesError" class="field-error" role="alert">{{ machinesError }}</p>
-                <div class="vs-os" role="tablist" aria-label="Computer">
-                  <button v-for="(os, i) in SYSTEMS" :id="`vs-os-${os.toLowerCase()}`" :key="os" type="button" role="tab" :aria-selected="system===os" aria-controls="vs-os-panel"
-                          :tabindex="system===os ? 0 : -1" :class="{ on: system===os }" @click="system=os" @keydown="tabKeys($event, i, SYSTEMS, n => { system = n; }, 'vs-os')">{{ os }}</button>
-                </div>
-                <div id="vs-os-panel" class="vs-code" role="tabpanel" :aria-labelledby="`vs-os-${system.toLowerCase()}`">
-                  The Machines page gives the one command for {{ system }} that starts the agent and joins it to this workspace.
-                </div>
-              </div>
-            </li>
-          </ol>
+        <div v-if="!editing && way==='connector' && machineRows !== null && (!usableMachines.length || addingMachine)" class="vs-add-machine">
+          <p class="dialog-description">A camera on your own network is read by one of your computers on that network, running AADML's machine agent. It only reaches out to AADML: no port is opened on your router. Make the command below, run it once in a terminal on that computer, and the computer appears here.</p>
+          <p v-if="machinesError" class="field-error" role="alert">{{ machinesError }}</p>
+          <MachineConnection continue-label="Use it for the camera" @cancel="addingMachine = false" @connected="machineAdded"/>
         </div>
 
         <!-- Scan from phone: a pairing code; what the phone reads fills the Camera URL form -->
         <div v-else-if="!editing && way==='phone'" class="vs-pair">
           <p class="dialog-description">Scan the camera's label with your phone: its QR code or barcode (the camera's address, or its serial number) fills in the camera form here. Nothing is added until you check the form and press Add camera.</p>
+          <p class="vs-help">This reads an IP camera's label; it does not send your phone's own camera. To use your phone as a camera, add a <button type="button" class="link-button" @click="way = 'phonecam'">Phone camera</button>: the phone sends it from its browser, no app needed.</p>
           <div v-if="pairing && pairState !== 'ended'" class="vs-pair-made">
             <svg v-if="pairQr" class="vs-pair-qr" :viewBox="`0 0 ${pairQr.size} ${pairQr.size}`" shape-rendering="crispEdges" role="img" aria-label="Pairing QR code for your phone"><rect :width="pairQr.size" :height="pairQr.size" fill="#ffffff"/><path :d="pairQr.path" fill="#0f172a"/></svg>
             <div>
@@ -610,15 +688,25 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
           </fieldset>
         </div>
 
-        <!-- RTMP stream -->
-        <div v-else-if="!editing && way==='rtmp'" class="vs-coming">
-          <h4>RTMP stream <UiBadge>Coming soon</UiBadge></h4>
-          <p>Your camera or encoder (OBS, a drone, a video recorder) will send its video to a private address AADML gives you, over an encrypted RTMPS connection, with a secret key shown once. Plain RTMP without encryption will not be accepted.</p>
+        <!-- RTMP stream, just added: its Server and Stream key, shown this once -->
+        <div v-else-if="!editing && way==='rtmp' && addedPush" class="vs-pushed">
+          <div class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
+          <PushDetails v-if="addedPush.details" :push="addedPush.details" id-prefix="vs-push"/>
+          <p v-else class="field-error" role="alert">The stream was added, but its stream key could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R), open the stream in the list and rotate its key to get one.</p>
+          <UiButton class="small" @click="addAnotherPush">Add another RTMP stream</UiButton>
+        </div>
+
+        <!-- Phone camera, just added: its phone link, shown this once as a QR code and a link -->
+        <div v-else-if="!editing && way==='phonecam' && addedPhone" class="vs-pushed">
+          <div class="notice vs-notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ addedSaid }}</span></div>
+          <PhoneLinkDetails v-if="addedPhone.details" :phone="addedPhone.details" id-prefix="vs-phone"/>
+          <p v-else class="field-error" role="alert">The phone camera was added, but its phone link could not be shown here. This page may be older than AADML's latest update: reload it (Ctrl+Shift+R), open the camera in the list and make a new phone link.</p>
+          <UiButton class="small" @click="addAnotherPush">Add another phone camera</UiButton>
         </div>
 
         <!-- Camera URL (and Edit) -->
         <form v-else class="vs-form" novalidate @submit.prevent="save">
-          <p class="dialog-description">{{ editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it; live view, recording and models run on it through the machine too (agent 1.5.0 or later).' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
+          <p class="dialog-description">{{ phoning ? (editing ? 'Change its name or default project. A new phone link is made on its own page.' : 'Use a phone as a camera, from its browser: no app to install and no AADML sign-in on the phone. After you add it, AADML shows a phone link and its QR code, once. The phone sends its camera encrypted while its page is open.') : pushing ? (editing ? 'Change its name or default project. Its stream key is rotated on its own page.' : 'Your camera or encoder (OBS, a drone, a video recorder) sends its video to AADML over an encrypted RTMPS connection. After you add it, AADML shows the server and a secret stream key to put in it, once. Plain RTMP without encryption is not accepted.') : editing ? 'Change what you need. A field left blank keeps what is saved.' : connecting ? 'A camera on the network of one of your machines: that machine reads it, AADML never connects into your network. Check now takes a frame of it; live view, recording and models run on it through the machine too (agent 1.5.0 or later).' : 'No connector to install: AADML connects to the camera or stream at its address, only while a check, a live view or a stream needs it. It must be reachable from the internet.' }}</p>
           <div v-if="connecting && !editing" class="vs-field">
             <label for="vs-machine">The machine the camera is on</label>
             <select id="vs-machine" v-model="form.machine" class="text-input" :aria-invalid="!!fieldErrors.machine" aria-describedby="vs-machine-error">
@@ -626,6 +714,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
               <option v-for="m in usableMachines" :key="m.id" :value="String(m.id)">{{ machineLine(m) }}</option>
             </select>
             <p v-if="fieldErrors.machine" id="vs-machine-error" class="field-error" role="alert">{{ fieldErrors.machine }}</p>
+            <button v-if="!addingMachine" type="button" class="link-button vs-add-machine-link" @click="addingMachine = true">The camera is near another computer? Add that computer</button>
             <div v-if="chosenMachine" class="vs-find">
               <UiButton :disabled="!!findWhy || finding?.state === 'looking'" aria-describedby="vs-find-help" @click="findCameras">
                 <LoaderCircle v-if="finding?.state === 'looking'" class="spin" :size="14" aria-hidden="true"/><Search v-else :size="14" aria-hidden="true"/>
@@ -656,7 +745,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <p id="vs-name-error" class="field-error" aria-live="polite">{{ fieldErrors.name }}</p>
           </div>
 
-          <div class="vs-field">
+          <div v-if="!noAddress" class="vs-field">
             <label for="vs-address">Camera or stream URL</label>
             <p id="vs-address-help" class="vs-help vs-help-top">rtsp://, rtsps:// or an HLS playlist (https://…/live.m3u8). Only its scheme and server are shown afterwards<template v-if="shownNow">: {{ shownNow }}</template>.</p>
             <input id="vs-address" v-model="form.address" class="text-input" type="url" inputmode="url" autocomplete="off" spellcheck="false"
@@ -666,7 +755,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
             <p id="vs-address-error" class="field-error" aria-live="polite">{{ fieldErrors.address }}</p>
           </div>
 
-          <div class="vs-row">
+          <div v-if="!noAddress" class="vs-row">
             <div class="vs-field">
               <label for="vs-username">Username <span class="vs-optional">(optional)</span></label>
               <input id="vs-username" v-model="form.username" class="text-input" type="text" autocomplete="off" spellcheck="false" :maxlength="CREDENTIAL_LIMIT"
@@ -702,9 +791,9 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 
           <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
           <UiButton type="submit" variant="primary" class="vs-inline-submit" :disabled="saving">
-            <LoaderCircle v-if="saving" class="spin" :size="15" aria-hidden="true"/> {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Add camera' }}
+            <LoaderCircle v-if="saving" class="spin" :size="15" aria-hidden="true"/> {{ saving ? 'Saving…' : editing ? 'Save changes' : phoning ? 'Add phone camera' : pushing ? 'Add RTMP stream' : 'Add camera' }}
           </UiButton>
-          <p id="vs-password-help" class="vs-help vs-lock"><Lock :size="13" aria-hidden="true"/> AADML stores the password encrypted and never shows it again.<template v-if="editing"> A blank password keeps the saved one.</template></p>
+          <p v-if="!noAddress" id="vs-password-help" class="vs-help vs-lock"><Lock :size="13" aria-hidden="true"/> AADML stores the password encrypted and never shows it again.<template v-if="editing"> A blank password keeps the saved one.</template></p>
         </form>
       </div>
 
@@ -720,7 +809,7 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
         <fieldset v-if="removeAsks" class="vs-remove-recs">
           <legend>Its recordings<template v-if="removingKept"> ({{ sizeText(removingKept) }} kept now)</template></legend>
           <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="keep"> Keep them until their days are over, then they are deleted. Keeping them is charged until then.</label>
-          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="delete"> Delete them now. This cannot be undone.</label>
+          <label><input v-model="removeRecordings" type="radio" name="vs-remove-recs" value="delete"> Delete them. They are kept 14 more days, free, and can be restored in Recordings until then.</label>
         </fieldset>
         <p v-if="removeError" class="field-error" role="alert">{{ removeError }}</p>
         <div class="dialog-actions">
@@ -853,9 +942,8 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
 .vs-os button{min-height:40px;padding:6px 12px;border:0;border-bottom:2px solid transparent;background:none;color:#52627a;font-size:13px}
 .vs-os button.on{border-bottom-color:var(--aadml-primary);color:var(--aadml-primary);font-weight:600}
 .vs-code{margin:0 0 12px;padding:14px;border:1px solid #e3e8ef;border-top:0;border-radius:0 0 8px 8px;background:#f8fafc;font-size:13px;line-height:1.6;color:#33415a}
-.vs-coming{margin-top:18px;padding:16px;border-radius:10px;background:#f6f8fb}
-.vs-coming h4{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:14px}
-.vs-coming p{margin:0;font-size:13px;line-height:1.6;color:#33415a}
+.vs-pushed{display:grid;gap:14px;margin-top:16px}
+.vs-pushed > .vs-notice{margin:0}
 .vs-off{margin:0;padding:0;border:0;min-width:0}
 .vs-off .text-input{background:#f4f6f9;color:#8491a4}
 .vs-form{margin:0}
@@ -903,4 +991,5 @@ onUnmounted(() => { gone = true; clearTimeout(timer); stopPairing(); });
   .vs-grid{padding:12px}
 }
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}
+.link-button{background:none;border:0;padding:0;color:var(--aadml-primary);font:inherit;text-decoration:underline;cursor:pointer}
 </style>

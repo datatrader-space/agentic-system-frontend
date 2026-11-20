@@ -292,6 +292,7 @@
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
                   <option value="viewer">Viewer</option>
+                  <option value="billing">Billing: sees spend, cannot make or edit</option>
                 </select>
               </div>
               <p v-if="invite.workspaceId && !invite.candidates.length && !invite.candidatesLoading" class="scope-hint">

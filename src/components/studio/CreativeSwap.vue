@@ -23,6 +23,7 @@
 import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import api from '../../services/api'
+import { loadStudioRoutes } from '../../services/studioModelRoutes'
 import { routeOptionLabel } from '../../utils/studioPrice'
 import CreativeError from './CreativeError.vue'
 import MediaMonitor from './MediaMonitor.vue'
@@ -42,10 +43,9 @@ const { busy, error, submit } = useMediaJob(job => emit('job', job))
 let disposed = false
 onMounted(async () => {
   try {
-    const answers = await Promise.all(['edit_uploaded', 'edit_generated'].map(task => api.getStudioRoutes(task)))
+    const list = await loadStudioRoutes(['edit_uploaded', 'edit_generated'])
     if (disposed) return
-    const seen = new Set()
-    routes.value = answers.flatMap(({ data }) => data.routes || []).filter(r => !seen.has(r.route_id) && seen.add(r.route_id))
+    routes.value = list
     routeId.value = routes.value[0] ? String(routes.value[0].route_id) : ''
   }
   catch { if (!disposed) failure.value = 'Could not load the models.' }

@@ -144,9 +144,74 @@
             for example "Nova" or "Red sneaker". Select the files in the Library and save them as an ingredient. Use it in
             any video, or tell the agent its name, so the same product or person appears in every scene.</p>
           <p class="links">
-            <router-link to="/video-studio/library" class="text-link">Open the Library</router-link>
-            <router-link to="/video-studio/ingredients" class="text-link">Open Ingredients</router-link>
+            <router-link :to="studioPath('library')" class="text-link">Open the Library</router-link>
+            <router-link :to="studioPath('ingredients')" class="text-link">Open Ingredients</router-link>
           </p>
+        </section>
+
+        <!-- The clip editor (VIDEO_CLIP_EDITOR_PLAN.md P4) -->
+        <section id="editor" class="doc-section" aria-labelledby="h-editor" data-test="help-clip-editor">
+          <h2 id="h-editor">The clip editor</h2>
+          <p>Under <strong>Edit &amp; enhance</strong>, the clip editor puts your own clips, pictures and sound on tracks.
+            Upload files (a dropped connection carries on where it stopped), or bring them from the Library. A higher
+            video track is drawn over a lower one, so a small clip on it is picture in picture.</p>
+          <p><strong>Editing.</strong> Select a clip, then split it at the playhead, trim either end, move it, delete it, or
+            delete it and close the gap. Every drag also has a typed time in Settings and a button, and Undo takes back any
+            edit.</p>
+          <p><strong>The bin.</strong> Its tabs hold your <strong>Media</strong> (video and pictures), <strong>Text</strong>
+            templates, <strong>Audio</strong> (music made in the Studio and your own sound), and the catalogues of
+            <strong>Effects</strong> and <strong>Transitions</strong>, each with a small preview. Drag anything to the
+            timeline, or press its Add button.</p>
+          <p><strong>Settings, by tabs.</strong> <strong>Video</strong>: position, size up to four times, rotation, flip,
+            opacity, fit, crop and blend mode, and for the whole video its shape, frame rate (up to 60 a second),
+            background (a colour, a blur of the clip, or a picture) and a safe-area guide for TikTok, Reels, Shorts or
+            YouTube that only the monitor shows. <strong>Speed</strong>: a steady speed from a quarter to four times, or a
+            speed ramp (Montage, Hero, Bullet, Jump cut, Flash in, Flash out, or your own points); keep the pitch of the
+            sound or not, play backwards, or freeze the frame under the playhead. <strong>Colour</strong>: exposure,
+            contrast, highlights, shadows, saturation, warmth and more, curves for each channel, hue, saturation and
+            lightness for six colours, and a look file (.cube) with its strength; <strong>Copy grade</strong> gives the same
+            colour to other clips. <strong>Effects</strong>: blur, sharpen, vignette, masks (rectangle, ellipse, linear,
+            mirror; with feather and invert), chroma key with a colour picker, in any order and each on or off.
+            <strong>Text</strong>: 16 fonts, outline, shadow, a box with rounded corners, spacing, alignment, bold and
+            italic, animations coming in, going out and while on screen, and templates you save to your account.
+            <strong>Audio</strong>: volume in dB, pan, a three-band equaliser, noise reduction, voice enhance, the sound's
+            role (speech, music or sound effects), fades, and lowering music under speech.</p>
+          <p><strong>Keyframes.</strong> Every value that can change over time has a diamond beside it. Move the playhead
+            and press the diamond to set a keyframe there; the arrows beside it jump to the previous or next one. Change a
+            value with keyframes and the keyframe at the playhead changes. Choose how each one eases into the next: even,
+            ease in, ease out, both, hold, or your own curve.</p>
+          <p><strong>Captions.</strong> Make captions from speech (a paid transcript, with its estimate first); each word
+            keeps its time, so the spoken word can be highlighted, as karaoke, or in a box, in the colour you choose. Split
+            long captions, edit them all as text, and import or download SRT and VTT files. <strong>Edit by
+            transcript</strong>: strike words in the transcript and they are cut from the clip.</p>
+          <p><strong>Helpers</strong> work on the selected clip and show what they found before anything changes: remove
+            pauses and filler words, split at scene cuts, steady a shaky clip, reframe for another shape, and find the beats
+            of a music clip to add beat markers or cut your clips to the beat. These are free. <strong>Background
+            removal</strong> is made by a paid model: you see the price first, and nothing is spent until you press
+            Generate.</p>
+          <p><strong>Keyboard.</strong> With the timeline focused (CapCut's keys): Space plays and pauses; J, K and L play
+            backwards, stop and play forwards, faster with each press; comma and full stop step a frame; S or Ctrl+B
+            splits at the playhead and Ctrl+Shift+B splits every track; Q and W trim a clip's start or end to the playhead;
+            M adds a marker; A, B, T, Y and U pick the Select, Blade, Trim, Slip and Slide tools; N turns snapping on or off;
+            / plays the selection and Ctrl+L loops; [ and ] jump between keyframes; Delete deletes (Shift+Delete closes the
+            gap); D duplicates; Alt+arrows move a clip a frame (Shift: a second); Ctrl+C, Ctrl+X and Ctrl+V copy, cut and
+            paste, Ctrl+Shift+V pastes attributes; Ctrl+G nests clips into a compound clip (Ctrl+Shift+G breaks it apart);
+            Ctrl+Z / Ctrl+Shift+Z undo and redo. Every button's tooltip shows its key. Switch the shortcuts off under the
+            toolbar (the single keys; the Ctrl keys always work).</p>
+          <p><strong>Saving.</strong> Your edits are saved two seconds after you stop. If the agent or another tab changes
+            the project in the meantime, the editor stops saving and tells you; reload to continue on the newest version.</p>
+          <p><strong>Export</strong> is free: choose what to make (the video, sound only as MP3 or WAV, a still picture of
+            the playhead frame, a GIF of up to 15 seconds, captions as SRT or VTT, stems with one sound file for each role,
+            an OpenTimelineIO file for other editors, or YouTube chapters from your chapter markers), the shapes, 720p,
+            1080p or 4K (offered when a video is larger than 1080p; it counts as two exports), the frame rate (the
+            timeline's or 60), the quality, the whole timeline or the selection, and a loudness target such as −14 LUFS
+            for streaming. Everything lands in your Library and the project.</p>
+          <p><strong>On a tablet</strong> the bin and Settings open as panels from the buttons under the monitor; <strong>on
+            a phone</strong> the editor keeps text animations, captions, colour adjustments, speed presets, transitions and
+            export; keyframe curves, masks and the finer colour tools need a larger screen.</p>
+          <p>The monitor plays light copies, so it is close but not exact; <strong>Preview this part
+            exactly</strong> renders a few seconds exactly as the export will. You may run two exports at a time.</p>
+          <p class="links"><router-link :to="studioPath('editor')" class="text-link">Open the clip editor</router-link></p>
         </section>
 
         <!-- Writing a prompt -->
@@ -236,12 +301,12 @@
 
 <script setup>
 const starterSteps=[
- {number:'01',title:'Choose your starting point',text:'Pick a creative tool from the sidebar, or start from a visual preset.',to:'/video-studio',link:'Explore tools'},
- {number:'02',title:'Make it yours',text:'Edit the creative direction, choose settings and add your references.',to:'/video-studio/dashboard',link:'Open Dashboard'},
- {number:'03',title:'Review with confidence',text:'Inspect compatible settings and the actual estimate before approving a generation.',to:'/video-studio/dashboard',link:'Start with your agent'},
- {number:'04',title:'Follow the process',text:'Follow current-conversation jobs from the header queue. Your conversation keeps the context.',to:'/video-studio/dashboard',link:'Continue creating'},
- {number:'05',title:'Recover and refine',text:'Review a result or failed job, keep useful work and ask your agent for the next change.',to:'/video-studio/projects',link:'Open projects'},
- {number:'06',title:'Carry it forward',text:'Use a result in another tool, reuse an Element or download completed media from Library.',to:'/video-studio/library',link:'Open Library'},
+ {number:'01',title:'Choose your starting point',text:'Pick a creative tool from the sidebar, or start from a visual preset.',to:studioPath(),link:'Explore tools'},
+ {number:'02',title:'Make it yours',text:'Edit the creative direction, choose settings and add your references.',to:studioPath('dashboard'),link:'Open Dashboard'},
+ {number:'03',title:'Review with confidence',text:'Inspect compatible settings and the actual estimate before approving a generation.',to:studioPath('dashboard'),link:'Start with your agent'},
+ {number:'04',title:'Follow the process',text:'Follow current-conversation jobs from the header queue. Your conversation keeps the context.',to:studioPath('dashboard'),link:'Continue creating'},
+ {number:'05',title:'Recover and refine',text:'Review a result or failed job, keep useful work and ask your agent for the next change.',to:studioPath('projects'),link:'Open projects'},
+ {number:'06',title:'Carry it forward',text:'Use a result in another tool, reuse an Element or download completed media from Library.',to:studioPath('library'),link:'Open Library'},
 ]
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -249,6 +314,7 @@ import { useRouter } from 'vue-router'
 import api from '../services/api'
 import { canFor, useVideoStore } from '../stores/useVideoStore'
 import { TASK_ART, STEP_ICON } from '../components/video/videoArt'
+import { studioPath } from '../services/studioPaths'
 
 const router = useRouter()
 const video = useVideoStore()
@@ -258,7 +324,7 @@ const modelsError = ref('')
 const sections = [
   { id: 'kinds', title: 'What you can make' }, { id: 'process', title: 'How a video gets made' },
   { id: 'models', title: 'Which model for which video' }, { id: 'recipes', title: 'Recipes' },
-  { id: 'library', title: 'Library and ingredients' }, { id: 'prompts', title: 'Writing a good prompt' },
+  { id: 'library', title: 'Library and ingredients' }, { id: 'editor', title: 'The clip editor' }, { id: 'prompts', title: 'Writing a good prompt' },
   { id: 'costs', title: 'What it costs' }, { id: 'refunds', title: 'Refunds' },
   { id: 'keeping', title: 'How long files are kept' }, { id: 'trouble', title: 'When something goes wrong' },
 ]

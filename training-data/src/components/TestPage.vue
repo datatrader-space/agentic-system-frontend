@@ -46,15 +46,18 @@ function follow() { clearTimeout(timer); timer = alive && state.value?.phase ===
 watch(() => state.value?.phase, (phase, before) => { if (before === 'starting' && phase !== 'starting') notice.value = ''; follow(); });   // "is starting" is over
 onUnmounted(() => { alive = false; clearTimeout(timer); if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); });
 watch(() => props.projectRef, async () => { chosen.value = null; state.value = null; await loadModels(); }, { immediate: true });
-watch(chosen, () => { state.value = null; answer.value = null; notice.value = ''; error.value = ''; loadState(); });
+watch(chosen, () => { state.value = null; answer.value = null; notice.value = ''; error.value = ''; actError.value = ''; loadState(); });
 
 const acting = ref('');
+// A start or stop refused is said under the button that was pressed (live, 2026-11-18: "The vision-serve image of
+// this code is not built yet" was only at the top of the page, out of sight, so Start seemed to do nothing).
+const actError = ref('');
 async function act(action) {
-  busy.value = true; acting.value = action; error.value = ''; notice.value = '';
+  busy.value = true; acting.value = action; error.value = ''; actError.value = ''; notice.value = '';
   try { const now = await trialApi.act(props.projectRef, chosen.value, action, action === 'start' ? machine.value : ''); notice.value = now.said; state.value = now; }
   catch (e) {
     // No answer is not a refusal: the test server may be starting. The page reads it again and says so.
-    error.value = unanswered(e) ? 'No answer came back in time, so the page read the test server again: check below whether it is starting before you press Start again.' : e.message;
+    actError.value = unanswered(e) ? 'No answer came back in time, so the page read the test server again: check below whether it is starting before you press Start again.' : e.message;
     await loadState();
   } finally { busy.value = false; acting.value = ''; }
 }
@@ -119,6 +122,7 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="startOn"><Play :size="14"/> {{ acting==='start' ? 'Starting…' : 'Start test server' }}</UiButton>
             <p v-if="acting==='start'" class="test-meta" role="status">Starting the test server: getting the machine you chose can take 20 to 30 seconds before AADML answers.</p>
           </template>
+          <p v-if="actError" class="test-error" role="alert">{{ actError }}</p>
           <p v-if="state?.staging_down" class="test-meta">Its staging endpoint is not answering and is being started again.</p>
         </div>
 

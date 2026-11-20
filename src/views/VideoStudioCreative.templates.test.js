@@ -24,7 +24,7 @@ const texts = Object.fromEntries(look.variables.map((field, i) => [field.label, 
 const prompt = composePreset({ ...look, variants: [], variables: look.variables.map(field => ({ ...field, default: texts[field.label] })) })
 let wrapper, pinia
 function mountPage(query = {}) {
-  state.route = reactive({ path: '/video-studio/music', query })
+  state.route = reactive({ path: '/dashboard/video-studio/music', query })
   const user = ref({ id: 'person' })
   const Host = defineComponent({ setup() { provide('studioUser', user); provideStudioTemplates(user); return () => h(Creative, { featureId: 'music' }) } })
   wrapper = mount(Host, { attachTo: document.body, global: { plugins: [pinia], stubs } })

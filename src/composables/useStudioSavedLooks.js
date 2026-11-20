@@ -5,14 +5,16 @@
 import { inject, provide, ref, watch } from 'vue'
 import api from '../services/api'
 import { notify } from './useNotify'
-import { studioLooks } from '../services/studioLooks'
+import { allLooks, loadAllPresets } from '../services/studioPresets'
 const key = Symbol('studio-saved-looks')
 const MAX = 200, ID = /^[a-z0-9-]+$/
 const clean = list => Array.isArray(list) ? [...new Set(list.filter(id => typeof id === 'string' && ID.test(id)))].slice(0, MAX) : []
 const refusal = (err, fallback) => err?.response?.data?.error?.message || fallback
 
 export function provideStudioSavedLooks(user) {
-  const ids = ref([]), ready = ref(false), error = ref(''), allowed = new Set(studioLooks.map(look => look.id))
+  const ids = ref([]), ready = ref(false), error = ref('')
+  // Every look a person may save: this app's own and the Image and Video pages' (read from the Recipe API first).
+  const allowed = { has: id => allLooks().some(look => look.id === id) }
   // The list the server last confirmed: a refused save goes back to it.
   let confirmed = [], sequence = 0, refusals = 0, saving = Promise.resolve()
   const legacyKey = id => id ? `aadml.studio.saved-looks.${id}` : ''
@@ -24,6 +26,7 @@ export function provideStudioSavedLooks(user) {
     ids.value = []; confirmed = []; ready.value = false; error.value = ''; saving = Promise.resolve()
     if (!person) return
     try {
+      await loadAllPresets()
       const { data } = await api.get('/video/preferences/')
       if (seq !== sequence) return
       let list = clean(data?.favorite_looks), shown = null

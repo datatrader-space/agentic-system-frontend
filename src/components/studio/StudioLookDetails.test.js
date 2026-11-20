@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Details from './StudioLookDetails.vue'
 import { provideStudioTemplates } from '../../composables/useStudioTemplates'
 import { studioLooks } from '../../services/studioLooks'
+// The Image page's looks are served by the Recipe API (F-D4): a copy of what it serves.
+import SERVED from '../../services/__fixtures__/studioPresets.json'
 
 describe('Every approved look is editable before it reaches the Agent', () => {
-  it.each(studioLooks)('$id exposes its real variables and applies visible text without submitting', async look => {
+  it.each([...SERVED.filter(look => look.clientOnly), ...studioLooks])('$id exposes its real variables and applies visible text without submitting', async look => {
     const w = mount(Details, {props:{look}})
     expect(w.findAll('input')).toHaveLength(look.variables.length)
     const changed = 'My personal direction for '+look.title
@@ -41,7 +43,7 @@ describe('Save as my template', () => {
   it('asks for a name in the page and saves the page, the look, the edited prompt, its texts and the page settings', async () => {
     const prompt = vi.spyOn(window, 'prompt')
     api.post.mockImplementation((_, body) => Promise.resolve({ data: { ...body, id: 12 } }))
-    const look = studioLooks.find(item => item.id === 'image-look-1')
+    const look = SERVED.find(item => item.id === 'image-look-1')
     const w = withTemplates({ look, settings: { aspect_ratio: '3:4', n: 2, resolution: '' } }); await flushPromises()
     await w.findAll('.sld-fields input')[0].setValue('My teapot')
     await w.get('[data-test="look-save-mine"]').trigger('click')
@@ -70,5 +72,34 @@ describe('Save as my template', () => {
     expect(w.find('[data-test="look-save-mine-form"]').exists()).toBe(false)
     expect(document.activeElement).toBe(w.get('[data-test="look-save-mine"]').element)
     w.unmount()
+  })
+})
+
+// ISSUE-6 and ISSUE-7: "Make it yours" starts a hint field empty with the hint as its placeholder, the prepared
+// prompt carries only filled values, and the fields stack or wrap in a narrow panel instead of cutting their text.
+describe('Make it yours', () => {
+  const look = { id: 'image-look-1', feature: 'image', title: 'Softbox product portrait', slots: [], settings: {}, clientOnly: true,
+    promptTemplate: 'Create a refined image of {Subject}. Use {Background} and {Lighting}.', variants: ['Keep the prepared direction.'],
+    variables: [{ id: 'subject', label: 'Subject', default: 'Your product' }, { id: 'background', label: 'Background', default: 'Warm ivory' }, { id: 'lighting', label: 'Lighting', default: 'Large softbox' }] }
+  it('leaves a hint field empty, shows the hint as its placeholder and never applies the hint as text', async () => {
+    const w = mount(Details, { props: { look } })
+    const subject = w.get('[data-test="look-field-subject"]')
+    expect(subject.element.value).toBe('')
+    expect(subject.attributes('placeholder')).toBe('Your product')
+    expect(w.get('[data-test="look-field-background"]').element.value).toBe('Warm ivory')
+    expect(w.get('details p').text()).not.toContain('Your product')
+    await w.findAll('button').find(b => b.text().startsWith('Use this direction')).trigger('click')
+    const applied = w.emitted('apply')[0][0]
+    expect(applied.promptTemplate).not.toContain('Your product')
+    expect(applied.promptTemplate).toContain('Warm ivory')
+    expect(applied.variables.find(v => v.id === 'subject').default).toBe('')
+    await subject.setValue('My teapot')
+    expect(w.get('details p').text()).toContain('Create a refined image of My teapot.')
+    w.unmount()
+  })
+  it('lets its fields wrap to fit a narrow panel', async () => {
+    const src = (await import('./StudioLookDetails.vue?raw')).default
+    expect(src).toContain('.sld-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))')
+    expect(src).not.toContain('.sld-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))')
   })
 })

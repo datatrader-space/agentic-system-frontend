@@ -98,6 +98,16 @@ export function startProblem({ may, project, model, choice, limit = DEFAULT_LIMI
   return limitProblem(choice.photos, limit);
 }
 
+// A project's Deploy page shows the tab for that project (BatchTab.vue with its ref): its batches, and a start for it
+// only. The backend lists only the projects of the workspace selected in AADML that this person may Train in
+// (batch_api._body), so a project that is not listed cannot start one there, and the page says why.
+export const batchesOfProject = (batches, ref) => (ref ? (batches || []).filter(b => b?.project?.ref === ref) : (batches || []));
+export const BATCH_PROJECT_NOT_LISTED = 'A batch of this project cannot be started here: that needs the Train right in this project, and the project must be in the workspace selected in AADML.';
+export function batchProjectProblem(options, ref) {
+  if (!ref) return '';
+  return (options?.projects || []).some(p => p.ref === ref) ? '' : BATCH_PROJECT_NOT_LISTED;
+}
+
 export const modelLabel = m => (m ? `${m.name} ${m.version}${m.smoke ? ' (smoke test)' : ''}` : '');
 
 // The line shown above Start: what will happen, in one sentence.

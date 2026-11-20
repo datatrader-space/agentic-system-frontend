@@ -92,3 +92,45 @@ describe('ModelPicker is one accessible, keyboard-driven list that names no prov
     w.unmount()
   })
 })
+
+describe('ModelPicker theming and capability chips', () => {
+  const CAPABLE = [
+    { id: 1, name: 'Seer', model_id: 'openai/seer', metadata: { capabilities: ['image_input', 'reasoning'] } },
+    { id: 2, name: 'Plain', model_id: 'openai/plain', metadata: {} },
+  ]
+
+  it('uses no emoji: chips and capability badges carry Lucide icons, hidden from assistive tech', async () => {
+    const w = mount(ModelPicker, { props: { models: CAPABLE }, attachTo: document.body })
+    await w.get('[data-test="model-picker-trigger"]').trigger('click')
+    expect(w.text()).not.toMatch(/\p{Extended_Pictographic}/u)
+    const chips = w.findAll('.mp-chip')
+    expect(chips.map((c) => c.text())).toEqual(['Vision', 'Reasoning', 'Coding', 'Tools', 'Long context', 'Free'])
+    for (const chip of chips) {
+      expect(chip.attributes('aria-label')).toMatch(/^Only .+ models$/)
+      expect(chip.get('svg').attributes('aria-hidden')).toBe('true')
+    }
+    expect(w.findAll('[data-test="model-option-1"] .mp-cap svg')).toHaveLength(2)
+    w.unmount()
+  })
+
+  it('a chip is a toggle (aria-pressed) that filters the list', async () => {
+    const w = mount(ModelPicker, { props: { models: CAPABLE }, attachTo: document.body })
+    await w.get('[data-test="model-picker-trigger"]').trigger('click')
+    const vision = w.get('[data-test="model-filter-image_input"]')
+    expect(vision.attributes('aria-pressed')).toBe('false')
+    await vision.trigger('click')
+    expect(vision.attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="model-option-2"]').exists()).toBe(false)
+    expect(w.find('[data-test="model-option-1"]').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('draws with the app theme tokens, never a fixed light colour', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(`${process.cwd()}/src/components/common/ModelPicker.vue`, 'utf8')
+    const style = src.slice(src.indexOf('<style'))
+    const template = src.slice(0, src.indexOf('<script'))
+    expect(template).not.toMatch(/#[0-9a-f]{3,6}\b|bg-white|text-white/i)
+    expect(style.replace(/color: #fff;/g, '')).not.toMatch(/#[0-9a-f]{3,6}\b/i)
+  })
+})

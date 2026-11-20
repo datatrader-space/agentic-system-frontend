@@ -39,13 +39,13 @@ describe('no shaking or zooming animation', () => {
   it('no @keyframes moves, zooms or tilts (spinners and loading shimmers excepted)', () => {
     const bad = Object.entries(sources).flatMap(([file, text]) => movingKeyframes(text).map(name => `${file}: @keyframes ${name}`))
     expect(bad).toEqual([])
-  })
+  }, 30000)   // reads every source file: slow on a loaded machine (as utils/lazyComponent.test.js)
   it('no hover, press or focus lifts, slides or scales anything', () => {
     const bad = Object.entries(sources).flatMap(([file, text]) => movingHovers(text).map(rule => `${file}: ${rule}`))
     expect(bad).toEqual([])
-  })
+  }, 30000)   // reads every source file: slow on a loaded machine (as utils/lazyComponent.test.js)
   it('no Tailwind hover movement or bouncing', () => {
     const bad = Object.entries(sources).flatMap(([file, text]) => movingClasses(text).map(name => `${file}: ${name}`))
     expect(bad).toEqual([])
-  })
+  }, 30000)   // reads every source file: slow on a loaded machine (as utils/lazyComponent.test.js)
 })

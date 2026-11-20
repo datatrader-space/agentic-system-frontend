@@ -2,6 +2,7 @@
 // workspace/deployments/, workspace/events/, workspace/audit/, assistant/), and the person's own workflows (AADML's
 // /api/workflow-graphs/, which lists only the workflows of the person signed in). Every rule is the backend's.
 import { apiFetch } from './client.js';
+import { reasonOnly, sentence } from '../sourceFamilies.js';
 
 const enc = encodeURIComponent;
 const APP = '/training-data/app';
@@ -41,7 +42,44 @@ export const workspaceApi = {
     timeoutMs: SLOW,
   }),
   stopDedicated: id => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/stop/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // An app key that calls this deployment, in one step (the app, its access in the deployment's environment, a key):
+  // the key is in this one answer only. Live, 2026-11-18: the Use dialog sent people to Connect app, whose tmd_ keys
+  // only send records in, and the call was refused.
+  dedicatedAppKey: (id, name) => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-key/`, { method: 'POST', body: { name }, timeoutMs: SLOW }),
+  // The apps that may call this deployment and their keys that work (a hint, never the key), for a person who manages
+  // its project; and revoking one of them. Both answer the list. Owner, 2026-11-18: the key made in the Use dialog was
+  // shown once and the dialog said nothing of it afterwards, so it looked lost and a new one was made each time.
+  dedicatedAppKeys: id => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-keys/`),
+  revokeDedicatedAppKey: (id, keyId) => apiFetch(`${APP}/workspace/dedicated/${enc(id)}/app-keys/${enc(keyId)}/revoke/`, { method: 'POST', body: {} }),
 };
+
+// An app key is shown once, when it is made (only its hash is kept), said the same way wherever keys are listed.
+export const APP_KEY_ONCE = "A key is shown only once, when it is made. Keep it in your app's settings or a password manager. Lost it? Make a new key and revoke the old one.";
+
+// The apps of a deployment's key list a new key may be made for: ones this person may change, that are on, and that
+// were not made by "Use in AADML" (those are changed only through their link). Their names, as the make form offers them.
+export function reusableApps(listing) {
+  return (listing?.apps || []).filter(app => app.can_manage && !app.linked && !app.disabled).map(app => app.name);
+}
+
+// One key of the list in words: when it was made, when it was last used, how many requests it made.
+export function appKeyLine(key, now = Date.now()) {
+  const made = key.created_at ? `Made ${timeAgo(key.created_at, now)}` : '';
+  const used = key.last_used_at ? `last used ${timeAgo(key.last_used_at, now)}` : 'never used';
+  const count = Number(key.request_count || 0);
+  return [made, used, `${count.toLocaleString('en-US')} request${count === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+}
+
+// What revoking a key does, asked before it is done. A key is its app's: it stops working in every project the app reaches.
+export function revokeWarning(app, key) {
+  const others = Number(app?.other_projects || 0);
+  const elsewhere = others ? ` "${app.name}" also reaches ${others} other project${others === 1 ? '' : 's'}: the key stops working there too.` : '';
+  return `Requests with ${key.hint} are refused at once.${elsewhere} This cannot be undone: an app that uses it needs a new key.`;
+}
+
+// Where an app key (aadml_app_) is made, said the same way on every page. A project's Connect app keys (tmd_) only send
+// records in: they never call a model.
+export const APP_KEY_WHERE = 'An app key starts with aadml_app_. It is made here, or on the project\'s Deployments page under "Apps that may call the model". A key from Connect app (tmd_) only sends records in and cannot call a model.';
 
 // ── Dedicated deployments ──────────────────────────────────────────────────────────────────────────
 // The rules are the backend's; these only say them before a request is sent and put the answer in words.
@@ -90,14 +128,22 @@ export function dedicatedCostSummary(machine, kind, idleMinutes = 60) {
   return `${machineLabel(machine)} costs ${hour} an hour, about ${usdText(monthly(machine), true)} a month, billed by the second from your balance until you stop it.`;
 }
 
-// The models of a project that may run as a deployment of this kind: those with the approval the kind needs.
-export const dedicatedModels = (project, kind) => (project?.models || []).filter(model => model?.approved?.[kind]);
+// The models of a project that may run as a deployment of this kind: those with the approval the kind needs (and, for a
+// chat project's version, whose base model is ready to serve it: ``why_not`` empty).
+export const dedicatedModels = (project, kind) => (project?.models || []).filter(model => model?.approved?.[kind] && !model?.why_not);
 
 // Why no model of the project can be chosen for this kind.
 export function missingApproval(project, kind) {
   if (!project) return 'Choose a project first.';
   if (!project.models?.length) return `${project.name} has no trained model yet.`;
   const needs = kind === 'production' ? 'production' : 'staging';
+  const blocked = (project.models || []).find(model => model?.approved?.[kind] && model?.why_not);
+  if (blocked) return blocked.why_not;
+  // A chat project's versions are approved on its Deploy page: a demo approval reaches staging, a release approval
+  // production (backend llm/approvals.py).
+  if (project.family === 'llm') {
+    return `No chat model of ${project.name} is approved for ${needs}, which a ${kind === 'production' ? 'Production deployment needs: a release approval' : 'Development deployment needs: a demo approval is enough'}. Approve one in Approvals on the project's Deploy page.`;
+  }
   return `No model of ${project.name} is approved for ${needs}, which a ${kind === 'production' ? 'Production' : 'Development'} deployment needs. Approve one on the project's Models page.`;
 }
 
@@ -117,12 +163,31 @@ export const DEDICATED_SOURCES = [
   { value: 'open_model', label: 'Open model', about: 'A model your workspace added from Hugging Face, as it is.' },
 ];
 
+// A project's Deploy page shows the Dedicated Deployments tab for that project (DedicatedDeployments.vue with its ref):
+// the deployments of its own models and those of the workspace's open models, which belong to no project; and it starts
+// one for that project only. The backend lists only the projects of the workspace selected in AADML that this person may
+// Train in (app_api._dedicated_body), so a project that is not listed cannot start one here, and the page says why.
+export function dedicatedOfProject(deployments, ref) {
+  const rows = deployments || [];
+  return ref ? rows.filter(d => d?.source === 'open_model' || d?.project?.ref === ref) : rows;
+}
+export const PROJECT_NOT_STARTABLE = "This project's model cannot be started here: that needs the Train right in this project, and the project must be in the workspace selected in AADML.";
+export function projectStartProblem(options, ref) {
+  if (!ref) return '';
+  return (options?.projects || []).some(p => p.ref === ref) ? '' : PROJECT_NOT_STARTABLE;
+}
+
 // The open models that can be deployed as is (the backend says which, and why not for the others).
 export const deployableOpenModels = models => (models || []).filter(model => model?.deployable);
 
-// The machines the start form offers: a trained model's, or those of the open machines that hold the chosen open model.
-export function dedicatedMachinesFor(options, source, openModel) {
-  if (source !== 'open_model') return options?.machines || [];
+// The machines the start form offers: a trained photo model's; for a chat project's version, those of them that hold it
+// (its ``machines``: GPUs only); or those of the open machines that hold the chosen open model.
+export function dedicatedMachinesFor(options, source, openModel, trainedModel = null) {
+  if (source !== 'open_model') {
+    if (!Array.isArray(trainedModel?.machines)) return options?.machines || [];
+    const holds = new Set(trainedModel.machines);
+    return (options?.machines || []).filter(machine => holds.has(machine.instance_type));
+  }
   const fits = new Set(openModel?.machines || []);
   return (options?.open_machines || []).filter(machine => fits.has(machine.instance_type));
 }
@@ -161,7 +226,8 @@ export function dedicatedSource(deployment) {
     return { label: 'Open model', title: deployment.open_model.name || deployment.open_model.repo, detail: deployment.open_model.repo };
   }
   const model = deployment?.model;
-  return { label: 'Trained model', title: deployment?.project?.name || '', detail: model ? modelName(model) : '' };
+  const detail = model ? (model.base_model ? `${modelName(model)} on ${model.base_model}` : modelName(model)) : '';
+  return { label: deployment?.call === 'chat' ? 'Trained chat model' : 'Trained model', title: deployment?.project?.name || '', detail };
 }
 
 // How an app calls an open chat model: OpenAI's own client, with the deployment's address as its base URL.
@@ -237,13 +303,43 @@ console.log(await answer.json());`;
   -F "file=@room.jpg"`;
 }
 
+// A ready-to-use model AADML hosts (SAM 3: the Try state's ``hosted``, app_api; FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md
+// section 10): AADML alone starts and stops it, nobody chooses where it runs, Try is free up to ``free_per_day`` photos
+// a person a day, and use in a project is charged per image (``price_per_image``). Its Try panel in words, or null for
+// any other model: ``phase`` "Always on" / "Not running now: AADML starts it", ``free`` the tries left today, ``price``
+// what a photo costs in a project.
+export function hostedTry(state) {
+  if (!state?.hosted) return null;
+  const on = state.phase === 'ready';
+  const left = Number.isInteger(state.free_left) ? state.free_left : 0;
+  const perDay = Number.isInteger(state.free_per_day) ? state.free_per_day : 0;
+  // Not running: the reason once (the server's ``refused``, else its ``said``), never also as a heading and a second
+  // line, and without "Nothing was charged": nothing was asked of it here.
+  return {
+    on,
+    phase: on ? 'Always on' : sentence(reasonOnly(state.refused) || reasonOnly(state.said) || 'Not running now: AADML starts it'),
+    free: `Free: ${left} of ${perDay} tries left today`,
+    price: state.price_per_image
+      ? `In a project it is ${state.price_per_image}, paid from your balance.`
+      : 'It has no price for use in a project yet, so it can only be tried here for now.',
+  };
+}
+
+// The tries left today a predict answer says (``free_left``), or ``before`` when it says none.
+export const freeLeftAfter = (answer, before) => (Number.isInteger(answer?.free_left) ? answer.free_left : before);
+
+// Whether a Try was refused because today's free tries are used (429 ``free_tries_used``): its words are the server's.
+export const freeTriesUsed = error => error?.status === 429 && error?.serverCode === 'free_tries_used';
+
 export const publishedApi = {
   state: key => apiFetch(`${APP}/published/${enc(key)}/`, { timeoutMs: SLOW }),
-  // ``machine``: the GPU and location chosen (MachinePicker); the server reads it again before starting.
+  // ``machine``: the GPU and location chosen (MachinePicker); the server reads it again before starting. Never called
+  // for a hosted model (it answers 403: AADML starts and stops it).
   act: (key, action, machine = '') => apiFetch(`${APP}/published/${enc(key)}/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: SLOW }),
   machines: key => apiFetch(`${APP}/published/${enc(key)}/machines/`, { timeoutMs: SLOW }),
   // A model on a CPU can take a while on a large photo.
-  // ``classes``: what SAM 3 is asked to find, by name (app_api._platform_try; the server's own when none).
+  // ``classes``: what SAM 3 is asked to find, by name (app_api._platform_try; the server's own when none). A hosted
+  // model's answer carries ``free_left``; with none left it is refused, 429 ``free_tries_used``.
   predict: (key, file, classes = []) => {
     const form = new FormData();
     form.append('file', file);
@@ -335,7 +431,7 @@ export function environmentState(environment) {
   return ['neutral', 'Not deployed'];
 }
 
-export const modelName = model => (model ? `${model.name} ${model.version}${model.smoke ? ' (smoke test)' : ''}` : '');
+export const modelName = model => (model ? `${[model.name, model.version].filter(Boolean).join(' ')}${model.smoke ? ' (smoke test)' : ''}` : '');
 
 // How long ago a moment was, as a person says it; a date once it is more than a week ago.
 export function timeAgo(iso, now = Date.now()) {

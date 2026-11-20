@@ -1,13 +1,15 @@
 import { ref } from 'vue';
 
 // Clicks request a candidate, never mutate annotations. A generation token rejects late responses.
+// SAM 3 is a ready-to-use model AADML hosts: no place is sent with a click (a call naming one is refused). ``why`` is
+// the reason the editor gives when SAM 3 cannot be asked now (AADML is not running it, or has not priced it).
 export function useSamSelection(context, request) {
   const points = ref([]), candidate = ref([]), working = ref(false), message = ref('');
   let generation = 0, timer = null;
   function clear() { generation++; clearTimeout(timer); timer = null; points.value = []; candidate.value = []; working.value = false; message.value = ''; }
   async function run(version, selected, captured) {
     try {
-      const body = await request(captured.project, captured.photo, captured.name, selected, captured.where);
+      const body = await request(captured.project, captured.photo, captured.name, selected);
       if (version !== generation) return;
       if (body.state === 'waiting') {
         message.value = `${body.title || 'Getting SAM 3 ready'}: ${body.now || 'starting'}`;
@@ -20,7 +22,8 @@ export function useSamSelection(context, request) {
   }
   function add(point, label = 1) {
     const captured = context();
-    if (!captured.allowed || !captured.name) { message.value = 'Select a project class and an available SAM 3 run location first.'; return; }
+    if (!captured.name) { message.value = 'Select a project class first.'; return; }
+    if (!captured.allowed) { message.value = captured.why || 'SAM 3 cannot outline this photo now.'; return; }
     if (working.value) return;
     if (!points.value.length && label === 0) { message.value = 'Start with an include point on the object.'; return; }
     if (points.value.length >= 32) { message.value = 'Use up to 32 points per object. Apply or discard this selection first.'; return; }

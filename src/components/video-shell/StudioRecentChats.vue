@@ -10,7 +10,7 @@
     <p v-else-if="history && !loading && !error && !shownChats.length" class="vrc-note" role="status" data-test="studio-recent-empty">{{ applied ? `No conversation matches “${applied}”. Try other words.` : 'Your Studio conversations will appear here after you send a message.' }}</p>
     <ul class="vrc-list">
       <li v-for="c in shownChats" :key="c.id">
-        <router-link :to="{ path: pageOf(c) ? featureLink(pageOf(c)) : '/video-studio/dashboard', query: { conversation: String(c.id) } }" class="vrc-item"
+        <router-link :to="{ path: pageOf(c) ? featureLink(pageOf(c)) : studioPath('dashboard'), query: { conversation: String(c.id) } }" class="vrc-item"
                      :class="{ active: isOpen(c) }" :aria-current="isOpen(c) ? 'page' : undefined" :title="label(c)"
                      data-test="studio-recent-chat">
           <span class="vrc-name">{{ label(c) }}</span>
@@ -31,6 +31,7 @@ import { studioOrigin } from '../../services/studioOrigins'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { useChatStore } from '../../stores/useChatStore'
+import { studioPath } from '../../services/studioPaths'
 
 const PAGE = 15, SEARCH_DELAY = 300
 const props=defineProps({ history: Boolean, limit: {type:Number,default:0} })

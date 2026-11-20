@@ -44,8 +44,13 @@
               <span>The run is waiting for you. It continues after you answer.</span>
             </p>
 
+            <!-- An Element the agent saved, approved here with the person's own rights statement (and a real person's
+                 consent): never a trip to the Elements page. Their Approve approves it on the server; the run goes on. -->
+            <ElementApprovalCard v-if="elementApproval" :card="elementApproval" :disabled="isExpired"
+                                 @approve="respond($event)" @decline="respond(false)" />
+
             <!-- Tool-approval: show EXACTLY what will run before approving -->
-            <div v-if="actionPreview" class="action-preview">
+            <div v-if="actionPreview && !elementApproval" class="action-preview">
               <div class="action-preview__label">
                 {{ currentRequest.payload?.tool_label || currentRequest.payload?.tool_name || 'Action' }}
                 <span v-if="currentRequest.payload?.risk_summary" class="action-preview__risk">{{ currentRequest.payload.risk_summary }}</span>
@@ -109,7 +114,7 @@
             </div>
 
             <!-- Binary Response (Approve/Reject) -->
-            <div v-else-if="currentRequest.response_type === 'binary'" class="response-section">
+            <div v-else-if="currentRequest.response_type === 'binary' && !elementApproval" class="response-section">
               <div class="button-group">
                 <button @click="respond(true)" class="btn btn-approve" data-test="hitl-approve">
                   <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
@@ -395,6 +400,7 @@ import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { notify } from '@/composables/useNotify'
 import { CANCEL_STEP_FEEDBACK } from '@/utils/hitlQueue'
+import ElementApprovalCard from '@/components/video/ElementApprovalCard.vue'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
 const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
@@ -453,6 +459,12 @@ const isCodingStep = computed(() => currentRequest.value?.working_copy != null);
 const workingCopyLabel = computed(() => {
   const branch = currentRequest.value?.working_copy;
   return branch ? `This chat's branch ${branch}` : "The project's shared copy";
+});
+
+// An Element's approval card (MANAGE_ELEMENT ask_approval): the element and its rights statement, answered here.
+const elementApproval = computed(() => {
+  const card = currentRequest.value?.payload?.element_approval
+  return card && typeof card === 'object' && card.element_id ? card : null
 });
 
 // An in-chat OAuth connect card (CONNECT_SERVICE): one link out to the provider's consent screen.

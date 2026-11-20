@@ -16,7 +16,7 @@ const wrappers = [];
 const batch = { id: 'batch-1', name: 'Safety inspection', source: 'source-1' };
 const media = [{ id: 'image-1', batchId: batch.id, name: 'Synthetic image', url: 'data:image/png;base64,AA==' }];
 const state = () => ({ ref: '~901', live: true, images: media, labellers: [], canChangeClasses: true,
-  classes: [{ name: 'helmet', color: '#2563eb', description: 'Protective headwear', trained: false }] });
+  classes: [{ name: 'helmet', color: '#2563eb', description: 'Protective headwear', geometry: '' }] });
 const render = (component = AutoLabel) => {
   const wrapper = mount(component, { props: { batch, state: state(), media }, global: {
     stubs: { UiDialog: { props: ['open'], template: '<div v-if="open"><slot/></div>' } },
@@ -50,7 +50,7 @@ test('opening Auto Label never generates paid previews automatically', async () 
   expect(wrapper.get('.auto-progress [aria-current="step"]').text()).toContain('Configure');
   expect(wrapper.get('.auto-original-image').attributes('alt')).toBe(media[0].name);
   await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
-  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['helmet'], '');
+  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['helmet']);
   expect(wrapper.get('.auto-bar-state').text()).toContain('Ready to label');
   expect(wrapper.get('.auto-progress [aria-current="step"]').text()).toContain('Preview');
 });
@@ -97,14 +97,14 @@ test('labeling keeps the existing explicit confirmation and source payload', asy
   expect(wrapper.emitted('autolabel')).toBeUndefined();
   expect(wrapper.get('.auto-progress [aria-current="step"]').text()).toContain('Label batch');
   await button(wrapper, 'Start labelling').trigger('click');
-  expect(wrapper.emitted('autolabel')).toEqual([['vision:fixture', '']]);
+  expect(wrapper.emitted('autolabel')).toEqual([['vision:fixture']]);
   expect(api.detect).not.toHaveBeenCalled();
 });
 
 test('using a saved workflow applies its user-defined classes without running inference', async () => {
-  const classes = [{ name: 'safety vest', color: '#123456', description: 'High visibility clothing', trained: false }];
+  const classes = [{ name: 'safety vest', color: '#123456', description: 'High visibility clothing', geometry: '' }];
   const row = { id: 'workflow-1', name: 'Safety gear', revision: 1,
-    definition: { schema: 'aadml.labeling-workflow.v1', source: 'vision:fixture', where: '', classes: classes.map(c => ({name:c.name, color:c.color, description:c.description})) } };
+    definition: { schema: 'aadml.labeling-workflow.v1', source: 'vision:fixture', classes: classes.map(c => ({name:c.name, color:c.color, description:c.description})) } };
   labelingWorkflows.list.mockResolvedValue({ workflows: [row] });
   labelingWorkflows.use.mockResolvedValue({ workflow: row, classes, started: false });
   const wrapper = render(); await flushPromises();
@@ -117,7 +117,7 @@ test('using a saved workflow applies its user-defined classes without running in
   expect(wrapper.find('.class-name').element.value).toBe('safety vest');
   expect(api.detect).not.toHaveBeenCalled();
   await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
-  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['safety vest'], '');
+  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['safety vest']);
 });
 
 test('a fresh project has no hardcoded classes and cannot preview or label until the user adds one', async () => {
@@ -131,31 +131,51 @@ test('a fresh project has no hardcoded classes and cannot preview or label until
   expect(button(wrapper, 'Generate Preview').attributes('disabled')).toBeDefined();
   expect(button(wrapper, 'Label Batch').attributes('disabled')).toBeDefined();
   expect(api.detect).not.toHaveBeenCalled();
-  await wrapper.setProps({ state: { ...empty, classes: [{name:'product logo', color:'#123456', description:'', trained:false}] } });
+  await wrapper.setProps({ state: { ...empty, classes: [{name:'product logo', color:'#123456', description:'', geometry:''}] } });
   await flushPromises();
   expect(wrapper.findAll('.class-name').map(el=>el.element.value)).toEqual(['product logo']);
   await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
-  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['product logo'], '');
+  expect(api.detect).toHaveBeenCalledWith('~901', 'image-1', 'vision:fixture', ['product logo']);
 });
 
-const samSource = where => ({ id: 'sam3', name: 'SAM 3', family: 'SAM 3', maker: 'Meta', labels: 'polygons', detail: 'SAM 3 on AADML GPU on RunPod', where });
-test('SAM 3 execution location stays visible when no connected machine is eligible', async () => {
-  api.detectSources.mockResolvedValue({ sources: [samSource([])] });
+// A ready-to-use model is hosted by AADML (ADM-1182, 2026-11-19): nobody chooses where it runs, and no place is sent.
+const hostedSam = extra => ({ id: 'sam3', name: 'SAM 3', family: 'SAM 3', maker: 'Meta', labels: 'polygons', where: [],
+  detail: 'Runs on AADML, always on', hosted: { state: 'on', price: '$0.01 an image' }, ...extra });
+test('a hosted SAM 3 offers no place to run it and previews with no place sent', async () => {
+  api.detectSources.mockResolvedValue({ sources: [hostedSam()] });
   const w = render(); await flushPromises();
-  expect(w.get('.source-where').text()).toContain('AADML GPU · RunPod');
-  expect(w.get('.source-where').text()).toContain('No eligible connected machine');
-  expect(api.detect).not.toHaveBeenCalled();
+  expect(w.find('.source-place').exists()).toBe(false);
+  expect(w.get('.source-where').text()).toContain('Runs on AADML, always on');
+  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet']);
 });
-test('connected machine and AADML GPU remain explicit choices and route previews correctly', async () => {
-  api.detectSources.mockResolvedValue({ sources: [samSource([{ id: 'machine:7', name: 'Synthetic GPU', gpu: 'NVIDIA fixture', price: '$0.10/hour', state: 'ready' }])] });
+// Live, 2026-11-20: switching SAM 3 from Polygons to Masks threw the preview away, so seeing it filled asked (and charged)
+// SAM 3 again for the same outlines. The two ways are one answer: the preview stays and is drawn filled.
+test('switching Polygons and Masks keeps the preview, asks nothing again and only draws it filled', async () => {
+  api.detectSources.mockResolvedValue({ sources: [hostedSam(), hostedSam({ id: 'sam3-masks', labels: 'masks' })] });
+  api.detect.mockResolvedValue({ shapes: [{ kind: 'helmet', points: [[0, 0], [1, 0], [1, 1]] }] });
   const w = render(); await flushPromises();
-  await w.findAll('.source-place').find(b => b.text().includes('Your machine')).trigger('click');
+  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);
+  for (const img of w.findAll('img')) {                                        // the photo loads (jsdom loads none)
+    Object.defineProperties(img.element, { naturalWidth: { value: 10 }, naturalHeight: { value: 10 } });
+    await img.trigger('load');
+  }
+  const fill = () => w.find('polygon[fill-opacity]').attributes('fill-opacity');
+  expect(fill()).toBe('0.25');
+  await w.findAll('.source-ways button').find(b => b.text().includes('Masks')).trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);                                   // not asked again
+  expect(fill()).toBe('0.55');                                                    // the same shapes, filled
+  await w.findAll('.source-ways button').find(b => b.text().includes('Polygons')).trigger('click'); await flushPromises();
+  expect(api.detect).toHaveBeenCalledTimes(1);
+  expect(fill()).toBe('0.25');
+});
+test('a hosted SAM 3 that AADML is not running cannot preview', async () => {
+  api.detectSources.mockResolvedValue({ sources: [hostedSam({ hosted: { state: 'off', price: '' },
+    unavailable: 'SAM 3 is not running now: AADML starts it.' })] });
+  const w = render(); await flushPromises();
+  expect(button(w, 'Generate Preview').attributes('disabled')).toBeDefined();
   expect(api.detect).not.toHaveBeenCalled();
-  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
-  expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet'], 'machine:7');
-  await w.findAll('.source-place').find(b => b.text().includes('AADML GPU')).trigger('click');
-  await button(w, 'Generate Preview').trigger('click'); await flushPromises();
-  expect(api.detect).toHaveBeenLastCalledWith('~901', 'image-1', 'sam3', ['helmet'], '');
 });
 test('models without SAM 3 visibly identify their actual provider', async () => {
   const w = render(); await flushPromises();

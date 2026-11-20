@@ -1,0 +1,1808 @@
+{
+ "version": 1,
+ "about": "editor_ass.ass_script(doc, track, width, height) must return exactly \"expected\" (Python and clip-editor/render/assScript.js).",
+ "cases": [
+  {
+   "id": "plain",
+   "about": "one item, every default",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hello\n"
+  },
+  {
+   "id": "v2_item",
+   "about": "a version 2 item (old font id, box with alpha)",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "q1",
+      "start_ms": 0,
+      "end_ms": 1500,
+      "text": "Version 2 caption",
+      "style": {
+       "font": "sans",
+       "size": 0.045,
+       "color": "#FFFFFF",
+       "box": "#0000008C"
+      },
+      "x": 0.5,
+      "y": 0.88
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,DejaVu Sans,49,&H00FFFFFF,&H00FFFFFF,&H73000000,&H00000000,0,0,0,0,100,100,0,0,3,12.25,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.50,S1,,0,0,0,,{\\an5\\pos(960,950)}Version 2 caption\n"
+  },
+  {
+   "id": "old_fonts",
+   "about": "the 4 version 2 font ids",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "i0",
+      "start_ms": 0,
+      "end_ms": 900,
+      "text": "Font sans",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "sans",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i1",
+      "start_ms": 100,
+      "end_ms": 1000,
+      "text": "Font sans-bold",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "sans-bold",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i2",
+      "start_ms": 200,
+      "end_ms": 1100,
+      "text": "Font serif",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "serif",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i3",
+      "start_ms": 300,
+      "end_ms": 1200,
+      "text": "Font mono",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "mono",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,DejaVu Sans,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S2,DejaVu Sans,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S3,DejaVu Serif,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S4,DejaVu Sans Mono,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.90,S1,,0,0,0,,{\\an5\\pos(960,540)}Font sans\nDialogue: 0,0:00:00.10,0:00:01.00,S2,,0,0,0,,{\\an5\\pos(960,540)}Font sans-bold\nDialogue: 0,0:00:00.20,0:00:01.10,S3,,0,0,0,,{\\an5\\pos(960,540)}Font serif\nDialogue: 0,0:00:00.30,0:00:01.20,S4,,0,0,0,,{\\an5\\pos(960,540)}Font mono\n"
+  },
+  {
+   "id": "new_fonts",
+   "about": "the 16 fonts; one style each, in order of first use",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "i00",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "inter",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i01",
+      "start_ms": 10,
+      "end_ms": 2000,
+      "text": "roboto",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "roboto",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i02",
+      "start_ms": 20,
+      "end_ms": 2000,
+      "text": "montserrat",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "montserrat",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i03",
+      "start_ms": 30,
+      "end_ms": 2000,
+      "text": "poppins",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "poppins",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i04",
+      "start_ms": 40,
+      "end_ms": 2000,
+      "text": "oswald",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "oswald",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i05",
+      "start_ms": 50,
+      "end_ms": 2000,
+      "text": "bebas-neue",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "bebas-neue",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i06",
+      "start_ms": 60,
+      "end_ms": 2000,
+      "text": "anton",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "anton",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i07",
+      "start_ms": 70,
+      "end_ms": 2000,
+      "text": "playfair-display",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "playfair-display",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i08",
+      "start_ms": 80,
+      "end_ms": 2000,
+      "text": "lora",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "lora",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i09",
+      "start_ms": 90,
+      "end_ms": 2000,
+      "text": "merriweather",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "merriweather",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i10",
+      "start_ms": 100,
+      "end_ms": 2000,
+      "text": "dm-serif-display",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "dm-serif-display",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i11",
+      "start_ms": 110,
+      "end_ms": 2000,
+      "text": "source-code-pro",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "source-code-pro",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i12",
+      "start_ms": 120,
+      "end_ms": 2000,
+      "text": "pacifico",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "pacifico",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i13",
+      "start_ms": 130,
+      "end_ms": 2000,
+      "text": "permanent-marker",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "permanent-marker",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i14",
+      "start_ms": 140,
+      "end_ms": 2000,
+      "text": "caveat",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "caveat",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "i15",
+      "start_ms": 150,
+      "end_ms": 2000,
+      "text": "noto-sans",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "noto-sans",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S2,Roboto,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S3,Montserrat,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S4,Poppins,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S5,Oswald,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S6,Bebas Neue,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S7,Anton,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S8,Playfair Display,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S9,Lora,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S10,Merriweather,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S11,DM Serif Display,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S12,Source Code Pro,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S13,Pacifico,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S14,Permanent Marker,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S15,Caveat,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\nStyle: S16,Noto Sans,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}inter\nDialogue: 0,0:00:00.01,0:00:02.00,S2,,0,0,0,,{\\an5\\pos(960,540)}roboto\nDialogue: 0,0:00:00.02,0:00:02.00,S3,,0,0,0,,{\\an5\\pos(960,540)}montserrat\nDialogue: 0,0:00:00.03,0:00:02.00,S4,,0,0,0,,{\\an5\\pos(960,540)}poppins\nDialogue: 0,0:00:00.04,0:00:02.00,S5,,0,0,0,,{\\an5\\pos(960,540)}oswald\nDialogue: 0,0:00:00.05,0:00:02.00,S6,,0,0,0,,{\\an5\\pos(960,540)}bebas-neue\nDialogue: 0,0:00:00.06,0:00:02.00,S7,,0,0,0,,{\\an5\\pos(960,540)}anton\nDialogue: 0,0:00:00.07,0:00:02.00,S8,,0,0,0,,{\\an5\\pos(960,540)}playfair-display\nDialogue: 0,0:00:00.08,0:00:02.00,S9,,0,0,0,,{\\an5\\pos(960,540)}lora\nDialogue: 0,0:00:00.09,0:00:02.00,S10,,0,0,0,,{\\an5\\pos(960,540)}merriweather\nDialogue: 0,0:00:00.10,0:00:02.00,S11,,0,0,0,,{\\an5\\pos(960,540)}dm-serif-display\nDialogue: 0,0:00:00.11,0:00:02.00,S12,,0,0,0,,{\\an5\\pos(960,540)}source-code-pro\nDialogue: 0,0:00:00.12,0:00:02.00,S13,,0,0,0,,{\\an5\\pos(960,540)}pacifico\nDialogue: 0,0:00:00.13,0:00:02.00,S14,,0,0,0,,{\\an5\\pos(960,540)}permanent-marker\nDialogue: 0,0:00:00.14,0:00:02.00,S15,,0,0,0,,{\\an5\\pos(960,540)}caveat\nDialogue: 0,0:00:00.15,0:00:02.00,S16,,0,0,0,,{\\an5\\pos(960,540)}noto-sans\n"
+  },
+  {
+   "id": "full_style",
+   "about": "every style field, rounding of numbers",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hello",
+      "x": 0.333,
+      "y": 0.6667,
+      "style": {
+       "font": "poppins",
+       "size": 0.123,
+       "color": "#12AB34",
+       "stroke_color": "#FF0000",
+       "stroke_width": 0.0071,
+       "shadow_color": "#202020",
+       "shadow_x": 0.004,
+       "shadow_y": -0.0062,
+       "letter_spacing": 0.15,
+       "line_spacing": 1.5,
+       "bold": true,
+       "italic": true
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Poppins,133,&H0034AB12,&H0034AB12,&H000000FF,&H00202020,-1,-1,0,0,100,100,19.95,0,1,7.67,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(639,720)\\xshad4.32\\yshad-6.7}Hello\n"
+  },
+  {
+   "id": "box",
+   "about": "box (BorderStyle 3, the stroke is replaced by the box), alpha in a colour",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF",
+       "box": "#10203080",
+       "stroke_width": 0.01
+      }
+     },
+     {
+      "type": "text",
+      "id": "t2",
+      "start_ms": 500,
+      "end_ms": 1500,
+      "text": "Opaque box",
+      "x": 0.5,
+      "y": 0.8,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF",
+       "box": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H7F302010,&H00000000,0,0,0,0,100,100,0,0,3,27,0,5,0,0,0,1\nStyle: S2,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,0,0,0,0,100,100,0,0,3,27,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hello\nDialogue: 0,0:00:00.50,0:00:01.50,S2,,0,0,0,,{\\an5\\pos(960,864)}Opaque box\n"
+  },
+  {
+   "id": "multiline_align",
+   "about": "lines as separate events, left and right alignment",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Line one\nLine two\nThree",
+      "x": 0.1,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF",
+       "align": "left",
+       "line_spacing": 1.3
+      }
+     },
+     {
+      "type": "text",
+      "id": "t2",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Right\naligned",
+      "x": 0.9,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF",
+       "align": "right"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,4,0,0,0,1\nStyle: S2,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,6,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an4\\pos(192,400)}Line one\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an4\\pos(192,540)}Line two\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an4\\pos(192,680)}Three\nDialogue: 0,0:00:00.00,0:00:02.00,S2,,0,0,0,,{\\an6\\pos(1728,475)}Right\nDialogue: 0,0:00:00.00,0:00:02.00,S2,,0,0,0,,{\\an6\\pos(1728,605)}aligned\n"
+  },
+  {
+   "id": "escape",
+   "about": "braces and backslashes are escaped",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "50% {off} back\\slash \\N not a break",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}50% \\{off\\} back\\⁠slash \\⁠N not a break\n"
+  },
+  {
+   "id": "portrait",
+   "about": "9:16 canvas",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Tall canvas",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.05,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1080,
+   "height": 1920,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(540,960)}Tall canvas\n"
+  },
+  {
+   "id": "times",
+   "about": "centisecond rounding of event times, past an hour",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "a",
+      "start_ms": 0,
+      "end_ms": 33,
+      "text": "one frame",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "b",
+      "start_ms": 1005,
+      "end_ms": 2994,
+      "text": "rounded",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "c",
+      "start_ms": 3600000,
+      "end_ms": 3601000,
+      "text": "hour",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.03,S1,,0,0,0,,{\\an5\\pos(960,540)}one frame\nDialogue: 0,0:00:01.01,0:00:02.99,S1,,0,0,0,,{\\an5\\pos(960,540)}rounded\nDialogue: 0,1:00:00.00,1:00:01.00,S1,,0,0,0,,{\\an5\\pos(960,540)}hour\n"
+  },
+  {
+   "id": "in_fade",
+   "about": "animation in fade",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "fade",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\pos(960,540)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_fade",
+   "about": "animation out fade",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "fade",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_slide_up",
+   "about": "animation in slide_up",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_up",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(960,594,960,540,0,600)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_slide_up",
+   "about": "animation out slide_up",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "slide_up",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,540,960,486,0,450)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_slide_down",
+   "about": "animation in slide_down",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_down",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(960,486,960,540,0,600)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_slide_down",
+   "about": "animation out slide_down",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "slide_down",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,540,960,594,0,450)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_slide_left",
+   "about": "animation in slide_left",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_left",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(1056,540,960,540,0,600)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_slide_left",
+   "about": "animation out slide_left",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "slide_left",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,540,864,540,0,450)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_slide_right",
+   "about": "animation in slide_right",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_right",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(864,540,960,540,0,600)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_slide_right",
+   "about": "animation out slide_right",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "slide_right",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,540,1056,540,0,450)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_pop",
+   "about": "animation in pop",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "pop",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\pos(960,540)\\fscx0\\fscy0\\t(0,360,\\fscx115\\fscy115)\\t(360,600,\\fscx100\\fscy100)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_pop",
+   "about": "animation out pop",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "pop",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)\\t(0,180,\\fscx115\\fscy115)\\t(180,450,\\fscx0\\fscy0)}Bye now\n"
+  },
+  {
+   "id": "in_zoom",
+   "about": "animation in zoom",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "zoom",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\pos(960,540)\\fscx40\\fscy40\\fad(600,0)\\t(0,600,\\fscx100\\fscy100)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_zoom",
+   "about": "animation out zoom",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "zoom",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)\\fad(0,450)\\t(0,450,\\fscx40\\fscy40)}Bye now\n"
+  },
+  {
+   "id": "in_rise",
+   "about": "animation in rise",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "rise",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(960,562,960,540,0,600)\\fad(600,0)}Hi there\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_rise",
+   "about": "animation out rise",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "rise",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,540,960,518,0,450)\\fad(0,450)}Bye now\n"
+  },
+  {
+   "id": "in_typewriter",
+   "about": "animation in typewriter",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Hi there",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "typewriter",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\pos(960,540)}{\\alpha&HFF&\\t(0,1,\\alpha&H00&)}H{\\alpha&HFF&\\t(75,76,\\alpha&H00&)}i{\\alpha&HFF&\\t(150,151,\\alpha&H00&)} {\\alpha&HFF&\\t(225,226,\\alpha&H00&)}t{\\alpha&HFF&\\t(300,301,\\alpha&H00&)}h{\\alpha&HFF&\\t(375,376,\\alpha&H00&)}e{\\alpha&HFF&\\t(450,451,\\alpha&H00&)}r{\\alpha&HFF&\\t(525,526,\\alpha&H00&)}e\nDialogue: 0,0:00:00.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Hi there\n"
+  },
+  {
+   "id": "out_typewriter",
+   "about": "animation out typewriter",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Bye now",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "out": {
+        "kind": "typewriter",
+        "ms": 450
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:01.55,S1,,0,0,0,,{\\an5\\pos(960,540)}Bye now\nDialogue: 0,0:00:01.55,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}{\\t(385,386,\\alpha&HFF&)}B{\\t(321,322,\\alpha&HFF&)}y{\\t(257,258,\\alpha&HFF&)}e{\\t(192,193,\\alpha&HFF&)} {\\t(128,129,\\alpha&HFF&)}n{\\t(64,65,\\alpha&HFF&)}o{\\t(0,1,\\alpha&HFF&)}w\n"
+  },
+  {
+   "id": "in_out_loop_pulse",
+   "about": "in, out and a pulse between",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 3500,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "fade",
+        "ms": 500
+       },
+       "out": {
+        "kind": "pop",
+        "ms": 500
+       },
+       "loop": {
+        "kind": "pulse"
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.50,S1,,0,0,0,,{\\an5\\pos(960,540)\\fad(500,0)}Hello\nDialogue: 0,0:00:00.50,0:00:03.00,S1,,0,0,0,,{\\an5\\pos(960,540)\\t(0,500,\\fscx108\\fscy108)\\t(500,1000,\\fscx100\\fscy100)\\t(1000,1500,\\fscx108\\fscy108)\\t(1500,2000,\\fscx100\\fscy100)\\t(2000,2500,\\fscx108\\fscy108)}Hello\nDialogue: 0,0:00:03.00,0:00:03.50,S1,,0,0,0,,{\\an5\\pos(960,540)\\t(0,200,\\fscx115\\fscy115)\\t(200,500,\\fscx0\\fscy0)}Hello\n"
+  },
+  {
+   "id": "loop_float",
+   "about": "float: 500 ms moves, alternating",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2300,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "loop": {
+        "kind": "float"
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.50,S1,,0,0,0,,{\\an5\\move(960,540,960,529,0,500)}Hello\nDialogue: 0,0:00:00.50,0:00:01.00,S1,,0,0,0,,{\\an5\\move(960,529,960,540,0,500)}Hello\nDialogue: 0,0:00:01.00,0:00:01.50,S1,,0,0,0,,{\\an5\\move(960,540,960,529,0,500)}Hello\nDialogue: 0,0:00:01.50,0:00:02.00,S1,,0,0,0,,{\\an5\\move(960,529,960,540,0,500)}Hello\nDialogue: 0,0:00:02.00,0:00:02.30,S1,,0,0,0,,{\\an5\\move(960,540,960,529,0,300)}Hello\n"
+  },
+  {
+   "id": "anim_squeezed",
+   "about": "in + out longer than the item: shared in proportion",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 1000,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_up",
+        "ms": 900
+       },
+       "out": {
+        "kind": "fade",
+        "ms": 600
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.60,S1,,0,0,0,,{\\an5\\move(960,594,960,540,0,600)\\fad(600,0)}Hello\nDialogue: 0,0:00:00.60,0:00:01.00,S1,,0,0,0,,{\\an5\\pos(960,540)\\fad(0,400)}Hello\n"
+  },
+  {
+   "id": "multiline_anim",
+   "about": "an animation on each line",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Two\nlines",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "anim": {
+       "in": {
+        "kind": "slide_left",
+        "ms": 400
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,S1,,0,0,0,,{\\an5\\move(1056,475,960,475,0,400)\\fad(400,0)}Two\nDialogue: 0,0:00:00.00,0:00:00.40,S1,,0,0,0,,{\\an5\\move(1056,605,960,605,0,400)\\fad(400,0)}lines\nDialogue: 0,0:00:00.40,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,475)}Two\nDialogue: 0,0:00:00.40,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,605)}lines\n"
+  },
+  {
+   "id": "caption_word",
+   "about": "word-timed caption, word",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Every word counts",
+      "x": 0.5,
+      "y": 0.85,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "words": [
+       {
+        "text": "Every",
+        "start_ms": 120,
+        "end_ms": 480
+       },
+       {
+        "text": "word",
+        "start_ms": 500,
+        "end_ms": 905
+       },
+       {
+        "text": "counts",
+        "start_ms": 1000,
+        "end_ms": 1600
+       }
+      ],
+      "caption_style": {
+       "mode": "word",
+       "highlight_color": "#FFD400"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.12,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:00.12,0:00:00.48,S1,,0,0,0,,{\\an5\\pos(960,918)}{\\1c&H00D4FF&}Every{\\1c&HFFFFFF&} word counts\nDialogue: 0,0:00:00.48,0:00:00.50,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:00.50,0:00:00.91,S1,,0,0,0,,{\\an5\\pos(960,918)}Every {\\1c&H00D4FF&}word{\\1c&HFFFFFF&} counts\nDialogue: 0,0:00:00.91,0:00:01.00,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:01.00,0:00:01.60,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word {\\1c&H00D4FF&}counts{\\1c&HFFFFFF&}\nDialogue: 0,0:00:01.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\n"
+  },
+  {
+   "id": "caption_karaoke",
+   "about": "word-timed caption, karaoke",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Every word counts",
+      "x": 0.5,
+      "y": 0.85,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "words": [
+       {
+        "text": "Every",
+        "start_ms": 120,
+        "end_ms": 480
+       },
+       {
+        "text": "word",
+        "start_ms": 500,
+        "end_ms": 905
+       },
+       {
+        "text": "counts",
+        "start_ms": 1000,
+        "end_ms": 1600
+       }
+      ],
+      "caption_style": {
+       "mode": "karaoke",
+       "highlight_color": "#FFD400"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H0000D4FF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,918)}{\\k12}{\\k36}Every{\\k2} {\\k41}word{\\k9} {\\k60}counts\n"
+  },
+  {
+   "id": "caption_box",
+   "about": "word-timed caption, box",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Every word counts",
+      "x": 0.5,
+      "y": 0.85,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "words": [
+       {
+        "text": "Every",
+        "start_ms": 120,
+        "end_ms": 480
+       },
+       {
+        "text": "word",
+        "start_ms": 500,
+        "end_ms": 905
+       },
+       {
+        "text": "counts",
+        "start_ms": 1000,
+        "end_ms": 1600
+       }
+      ],
+      "caption_style": {
+       "mode": "box",
+       "highlight_color": "#FFD400"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.12,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:00.12,0:00:00.48,S1,,0,0,0,,{\\an5\\pos(960,918)}{\\3c&H00D4FF&\\bord19.44}Every{\\3c&H000000&\\bord0} word counts\nDialogue: 0,0:00:00.48,0:00:00.50,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:00.50,0:00:00.91,S1,,0,0,0,,{\\an5\\pos(960,918)}Every {\\3c&H00D4FF&\\bord19.44}word{\\3c&H000000&\\bord0} counts\nDialogue: 0,0:00:00.91,0:00:01.00,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\nDialogue: 0,0:00:01.00,0:00:01.60,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word {\\3c&H00D4FF&\\bord19.44}counts{\\3c&H000000&\\bord0}\nDialogue: 0,0:00:01.60,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,918)}Every word counts\n"
+  },
+  {
+   "id": "caption_none",
+   "about": "words with mode none: plain text",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "Every word counts",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "words": [
+       {
+        "text": "Every",
+        "start_ms": 120,
+        "end_ms": 480
+       },
+       {
+        "text": "word",
+        "start_ms": 500,
+        "end_ms": 905
+       },
+       {
+        "text": "counts",
+        "start_ms": 1000,
+        "end_ms": 1600
+       }
+      ],
+      "caption_style": {
+       "mode": "none"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.00,S1,,0,0,0,,{\\an5\\pos(960,540)}Every word counts\n"
+  },
+  {
+   "id": "keyframes_linear",
+   "about": "keyframed x: one event per frame, equal frames merged",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 300,
+      "text": "Hello",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "keyframes": {
+       "x": [
+        {
+         "t_ms": 0,
+         "v": 0.2
+        },
+        {
+         "t_ms": 200,
+         "v": 0.8
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.03,S1,,0,0,0,,{\\an5\\pos(384,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.03,0:00:00.07,S1,,0,0,0,,{\\an5\\pos(574,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.07,0:00:00.10,S1,,0,0,0,,{\\an5\\pos(770,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.10,0:00:00.13,S1,,0,0,0,,{\\an5\\pos(960,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.13,0:00:00.17,S1,,0,0,0,,{\\an5\\pos(1150,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.17,0:00:00.20,S1,,0,0,0,,{\\an5\\pos(1346,540)\\alpha&H00&}Hello\nDialogue: 0,0:00:00.20,0:00:00.30,S1,,0,0,0,,{\\an5\\pos(1536,540)\\alpha&H00&}Hello\n"
+  },
+  {
+   "id": "keyframes_ease_opacity",
+   "about": "eased opacity and a hold on y at 25 fps",
+   "doc": {
+    "rate": 25
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 400,
+      "text": "Fade",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "keyframes": {
+       "opacity": [
+        {
+         "t_ms": 0,
+         "v": 0,
+         "ease": "ease_in"
+        },
+        {
+         "t_ms": 300,
+         "v": 1
+        }
+       ],
+       "y": [
+        {
+         "t_ms": 0,
+         "v": 0.4,
+         "ease": "hold"
+        },
+        {
+         "t_ms": 200,
+         "v": 0.6
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.04,S1,,0,0,0,,{\\an5\\pos(960,432)\\alpha&HFF&}Fade\nDialogue: 0,0:00:00.04,0:00:00.08,S1,,0,0,0,,{\\an5\\pos(960,432)\\alpha&HF8&}Fade\nDialogue: 0,0:00:00.08,0:00:00.12,S1,,0,0,0,,{\\an5\\pos(960,432)\\alpha&HE4&}Fade\nDialogue: 0,0:00:00.12,0:00:00.16,S1,,0,0,0,,{\\an5\\pos(960,432)\\alpha&HC8&}Fade\nDialogue: 0,0:00:00.16,0:00:00.20,S1,,0,0,0,,{\\an5\\pos(960,432)\\alpha&HA5&}Fade\nDialogue: 0,0:00:00.20,0:00:00.24,S1,,0,0,0,,{\\an5\\pos(960,648)\\alpha&H7D&}Fade\nDialogue: 0,0:00:00.24,0:00:00.28,S1,,0,0,0,,{\\an5\\pos(960,648)\\alpha&H4F&}Fade\nDialogue: 0,0:00:00.28,0:00:00.32,S1,,0,0,0,,{\\an5\\pos(960,648)\\alpha&H1C&}Fade\nDialogue: 0,0:00:00.32,0:00:00.40,S1,,0,0,0,,{\\an5\\pos(960,648)\\alpha&H00&}Fade\n"
+  },
+  {
+   "id": "keyframes_with_anim",
+   "about": "per-frame animation numbers (typewriter, zoom) with keyframes",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 500,
+      "text": "Type",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "keyframes": {
+       "x": [
+        {
+         "t_ms": 0,
+         "v": 0.4
+        },
+        {
+         "t_ms": 400,
+         "v": 0.6
+        }
+       ]
+      },
+      "anim": {
+       "in": {
+        "kind": "typewriter",
+        "ms": 300
+       },
+       "out": {
+        "kind": "zoom",
+        "ms": 100
+       }
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.03,S1,,0,0,0,,{\\an5\\pos(768,540)\\alpha&H00&}{\\alpha&HFF&}Type\nDialogue: 0,0:00:00.03,0:00:00.07,S1,,0,0,0,,{\\an5\\pos(800,540)\\alpha&H00&}{\\alpha&HFF&}Type\nDialogue: 0,0:00:00.07,0:00:00.10,S1,,0,0,0,,{\\an5\\pos(832,540)\\alpha&H00&}{\\alpha&HFF&}Type\nDialogue: 0,0:00:00.10,0:00:00.13,S1,,0,0,0,,{\\an5\\pos(864,540)\\alpha&H00&}T{\\alpha&HFF&}ype\nDialogue: 0,0:00:00.13,0:00:00.17,S1,,0,0,0,,{\\an5\\pos(896,540)\\alpha&H00&}T{\\alpha&HFF&}ype\nDialogue: 0,0:00:00.17,0:00:00.20,S1,,0,0,0,,{\\an5\\pos(928,540)\\alpha&H00&}Ty{\\alpha&HFF&}pe\nDialogue: 0,0:00:00.20,0:00:00.23,S1,,0,0,0,,{\\an5\\pos(960,540)\\alpha&H00&}Ty{\\alpha&HFF&}pe\nDialogue: 0,0:00:00.23,0:00:00.27,S1,,0,0,0,,{\\an5\\pos(992,540)\\alpha&H00&}Typ{\\alpha&HFF&}e\nDialogue: 0,0:00:00.27,0:00:00.30,S1,,0,0,0,,{\\an5\\pos(1024,540)\\alpha&H00&}Typ{\\alpha&HFF&}e\nDialogue: 0,0:00:00.30,0:00:00.33,S1,,0,0,0,,{\\an5\\pos(1056,540)\\alpha&H00&}Type\nDialogue: 0,0:00:00.33,0:00:00.37,S1,,0,0,0,,{\\an5\\pos(1088,540)\\alpha&H00&}Type\nDialogue: 0,0:00:00.37,0:00:00.40,S1,,0,0,0,,{\\an5\\pos(1120,540)\\alpha&H00&}Type\nDialogue: 0,0:00:00.40,0:00:00.43,S1,,0,0,0,,{\\an5\\pos(1152,540)\\alpha&H00&}Type\nDialogue: 0,0:00:00.43,0:00:00.47,S1,,0,0,0,,{\\an5\\pos(1152,540)\\alpha&H54&\\fscx80\\fscy80}Type\nDialogue: 0,0:00:00.47,0:00:00.50,S1,,0,0,0,,{\\an5\\pos(1152,540)\\alpha&HAB&\\fscx60\\fscy60}Type\n"
+  },
+  {
+   "id": "keyframes_bezier_multiline",
+   "about": "bezier easing, two lines, 60 fps",
+   "doc": {
+    "rate": 60
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "t1",
+      "start_ms": 0,
+      "end_ms": 200,
+      "text": "A\nB",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      },
+      "keyframes": {
+       "x": [
+        {
+         "t_ms": 0,
+         "v": 0.1,
+         "ease": "bezier",
+         "bez": [
+          0.3,
+          0.1,
+          0.2,
+          1.0
+         ]
+        },
+        {
+         "t_ms": 133,
+         "v": 0.9
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.02,S1,,0,0,0,,{\\an5\\pos(192,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.00,0:00:00.02,S1,,0,0,0,,{\\an5\\pos(192,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.02,0:00:00.03,S1,,0,0,0,,{\\an5\\pos(372,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.02,0:00:00.03,S1,,0,0,0,,{\\an5\\pos(372,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.03,0:00:00.05,S1,,0,0,0,,{\\an5\\pos(787,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.03,0:00:00.05,S1,,0,0,0,,{\\an5\\pos(787,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.05,0:00:00.07,S1,,0,0,0,,{\\an5\\pos(1200,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.05,0:00:00.07,S1,,0,0,0,,{\\an5\\pos(1200,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.07,0:00:00.08,S1,,0,0,0,,{\\an5\\pos(1449,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.07,0:00:00.08,S1,,0,0,0,,{\\an5\\pos(1449,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.08,0:00:00.10,S1,,0,0,0,,{\\an5\\pos(1589,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.08,0:00:00.10,S1,,0,0,0,,{\\an5\\pos(1589,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.10,0:00:00.12,S1,,0,0,0,,{\\an5\\pos(1674,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.10,0:00:00.12,S1,,0,0,0,,{\\an5\\pos(1674,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.12,0:00:00.13,S1,,0,0,0,,{\\an5\\pos(1717,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.12,0:00:00.13,S1,,0,0,0,,{\\an5\\pos(1717,605)\\alpha&H00&}B\nDialogue: 0,0:00:00.13,0:00:00.20,S1,,0,0,0,,{\\an5\\pos(1728,475)\\alpha&H00&}A\nDialogue: 0,0:00:00.13,0:00:00.20,S1,,0,0,0,,{\\an5\\pos(1728,605)\\alpha&H00&}B\n"
+  },
+  {
+   "id": "order",
+   "about": "items in (start, id) order; styles named in order of first use",
+   "doc": {
+    "rate": 30
+   },
+   "track": {
+    "items": [
+     {
+      "type": "text",
+      "id": "b",
+      "start_ms": 500,
+      "end_ms": 900,
+      "text": "second",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "a",
+      "start_ms": 500,
+      "end_ms": 900,
+      "text": "first by id",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     },
+     {
+      "type": "text",
+      "id": "c",
+      "start_ms": 0,
+      "end_ms": 400,
+      "text": "earliest",
+      "x": 0.5,
+      "y": 0.5,
+      "style": {
+       "font": "inter",
+       "size": 0.1,
+       "color": "#FFFFFF"
+      }
+     }
+    ]
+   },
+   "width": 1920,
+   "height": 1080,
+   "expected": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: S1,Inter,108,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,S1,,0,0,0,,{\\an5\\pos(960,540)}earliest\nDialogue: 0,0:00:00.50,0:00:00.90,S1,,0,0,0,,{\\an5\\pos(960,540)}first by id\nDialogue: 0,0:00:00.50,0:00:00.90,S1,,0,0,0,,{\\an5\\pos(960,540)}second\n"
+  }
+ ]
+}

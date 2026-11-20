@@ -39,7 +39,7 @@ describe('StudioRecentChats', () => {
     expect(api.get).toHaveBeenCalledWith('/video/chats/', { params: { page: 1, page_size: 15 } })
     const links = w.findAll('[data-test="studio-recent-chat"]')
     expect(links.map((a) => a.find('.vrc-name').text())).toEqual(['Candle reel', 'Make a lavender candle reel'])   // the server names a chat by what was asked
-    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/video-studio/dashboard', query: { conversation: '2874' } })
+    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/dashboard/video-studio/dashboard', query: { conversation: '2874' } })
     expect(links[0].classes()).toContain('active')
     api.get.mockResolvedValueOnce({ data: { count: 3, results: [{ id: 2600, name: 'Older', updated_at: '2026-10-16T10:00:00Z' }] } })
     await w.get('[data-test="studio-recent-more"]').trigger('click')
@@ -56,8 +56,8 @@ describe('StudioRecentChats', () => {
     await flush()
     const links = w.findAll('[data-test="studio-recent-chat"]')
     expect(links.map((a) => a.find('.vrc-name').text())).toEqual(['Image edit chat', 'A jingle for the shop'])
-    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/video-studio/edit', query: { conversation: '31' } })
-    expect(JSON.parse(links[1].attributes('data-to'))).toEqual({ path: '/video-studio/audio', query: { conversation: '32' } })
+    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/dashboard/video-studio/edit', query: { conversation: '31' } })
+    expect(JSON.parse(links[1].attributes('data-to'))).toEqual({ path: '/dashboard/video-studio/audio', query: { conversation: '32' } })
   })
 
   it('shows nothing when there is no chat yet', async () => {
@@ -106,7 +106,7 @@ describe('Chat history search (GET /api/video/chats/?q=)', () => {
     expect(api.get).toHaveBeenLastCalledWith('/video/chats/', { params: { page: 1, page_size: 15, q: 'candle' } })
     const links = w.findAll('[data-test="studio-recent-chat"]')
     expect(links.map(a => a.find('.vrc-name').text())).toEqual(['Older candle chat'])   // a chat that was never loaded
-    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/video-studio/image', query: { conversation: '9' } })
+    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/dashboard/video-studio/image', query: { conversation: '9' } })
     api.get.mockResolvedValueOnce({ data: { count: 16, results: [{ id: 8, name: 'Second page match' }] } })
     await w.get('[data-test="studio-recent-more"]').trigger('click'); await flushPromises()
     expect(api.get).toHaveBeenLastCalledWith('/video/chats/', { params: { page: 2, page_size: 15, q: 'candle' } })

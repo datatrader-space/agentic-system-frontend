@@ -32,10 +32,11 @@ const OPTIONS = [
   { key: 'agent_activity', label: 'Agent activity', desc: 'Runs that complete, fail, or resume.' },
   { key: 'escalations', label: 'Escalations & approvals', desc: 'Approvals awaiting a human, and agents auto-paused by a rule.' },
   { key: 'budget_alerts', label: 'Budget alerts', desc: 'Spend warnings and hard budget blocks.' },
+  { key: 'camera_alerts', label: 'Camera alerts', desc: 'A saved camera in Cloud Streaming goes offline or is back online.' },
   { key: 'product_updates', label: 'Product updates', desc: 'Occasional news about new features.' },
 ]
 
-const prefs = reactive({ agent_activity: true, escalations: true, budget_alerts: true, product_updates: false })
+const prefs = reactive({ agent_activity: true, escalations: true, budget_alerts: true, camera_alerts: true, product_updates: false })
 const loading = ref(true)
 const saving = ref(false)
 

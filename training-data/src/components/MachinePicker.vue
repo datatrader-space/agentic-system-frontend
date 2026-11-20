@@ -28,6 +28,10 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue']);
 const machines = ref(null); const note = ref(''); const gpuOnly = ref(''); const error = ref(''); const loading = ref(false);
+// What the CPU choice says when none is offered and the server says why in a few words (``cpu_text``: a Train page,
+// whose rented machines train on a GPU while a machine of the person's own may train on its CPU), else
+// "this model needs a GPU".
+const cpuText = ref('');
 const kind = ref('auto');
 const aadmlValue = () => props.aadml?.value || '';
 const pending = ref(null);              // Auto's find, waiting for the person's approval: { machine, run }
@@ -57,6 +61,7 @@ async function read() {
   try {
     const found = await props.load();
     machines.value = found.machines || []; note.value = found.note || ''; gpuOnly.value = found.gpu_only || '';
+    cpuText.value = found.cpu_text || '';
     const still = kind.value !== 'auto' && machines.value.find(m => m.key === props.modelValue);
     const first = (still && fits(still) ? still : null)
       || (kind.value === 'auto' ? (props.aadml ? null : autoFind()) : machines.value.find(fits));
@@ -119,7 +124,7 @@ const kinds = computed(() => {
     { value: 'auto', text: props.aadml ? `${props.aadml.title} (${props.aadml.small})` : 'Auto: the cheapest free now, you approve it' },
     counts.value.gpu ? { value: 'gpu', text: `GPU, ${counts.value.gpu} free` } : { value: 'gpu', text: `GPU: ${none}`, off: true },
     counts.value.cpu ? { value: 'cpu', text: `CPU, ${counts.value.cpu} free` }
-      : { value: 'cpu', text: `CPU: ${gpuOnly.value ? 'this model needs a GPU' : none}`, off: true },
+      : { value: 'cpu', text: `CPU: ${cpuText.value || (gpuOnly.value ? 'this model needs a GPU' : none)}`, off: true },
     usable('own_machine') ? { value: 'own_machine', text: `Your machine, ${ownPrice.value}` }
       : props.ownElsewhere ? { value: 'own_machine', off: true, text: props.ownElsewhere }
       : { value: 'own_machine', off: true,
@@ -192,7 +197,9 @@ defineExpose({ read, confirm });
         <span>{{ chosen.files_here ? 'its files are here' : 'copies its files first (a few minutes)' }}</span>
         <strong>{{ money(chosen.usd_per_hour) }} an hour, ${{ Number(chosen.usd_per_second).toFixed(6) }} a second</strong>
       </p>
-      <p class="machine-note muted">{{ note }}
+      <!-- The note is about the machines AADML rents (their data centers, whether each is SOC 2 Type II): it is not
+           said of the person's own machine. -->
+      <p class="machine-note muted"><template v-if="kind !== 'own_machine'">{{ note }}</template>
         <button type="button" class="link-button" :disabled="loading" @click="read">Read again</button></p>
     </template>
   </fieldset>

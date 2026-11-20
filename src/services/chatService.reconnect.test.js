@@ -96,3 +96,34 @@ describe('ChatConnection reconnect', () => {
     expect(sockets.length).toBe(2)
   })
 })
+
+describe('ChatConnection on a signed-out page', () => {
+  it('asks the server once after a few failures and stops retrying when the session is gone (401)', async () => {
+    const checkSignedIn = vi.fn(async () => false)                 // the caller's check: the session is gone
+    const onConnectionState = vi.fn()
+    const conn = new ChatConnection(null, { onConnectionState, checkSignedIn })
+    conn.connect(0)
+    for (let i = 0; i < RECONNECT_LOST_AFTER; i++) {
+      sockets[sockets.length - 1].fail()
+      vi.advanceTimersByTime(RECONNECT_CAP_MS)
+    }
+    await vi.waitFor(() => expect(onConnectionState).toHaveBeenCalledWith('signed_out'))
+    const before = sockets.length
+    vi.advanceTimersByTime(RECONNECT_CAP_MS * 5)
+    expect(sockets.length).toBe(before)                  // no more attempts: the 401 handler lands on /login
+  })
+
+  it('keeps reconnecting when the person is still signed in', async () => {
+    const checkSignedIn = vi.fn(async () => true)
+    const onConnectionState = vi.fn()
+    const conn = new ChatConnection(null, { onConnectionState, checkSignedIn })
+    conn.connect(0)
+    for (let i = 0; i < RECONNECT_LOST_AFTER + 2; i++) {
+      sockets[sockets.length - 1].fail()
+      vi.advanceTimersByTime(RECONNECT_CAP_MS)
+      await Promise.resolve()
+    }
+    expect(onConnectionState).not.toHaveBeenCalledWith('signed_out')
+    expect(sockets.length).toBe(RECONNECT_LOST_AFTER + 3)
+  })
+})

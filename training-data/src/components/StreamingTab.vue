@@ -6,14 +6,19 @@
 // Backend: streaming_api.py workspace/streams/ (list, start), workspace/streams/<id>/ (one), …/stop/, …/results/.
 // Every frame the model answers is charged as one photo call, from the balance of the person who started the stream.
 // "Read barcodes" (backend barcodes.py) reads the barcodes and QR codes of each frame, alone or after the model; each
-// frame read is charged like a photo call too, and the codes read show newest first.
-import { computed, onUnmounted, ref, watch } from 'vue';
+// frame read costs a share of a photo call (a tenth unless the platform changes it: options.codes.photo_calls_a_read),
+// and the codes read show newest first.
+import { computed, onUnmounted, provide, ref, watch } from 'vue';
 import {
   Bell, Cctv, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
 } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import VideoSources from './VideoSources.vue';
+import CameraEvents from './CameraEvents.vue';
+import WorkplaceTab from './WorkplaceTab.vue';
+import CameraRecordings from './CameraRecordings.vue';
+import StreamingTermsDialog from './StreamingTermsDialog.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -21,7 +26,7 @@ import { modelName, timeAgo } from '../api/workspace.js';
 import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
-  sourceShown, streamWhat, codesRead, frameCodesText, windowText,
+  sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText, termsRequired,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -117,18 +122,63 @@ async function openStreamById(id) {
 }
 // A source's own page (VideoSources.vue, VideoSourcePage.vue) takes the tab's place while it is open.
 const sourceOpen = ref(false);
-// "Offline notifications": not built yet, and said so (no switch that would save nothing).
+// Cameras and streams, or every kept recording (CameraRecordings.vue; the owner, 2026-11-19: inside Cloud Streaming,
+// not a Deployments tab of its own). Kept for this tab across a reload.
+const VIEW_KEY = 'tmd.streaming.view';
+const VIEWS = [['cameras', 'Cameras and streams'], ['events', 'Events'], ['workplace', 'Workplace'], ['recordings', 'Recordings']];
+function keptView() { try { const kept = sessionStorage.getItem(VIEW_KEY); return ['recordings', 'events', 'workplace'].includes(kept) ? kept : 'cameras'; } catch { return 'cameras'; } }
+const view = ref(keptView());
+watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
+function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
+// The Terms and the Privacy Policy, accepted once before a first camera or stream (StreamingTermsDialog.vue): what the
+// person asked for opens right after. The server refuses those until then (428 terms_required): such a refusal opens
+// this window too (an older page, or acceptance withdrawn elsewhere).
+const termsOpen = ref(false); let afterTerms = null;
+const terms = computed(() => page.value?.terms || null);
+function ensureTerms(next) {
+  if (!terms.value || terms.value.accepted) return true;
+  afterTerms = next || null; termsOpen.value = true;
+  return false;
+}
+function termsNeeded() {
+  if (page.value) page.value = { ...page.value, terms: { ...(page.value.terms || {}), accepted: false } };
+  afterTerms = null; termsOpen.value = true;
+}
+function termsAccepted(state) {
+  if (page.value) page.value = { ...page.value, terms: state };
+  termsOpen.value = false;
+  const next = afterTerms; afterTerms = null;
+  if (next) next();
+}
+provide('streamingTerms', { ensure: ensureTerms, needed: termsNeeded })
+// "Offline notifications": what is sent and to whom (backend camera_management.py OFFLINE NOTICES; live, 2026-11-19:
+// this dialog still said "coming soon" after the notices shipped), and how often cameras are checked (camera_watch.py).
+// The e-mail's switch is in AADML's Settings.
 const notifying = ref(false);
 
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
-const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null });
+const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null,
+  useDetector: false, detector: '', useFind: false, find: '', skipStill: false, listen: false, listenConsent: false,
+  soundModel: '' });
+const listenOption = computed(() => options.value.listen || null);
+// The hosted sound models that run now (backend camera_models.py), each with its price.
+const soundChoices = computed(() => listenOption.value?.choices || []);
+// The ready detector (people, vehicles, pets and 77 more, on AADML's server) and finding objects by name (SAM 3): each
+// in place of the project's model, one of the three at most (SMART_CAMERA_AI_PLAN.md Phase A).
+const detectorsOption = computed(() => options.value.detectors || null);
+const detectorChoices = computed(() => detectorsOption.value?.choices || []);
+const findOption = computed(() => options.value.find || null);
+watch(() => form.value.useModel, on => { if (on) { form.value.useDetector = false; form.value.useFind = false; } });
+watch(() => form.value.useDetector, on => { if (on) { form.value.useModel = false; form.value.useFind = false; } });
+watch(() => form.value.useFind, on => { if (on) { form.value.useModel = false; form.value.useDetector = false; } });
 const chosenSource = computed(() => savedSources.value.find(s => String(s.id) === String(form.value.saved)) || null);
 // A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
 // answered and read for barcodes is charged for each.
 const codesOption = computed(() => options.value.codes || null);
-const callsAFrame = computed(() => (form.value.useModel ? 1 : 0) + (form.value.readCodes ? Number(codesOption.value?.photo_calls_a_read) || 1 : 0));
-const perHour = computed(() => Math.round((Number(form.value.fps) || 1) * 3600 * (callsAFrame.value || 1)));
+const readPrice = computed(() => readPriceText(readCalls(codesOption.value)));
+const continuousCharge = computed(() => chargeText({ useModel: form.value.useModel, readCodes: form.value.readCodes,
+  codes: codesOption.value, fps: form.value.fps, detector: form.value.useDetector, find: form.value.useFind }));
 const capMinutes = computed(() => Math.round((Number(options.value.cap?.seconds) || 600) / 60));
 const file = ref(null); const fileInput = ref(null);
 const fieldErrors = ref({}); const formError = ref(''); const addressTouched = ref(false);
@@ -148,8 +198,13 @@ const sourceProblem = computed(() => {
 });
 const startWhy = computed(() => {
   if (!may.value.start) return may.value.reason || (options.value.projects.length ? 'You may not start a stream.' : 'You need the Train right in a photo project to start a stream.');
-  if (!form.value.useModel && !form.value.readCodes) return 'Choose what runs on each frame: the model, Read barcodes, or both.';
-  if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or read barcodes only.';
+  if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes && !form.value.listen) return 'Choose what runs on each frame: the model, the ready detector, Find by name, Read barcodes, or Listen for sounds.';
+  if (form.value.listen && !form.value.listenConsent) return 'Confirm that the people near this camera are told its sound is analysed.';
+  if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
+  if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return 'No ready detector runs now: AADML starts them. Try again later.';
+  if (form.value.listen && listenOption.value && !soundChoices.value.length) return 'No sound model runs now: AADML starts them. Try again later.';
+  if (form.value.useFind && !form.value.find.trim()) return 'Name what to find, for example "person, forklift".';
+  if (form.value.useFind && findOption.value && findOption.value.available === false) return findOption.value.note || 'Finding objects by name is not offered right now.';
   if (form.value.readCodes && codesOption.value && codesOption.value.available === false) return 'Barcodes cannot be read on AADML right now. Run the model on its own, or try again later.';
   return '';
 });
@@ -160,6 +215,7 @@ watch(() => form.value.project, () => {
 // Opened from the header (no source), from a saved camera's "Start stream" (that camera, its default project first),
 // or from one of its recordings' "Use in project" (that recording, read in place: never continuous).
 function openCreate(saved = null, recording = null) {
+  if (!ensureTerms(() => openCreate(saved, recording))) return;
   const own = saved?.project?.ref ? options.value.projects.find(p => p.ref === saved.project.ref && p.models.length) : null;
   const first = own || options.value.projects.find(p => p.models.length) || options.value.projects[0];
   form.value = {
@@ -167,6 +223,9 @@ function openCreate(saved = null, recording = null) {
     source: recording?.id ? 'recording' : saved ? 'saved' : 'file', address: '', fps: options.value.default_fps || 1,
     saved: saved ? String(saved.id) : '', continuous: false, recording: recording?.id ? recording : null,
     useModel: !!first?.models?.length, readCodes: false,
+    useDetector: !first?.models?.length && detectorsOption.value?.available !== false,
+    detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '', skipStill: false,
+    listen: false, listenConsent: false, soundModel: listenOption.value?.default || soundChoices.value[0]?.key || '',
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
   creating.value = true;
@@ -191,6 +250,9 @@ async function startStream() {
     const body = await streamingApi.start({
       project: form.value.project, model: form.value.useModel ? Number(form.value.model) : null, fps: Number(form.value.fps),
       readCodes: form.value.readCodes,
+      detector: form.value.useDetector ? form.value.detector : '', find: form.value.useFind ? form.value.find.trim() : '',
+      skipStill: form.value.skipStill && (form.value.useModel || form.value.useDetector || form.value.useFind),
+      listen: form.value.listen && form.value.listenConsent, soundModel: form.value.soundModel,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
           : form.value.source === 'recording' ? { recording: form.value.recording.id }
@@ -204,8 +266,9 @@ async function startStream() {
     if (sourceOpen.value) sourcesRef.value?.refreshDetail?.();
     else if (body?.stream) openStream(body.stream);
   } catch (e) {
+    if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'listen', 'sound_model'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -250,7 +313,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     <DeploymentHeader title="Cloud Streaming" heading-id="st-heading" eyebrow="VIDEO IN. INSIGHTS OUT." :icon="Video" description="Run your models on live video from your cameras, stream addresses or test videos, and watch them from the cloud.">
       <div class="st-head-acts">
         <UiButton @click="notifying = true"><Bell :size="15" aria-hidden="true"/> Offline notifications</UiButton>
-        <UiButton variant="primary" :disabled="!sourcesRef?.ready || !!sourcesRef?.addWhy" :title="sourcesRef?.addWhy || undefined" @click="sourcesRef?.openAdd()"><Plus :size="15" aria-hidden="true"/> Add video source</UiButton>
+        <UiButton variant="primary" :disabled="!sourcesRef?.ready || !!sourcesRef?.addWhy" :title="sourcesRef?.addWhy || undefined" @click="addSource"><Plus :size="15" aria-hidden="true"/> Add video source</UiButton>
       </div>
     </DeploymentHeader>
     <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
@@ -259,9 +322,17 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <span>{{ error }}</span>
       <UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
     </div>
+    <div class="st-views" role="tablist" aria-label="Cloud Streaming">
+      <button v-for="[id, label] in VIEWS" :id="`st-view-${id}`" :key="id" type="button" role="tab" :aria-selected="view === id"
+              :class="{ on: view === id }" @click="view = id">{{ label }}</button>
+    </div>
+    <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"/>
+    <CameraEvents v-if="view === 'events'" role="tabpanel" aria-labelledby="st-view-events"/>
+    <WorkplaceTab v-if="view === 'workplace'" role="tabpanel" aria-labelledby="st-view-workplace"/>
     </template>
     <p v-if="downloadError" class="field-error" role="alert">{{ downloadError }}</p>
 
+    <div v-show="view === 'cameras' || sourceOpen">
     <VideoSources ref="sourcesRef" :projects="options.projects" :may-start="!!page && may.start !== false" :start-why="may.reason || ''"
                   @start="openCreate" @loaded="sourcesPage = $event" @changed="changed" @open-stream="openStreamById"
                   @page="sourceOpen = $event" @stop-stream="askStop" @download="download"/>
@@ -361,6 +432,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </table>
     </div>
     </template>
+    </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
 
     <UiDialog class="st-dialog" :open="creating" title="New stream" @close="creating=false">
@@ -394,11 +466,48 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <input v-model="form.useModel" type="checkbox" :disabled="!models.length" aria-describedby="st-use-model-help">
               <span><strong>Run the model</strong><small id="st-use-model-help">{{ models.length ? 'The model answers each frame with what it finds.' : 'This project has no trained model yet.' }}</small></span>
             </label>
+            <label v-if="detectorChoices.length" class="st-card" :class="{ chosen: form.useDetector }">
+              <input v-model="form.useDetector" type="checkbox" :disabled="detectorsOption.available === false" aria-describedby="st-detector-help">
+              <span><strong>Ready detector</strong><small id="st-detector-help">Finds people, vehicles, pets and {{ Math.max(0, (detectorsOption.classes || []).length - 3) }} more everyday things, with no model of your own. {{ detectorsOption.note }}</small></span>
+            </label>
+            <label v-if="findOption" class="st-card" :class="{ chosen: form.useFind }">
+              <input v-model="form.useFind" type="checkbox" :disabled="findOption.available === false" aria-describedby="st-find-help">
+              <span><strong>Find by name</strong><small id="st-find-help">{{ findOption.available === false ? findOption.note : `${findOption.what} ${findOption.note}` }}</small></span>
+            </label>
             <label class="st-card" :class="{ chosen: form.readCodes }">
               <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">
-              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel ? ', after the model' : ', on its own' }}. Each frame read is charged like a photo call.</small></span>
+              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel || form.useDetector || form.useFind ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
             </label>
           </div>
+          <div v-if="form.useDetector && detectorChoices.length" class="st-field">
+            <label for="st-detector">Detector</label>
+            <select id="st-detector" v-model="form.detector" class="text-input" :aria-invalid="!!fieldErrors.detector">
+              <option v-for="d in detectorChoices" :key="d.key" :value="d.key">{{ d.name }}{{ d.price ? ` · ${d.price}` : '' }}</option>
+            </select>
+          </div>
+          <div v-if="form.useFind" class="st-field">
+            <label for="st-find">What to find</label>
+            <input id="st-find" v-model="form.find" class="text-input" maxlength="400" placeholder="person, forklift, red helmet" :aria-invalid="!!fieldErrors.find">
+          </div>
+          <label v-if="form.useModel || form.useDetector || form.useFind" class="st-check">
+            <input v-model="form.skipStill" type="checkbox"> <span>{{ options.skip_still_note || 'Skip still frames: a frame nearly the same as the last one answered is not sent, and is not charged.' }}</span>
+          </label>
+          <label v-if="listenOption" class="st-check">
+            <input v-model="form.listen" type="checkbox"> <span><strong>Listen for sounds</strong>: {{ (listenOption.sounds || []).join(', ') }}. {{ listenOption.note }}</span>
+          </label>
+          <label v-if="form.listen" class="st-check">
+            <input v-model="form.listenConsent" type="checkbox"> <span>{{ listenOption.consent }}</span>
+          </label>
+          <div v-if="form.listen && soundChoices.length" class="st-field">
+            <label for="st-sound-model">Sound model</label>
+            <select id="st-sound-model" v-model="form.soundModel" class="text-input" :aria-invalid="!!fieldErrors.sound_model">
+              <option v-for="d in soundChoices" :key="d.key" :value="d.key">{{ d.name }}{{ d.price ? ` · ${d.price}` : '' }}</option>
+            </select>
+          </div>
+          <p v-if="fieldErrors.sound_model" class="field-error" role="alert">{{ fieldErrors.sound_model }}</p>
+          <p v-if="fieldErrors.listen" class="field-error" role="alert">{{ fieldErrors.listen }}</p>
+          <p v-if="fieldErrors.detector" class="field-error" role="alert">{{ fieldErrors.detector }}</p>
+          <p v-if="fieldErrors.find" class="field-error" role="alert">{{ fieldErrors.find }}</p>
           <p v-if="fieldErrors.read_codes" class="field-error" role="alert">{{ fieldErrors.read_codes }}</p>
         </fieldset>
 
@@ -433,7 +542,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             <label class="st-card st-continuous" :class="{ chosen: form.continuous }">
               <input v-model="form.continuous" type="checkbox" aria-describedby="st-continuous-help">
               <span><strong>Run continuously until I stop it</strong>
-                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ callsAFrame > 1 ? 'Each frame is charged for the model and for reading its barcodes' : 'Each frame is one photo call' }} from your balance: at {{ form.fps }} a second, {{ perHour.toLocaleString('en-US') }} photo calls an hour.</small></span>
+                <small id="st-continuous-help">Otherwise it stops after {{ capMinutes }} minutes. {{ continuousCharge }}</small></span>
             </label>
           </div>
           <div v-else-if="form.source==='address'" class="st-source">
@@ -469,8 +578,12 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </form>
     </UiDialog>
 
+    <StreamingTermsDialog :open="termsOpen" :terms="terms" @close="termsOpen = false" @accepted="termsAccepted"/>
+
     <UiDialog :open="notifying" title="Offline notifications" @close="notifying=false">
-      <p class="dialog-description">Being told by e-mail or in AADML when a camera goes offline is coming soon. For now, a camera's state is updated when you press Check now in its details.</p>
+      <p class="dialog-description">When a camera goes offline or needs attention, the workspace's Admins and the organization's owners are told under the bell in AADML and by e-mail, at most once an hour a camera, and again once when it is back online.</p>
+      <p class="dialog-description">AADML checks each camera by itself: a camera address every 5 minutes, a camera on your machine every 10 (by that machine). A camera found down is looked at again a minute later before anyone is told, so a moment's network trouble sends nothing. While a camera is watched, recorded or streamed, and when an RTMP stream or a phone starts or stops sending, a change is noticed at once; Check now in its details checks it any time.</p>
+      <p class="dialog-description">The e-mail can be turned off in Settings, Notifications, Camera alerts; the notice under the bell is always made.</p>
       <div class="dialog-actions"><UiButton variant="primary" @click="notifying=false">Close</UiButton></div>
     </UiDialog>
 
@@ -494,6 +607,10 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-head h2{margin:0 0 4px}
 .st-head p{margin:0;max-width:620px;color:#4c5d74}
 .st-head-acts{display:flex;gap:10px;flex-wrap:wrap}
+.st-views{display:inline-flex;gap:4px;margin:0 0 16px;padding:4px;border-radius:12px;background:#f1f4f8;max-width:100%;overflow-x:auto}
+.st-views button{min-height:40px;padding:8px 16px;border:0;border-radius:9px;background:transparent;color:#33415a;font:inherit;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer}
+.st-views button.on{background:#fff;color:#162139;box-shadow:0 1px 2px #0d132033}
+.st-views button:focus-visible{outline:2px solid var(--aadml-focus,#2563eb);outline-offset:2px}
 .st-head-acts .button{min-height:44px}
 .st-billing{display:flex;gap:8px;align-items:flex-start;margin:0 0 16px;font-size:13px;line-height:1.55;color:#33415a!important}
 .st-billing svg{flex-shrink:0;margin-top:2px;color:#5f6d82}
@@ -590,6 +707,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-continuous{margin-top:12px}
 .st-found{color:#33415a!important;overflow-wrap:anywhere}
 .st-frame-codes{margin:4px 0 0!important;font-size:12px!important;color:#33415a!important;overflow-wrap:anywhere}
+.st-check{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13px;color:#33415a}
 .st-codes{margin-top:16px;padding-top:12px;border-top:1px solid #dfe5ee}
 .st-codes h4{margin:0 0 8px;font-size:13px;color:#162139}
 .st-codes h4 small{font-weight:400;color:#5f6d82}

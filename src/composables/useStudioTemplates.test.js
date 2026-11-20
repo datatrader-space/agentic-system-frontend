@@ -107,7 +107,8 @@ it('drops an answer that arrives after the signed-in person changed', async () =
 })
 
 it('fills a look with the template\'s texts, keeping the look\'s own prompt pattern when it matches', () => {
-  const look = studioLooks.find(item => item.id === 'image-look-1')
+  // Any look with fields of its own (the Image and Video looks are served by the Recipe API now, F-D4).
+  const look = studioLooks.find(item => item.variables?.length > 1)
   const texts = Object.fromEntries(look.variables.map(field => [field.label, `My ${field.label}`]))
   const prompt = composePreset({ ...look, variants: [], variables: look.variables.map(field => ({ ...field, default: texts[field.label] })) })
   const filled = templateLook({ prompt, variables: texts, page: 'image', title: 'Mine' }, look)

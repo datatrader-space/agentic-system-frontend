@@ -39,7 +39,7 @@
       <template v-else>
         <p class="st-muted">{{ feature.purpose }} Review every paid proposal in My results, then choose Generate or Decline on its card.</p>
         <template v-if="availability?.ready">
-          <CreativeBoard v-if="['storyboard','cinema','editor'].includes(featureId)" :kind="featureId" @job="addJob" />
+          <CreativeBoard v-if="['storyboard','cinema'].includes(featureId)" :kind="featureId" @job="addJob" />
           <CreativeMarketing v-else-if="featureId === 'ads'" :kind="featureId" @job="addJob" />
           <CreativeNarrative v-else-if="['shorts','explainer'].includes(featureId)" :kind="featureId" @job="addJob" />
         </template>

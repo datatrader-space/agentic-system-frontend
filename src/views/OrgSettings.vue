@@ -109,6 +109,7 @@
               <option value="member">Member</option>
               <option value="admin">Admin</option>
               <option value="viewer">Viewer</option>
+              <option value="billing">Billing</option>
             </select>
             <button class="btn-primary btn-sm" @click="inviteMember" :disabled="inviting || !inviteEmail.trim() || !inviteName.trim()">
               {{ inviting ? 'Inviting…' : 'Send Invite' }}
@@ -224,6 +225,11 @@
           </div>
         </section>
 
+        <!-- ─── Single sign-on (ADM-1248) ─────────────── -->
+        <section v-if="activeTab === 'sso'" class="settings-section">
+          <OrgSsoSettings :org-slug="orgSlug" />
+        </section>
+
         <!-- ─── Billing (Placeholder) ─────────────────── -->
         <section v-if="activeTab === 'billing'" class="settings-section">
           <h2 class="settings-section-title">Billing & Usage</h2>
@@ -300,13 +306,6 @@
             <h3 class="placeholder-title">Security Settings</h3>
             <p class="placeholder-desc">Configure authentication, access controls, and security policies for your organisation.</p>
             <div class="placeholder-features">
-              <div class="placeholder-feature">
-                <span class="pf-icon">🔒</span>
-                <div>
-                  <span class="pf-title">Single Sign-On (SSO)</span>
-                  <span class="pf-desc">SAML and OIDC integration</span>
-                </div>
-              </div>
               <div class="placeholder-feature">
                 <span class="pf-icon">📱</span>
                 <div>
@@ -388,6 +387,7 @@ import tenancyApi from '../services/tenancyApi'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import LoadError from '@/components/common/LoadError.vue'
+import OrgSsoSettings from '@/components/org/OrgSsoSettings.vue'
 
 const route = useRoute()
 const orgSlug = computed(() => route.params.orgSlug)
@@ -427,6 +427,7 @@ const orgTabs = [
   { key: 'general',    label: 'General',    icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.062 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>' },
   { key: 'members',    label: 'Members',    icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>' },
   { key: 'workspaces', label: 'Workspaces', icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>' },
+  { key: 'sso',        label: 'Single sign-on', icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>' },
 ]
 
 const platformTabs = [

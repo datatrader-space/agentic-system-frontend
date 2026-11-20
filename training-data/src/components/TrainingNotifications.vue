@@ -1,5 +1,7 @@
 <script setup>
-// This person's Training notifications, newest first. Opening one marks it read and goes to its assignment.
+// This person's Training notifications, newest first. Opening one marks it read and goes to its assignment (or, for a
+// camera that went offline or is back, to Cloud Streaming). Their e-mails are switched off under Settings,
+// Notifications; these entries are always kept.
 import { onMounted, ref } from 'vue';
 import { Bell } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
@@ -31,7 +33,7 @@ onMounted(load);
     <div class="section-heading"><h2>Notifications <span class="count">{{ unread }} unread</span></h2><UiButton :disabled="busy || !unread" @click="readAll">Mark all read</UiButton></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <p v-if="loading">Loading…</p>
-    <div v-else-if="!rows.length" class="mini-empty"><Bell :size="28" /><strong>No notifications yet</strong><span>You are told here when an assignment is given to you, returned, approved or sent back.</span></div>
+    <div v-else-if="!rows.length" class="mini-empty"><Bell :size="28" /><strong>No notifications yet</strong><span>You are told here when an assignment is given to you, returned, approved or sent back, and when a camera you manage goes offline or is back.</span></div>
     <div v-for="row in rows" :key="row.id" class="stat-row">
       <span><strong>{{ row.title }}</strong><br>{{ row.body }}<br><small>{{ new Date(row.at).toLocaleString() }}</small></span>
       <UiBadge v-if="!row.read" tone="purple">New</UiBadge>
