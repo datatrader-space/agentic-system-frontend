@@ -1,7 +1,8 @@
 // One language server of a Let's Code project, through AADML (ADM-1205 phase F, item 16;
 // agentic-docs/LETS_CODE_LANGUAGE_SERVERS_PLAN.md). The server runs in the project's sandbox; the browser speaks to
-// ws/lets-code/{repo}/lsp/{typescript|python}/ only. Each text frame is one JSON-RPC 2.0 message, except AADML's own
-// status frames, which carry `type` ({type: 'status', state: installing | starting | ready | error | exited}).
+// ws/lets-code/{repo}/lsp/{language}/ only (ADM-1324: the backend's project_language.LANGUAGES). Each text frame is one
+// JSON-RPC 2.0 message, except AADML's own status frames, which carry `type` ({type: 'status', state: installing |
+// starting | ready | error | exited, error?, detail?}; `detail`: a failed install's log, whole).
 //
 // Our own small client (plan D6): requests and their replies, notifications both ways, and the server's requests
 // answered by `onRequest`. A closed socket fails every request still waiting, so no caller waits for ever.

@@ -15,14 +15,14 @@ import {
   createLanguageServers, serverFor, languageIdOf, toUri, pathOfUri, problemOf, rangeOf, positionOf,
   hoverContents, locationsOf, completionsOf, applyTextEdits, endOf, workspaceEditFiles, inlayHintsOf, lspRangeOf,
   leaveEditingToServers, RESOURCE_OPERATIONS_REFUSED, PROJECT_LOADING_WAIT_MS, RENAME_WAITING, RENAME_NOT_LOADED,
-  RENAME_DONE_HERE, RENAME_NOTHING,
+  RENAME_DONE_HERE, RENAME_NOTHING, SERVER_NAMES,
 } from './useLanguageServers'
 
 const ROOT = '/home/northrays/workspace/repo-4'
 
 describe('conversions', () => {
   it('a file belongs to a server by its extension', () => {
-    expect([serverFor('a.tsx'), serverFor('b.py'), serverFor('c.css'), languageIdOf('x.jsx'), languageIdOf('y.ts')])
+    expect([serverFor('a.tsx'), serverFor('b.py'), serverFor('c.md'), languageIdOf('x.jsx'), languageIdOf('y.ts')])
       .toEqual(['typescript', 'python', null, 'javascriptreact', 'typescript'])
   })
   it('paths and file URIs, spaces included, and nothing outside the project', () => {
@@ -631,5 +631,102 @@ describe('editing through the language servers (ADM-1319)', () => {
     expect(api.formatRepositoryFile).toHaveBeenCalledTimes(1)
     expect(notify.info).toHaveBeenCalledWith("The project's sandbox did not answer in time. The file was not formatted.")
     expect(e.tabs.value[0].content).toBe('x=1\n')
+  })
+})
+
+describe('more languages (ADM-1324)', () => {
+  beforeEach(() => {
+    FakeConnection.made = []
+    FakeConnection.caps = { documentFormattingProvider: true, documentRangeFormattingProvider: true }
+    vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  const shown = (path, content = 'x') => {
+    const e = editorCtx()
+    e.tabs.value = [{ id: 1, type: 'file', path, content, original: content }]
+    return e
+  }
+  async function open(path, content) {
+    const e = shown(path, content)
+    const s = createLanguageServers({ systemId: 5, repoId: 4, Connection: FakeConnection, urlFor: (r, l) => `${r}/${l}` })
+    s.bind(e.ctx)
+    return { e, s, c: FakeConnection.made[0] }
+  }
+
+  it('each file belongs to its server, with the languageId the server expects', () => {
+    const files = ['a.go', 'b.rs', 'C.java', 'd.cs', 'e.csx', 'f.php', 'g.phtml', 'h.html', 'i.htm', 'j.css',
+      'k.scss', 'l.less', 'm.json']
+    expect(files.map(serverFor)).toEqual(['go', 'rust', 'java', 'csharp', 'csharp', 'php', 'php', 'html', 'html', 'css',
+      'css', 'css', 'json'])
+    expect(files.map(languageIdOf)).toEqual(['go', 'rust', 'java', 'csharp', 'csharp', 'php', 'php', 'html', 'html',
+      'css', 'scss', 'less', 'json'])
+    expect([serverFor('README.md'), serverFor('Makefile'), serverFor('x.jsonc')]).toEqual([null, null, null])
+    expect(SERVER_NAMES.csharp).toBe('C#')
+  })
+
+  it('a Go file opens the Go server; Monaco gets its providers for every new language', async () => {
+    const { e, c } = await open('cmd/main.go', 'package main')
+    expect(c.url).toBe('4/go')
+    c.ready()
+    await Promise.resolve(); await Promise.resolve()
+    expect(c.sent[0][2].initializationOptions).toBeUndefined()
+    expect(c.sent.find((x) => x[1] === 'textDocument/didOpen')[2].textDocument)
+      .toMatchObject({ uri: toUri(ROOT, 'cmd/main.go'), languageId: 'go' })
+    for (const id of ['go', 'rust', 'java', 'csharp', 'php', 'html', 'css', 'scss', 'less', 'json']) {
+      expect(e.providers.hover[id], id).toBeTruthy()
+      expect(e.providers.completion[id], id).toBeTruthy()
+      expect(e.providers.formatting[id], id).toBeTruthy()
+    }
+    expect(e.monaco.languages.registerDocumentFormattingEditProvider.mock.calls.find((x) => x[0] === 'scss')[1].displayName)
+      .toBe('The CSS language server')
+  })
+
+  it('the HTML, CSS and JSON servers are asked to format; a JSON file is formatted by its server', async () => {
+    const { e, c } = await open('package.json', '{"a":1}')
+    expect(c.url).toBe('4/json')
+    c.ready()
+    await Promise.resolve(); await Promise.resolve()
+    expect(c.sent[0][2].initializationOptions).toEqual({ provideFormatter: true })
+    c.request = vi.fn(async (m) => (m === 'textDocument/formatting' ? [{ range: { start: { line: 0, character: 0 },
+      end: { line: 0, character: 7 } }, newText: '{ "a": 1 }' }] : null))
+    const edits = await e.providers.formatting.json.provideDocumentFormattingEdits(e.model)
+    expect(c.request).toHaveBeenCalledWith('textDocument/formatting', { textDocument: { uri: toUri(ROOT, 'package.json') },
+      options: { tabSize: 4, insertSpaces: true } })
+    expect(edits).toEqual([{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 8 }, text: '{ "a": 1 }' }])
+  })
+
+  it("a server that cannot run says why, keeps the install's log, and nothing else formats in its place", async () => {
+    const { e, s, c } = await open('src/main.rs', 'fn main() {}')
+    c.onStatus({ state: 'error', error: 'The Rust language server (rust-analyzer) needs the Rust toolchain, which this '
+      + 'sandbox does not have.', detail: '' })
+    expect(s.servers.rust).toMatchObject({ state: 'error', detail: '' })
+    expect(await e.providers.formatting.rust.provideDocumentFormattingEdits(e.model)).toEqual([])
+    expect(notify.error).toHaveBeenCalledWith('The file was not formatted: The Rust language server (rust-analyzer) '
+      + 'needs the Rust toolchain, which this sandbox does not have.')
+    c.onStatus({ state: 'error', error: 'could not be installed', detail: 'the whole log' })
+    expect(s.servers.rust.detail).toBe('the whole log')
+  })
+
+  it("Monaco's own HTML, CSS and JSON rename and formatting are never registered; the rest goes when the server is ready", async () => {
+    const d = () => ({ modeConfiguration: { hovers: true }, setModeConfiguration: vi.fn() })
+    const ns = { css: { cssDefaults: d(), scssDefaults: d(), lessDefaults: d() }, html: { htmlDefaults: d() },
+      json: { jsonDefaults: d() }, typescript: { typescriptDefaults: d(), javascriptDefaults: d() } }
+    leaveEditingToServers(ns)
+    for (const x of [ns.css.cssDefaults, ns.css.scssDefaults, ns.css.lessDefaults, ns.html.htmlDefaults, ns.json.jsonDefaults]) {
+      expect(x.setModeConfiguration).toHaveBeenCalledWith({ hovers: true, rename: false, documentFormattingEdits: false,
+        documentRangeFormattingEdits: false })
+    }
+    for (const x of Object.values(ns).flatMap(Object.values)) x.setModeConfiguration.mockClear()
+    const e = shown('a.json', '{}')
+    Object.assign(e.monaco, ns)
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    FakeConnection.made[0].ready()
+    await Promise.resolve(); await Promise.resolve()
+    expect(ns.json.jsonDefaults.setModeConfiguration).toHaveBeenCalledWith(expect.objectContaining({ completionItems: false,
+      hovers: false, diagnostics: false }))
+    expect(ns.css.cssDefaults.setModeConfiguration).not.toHaveBeenCalled()             // only the server that is ready
+    expect(ns.typescript.typescriptDefaults.setModeConfiguration).not.toHaveBeenCalled() // TypeScript's waits for its own
   })
 })

@@ -15,10 +15,17 @@
         </button>
       </div>
       <p v-if="store.checkError.value" class="pp-note err" role="alert">{{ store.checkError.value }}</p>
-      <p v-if="serverError" class="pp-note err" role="alert">{{ serverError }}</p>
+      <template v-for="e in serverErrors" :key="e.lang">
+        <p class="pp-note err" role="alert">{{ e.error }}</p>
+        <!-- A failed install's log, whole (ADM-1324): it says what went wrong in the sandbox. -->
+        <details v-if="e.detail" class="pp-log">
+          <summary>Setup log of the {{ SERVER_NAMES[e.lang] || e.lang }} language server</summary>
+          <pre>{{ e.detail }}</pre>
+        </details>
+      </template>
       <div v-if="!groups.length" class="pp-empty">
-        No problems. Open a TypeScript, JavaScript or Python file to start its language server, or check the whole
-        project.
+        No problems. Open a file to start its language server (TypeScript, JavaScript, Python, Go, Rust, Java, C#,
+        PHP, HTML, CSS or JSON), or check the whole project.
       </div>
       <div v-for="g in groups" :key="g.path" class="pp-group">
         <div class="pp-file"><Icon icon="lucide:file-code" aria-hidden="true" /> {{ g.path }} <span class="pp-n">{{ g.items.length }}</span></div>
@@ -50,14 +57,13 @@
 <script setup>
 import { computed, inject } from 'vue'
 import { Icon } from '@iconify/vue'
-import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
+import { LANGUAGE_SERVERS, SERVER_NAMES } from '@/stores/useLanguageServers'
 
 defineProps({ mode: { type: String, default: 'problems' } })   // 'problems' | 'references'
 const store = inject(LANGUAGE_SERVERS)
 
 const ICON = { error: 'lucide:circle-x', warning: 'lucide:triangle-alert', info: 'lucide:info', hint: 'lucide:lightbulb' }
-const NAMES = { typescript: 'TypeScript', python: 'Python' }
-const STATES = { connecting: 'connecting', installing: 'installing (first time, about a minute)', starting: 'starting',
+const STATES = { connecting: 'connecting', installing: 'installing (first time only, a few minutes)', starting: 'starting',
   initializing: 'starting', ready: 'ready', error: 'not running', closed: 'stopped', exited: 'stopped' }
 
 const groups = computed(() => {
@@ -69,8 +75,10 @@ const groups = computed(() => {
   return [...by].map(([path, items]) => ({ path, items }))
 })
 const serversText = computed(() => Object.entries(store.servers)
-  .map(([lang, s]) => `${NAMES[lang] || lang}: ${STATES[s.state] || s.state}`).join(' · '))
-const serverError = computed(() => Object.values(store.servers).map((s) => s.error).filter(Boolean)[0] || '')
+  .map(([lang, s]) => `${SERVER_NAMES[lang] || lang}: ${STATES[s.state] || s.state}`).join(' · '))
+// Every server's error, each with its install log when it has one.
+const serverErrors = computed(() => Object.entries(store.servers).filter(([, s]) => s.error)
+  .map(([lang, s]) => ({ lang, error: s.error, detail: s.detail || '' })))
 const refs = computed(() => store.references.value)
 </script>
 
@@ -87,6 +95,10 @@ const refs = computed(() => store.references.value)
 .pp-btn :deep(svg) { width: 14px; height: 14px; }
 .pp-note { margin: 0; font-size: 12px; }
 .pp-note.err { color: var(--vm-danger); }
+.pp-log { font-size: 12px; }
+.pp-log summary { cursor: pointer; color: var(--vm-ink-soft); min-height: 24px; }
+.pp-log summary:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; border-radius: 4px; }
+.pp-log pre { margin: 4px 0 0; max-height: 220px; overflow: auto; padding: 8px; border: 1px solid var(--vm-line-2); border-radius: 6px; background: var(--vm-surface-soft); color: var(--vm-ink); font: 11.5px/1.45 var(--vm-font-mono); white-space: pre-wrap; word-break: break-word; }
 .pp-empty { color: var(--vm-ink-faint); font-size: 13px; padding: 4px 0; }
 .pp-file { display: flex; align-items: center; gap: 6px; padding: 6px 0 2px; font-weight: 600; color: var(--vm-ink); word-break: break-all; }
 .pp-file :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; }

@@ -137,7 +137,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @open-merge="openMerge" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
         </div>
 
         <!-- Run and Debug (ADM-1205 phase F item 17). -->
@@ -147,7 +147,7 @@
 
         <!-- Search inside the files: kept while another tab is open, so its results are there on return. -->
         <div v-show="sidebarTab === 'search'" class="search-pane">
-          <ContentSearch ref="contentSearch" :system-id="systemId" :repo-id="repositoryId" @open="openAt" />
+          <ContentSearch ref="contentSearch" :system-id="systemId" :repo-id="repositoryId" :is-unsaved="isUnsavedPath" @open="openAt" @written="onSearchWritten" />
         </div>
       </div>
       <ExplorerMenu :open="menu.open" :x="menu.x" :y="menu.y" :items="menu.items" :label="menu.label"
@@ -193,6 +193,7 @@
           :class="['tab', { active: !chatFront && activeTabId === tab.id }]">
           <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
           <Icon v-else-if="tab.type === 'review'" class="tab-icon" icon="lucide:list-checks" aria-hidden="true" />
+          <Icon v-else-if="tab.type === 'merge'" class="tab-icon" icon="lucide:git-merge" aria-hidden="true" />
           <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
                 :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
           <span class="tab-name">{{ tab.name }}</span>
@@ -200,6 +201,12 @@
           <button type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
         </div>
         <div v-if="editable" class="tab-actions">
+          <!-- Blame (ADM-1321): who last changed each line, read once when turned on, never on each keystroke. -->
+          <button v-if="activeTab && activeTab.type === 'file' && !chatFront" type="button" class="tab-tool" :class="{ on: blameOn }"
+                  :aria-pressed="blameOn ? 'true' : 'false'" aria-label="Show who changed each line"
+                  :title="blameOn ? 'Hide who changed each line' : 'Blame: who changed each line, and when'" @click="toggleBlame">
+            <Icon icon="lucide:user-round-search" aria-hidden="true" />
+          </button>
           <button ref="settingsBtn" type="button" class="tab-gear" title="Editor settings" aria-label="Editor settings"
                   :aria-expanded="settingsOpen ? 'true' : 'false'" @click="openSettings">
             <Icon icon="lucide:settings-2" aria-hidden="true" />
@@ -228,7 +235,15 @@
         <template v-if="!chatFront">
         <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
              as VS Code shows it. Read-only: edits are made in the file's own tab. -->
-        <template v-if="activeTab && activeTab.type === 'diff'">
+        <!-- A conflicted file in the 3-way merge editor (ADM-1321). -->
+        <MergeEditor
+          v-if="activeTab && activeTab.type === 'merge'" :key="activeTab.id"
+          :system-id="systemId" :repo-id="repositoryId" :path="activeTab.path" :language="activeTab.language"
+          :editor="MonacoEditor" :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :editor-options="editorOptions"
+          :theme="monacoTheme" :monaco="() => monacoNs"
+          @resolved="onMergeResolved(activeTab, $event)" @open-file="openFile" @edited="(on) => { activeTab.edited = on }"
+        />
+        <template v-else-if="activeTab && activeTab.type === 'diff'">
           <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
             <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the changes…' }}</p>
           </div>
@@ -237,16 +252,36 @@
             <p class="empty-editor-t">{{ activeTab.path }}</p>
             <p class="empty-editor-s">{{ activeTab.note }}</p>
           </div>
-          <MonacoDiffEditor
-            v-else
-            :value="activeTab.modified"
-            :original="activeTab.originalText"
-            :language="activeTab.language"
-            :theme="monacoTheme"
-            :options="diffOptions"
-            class="monaco-editor"
-            @editorDidMount="onDiffMount"
-          />
+          <div v-else class="diff-wrap">
+            <!-- Stage or unstage ONE change of the file (ADM-1321), as VS Code's Stage Selected Ranges. -->
+            <div v-if="activeTab.hunks && !activeTab.hunks.redacted && (hunkCount(activeTab) || activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole)" class="hunk-bar" role="group" aria-label="Changes in this file">
+              <template v-for="side in hunkSides(activeTab)" :key="side.key">
+                <span v-if="side.items.length" class="hunk-side">{{ side.label }}</span>
+                <span v-for="(h, i) in side.items" :key="side.key + h.header" class="hunk">
+                  <button type="button" class="hunk-go" :aria-label="`Go to ${side.label.toLowerCase()} change ${i + 1}, ${hunkLines(h)}`" @click="revealHunk(h)">
+                    {{ hunkLines(h) }}
+                  </button>
+                  <button type="button" class="hunk-act" :disabled="activeTab.staging"
+                          :aria-label="`${side.unstage ? 'Unstage' : 'Stage'} change ${i + 1}, ${hunkLines(h)}`"
+                          :title="side.unstage ? 'Unstage this change' : 'Stage this change'" @click="stageHunk(activeTab, h, side.unstage)">
+                    <Icon :icon="side.unstage ? 'lucide:minus' : 'lucide:plus'" aria-hidden="true" />
+                  </button>
+                </span>
+              </template>
+              <span v-if="activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole" class="hunk-note">
+                A new, deleted, renamed or binary file is staged whole, from Source control.
+              </span>
+            </div>
+            <MonacoDiffEditor
+              :value="activeTab.modified"
+              :original="activeTab.originalText"
+              :language="activeTab.language"
+              :theme="monacoTheme"
+              :options="diffOptions"
+              class="monaco-editor"
+              @editorDidMount="onDiffMount"
+            />
+          </div>
         </template>
         <!-- A Review tab is drawn above (ReviewChanges); nothing else shows under it. -->
         <span v-else-if="activeTab && activeTab.type === 'review'" hidden></span>
@@ -364,6 +399,8 @@ import { bindConflictActions } from '@/utils/mergeConflicts'
 import { SIDE_BY_SIDE_MIN_PX } from '@/utils/diffLayout'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
 import ReviewChanges from '@/components/letscode/ReviewChanges.vue'
+import MergeEditor from '@/components/letscode/MergeEditor.vue'
+import { blameDecorations } from '@/utils/blame'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -545,7 +582,10 @@ async function loadDiffInto(live) {
     else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
     // Discarded or committed since the tab opened: say so instead of two identical sides.
     else if (!live.sha && (data.original || '') === (data.modified || '')) { live.note = 'This file has no changes now.'; live.noteIcon = 'lucide:check-circle-2' }
-    else { live.originalText = data.original || ''; live.modified = data.modified || '' }
+    else {
+      live.originalText = data.original || ''; live.modified = data.modified || ''
+      if (!live.sha) await loadHunksInto(live)
+    }
   } catch (e) {
     live.note = e?.response?.data?.error || 'The changes could not be loaded.'
   } finally {
@@ -578,6 +618,106 @@ async function writeTab(tab, sha) {
   tab.diskSha = data?.sha ?? null
   projectCache.file.set(props.repositoryId, tab.path, text)
   notify.success(`Saved ${tab.name}`)
+  blameRead.delete(tab.path)
+  nextTick(applyBlame)
+}
+
+// ── Staging one change, the merge editor and blame (ADM-1321) ──────────────────────────────────────────────────
+// A working-tree diff tab also holds the file's hunks: each change not staged yet (Stage) and each staged one
+// (Unstage). A hunk is staged exactly as read; a file changed since is refused by the server and read again here.
+async function loadHunksInto(live) {
+  try {
+    const { data } = await api.getSourceControlHunks(props.systemId, props.repositoryId, live.path)
+    live.hunks = data
+  } catch {
+    live.hunks = null                     // the diff still shows; the file is staged whole from Source control
+  }
+}
+const hunkCount = (tab) => (tab.hunks?.unstaged?.hunks?.length || 0) + (tab.hunks?.staged?.hunks?.length || 0)
+function hunkSides(tab) {
+  return [
+    { key: 'u', label: 'Not staged', unstage: false, items: tab.hunks?.unstaged?.hunks || [] },
+    { key: 's', label: 'Staged', unstage: true, items: tab.hunks?.staged?.hunks || [] },
+  ]
+}
+function hunkLines(h) {
+  const n = Math.max(1, h.new_lines)
+  return n === 1 ? `line ${h.new_start}` : `lines ${h.new_start}–${h.new_start + n - 1}`
+}
+function revealHunk(h) {
+  try {
+    const ed = diffInst?.getModifiedEditor?.()
+    ed?.revealLineInCenter(Math.max(1, h.new_start))
+    ed?.setPosition({ lineNumber: Math.max(1, h.new_start), column: 1 })
+    ed?.focus()
+  } catch { /* the diff went away */ }
+}
+async function stageHunk(tab, h, unstage) {
+  if (tab.staging) return
+  tab.staging = true
+  try {
+    const { data } = await whileSandboxStarts(() => api.stageSourceControlChange(props.systemId, props.repositoryId,
+      { path: tab.path, patch: h.patch, index: tab.hunks.index, unstage }), _wait)
+    tab.hunks = data.hunks
+    notify.success(unstage ? `Unstaged a change in ${tab.path}` : `Staged a change in ${tab.path}`)
+  } catch (e) {
+    const data = e?.response?.data
+    if (data?.hunks) tab.hunks = data.hunks
+    else await loadHunksInto(tab)
+    notify.error(data?.error || 'That change could not be staged. Look at the changes again.')
+  } finally {
+    tab.staging = false
+  }
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+}
+
+// A conflicted file opens in its own tab, "app.py (merge)".
+function openMerge(path) {
+  showFilesInFront()
+  const existing = openTabs.value.find(t => t.type === 'merge' && t.path === path)
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = { id: nextTabId(), type: 'merge', path, name: `${path.split('/').pop()} (merge)`, language: detectLanguage(path) }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+}
+async function onMergeResolved(tab) {
+  if (scmPanel.value?.refresh) { try { scmPanel.value.refresh() } catch { /* unmounting */ } }
+  else loadScmCount()
+  if (tab) await closeTab(tab.id)
+  await reloadOpenTabs()
+}
+
+// Blame: read once per file while it is on (and again after a save or a change in the project); a tab with unsaved
+// edits shows none, as its lines no longer match the file the blame was read for.
+const blameOn = ref(false)
+const blameRead = new Map()
+let blameDecos = null
+function clearBlame() {
+  try { blameDecos && blameDecos.clear() } catch { /* the editor went away */ }
+  blameDecos = null
+}
+function toggleBlame() {
+  blameOn.value = !blameOn.value
+  applyBlame()
+}
+async function applyBlame() {
+  clearBlame()
+  const tab = activeTab.value
+  if (!blameOn.value || chatFront.value || !tab || tab.type !== 'file' || isDirty(tab)) return
+  let data = blameRead.get(tab.path)
+  if (!data) {
+    try {
+      ({ data } = await whileSandboxStarts(() => api.getSourceControlBlame(props.systemId, props.repositoryId, tab.path), _wait))
+    } catch (e) {
+      if (activeTab.value === tab) notify.info(e?.response?.data?.error || `Who changed ${tab.name} could not be read.`)
+      return
+    }
+    blameRead.set(tab.path, data)
+  }
+  if (!blameOn.value || activeTab.value !== tab || isDirty(tab) || !editorInst || !monacoNs) return
+  clearBlame()
+  try { blameDecos = editorInst.createDecorationsCollection(blameDecorations(monacoNs.Range, data)) } catch { /* gone */ }
 }
 
 async function saveActive() {
@@ -824,6 +964,8 @@ const activeTab = computed(() => {
 })
 // The model's language follows the tab shown (see applyLanguage).
 watch(() => [activeTabId.value, activeTab.value && activeTab.value.language, editorSettings.tabSize], () => nextTick(applyLanguage), { flush: 'post' })
+// Blame follows the tab shown, and steps aside while it has unsaved edits (ADM-1321).
+watch(() => [activeTabId.value, activeTab.value && isDirty(activeTab.value), chatFront.value], () => nextTick(applyBlame))
 
 // Build a reactive tree node from a server entry. `expanded`/`loaded`/`loading`/`children` are plain
 // fields — they live inside the reactive `rootNodes` array, so mutating them updates the tree.
@@ -991,6 +1133,8 @@ async function reloadTree() {
 }
 // Open files without unsaved edits show their new content; an open diff shows the change as it is now.
 async function reloadOpenTabs() {
+  blameRead.clear()
+  nextTick(applyBlame)
   for (const tab of openTabs.value) {
     if (tab.type === 'diff') { await loadDiffInto(tab); continue }
     if (tab.type === 'image') { await loadImageInto(tab); continue }
@@ -1097,6 +1241,9 @@ function onReviewLoaded(tab, n) { tab.name = reviewName(n) }
 // A file the review wrote or deleted: its folder is read again, as when the project's watcher reports it, so its tab
 // (without unsaved edits) shows it at once.
 function onReviewWritten(path) { onFilesChanged({ dirs: [dirOf(path || '')] }) }
+// Files a Search replace changed (ADM-1320): their folders are read again, so a tab without unsaved edits shows the new
+// text; a tab with unsaved edits keeps them (Search asked first), and saving it later asks which version to keep.
+function onSearchWritten(paths) { onFilesChanged({ dirs: [...new Set((paths || []).map(dirOf))] }) }
 function isUnsavedPath(path) { return openTabs.value.some(t => t.type === 'file' && t.path === path && isDirty(t)) }
 function sendReview({ conversationId, text }) {
   return new Promise((resolve) => emit('send-review', { conversationId, text, done: (ok) => resolve(!!ok) }))
@@ -1236,6 +1383,14 @@ async function closeTab(tabId) {
       title: 'Discard your comments?',
       message: `"${tab.name}" has ${tab.comments} ${tab.comments === 1 ? 'comment' : 'comments'} not sent to the Coding Agent. Close without sending?`,
       confirmText: 'Close', cancelText: 'Keep reviewing', danger: true,
+    })
+    if (!ok) return
+  }
+  if (tab.type === 'merge' && tab.edited) {
+    const ok = await confirm({
+      title: 'Discard the merge result?',
+      message: `The result for ${tab.path} is not saved. Close without marking it resolved?`,
+      confirmText: 'Close', cancelText: 'Keep merging', danger: true,
     })
     if (!ok) return
   }
@@ -2101,13 +2256,30 @@ const FileTreeNode = {
 .chat-host { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
 .chat-host > * { flex: 1; min-height: 0; }
 .tab-actions { margin-left: auto; display: flex; align-items: center; padding: 0 8px; }
-.tab-gear {
+.tab-gear, .tab-tool {
   display: grid; place-items: center; width: 30px; height: 30px; margin-right: 6px; border: 0; border-radius: 6px;
   background: transparent; color: var(--vm-ink-soft); cursor: pointer; transition: background-color .15s, color .15s;
 }
-.tab-gear :deep(svg) { width: 16px; height: 16px; }
-.tab-gear:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
-.tab-gear:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.tab-gear :deep(svg), .tab-tool :deep(svg) { width: 16px; height: 16px; }
+.tab-gear:hover, .tab-tool:hover { background: color-mix(in srgb, var(--vm-ink) 7%, transparent); color: var(--vm-ink); }
+.tab-gear:focus-visible, .tab-tool:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
+.tab-tool.on { color: var(--vm-violet-ink); background: var(--vm-violet-soft); }
+.code-browser.narrow .tab-tool { width: 44px; height: 44px; }
+/* A diff tab's changes, each staged or unstaged on its own (ADM-1321). */
+.diff-wrap { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+.diff-wrap .monaco-editor { flex: 1 1 auto; min-height: 0; height: auto; }
+.hunk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--vm-line); background: var(--vm-surface-soft); font: 12px var(--vm-font-sans); color: var(--vm-ink-soft); max-height: 30%; overflow: auto; }
+.hunk-side { font-weight: 600; color: var(--vm-ink-soft); }
+.hunk { display: inline-flex; align-items: center; border: 1px solid var(--vm-line-2); border-radius: 7px; background: var(--vm-surface); overflow: hidden; }
+.hunk-go, .hunk-act { border: 0; background: transparent; color: var(--vm-ink); cursor: pointer; font: 12px var(--vm-font-mono); min-height: 26px; transition: background-color .15s, color .15s; }
+.hunk-go { padding: 0 8px; }
+.hunk-act { display: grid; place-items: center; width: 26px; border-left: 1px solid var(--vm-line-2); color: var(--vm-ink-soft); }
+.hunk-go:hover, .hunk-act:hover:not(:disabled) { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.hunk-act:disabled { opacity: .5; cursor: progress; }
+.hunk-go:focus-visible, .hunk-act:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; }
+.hunk-act :deep(svg) { width: 13px; height: 13px; }
+.hunk-note { font-size: 11.5px; color: var(--vm-ink-faint); }
+@media (max-width: 640px) { .hunk-go, .hunk-act { min-height: 44px; } .hunk-act { width: 44px; } }
 .save-btn { background: var(--vm-violet); color: var(--cb-on-solid); border: none; border-radius: 6px; padding: 5px 12px; font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, opacity .15s; }
 .save-btn:hover:not(:disabled) { background: var(--vm-violet-d); }
 .save-btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -2309,4 +2481,6 @@ const FileTreeNode = {
 .code-browser .lc-conflict-sep { background: color-mix(in srgb, #8a8a8a 30%, transparent); }
 .code-browser .lc-conflict-incoming { background: color-mix(in srgb, #40a6ff 18%, transparent); }
 .code-browser .lc-conflict-incoming-head { background: color-mix(in srgb, #40a6ff 45%, transparent); }
+/* Blame (ADM-1321): who changed the line, faint after its end, as GitLens shows it. */
+.code-browser .lc-blame-after { color: var(--vm-ink-faint); font-style: italic; opacity: .85; }
 </style>

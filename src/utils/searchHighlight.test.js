@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { highlight, inView, byFile, matcher, LEAD } from './searchHighlight'
+import { highlight, inView, byFile, matcher, LEAD, replaceBatches, BATCH_FILES, BATCH_CHARS } from './searchHighlight'
 
 const hits = (parts) => parts.filter((p) => p.hit).map((p) => p.text)
 const whole = (parts) => parts.map((p) => p.text).join('')
@@ -50,5 +50,18 @@ describe('byFile', () => {
   it('groups in the order the server sent', () => {
     const g = byFile([{ path: 'b.py', line: 1 }, { path: 'a.py', line: 3 }, { path: 'b.py', line: 9 }])
     expect(g.map((x) => [x.path, x.matches.map((m) => m.line)])).toEqual([['b.py', [1, 9]], ['a.py', [3]]])
+  })
+})
+
+describe('replaceBatches', () => {
+  const file = (path, chars) => ({ path, sha: 'x', lines: [{ line: 1, text: 'a'.repeat(chars) }] })
+  it('keeps every file, in order, never more than BATCH_FILES or about BATCH_CHARS a batch', () => {
+    const files = Array.from({ length: 60 }, (_, i) => file(`f${i}`, 10))
+    const batches = replaceBatches(files)
+    expect(batches.map((b) => b.length)).toEqual([BATCH_FILES, BATCH_FILES, 10])
+    expect(batches.flat()).toEqual(files)
+    const big = replaceBatches([file('a', BATCH_CHARS - 5), file('b', 10), file('c', BATCH_CHARS * 3)])
+    expect(big.map((b) => b.map((f) => f.path))).toEqual([['a'], ['b'], ['c']])
+    expect(replaceBatches([])).toEqual([])
   })
 })

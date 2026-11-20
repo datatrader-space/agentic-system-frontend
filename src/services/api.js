@@ -624,11 +624,25 @@ export default {
   waitForProjectJob: (systemId, repoId, job, opts) => projectJob(systemId, repoId,
     async () => ({ status: 202, data: { job } }), opts),
   getProjectJobFile: (systemId, repoId, jobId) => getBlob(`${_projectBase(systemId, repoId)}/jobs/${jobId}/download/`),
-  // Search inside the files: { q, case, word, regex, ignored } -> { matches: [{ path, line, column, text | redacted }] }
-  searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored } = {}) =>
+  // Search inside the files: { q, case, word, regex, ignored, include, exclude } -> { matches: [{ path, line, column,
+  // text | redacted }], binary }. With `replace` (a string, '' included: Replace is open, ADM-1320) each match also
+  // has its preview { after, preview } or no_match, `versions` names each file's version and `replace_error` says
+  // why the pattern cannot be replaced.
+  searchRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, ignored, include, exclude, replace } = {}) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/files/search/`, {
-      params: { q, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0, regex: regex ? 1 : 0, ignored: ignored ? 1 : 0 },
+      params: {
+        q, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0, regex: regex ? 1 : 0, ignored: ignored ? 1 : 0,
+        ...(include ? { include } : {}), ...(exclude ? { exclude } : {}),
+        ...(typeof replace === 'string' ? { replace } : {}),
+      },
       noCache: true,
+    }),
+  // Replace search matches (ADM-1320): the search's own { q, matchCase, wholeWord, regex, replace } and the files of
+  // one batch [{ path, sha, lines: [{ line, text }] }] -> { replaced: [{ path, lines, sha }], skipped: [{ path, code,
+  // reason }], count }. 409 CHANGED_ON_DISK (same body) when the files changed since the search.
+  replaceRepositoryContents: (systemId, repoId, { q, matchCase, wholeWord, regex, replace, files }) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/replace/`, {
+      q, case: !!matchCase, word: !!wholeWord, regex: !!regex, replace, files,
     }),
   // Source Control (VS Code–style SCM over the repo clone)
   getSourceControlStatus: (systemId, repoId) =>
@@ -650,8 +664,38 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/discard-all/`, {}),
   createBranch: (systemId, repoId, name) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/branch/`, { name }),
-  getSourceControlLog: (systemId, repoId, page = 0) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/log/`, { params: { page }, noCache: true }),
+  // `graph`: every branch, GitHub's branches and the tags, in the order the commit graph draws them (ADM-1321).
+  getSourceControlLog: (systemId, repoId, page = 0, { graph = false } = {}) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/log/`, {
+      params: { page, ...(graph ? { graph: 1 } : {}) }, noCache: true,
+    }),
+  // More of git (ADM-1321): blame, staging one change, the merge editor, stash, tags.
+  getSourceControlBlame: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/blame/`, { params: { path }, noCache: true }),
+  getSourceControlHunks: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/hunks/`, { params: { path }, noCache: true }),
+  // { path, unstage } stages or unstages the file whole; with { patch, index } (a hunk from getSourceControlHunks) only
+  // that one change.
+  stageSourceControlChange: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stage-change/`, body),
+  getMergeSides: (systemId, repoId, path) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/merge-sides/`, { params: { path }, noCache: true }),
+  // The merge editor's result: written into the file and marked resolved.
+  resolveWithContent: (systemId, repoId, path, content) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stage/`, { path, content }),
+  getStashes: (systemId, repoId) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/stashes/`, { noCache: true }),
+  // { op: 'push', message, include_untracked } | { op: 'apply' | 'pop' | 'drop', index, sha }
+  stashSourceControl: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/stash/`, body),
+  getTags: (systemId, repoId) =>
+    api.get(`${_projectBase(systemId, repoId)}/source-control/tags/`, { noCache: true }),
+  // { op: 'create', name, sha?, message? } | { op: 'delete', name }
+  changeTag: (systemId, repoId, body) =>
+    api.post(`${_projectBase(systemId, repoId)}/source-control/tag/`, body),
+  // Pushing a tag is a background job, as Push is.
+  pushTag: (systemId, repoId, name, opts) => projectJob(systemId, repoId,
+    () => api.post(`${_projectBase(systemId, repoId)}/source-control/push-tag/`, { name }), opts),
   getCommitFiles: (systemId, repoId, sha) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/commit-files/`, { params: { sha } }),
   // The person's own git actions (owner, 2026-11-09): the agent never commits, pushes or opens a pull request.

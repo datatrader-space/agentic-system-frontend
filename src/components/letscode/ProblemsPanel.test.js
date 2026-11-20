@@ -29,7 +29,7 @@ describe('ProblemsPanel', () => {
     const w = mountWith(s)
     expect(w.findAll('.pp-file').map((x) => x.text())).toEqual(['app/page.tsx 2', 'main.py 1'])
     expect(w.text()).toContain('TypeScript: ready')
-    expect(w.text()).toContain('Python: installing (first time, about a minute)')
+    expect(w.text()).toContain('Python: installing (first time only, a few minutes)')
     await w.findAll('.pp-row')[0].trigger('click')
     expect(s.open).toHaveBeenCalledWith(s.problems.value[0])
     await w.find('.pp-btn').trigger('click')
@@ -42,6 +42,24 @@ describe('ProblemsPanel', () => {
     const w = mountWith(s)
     expect(w.findAll('[role="alert"]').map((x) => x.text())).toEqual(['Install its packages', 'npm ERR! offline'])
     expect(w.text()).toContain('No problems.')
+  })
+
+  it("says every server's error, and a failed install's whole log under it (ADM-1324)", () => {
+    const log = 'curl: (6) Could not resolve host\n' + 'x'.repeat(3000)
+    const s = store({ problems: ref([]), servers: reactive({
+      go: { state: 'error', error: 'The Go language server (gopls) needs Go 1.21 or newer (the go command), which this sandbox does not have.' },
+      rust: { state: 'error', error: "The Rust language server (rust-analyzer) could not be installed in the project's sandbox.", detail: log },
+      json: { state: 'ready', error: '' } }) })
+    const w = mountWith(s)
+    expect(w.findAll('[role="alert"]').map((x) => x.text())).toEqual([
+      'The Go language server (gopls) needs Go 1.21 or newer (the go command), which this sandbox does not have.',
+      "The Rust language server (rust-analyzer) could not be installed in the project's sandbox."])
+    const details = w.findAll('details.pp-log')
+    expect(details).toHaveLength(1)
+    expect(details[0].find('summary').text()).toBe('Setup log of the Rust language server')
+    expect(details[0].find('pre').text()).toBe(log)
+    expect(w.text()).toContain('Go: not running')
+    expect(w.text()).toContain('JSON: ready')
   })
 
   it('lists references, and a click opens the place', async () => {

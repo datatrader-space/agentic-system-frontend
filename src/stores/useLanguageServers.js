@@ -1,5 +1,8 @@
 // The Let's Code editor's language servers (ADM-1205 phase F, item 16; agentic-docs/LETS_CODE_LANGUAGE_SERVERS_PLAN.md):
 // TypeScript / JavaScript and Python, each a real language server in the project's sandbox, reached through AADML.
+// ADM-1324: also Go (gopls), Rust (rust-analyzer), Java (jdtls), C# (csharp-ls), PHP (Intelephense), HTML, CSS / SCSS /
+// Less and JSON (vscode-langservers-extracted). Each is installed in the sandbox the first time a file of its language
+// is shown; the server says when it needs a runtime the sandbox does not have, and nothing else stands in for it.
 //
 // One store per open project, provided by the Let's Code page (LANGUAGE_SERVERS) like the chat tabs:
 //   * the editor (CodeBrowser) `bind`s its Monaco, its editor, its tabs, `openAt` and `editOpenFile(path, textEdits)`
@@ -9,9 +12,9 @@
 //     help, go to definition (another file opens through `openAt`) and find all references (Shift+F12);
 //   * the bottom panel's Problems tab reads `problems` (what the servers report, and Check project's tsc run) and its
 //     References tab reads `references`; a click opens the place through the same `openAt`.
-// A server starts the first time a file of its language is shown. While none is ready, Monaco's own TypeScript
-// support keeps working; once one is, Monaco's own hover, completion, definitions and diagnostics are switched off
-// so nothing is shown twice.
+// A server starts the first time a file of its language is shown. Until the TypeScript server is ready, Monaco's own
+// TypeScript support keeps working; once it is, Monaco's own hover, completion, definitions and diagnostics are
+// switched off so nothing is shown twice (the same for HTML, CSS and JSON with their own servers).
 //
 // Editing through the servers (ADM-1319): rename (F2), quick fixes and refactors (Ctrl+.), inlay hints and Format
 // Document (Shift+Alt+F) for TypeScript, JavaScript and Python. These come from the servers only: Monaco's own are
@@ -31,13 +34,22 @@ import { projectCache } from '@/services/projectCache'
 export const LANGUAGE_SERVERS = Symbol('lets-code-language-servers')
 
 // ── pure helpers (tested on their own) ────────────────────────────────────────────────────────────────────────
+// Which server a file belongs to (the backend's project_language.LANGUAGES keys, by the same extensions) and its LSP
+// languageId.
 const EXT_LANG = { ts: 'typescript', tsx: 'typescript', js: 'typescript', jsx: 'typescript', mjs: 'typescript',
-  cjs: 'typescript', mts: 'typescript', cts: 'typescript', py: 'python', pyi: 'python' }
+  cjs: 'typescript', mts: 'typescript', cts: 'typescript', py: 'python', pyi: 'python', go: 'go', rs: 'rust',
+  java: 'java', cs: 'csharp', csx: 'csharp', php: 'php', phtml: 'php', html: 'html', htm: 'html', css: 'css',
+  scss: 'css', less: 'css', json: 'json' }
 const EXT_ID = { ts: 'typescript', mts: 'typescript', cts: 'typescript', tsx: 'typescriptreact', js: 'javascript',
-  mjs: 'javascript', cjs: 'javascript', jsx: 'javascriptreact', py: 'python', pyi: 'python' }
+  mjs: 'javascript', cjs: 'javascript', jsx: 'javascriptreact', py: 'python', pyi: 'python', go: 'go', rs: 'rust',
+  java: 'java', cs: 'csharp', csx: 'csharp', php: 'php', phtml: 'php', html: 'html', htm: 'html', css: 'css',
+  scss: 'scss', less: 'less', json: 'json' }
+/** Each server's name, as the person reads it. */
+export const SERVER_NAMES = { typescript: 'TypeScript', python: 'Python', go: 'Go', rust: 'Rust', java: 'Java',
+  csharp: 'C#', php: 'PHP', html: 'HTML', css: 'CSS', json: 'JSON' }
 
 function extOf(path) { const m = /\.([^./]+)$/.exec(String(path || '')); return m ? m[1].toLowerCase() : '' }
-/** The language server a file belongs to (typescript | python), or null. */
+/** The language server a file belongs to (a key of SERVER_NAMES), or null. */
 export function serverFor(path) { return EXT_LANG[extOf(path)] || null }
 /** The LSP languageId of a file. */
 export function languageIdOf(path) { return EXT_ID[extOf(path)] || 'plaintext' }
@@ -213,12 +225,31 @@ function monacoTs(monaco) {
  *  setModeConfiguration changes nothing; two sources would show every quick fix twice and pick a formatter at random. */
 export function leaveEditingToServers(monaco) {
   const ts = monacoTs(monaco)
-  if (!ts) return
-  for (const d of [ts.typescriptDefaults, ts.javascriptDefaults]) {
+  for (const d of ts ? [ts.typescriptDefaults, ts.javascriptDefaults] : []) {
     try {
       d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), rename: false, codeActions: false, inlayHints: false,
         documentRangeFormattingEdits: false })
     } catch { /* an older Monaco: its own features stay on */ }
+  }
+  // HTML, CSS and JSON (ADM-1324): their servers rename and format; Monaco's own never do, so each is offered once.
+  for (const d of webDefaults(monaco)) {
+    try {
+      d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), rename: false, documentFormattingEdits: false,
+        documentRangeFormattingEdits: false })
+    } catch { /* an older Monaco: its own features stay on */ }
+  }
+}
+
+// Monaco's own HTML, CSS (and SCSS, Less) and JSON support, by the server that replaces it (`monaco.css` ... in Monaco
+// 0.53 and later). [] for a server Monaco has none for.
+function webDefaults(monaco, lang = null) {
+  try {
+    const of = { html: [monaco?.html?.htmlDefaults],
+      css: [monaco?.css?.cssDefaults, monaco?.css?.scssDefaults, monaco?.css?.lessDefaults],
+      json: [monaco?.json?.jsonDefaults] }
+    return (lang ? of[lang] || [] : Object.values(of).flat()).filter(Boolean)
+  } catch {
+    return []        // a strict module mock throws on a missing export
   }
 }
 
@@ -259,9 +290,16 @@ export function completionsOf(result, wordRange) {
 }
 
 // ── the store ─────────────────────────────────────────────────────────────────────────────────────────────────
-const MONACO_LANGS = ['typescript', 'javascript', 'python']
-// Each server's settings: pyright reports the whole project (plan D8), the TypeScript server its defaults.
+const MONACO_LANGS = ['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'csharp', 'php', 'html', 'css',
+  'scss', 'less', 'json']
+// Each server's settings: pyright reports the whole project (plan D8), the others their defaults.
 const SETTINGS = { python: { python: { analysis: { diagnosticMode: 'workspace' } } } }
+// What a server is told when it starts: the HTML, CSS and JSON servers format only when asked to (vscode-langservers).
+const INIT_OPTIONS = { html: { provideFormatter: true }, css: { provideFormatter: true },
+  json: { provideFormatter: true } }
+const serverName = (lang) => `The ${SERVER_NAMES[lang] || lang} language server`
+// The server behind a Monaco language (javascript is the TypeScript server's; scss and less the CSS server's).
+const serverOfMonaco = (id) => ({ javascript: 'typescript', scss: 'css', less: 'css' })[id] || id
 const val = (x) => (typeof x === 'function' ? x() : x)
 const CODE_ACTION_KINDS = ['', 'quickfix', 'refactor', 'refactor.extract', 'refactor.inline', 'refactor.rewrite',
   'source', 'source.organizeImports', 'source.fixAll']
@@ -328,11 +366,13 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     // `loading`: the TypeScript server's project loads in progress, by token (ADM-1335).
     const entry = { conn: null, root: '', opened: new Map(), ready: false, pending: new Map(), timer: null, caps: {},
       raw: new Map(), lang, loading: new Set(), loadingEpoch: 0, loadingWaiters: [] }
-    servers[lang] = { state: 'connecting', error: '', root: '' }
+    servers[lang] = { state: 'connecting', error: '', detail: '', root: '' }
     entry.conn = new Connection({
       url: urlFor(val(repoId), lang),
       onStatus: (s) => {
-        servers[lang] = { state: s.state === 'ready' ? 'initializing' : s.state, error: s.error || '', root: s.root || '' }
+        // `detail`: a failed install's log, whole (the Problems panel shows it under the error).
+        servers[lang] = { state: s.state === 'ready' ? 'initializing' : s.state, error: s.error || '',
+          detail: s.detail || '', root: s.root || '' }
         if (s.state === 'ready') { entry.root = s.root || ''; initialize(lang, entry) }
         if (s.state === 'closed' || s.state === 'error' || s.state === 'exited') {
           entry.ready = false
@@ -353,6 +393,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     try {
       const init = await entry.conn.request('initialize', {
         processId: null, rootUri, rootPath: entry.root,
+        ...(INIT_OPTIONS[lang] ? { initializationOptions: INIT_OPTIONS[lang] } : {}),
         workspaceFolders: [{ uri: rootUri, name: entry.root.split('/').pop() || 'project' }],
         capabilities: {
           textDocument: {
@@ -385,7 +426,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       entry.conn.notify('workspace/didChangeConfiguration', { settings: SETTINGS[lang] || {} })
       entry.ready = true
       servers[lang] = { ...servers[lang], state: 'ready' }
-      quietBuiltins()
+      quietBuiltins(lang)
       syncDocs()
     } catch (e) {
       servers[lang] = { ...servers[lang], state: 'error', error: e.message }
@@ -521,7 +562,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     return { tabSize: o.tabSize || 4, insertSpaces: o.insertSpaces !== false }
   }
 
-  /** Whether a file has a formatter (TypeScript / JavaScript through its server, Python through the project's). */
+  /** Whether a file has a formatter (Python through the project's, every other language through its server). */
   function canFormat(path) { return serverFor(path) != null }
 
   /** The LSP TextEdits that format `text`, the file `path`'s text now (`range`: only that part, an LSP range).
@@ -558,12 +599,17 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       if (!data || !data.changed || typeof data.content !== 'string' || data.content === text) return []
       return [{ range: { start: { line: 0, character: 0 }, end: endOf(text) }, newText: data.content }]
     }
-    if (lang !== 'typescript') throw new Error('This kind of file has no formatter.')
-    const entry = conns.typescript
-    if (!entry || !entry.ready) throw notReady('The TypeScript language server is still starting.')
+    if (!lang) throw new Error('This kind of file has no formatter.')
+    const entry = conns[lang]
+    const name = serverName(lang)
+    if (!entry || !entry.ready) {
+      const s = servers[lang]
+      if (s && s.state === 'error') throw new Error(s.error || `${name} is not running.`)
+      throw notReady(`${name} is still starting.`)
+    }
     const cap = range ? entry.caps.documentRangeFormattingProvider : entry.caps.documentFormattingProvider
-    if (!cap) throw new Error('The TypeScript language server does not format files.')
-    if (!entry.opened.has(path)) throw notReady('The TypeScript language server has not opened this file yet.')
+    if (!cap) throw new Error(`${name} does not format ${range ? 'a selection' : 'files'}.`)
+    if (!entry.opened.has(path)) throw notReady(`${name} has not opened this file yet.`)
     // The server formats the text it holds: it is given this text first.
     changed({ path, content: text })
     flush(entry)
@@ -712,10 +758,19 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     } catch { /* the model went away */ }
   }
 
+  // Monaco's own support of a language is switched off once its server is ready, so nothing is shown twice
+  // (TypeScript's, HTML's, CSS's and JSON's; Monaco has none for the other servers' languages).
   let quieted = false
-  function quietBuiltins() {
+  function quietBuiltins(lang) {
+    for (const d of webDefaults(ctx && ctx.monaco(), ['html', 'css', 'json'].includes(lang) ? lang : '_')) {
+      try {
+        d.setModeConfiguration?.({ ...(d.modeConfiguration || {}), completionItems: false, hovers: false,
+          definitions: false, references: false, diagnostics: false, rename: false, documentFormattingEdits: false,
+          documentRangeFormattingEdits: false })
+      } catch { /* an older Monaco: its own features stay on */ }
+    }
     const ts = monacoTs(ctx && ctx.monaco())
-    if (!ts || quieted) return
+    if (lang !== 'typescript' || !ts || quieted) return
     quieted = true
     for (const d of [ts.typescriptDefaults, ts.javascriptDefaults]) {
       try {
@@ -828,12 +883,12 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
       },
     })
     add('registerDocumentFormattingEditProvider', {
-      displayName: lang === 'python' ? "The project's Python formatter" : 'The TypeScript language server',
+      displayName: lang === 'python' ? "The project's Python formatter" : serverName(serverOfMonaco(lang)),
       provideDocumentFormattingEdits: (model) => monacoFormat(model, null),
     })
     if (lang !== 'python') {
       add('registerDocumentRangeFormattingEditProvider', {
-        displayName: 'The TypeScript language server',
+        displayName: serverName(serverOfMonaco(lang)),
         provideDocumentRangeFormattingEdits: (model, range) => monacoFormat(model, range),
       })
     }
