@@ -47,6 +47,12 @@ describe('CodeBrowser: refresh after a change', () => {
     w.unmount()
   })
 
+  it('diffs go inline only under 600 px, not under Monaco\'s 900 px (a 1440 px laptop gets side by side)', async () => {
+    const w = await browser()
+    expect(w.vm.$.setupState.diffOptions).toMatchObject({ renderSideBySide: true, renderSideBySideInlineBreakpoint: 600 })
+    w.unmount()
+  })
+
   it('an open diff tab shows the change as it is after the next turn', async () => {
     const api = (await import('../services/api')).default
     api.getRepositoryFiles.mockImplementation(() => Promise.resolve({ data: { entries: [] } }))

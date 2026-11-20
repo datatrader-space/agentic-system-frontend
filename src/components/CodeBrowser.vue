@@ -361,6 +361,7 @@ import { CODING_CHAT_TABS } from '@/stores/useCodingChatTabs'
 import { LANGUAGE_SERVERS, leaveEditingToServers, applyTextEdits, rangeOf, setupLogNotification } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
 import { bindConflictActions } from '@/utils/mergeConflicts'
+import { SIDE_BY_SIDE_MIN_PX } from '@/utils/diffLayout'
 import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
 import ReviewChanges from '@/components/letscode/ReviewChanges.vue'
 
@@ -502,6 +503,7 @@ const diffOptions = computed(() => ({
   readOnly: true,
   originalEditable: false,
   renderSideBySide: true,
+  renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_PX,     // inline only when two columns do not fit (diffLayout.js)
   automaticLayout: true,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,

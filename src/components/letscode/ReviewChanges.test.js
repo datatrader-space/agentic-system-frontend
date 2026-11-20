@@ -332,4 +332,24 @@ describe('ReviewChanges: comments go to the agent as one message (ADM-1329)', ()
     expect(fake.updateOptions).toHaveBeenCalledWith({ renderSideBySide: false })
     w.unmount()
   })
+
+  it('offers the layout switch only where two columns fit (live, 2026-11-20: a 630 px pane was always inline)', async () => {
+    const seen = []
+    const Real = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; seen.push(this) } observe() {} disconnect() {} }
+    try {
+      const w = await loaded()
+      const resize = async (width) => { seen.at(-1).cb([{ contentRect: { width } }]); await flushPromises() }
+      expect(seen.length).toBeGreaterThan(0)
+      await resize(500)                                              // under SIDE_BY_SIDE_MIN_PX: Monaco is inline anyway
+      expect(w.find('[data-test="review-layout"]').exists()).toBe(false)
+      await resize(0)                                                // a hidden tab measures 0: the last answer stays
+      expect(w.find('[data-test="review-layout"]').exists()).toBe(false)
+      await resize(720)
+      expect(w.find('[data-test="review-layout"]').text()).toBe('Inline')
+      w.unmount()
+    } finally {
+      globalThis.ResizeObserver = Real
+    }
+  })
 })

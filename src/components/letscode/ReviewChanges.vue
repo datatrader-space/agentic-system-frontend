@@ -61,7 +61,9 @@
               <span class="rv-path" translate="no" :title="selected.path">{{ selected.path }}</span>
             </div>
             <div class="rv-bar-actions">
-              <button v-if="hasText(selected)" type="button" class="rv-btn" :aria-pressed="sideBySide ? 'true' : 'false'"
+              <!-- Only where two columns fit: below that Monaco shows the diff inline whatever is chosen, and a
+                   button offering "Inline" there would be wrong. -->
+              <button v-if="hasText(selected) && fitsSideBySide" type="button" class="rv-btn" :aria-pressed="sideBySide ? 'true' : 'false'"
                       :title="sideBySide ? 'Show the changes inline' : 'Show the changes side by side'" data-test="review-layout"
                       @click="toggleLayout">
                 <Icon :icon="sideBySide ? 'lucide:rows-2' : 'lucide:columns-2'" aria-hidden="true" />
@@ -123,7 +125,7 @@
             </div>
           </form>
 
-          <div class="rv-diff">
+          <div ref="diffBox" class="rv-diff">
             <div v-if="selected.redacted" class="rv-state" role="status" data-test="review-redacted">
               <Icon icon="lucide:lock" class="rv-state-ic" aria-hidden="true" />
               <p>This file holds secrets, so its values are not shown.</p>
@@ -202,6 +204,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { whileSandboxStarts } from '@/utils/sandboxStarting'
 import { languageFor } from '@/utils/editorLanguage'
+import { SIDE_BY_SIDE_MIN_PX } from '@/utils/diffLayout'
 import { diffLines, fromMonaco, revertHunk, hunkKey, fileKey, snippetAround, reviewMessage, splitLines } from '@/utils/reviewHunks'
 
 const props = defineProps({
@@ -441,6 +444,21 @@ function toggleLayout() {
   try { localStorage.setItem('aadml.lc.review.layout', sideBySide.value ? 'side' : 'inline') } catch { /* not remembered */ }
   try { diffInst?.updateOptions?.({ renderSideBySide: sideBySide.value }) } catch { /* disposed */ }
 }
+// Whether two columns fit the diff's pane (SIDE_BY_SIDE_MIN_PX, the same width at which Monaco goes inline). A pane
+// that cannot be measured (no ResizeObserver, or a hidden tab at width 0) keeps the last answer.
+const diffBox = ref(null)
+const fitsSideBySide = ref(true)
+let boxObserver = null
+watch(diffBox, (el) => {
+  try { boxObserver?.disconnect?.() } catch { /* gone */ }
+  boxObserver = null
+  if (!el || typeof ResizeObserver === 'undefined') return
+  boxObserver = new ResizeObserver((entries) => {
+    const w = entries[0]?.contentRect?.width || 0
+    if (w > 0) fitsSideBySide.value = w >= SIDE_BY_SIDE_MIN_PX
+  })
+  boxObserver.observe(el)
+})
 const options = computed(() => ({
   ...props.diffOptions,
   readOnly: true,
@@ -624,6 +642,7 @@ const statusWord = (s) => WORD[s] || 'Changed'
 onMounted(() => load())
 onBeforeUnmount(() => {
   unmounted = true
+  try { boxObserver?.disconnect?.() } catch { /* gone */ }
   for (const d of disposers) { try { d?.dispose?.() } catch { /* gone */ } }
 })
 
