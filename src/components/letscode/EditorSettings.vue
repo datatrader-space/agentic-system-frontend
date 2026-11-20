@@ -49,6 +49,25 @@
         <span>Format on save</span>
         <input v-model="settings.formatOnSave" type="checkbox" data-test="es-format-on-save" />
       </label>
+      <!-- Autosave (ADM-1322): off unless chosen; always the save that checks the file was not changed on disk. -->
+      <label class="es-row" title="A file changed in the project since you opened it is asked about, never overwritten">
+        <span>Autosave</span>
+        <select v-model="settings.autoSave" class="es-select" data-test="es-autosave">
+          <option value="off">Off</option>
+          <option value="afterDelay">After a pause in typing</option>
+          <option value="onFocusChange">When the editor loses focus</option>
+        </select>
+      </label>
+      <label v-if="settings.autoSave === 'afterDelay'" class="es-row">
+        <span>Pause before saving</span>
+        <select v-model.number="settings.autoSaveDelay" class="es-select" data-test="es-autosave-delay">
+          <option v-for="v in CHOICES.autoSaveDelay" :key="v" :value="v">{{ v < 1000 ? `${v}\u00a0ms` : `${v / 1000}\u00a0s` }}</option>
+        </select>
+      </label>
+      <label class="es-row es-check" title="Vim keys: Esc for normal mode, i to type, : for commands (:w saves)">
+        <span>Vim keys</span>
+        <input v-model="settings.vim" type="checkbox" data-test="es-vim" />
+      </label>
       <div class="es-foot">
         <button type="button" class="es-reset" @click="reset">Restore the defaults</button>
       </div>
@@ -57,8 +76,8 @@
 </template>
 
 <script setup>
-// The editor's settings (ADM-1205, phase A), opened from the gear beside Save. Changes apply at once and are kept in
-// this browser (useEditorSettings).
+// The editor's settings (ADM-1205, phase A; autosave and vim keys, ADM-1322), opened from the gear beside Save or the
+// command palette. Changes apply at once and are kept in this browser (useEditorSettings).
 import { ref, computed, watch, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useEditorSettings, CHOICES } from '@/composables/useEditorSettings'
@@ -99,6 +118,7 @@ watch(() => props.open, async (open) => {
 .es-scrim { position: fixed; inset: 0; z-index: 60; }
 .es {
   position: fixed; z-index: 61; width: 300px; max-width: calc(100vw - 16px); padding: 12px 14px;
+  max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain;
   background: var(--vm-surface); color: var(--vm-ink); border: 1px solid var(--vm-line-2); border-radius: 10px;
   box-shadow: var(--vm-shadow-l); font: 13px var(--vm-font-sans);
 }

@@ -7,6 +7,8 @@
 // Our own small client (plan D6): requests and their replies, notifications both ways, and the server's requests
 // answered by `onRequest`. A closed socket fails every request still waiting, so no caller waits for ever.
 
+import { noteLanguageServer } from '../utils/projectOpenTiming'
+
 // AADML's address of one of a project's editor sockets (`lsp/<language>`, `dap/<adapter>`): this site, its own host.
 export function projectSocketUrl(repoId, tail, loc = window.location, env = import.meta.env) {
   const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -85,6 +87,7 @@ export class LspConnection {
 
   _setState(s) {
     this.state = s.state
+    if (s.state === 'ready') noteLanguageServer(this.url)    // the project's open, step by step (ADM-1326)
     try { this.onStatus(s) } catch { /* a listener's error never breaks the connection */ }
   }
 

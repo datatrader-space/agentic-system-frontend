@@ -730,3 +730,67 @@ describe('more languages (ADM-1324)', () => {
     expect(ns.typescript.typescriptDefaults.setModeConfiguration).not.toHaveBeenCalled() // TypeScript's waits for its own
   })
 })
+
+// ADM-1322: snippets on (the client says so, and a snippet completion is inserted as one), and the file's symbols for
+// the Outline view and the breadcrumbs.
+describe('snippets and document symbols (ADM-1322)', () => {
+  beforeEach(() => { FakeConnection.made = []; FakeConnection.caps = {}; vi.useRealTimers() })
+
+  it('a snippet completion (InsertTextFormat 2) is inserted as a snippet; plain text is not', () => {
+    const word = { startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: 3 }
+    // As typescript-language-server answers with snippetSupport: a method snippet and a plain property.
+    const [snip, plain] = completionsOf({ items: [
+      { label: 'log', kind: 2, insertTextFormat: 2, textEdit: { newText: 'log(${1})$0', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 2 } } } },
+      { label: 'length', kind: 10, insertTextFormat: 1 },
+    ] }, word)
+    expect(snip).toMatchObject({ insertText: 'log(${1})$0', insertTextRules: 4 })
+    expect(plain.insertTextRules).toBeUndefined()
+  })
+
+  it('the client asks for snippets and for a tree of document symbols', async () => {
+    const e = editorCtx()
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    FakeConnection.made[0].ready()
+    await Promise.resolve()
+    const caps = FakeConnection.made[0].sent.find((x) => x[1] === 'initialize')[2].capabilities.textDocument
+    expect(caps.completion.completionItem.snippetSupport).toBe(true)
+    expect(caps.documentSymbol).toEqual({ hierarchicalDocumentSymbolSupport: true })
+  })
+
+  it("documentSymbols: starting, then the server's answer; none without a server or its support", async () => {
+    const e = editorCtx()
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    expect(await s.documentSymbols('README.md')).toEqual({ state: 'none' })          // no server for markdown
+    s.bind(e.ctx)
+    expect(await s.documentSymbols('app/page.tsx')).toEqual({ state: 'starting' })   // its server is starting
+    FakeConnection.caps = { documentSymbolProvider: true }
+    const c = FakeConnection.made[0]
+    const answer = [{ name: 'a', kind: 13, range: { start: { line: 0, character: 6 }, end: { line: 0, character: 11 } },
+      selectionRange: { start: { line: 0, character: 6 }, end: { line: 0, character: 7 } } }]
+    const base = c.request.bind(c)
+    c.request = (method, params) => (method === 'textDocument/documentSymbol' ? (c.sent.push(['request', method, params]), Promise.resolve(answer)) : base(method, params))
+    c.ready()
+    await Promise.resolve(); await Promise.resolve()
+    e.tabs.value[0].content = 'const ab = 1'
+    await nextTick()
+    const r = await s.documentSymbols('app/page.tsx')
+    expect(r).toEqual({ state: 'ready', result: answer })
+    const methods = c.methods()
+    // The text on screen reaches the server before it is asked.
+    expect(methods.lastIndexOf('textDocument/didChange')).toBeLessThan(methods.lastIndexOf('textDocument/documentSymbol'))
+    expect(c.sent.at(-1)[2]).toEqual({ textDocument: { uri: toUri(ROOT, 'app/page.tsx') } })
+    expect(await s.documentSymbols('app/other.tsx')).toEqual({ state: 'starting' })  // not opened by the server yet
+    c.request = () => Promise.reject(new Error('boom'))
+    expect(await s.documentSymbols('app/page.tsx')).toEqual({ state: 'none' })
+  })
+
+  it('a server without document symbols answers none', async () => {
+    const e = editorCtx()
+    const s = createLanguageServers({ repoId: 4, Connection: FakeConnection, urlFor: () => 'u' })
+    s.bind(e.ctx)
+    FakeConnection.made[0].ready()
+    await Promise.resolve(); await Promise.resolve()
+    expect(await s.documentSymbols('app/page.tsx')).toEqual({ state: 'none' })
+  })
+})

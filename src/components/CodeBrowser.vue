@@ -30,6 +30,15 @@
             <Icon icon="lucide:search" aria-hidden="true" />
             <span class="sidebar-tab-label">Search</span>
           </button>
+          <!-- The file's symbols, from its language server (ADM-1322). -->
+          <button
+            type="button" role="tab" :aria-selected="sideSelected('outline') ? 'true' : 'false'"
+            @click="showSide('outline')"
+            :class="{ active: sideSelected('outline') }"
+            class="sidebar-tab" title="Outline" data-test="cb-outline-tab">
+            <Icon icon="lucide:list-tree" aria-hidden="true" />
+            <span class="sidebar-tab-label">Outline</span>
+          </button>
           <button
             type="button" role="tab" :aria-selected="sideSelected('scm') ? 'true' : 'false'"
             @click="showSide('scm')"
@@ -140,6 +149,12 @@
           <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @open-file="openFile" @open-merge="openMerge" @changed="refreshAfterScm" @published="emit('published', $event)" @branch="emit('branch', $event)" />
         </div>
 
+        <!-- Outline (ADM-1322): the symbols of the file being edited; a click shows one in the editor. -->
+        <div v-else-if="sidebarTab === 'outline'" class="scm-pane">
+          <OutlineView :path="outlineFile ? outlineFile.path : ''" :symbols="outlineView.symbols" :state="outlineView.state"
+                       :current-key="outlineCurrentKey" @reveal="revealSymbol" />
+        </div>
+
         <!-- Run and Debug (ADM-1205 phase F item 17). -->
         <div v-else-if="sidebarTab === 'debug' && debuggerStore" class="scm-pane">
           <RunDebugPanel />
@@ -154,179 +169,257 @@
                     @select="onMenuSelect" @close="menu.open = false" />
       <QuickOpen :open="quickOpen" :system-id="systemId" :repo-id="repositoryId" @close="closeQuickOpen" @pick="onQuickPick" />
       <EditorSettings :open="settingsOpen" :anchor="settingsAnchor" @close="settingsOpen = false" />
+      <!-- The command palette (Ctrl+Shift+P) and a tab's menu (right-click, Shift+F10), ADM-1322. -->
+      <CommandPalette :open="paletteOpen" :commands="paletteCommands" @close="closePalette" @run="runPaletteCommand" />
+      <ExplorerMenu :open="tabMenu.open" :x="tabMenu.x" :y="tabMenu.y" :items="tabMenu.items" :label="tabMenu.label"
+                    @select="onTabMenuSelect" @close="tabMenu.open = false" />
 
       <!-- Resize Handle -->
       <div class="resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize the file list" @mousedown="startResize"></div>
     </div>
 
-    <!-- Center: Editor Panel -->
+    <!-- Center: Editor Panel. Two editor groups side by side (ADM-1322), as VS Code's: a tab opened to the side moves to
+         the second group; each group has its own tabs and the tab it shows; the group last clicked or typed in is the
+         one Save, the keys and the language servers act on. On a narrow screen one group shows at a time. -->
     <div class="editor-panel">
-      <!-- Tab Bar -->
-      <div class="tab-bar" v-if="openTabs.length > 0 || chatOn">
-        <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). Each
-             runs on its own: leaving one never stops it, and its dot says what it is doing. -->
-        <div
-          v-for="ct in (chatOn ? chatTabs.tabs : [])"
-          :key="'chat-' + ct.key"
-          role="tab" tabindex="0" :aria-selected="chatTabFront(ct) ? 'true' : 'false'"
-          data-test="cb-chat-tab" :title="chatTabs.title(ct)"
-          @click="chatTabs.select(ct)"
-          @keydown.enter.self="chatTabs.select(ct)"
-          :class="['tab', 'chat-tab', { active: chatTabFront(ct) }]">
-          <Icon class="tab-icon chat-tab-icon" icon="lucide:sparkles" aria-hidden="true" />
-          <span class="tab-name">{{ chatTabs.title(ct) }}</span>
-          <span v-if="chatTabs.state(ct) !== 'idle'" class="chat-dot" :class="chatTabs.state(ct)" role="img"
-                :aria-label="chatTabs.stateLabel(ct)" data-test="cb-chat-dot"></span>
-          <button type="button" @click.stop="chatTabs.close(ct)" class="tab-close" data-test="cb-chat-close"
-                  :aria-label="`Close ${chatTabs.title(ct)}`" title="Close (the chat stays in Chat history)"><Icon icon="lucide:x" /></button>
-        </div>
-        <button v-if="chatOn" type="button" class="tab-new-chat" data-test="cb-new-chat" title="New Coding Agent chat"
-                aria-label="New Coding Agent chat" @click="chatTabs.newChat()">
-          <Icon icon="lucide:plus" aria-hidden="true" />
-        </button>
-        <div
-          v-for="tab in openTabs"
-          :key="tab.id"
-          role="tab" tabindex="0" :aria-selected="!chatFront && activeTabId === tab.id ? 'true' : 'false'"
-          @click="showFile(tab.id)"
-          @keydown.enter.self="showFile(tab.id)"
-          :class="['tab', { active: !chatFront && activeTabId === tab.id }]">
-          <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
-          <Icon v-else-if="tab.type === 'review'" class="tab-icon" icon="lucide:list-checks" aria-hidden="true" />
-          <Icon v-else-if="tab.type === 'merge'" class="tab-icon" icon="lucide:git-merge" aria-hidden="true" />
-          <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
-                :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
-          <span class="tab-name">{{ tab.name }}</span>
-          <span v-if="isDirty(tab)" class="tab-dot" title="Unsaved changes" aria-label="Unsaved changes"></span>
-          <button type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
-        </div>
-        <div v-if="editable" class="tab-actions">
-          <!-- Blame (ADM-1321): who last changed each line, read once when turned on, never on each keystroke. -->
-          <button v-if="activeTab && activeTab.type === 'file' && !chatFront" type="button" class="tab-tool" :class="{ on: blameOn }"
-                  :aria-pressed="blameOn ? 'true' : 'false'" aria-label="Show who changed each line"
-                  :title="blameOn ? 'Hide who changed each line' : 'Blame: who changed each line, and when'" @click="toggleBlame">
-            <Icon icon="lucide:user-round-search" aria-hidden="true" />
-          </button>
-          <button ref="settingsBtn" type="button" class="tab-gear" title="Editor settings" aria-label="Editor settings"
-                  :aria-expanded="settingsOpen ? 'true' : 'false'" @click="openSettings">
-            <Icon icon="lucide:settings-2" aria-hidden="true" />
-          </button>
-          <button type="button" class="save-btn" :disabled="!activeTab || !isDirty(activeTab) || saving" @click="saveActive">
-            {{ saving ? 'Saving' : 'Save' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Monaco Editor -->
-      <div class="editor-container">
-        <!-- The Coding Agent's chat (the page passes it in): kept mounted while a file is in front, so a running chat
-             is never stopped or reloaded by switching tabs. -->
-        <div v-show="chatFront" class="chat-host" data-test="cb-chat-host"><slot name="chat" /></div>
-        <!-- Review the Coding Agent's changes since a message (ADM-1314, ADM-1329): one per message, kept mounted while
-             another tab is in front, so the change shown, the cursor and comments not sent yet are still there. -->
-        <ReviewChanges
-          v-for="rt in reviewTabs" v-show="!chatFront && activeTabId === rt.id" :key="rt.id"
-          :system-id="systemId" :repo-id="repositoryId" :message-id="rt.messageId" :conversation-id="rt.conversationId"
-          :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :theme="monacoTheme" :monaco="() => monacoNs"
-          :is-unsaved="isUnsavedPath" :send="sendReview"
-          @written="onReviewWritten" @loaded="(n) => onReviewLoaded(rt, n)" @comments="(n) => { rt.comments = n }"
-          @open-file="openFile"
-        />
-        <template v-if="!chatFront">
-        <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
-             as VS Code shows it. Read-only: edits are made in the file's own tab. -->
-        <!-- A conflicted file in the 3-way merge editor (ADM-1321). -->
-        <MergeEditor
-          v-if="activeTab && activeTab.type === 'merge'" :key="activeTab.id"
-          :system-id="systemId" :repo-id="repositoryId" :path="activeTab.path" :language="activeTab.language"
-          :editor="MonacoEditor" :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :editor-options="editorOptions"
-          :theme="monacoTheme" :monaco="() => monacoNs"
-          @resolved="onMergeResolved(activeTab, $event)" @open-file="openFile" @edited="(on) => { activeTab.edited = on }"
-        />
-        <template v-else-if="activeTab && activeTab.type === 'diff'">
-          <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
-            <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the changes…' }}</p>
-          </div>
-          <div v-else-if="activeTab.note" class="empty-editor" role="status">
-            <Icon :icon="activeTab.noteIcon || 'lucide:file-diff'" class="empty-editor-ic" aria-hidden="true" />
-            <p class="empty-editor-t">{{ activeTab.path }}</p>
-            <p class="empty-editor-s">{{ activeTab.note }}</p>
-          </div>
-          <div v-else class="diff-wrap">
-            <!-- Stage or unstage ONE change of the file (ADM-1321), as VS Code's Stage Selected Ranges. -->
-            <div v-if="activeTab.hunks && !activeTab.hunks.redacted && (hunkCount(activeTab) || activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole)" class="hunk-bar" role="group" aria-label="Changes in this file">
-              <template v-for="side in hunkSides(activeTab)" :key="side.key">
-                <span v-if="side.items.length" class="hunk-side">{{ side.label }}</span>
-                <span v-for="(h, i) in side.items" :key="side.key + h.header" class="hunk">
-                  <button type="button" class="hunk-go" :aria-label="`Go to ${side.label.toLowerCase()} change ${i + 1}, ${hunkLines(h)}`" @click="revealHunk(h)">
-                    {{ hunkLines(h) }}
-                  </button>
-                  <button type="button" class="hunk-act" :disabled="activeTab.staging"
-                          :aria-label="`${side.unstage ? 'Unstage' : 'Stage'} change ${i + 1}, ${hunkLines(h)}`"
-                          :title="side.unstage ? 'Unstage this change' : 'Stage this change'" @click="stageHunk(activeTab, h, side.unstage)">
-                    <Icon :icon="side.unstage ? 'lucide:minus' : 'lucide:plus'" aria-hidden="true" />
-                  </button>
-                </span>
+      <div class="editor-groups" :class="{ split }">
+        <section
+          v-for="view in groupViews" :key="view.g"
+          class="editor-group"
+          :class="{ focused: split && focusedGroup === view.g, 'group-hidden': narrow && split && focusedGroup !== view.g }"
+          :aria-label="split ? `Editor group ${view.g + 1}` : undefined" :data-test="`cb-group-${view.g}`"
+          @pointerdown.capture="focusGroup(view.g)" @focusin="focusGroup(view.g)">
+          <!-- Tab Bar: drag a tab to reorder it or into the other group; pinned tabs come first. -->
+          <div
+            class="tab-bar" v-if="view.g === 1 || openTabs.length > 0 || chatOn"
+            :class="{ 'tab-drop-end': tabDrop && tabDrop.g === view.g && tabDrop.id == null }"
+            @dragover="onTabDragOver($event, view.g, null)" @dragleave="onTabDragLeave" @drop="onTabDrop($event, view.g, null)">
+            <!-- Only the tabs are in the tablist (its own box, laid out as if it were not there); the + and the editor's
+                 buttons sit beside it, so the tablist holds tabs alone (ADM-1322 review). -->
+            <div class="tab-list" role="tablist" :aria-label="split ? `Tabs of editor group ${view.g + 1}` : 'Open tabs'">
+            <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). Each
+                 runs on its own: leaving one never stops it, and its dot says what it is doing. They are in the first group. -->
+            <template v-if="view.g === 0">
+              <div
+                v-for="ct in (chatOn ? chatTabs.tabs : [])"
+                :key="'chat-' + ct.key"
+                role="tab" tabindex="0" :aria-selected="chatTabFront(ct) ? 'true' : 'false'"
+                data-test="cb-chat-tab" :title="chatTabs.title(ct)"
+                @click="chatTabs.select(ct)"
+                @keydown.enter.self="chatTabs.select(ct)"
+                :class="['tab', 'chat-tab', { active: chatTabFront(ct) }]">
+                <Icon class="tab-icon chat-tab-icon" icon="lucide:sparkles" aria-hidden="true" />
+                <span class="tab-name">{{ chatTabs.title(ct) }}</span>
+                <span v-if="chatTabs.state(ct) !== 'idle'" class="chat-dot" :class="chatTabs.state(ct)" role="img"
+                      :aria-label="chatTabs.stateLabel(ct)" data-test="cb-chat-dot"></span>
+                <button type="button" @click.stop="chatTabs.close(ct)" class="tab-close" data-test="cb-chat-close"
+                        :aria-label="`Close ${chatTabs.title(ct)}`" title="Close (the chat stays in Chat history)"><Icon icon="lucide:x" /></button>
+              </div>
+            </template>
+            <div
+              v-for="tab in view.tabs"
+              :key="tab.id"
+              role="tab" tabindex="0" :aria-selected="isShown(tab, view.g) ? 'true' : 'false'"
+              :data-tab-id="tab.id" draggable="true"
+              :aria-description="tab.pinned ? 'Pinned' : undefined"
+              @click="showFile(tab.id)"
+              @keydown="onTabKey($event, tab)"
+              @auxclick="onTabAuxClick($event, tab)"
+              @contextmenu.prevent="openTabMenu($event, tab)"
+              @dragstart="onTabDragStart($event, tab)" @dragend="onTabDragEnd"
+              @dragover.stop="onTabDragOver($event, view.g, tab)" @drop.stop="onTabDrop($event, view.g, tab)"
+              :class="['tab', { active: isShown(tab, view.g), pinned: tab.pinned, 'tab-drop-before': tabDrop && tabDrop.id === tab.id,
+                                dragging: tabDrag === tab.id }]">
+              <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
+              <Icon v-else-if="tab.type === 'review'" class="tab-icon" icon="lucide:list-checks" aria-hidden="true" />
+              <Icon v-else-if="tab.type === 'merge'" class="tab-icon" icon="lucide:git-merge" aria-hidden="true" />
+              <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
+                    :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
+              <span class="tab-name">{{ tab.name }}</span>
+              <span v-if="isDirty(tab)" class="tab-dot" title="Unsaved changes" aria-label="Unsaved changes"></span>
+              <button v-if="tab.pinned" type="button" @click.stop="togglePin(tab)" class="tab-close tab-pin" data-test="cb-tab-unpin"
+                      :aria-label="`Unpin ${tab.name}`" title="Pinned: Close others leaves it open. Click to unpin."><Icon icon="lucide:pin" /></button>
+              <button v-else type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
+            </div>
+            </div>
+            <button v-if="view.g === 0 && chatOn" type="button" class="tab-new-chat" data-test="cb-new-chat" title="New Coding Agent chat"
+                    aria-label="New Coding Agent chat" @click="chatTabs.newChat()">
+              <Icon icon="lucide:plus" aria-hidden="true" />
+            </button>
+            <div v-if="editable" class="tab-actions" role="toolbar" aria-label="Editor actions">
+              <!-- A markdown file's preview (ADM-1322): beside its text, or in its place. -->
+              <template v-if="view.tab && isMarkdownTab(view.tab) && !(view.g === 0 && chatFront)">
+                <button v-if="!narrow" type="button" class="tab-tool" :class="{ on: view.tab.mdView === 'split' }" data-test="cb-md-side"
+                        :aria-pressed="view.tab.mdView === 'split' ? 'true' : 'false'" aria-label="Preview beside the text"
+                        title="Markdown preview beside the text" @click="setMdView(view.tab, 'split')">
+                  <Icon icon="lucide:columns-2" aria-hidden="true" />
+                </button>
+                <button type="button" class="tab-tool" :class="{ on: view.tab.mdView === 'preview' }" data-test="cb-md-preview"
+                        :aria-pressed="view.tab.mdView === 'preview' ? 'true' : 'false'" aria-label="Show the preview"
+                        title="Markdown preview in place of the text" @click="setMdView(view.tab, 'preview')">
+                  <Icon icon="lucide:eye" aria-hidden="true" />
+                </button>
               </template>
-              <span v-if="activeTab.hunks.unstaged.whole || activeTab.hunks.staged.whole" class="hunk-note">
-                A new, deleted, renamed or binary file is staged whole, from Source control.
-              </span>
-            </div>
-            <MonacoDiffEditor
-              :value="activeTab.modified"
-              :original="activeTab.originalText"
-              :language="activeTab.language"
-              :theme="monacoTheme"
-              :options="diffOptions"
-              class="monaco-editor"
-              @editorDidMount="onDiffMount"
-            />
-          </div>
-        </template>
-        <!-- A Review tab is drawn above (ReviewChanges); nothing else shows under it. -->
-        <span v-else-if="activeTab && activeTab.type === 'review'" hidden></span>
-        <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
-             also be opened as its code. -->
-        <div v-else-if="activeTab && activeTab.type === 'image'" class="image-view">
-          <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
-            <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the picture…' }}</p>
-          </div>
-          <div v-else-if="activeTab.error" class="empty-editor" role="alert">
-            <Icon icon="lucide:image-off" class="empty-editor-ic" aria-hidden="true" />
-            <p class="empty-editor-t">{{ activeTab.path }}</p>
-            <p class="empty-editor-s">{{ activeTab.error }}</p>
-          </div>
-          <template v-else>
-            <div class="image-stage">
-              <img :src="activeTab.url" :alt="activeTab.name" class="image-img" @load="onImageLoad(activeTab, $event)" />
-            </div>
-            <div class="image-meta">
-              <span>{{ activeTab.name }}</span>
-              <span v-if="activeTab.width">{{ activeTab.width }} × {{ activeTab.height }} px</span>
-              <span>{{ formatBytes(activeTab.size) }}</span>
-              <button v-if="activeTab.canCode" type="button" class="image-code-btn" @click="openFile(activeTab.path, { asCode: true })">
-                <Icon icon="lucide:code" aria-hidden="true" /> Open as code
+              <!-- Blame (ADM-1321): who last changed each line, read once when turned on, never on each keystroke. -->
+              <button v-if="view.tab && view.tab.type === 'file' && !(view.g === 0 && chatFront)" type="button" class="tab-tool" :class="{ on: blameOn }"
+                      :aria-pressed="blameOn ? 'true' : 'false'" aria-label="Show who changed each line"
+                      :title="blameOn ? 'Hide who changed each line' : 'Blame: who changed each line, and when'" @click="toggleBlame">
+                <Icon icon="lucide:user-round-search" aria-hidden="true" />
+              </button>
+              <!-- Split (Ctrl+\): this tab moves to the other group; the second group's own button closes it. -->
+              <button v-if="view.g === 0 && !split && view.tab && canOpenToSide(view.tab) && !chatFront" type="button" class="tab-tool"
+                      data-test="cb-split" aria-label="Open to the side" title="Open to the side (Ctrl+\)" @click="moveToOtherGroup(view.tab)">
+                <Icon icon="lucide:columns-2" aria-hidden="true" />
+              </button>
+              <button v-if="narrow && split" type="button" class="tab-tool" data-test="cb-other-group"
+                      :aria-label="`Show editor group ${2 - view.g}`" :title="`Show editor group ${2 - view.g}`" @click="focusGroup(1 - view.g, { show: true })">
+                <Icon :icon="view.g === 0 ? 'lucide:panel-right' : 'lucide:panel-left'" aria-hidden="true" />
+              </button>
+              <button v-if="view.g === 1" type="button" class="tab-tool" data-test="cb-close-group"
+                      aria-label="Close this editor group" title="Close this editor group" @click="closeGroup(1)">
+                <Icon icon="lucide:square-x" aria-hidden="true" />
+              </button>
+              <button type="button" class="tab-gear" title="Editor settings" aria-label="Editor settings"
+                      :aria-expanded="settingsOpen ? 'true' : 'false'" @click="openSettings">
+                <Icon icon="lucide:settings-2" aria-hidden="true" />
+              </button>
+              <button type="button" class="save-btn" :disabled="!view.tab || !isDirty(view.tab) || saving" @click="saveTab(view.tab)">
+                {{ saving ? 'Saving…' : 'Save' }}
               </button>
             </div>
-          </template>
-        </div>
-        <MonacoEditor
-          v-else-if="activeTab"
-          :value="activeTab.content"
-          :language="activeTab.language"
-          :path="activeTab.path"
-          :options="editorOptions"
-          :theme="monacoTheme"
-          class="monaco-editor"
-          @change="onEditorChange"
-          @editorDidMount="onEditorMount"
-        />
-        <div v-else class="empty-editor">
-          <Icon icon="lucide:file-code" class="empty-editor-ic" aria-hidden="true" />
-          <p class="empty-editor-t">No file open</p>
-          <p class="empty-editor-s">Pick a file from the list to open it here.</p>
-        </div>
-        </template>
+          </div>
+
+          <!-- Breadcrumbs (ADM-1322): the file's folders, its name, and the symbols the cursor is in. -->
+          <EditorBreadcrumbs
+            v-if="view.tab && view.tab.type === 'file' && !(view.g === 0 && chatFront)"
+            :path="view.tab.path" :chain="crumbChain(view)"
+            @folder="revealInFiles" @symbol="(s) => revealSymbol(s, view.g)" />
+
+          <!-- Monaco Editor -->
+          <div class="editor-container" :class="{ 'tab-drop-side': editorDrop === view.g }"
+               @dragover="onEditorDragOver($event, view.g)" @dragleave="onEditorDragLeave" @drop="onEditorDrop($event, view.g)">
+            <p v-if="editorDrop === view.g" class="drop-hint" aria-hidden="true">{{ split ? `Move to editor group ${view.g + 1}` : 'Open to the side' }}</p>
+            <!-- The Coding Agent's chat (the page passes it in): kept mounted while a file is in front, so a running chat
+                 is never stopped or reloaded by switching tabs. -->
+            <div v-if="view.g === 0" v-show="chatFront" class="chat-host" data-test="cb-chat-host"><slot name="chat" /></div>
+            <!-- Review the Coding Agent's changes since a message (ADM-1314, ADM-1329): one per message, kept mounted while
+                 another tab is in front, so the change shown, the cursor and comments not sent yet are still there. -->
+            <ReviewChanges
+              v-for="rt in view.reviews" v-show="isShown(rt, view.g)" :key="rt.id"
+              :system-id="systemId" :repo-id="repositoryId" :message-id="rt.messageId" :conversation-id="rt.conversationId"
+              :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :theme="monacoTheme" :monaco="() => monacoNs"
+              :is-unsaved="isUnsavedPath" :send="sendReview"
+              @written="onReviewWritten" @loaded="(n) => onReviewLoaded(rt, n)" @comments="(n) => { rt.comments = n }"
+              @open-file="openFile"
+            />
+            <template v-if="!(view.g === 0 && chatFront)">
+            <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
+                 as VS Code shows it. Read-only: edits are made in the file's own tab. -->
+            <!-- A conflicted file in the 3-way merge editor (ADM-1321). -->
+            <MergeEditor
+              v-if="view.tab && view.tab.type === 'merge'" :key="view.tab.id"
+              :system-id="systemId" :repo-id="repositoryId" :path="view.tab.path" :language="view.tab.language"
+              :editor="MonacoEditor" :diff-editor="MonacoDiffEditor" :diff-options="diffOptions" :editor-options="editorOptions"
+              :theme="monacoTheme" :monaco="() => monacoNs"
+              @resolved="onMergeResolved(view.tab, $event)" @open-file="openFile" @edited="(on) => { view.tab.edited = on }"
+            />
+            <template v-else-if="view.tab && view.tab.type === 'diff'">
+              <div v-if="view.tab.loading" class="empty-editor" role="status" aria-live="polite">
+                <p class="empty-editor-s">{{ view.tab.waiting ? `The project's sandbox is starting. Trying again in ${view.tab.waiting}s…` : 'Loading the changes…' }}</p>
+              </div>
+              <div v-else-if="view.tab.note" class="empty-editor" role="status">
+                <Icon :icon="view.tab.noteIcon || 'lucide:file-diff'" class="empty-editor-ic" aria-hidden="true" />
+                <p class="empty-editor-t">{{ view.tab.path }}</p>
+                <p class="empty-editor-s">{{ view.tab.note }}</p>
+              </div>
+              <div v-else class="diff-wrap">
+                <!-- Stage or unstage ONE change of the file (ADM-1321), as VS Code's Stage Selected Ranges. -->
+                <div v-if="view.tab.hunks && !view.tab.hunks.redacted && (hunkCount(view.tab) || view.tab.hunks.unstaged.whole || view.tab.hunks.staged.whole)" class="hunk-bar" role="group" aria-label="Changes in this file">
+                  <template v-for="side in hunkSides(view.tab)" :key="side.key">
+                    <span v-if="side.items.length" class="hunk-side">{{ side.label }}</span>
+                    <span v-for="(h, i) in side.items" :key="side.key + h.header" class="hunk">
+                      <button type="button" class="hunk-go" :aria-label="`Go to ${side.label.toLowerCase()} change ${i + 1}, ${hunkLines(h)}`" @click="revealHunk(h)">
+                        {{ hunkLines(h) }}
+                      </button>
+                      <button type="button" class="hunk-act" :disabled="view.tab.staging"
+                              :aria-label="`${side.unstage ? 'Unstage' : 'Stage'} change ${i + 1}, ${hunkLines(h)}`"
+                              :title="side.unstage ? 'Unstage this change' : 'Stage this change'" @click="stageHunk(view.tab, h, side.unstage)">
+                        <Icon :icon="side.unstage ? 'lucide:minus' : 'lucide:plus'" aria-hidden="true" />
+                      </button>
+                    </span>
+                  </template>
+                  <span v-if="view.tab.hunks.unstaged.whole || view.tab.hunks.staged.whole" class="hunk-note">
+                    A new, deleted, renamed or binary file is staged whole, from Source control.
+                  </span>
+                </div>
+                <MonacoDiffEditor
+                  :value="view.tab.modified"
+                  :original="view.tab.originalText"
+                  :language="view.tab.language"
+                  :theme="monacoTheme"
+                  :options="diffOptions"
+                  class="monaco-editor"
+                  @editorDidMount="(d) => onDiffMount(d, view.g)"
+                />
+              </div>
+            </template>
+            <!-- A Review tab is drawn above (ReviewChanges); nothing else shows under it. -->
+            <span v-else-if="view.tab && view.tab.type === 'review'" hidden></span>
+            <!-- A picture shows as itself, on a checkerboard so transparency reads, never larger than it is. An SVG can
+                 also be opened as its code. -->
+            <div v-else-if="view.tab && view.tab.type === 'image'" class="image-view">
+              <div v-if="view.tab.loading" class="empty-editor" role="status" aria-live="polite">
+                <p class="empty-editor-s">{{ view.tab.waiting ? `The project's sandbox is starting. Trying again in ${view.tab.waiting}s…` : 'Loading the picture…' }}</p>
+              </div>
+              <div v-else-if="view.tab.error" class="empty-editor" role="alert">
+                <Icon icon="lucide:image-off" class="empty-editor-ic" aria-hidden="true" />
+                <p class="empty-editor-t">{{ view.tab.path }}</p>
+                <p class="empty-editor-s">{{ view.tab.error }}</p>
+              </div>
+              <template v-else>
+                <div class="image-stage">
+                  <img :src="view.tab.url" :alt="view.tab.name" class="image-img" @load="onImageLoad(view.tab, $event)" />
+                </div>
+                <div class="image-meta">
+                  <span>{{ view.tab.name }}</span>
+                  <span v-if="view.tab.width">{{ view.tab.width }} × {{ view.tab.height }} px</span>
+                  <span>{{ formatBytes(view.tab.size) }}</span>
+                  <button v-if="view.tab.canCode" type="button" class="image-code-btn" @click="openFile(view.tab.path, { asCode: true })">
+                    <Icon icon="lucide:code" aria-hidden="true" /> Open as code
+                  </button>
+                </div>
+              </template>
+            </div>
+            <!-- A file's text. A markdown file can show its preview beside the text or in its place (ADM-1322); the
+                 editor stays mounted under the preview, so its undo, cursor and language features are kept. -->
+            <div v-else-if="view.tab" class="text-view" :class="`mdv-${mdViewOf(view.tab)}`">
+              <MonacoEditor
+                v-show="mdViewOf(view.tab) !== 'preview'"
+                :value="view.tab.content"
+                :language="view.tab.language"
+                :path="view.tab.path"
+                :options="editorOptions"
+                :theme="monacoTheme"
+                class="monaco-editor"
+                @change="(v) => onEditorChange(v, view.g)"
+                @editorDidMount="(ed) => onEditorMount(ed, view.g)"
+              />
+              <!-- Sanitised twice (utils/markdownPreview): no script, frame or event handler; links open in a new tab. -->
+              <article v-if="mdViewOf(view.tab) !== 'text'" :ref="(el) => onPreviewEl(el, view.tab)" class="md-preview" tabindex="0"
+                       data-test="cb-md-render" v-html="mdHtml(view.tab)"
+                       :aria-label="`Preview of ${view.tab.name}`" @click="onPreviewClick($event, view.tab)"></article>
+            </div>
+            <div v-else class="empty-editor">
+              <Icon icon="lucide:file-code" class="empty-editor-ic" aria-hidden="true" />
+              <p class="empty-editor-t">No file open</p>
+              <p class="empty-editor-s">Pick a file from the list to open it here.</p>
+            </div>
+            </template>
+          </div>
+          <!-- Vim keys (ADM-1322): the mode and the ":" command line of this group's editor. -->
+          <div v-if="editable && editorSettings.vim" v-show="view.tab && view.tab.type === 'file' && mdViewOf(view.tab) !== 'preview' && !(view.g === 0 && chatFront)"
+               :ref="(el) => setVimBar(view.g, el)" class="vim-bar" data-test="cb-vim-bar" aria-live="polite"></div>
+        </section>
       </div>
     </div>
   </div>
@@ -401,6 +494,13 @@ import RunDebugPanel from '@/components/letscode/RunDebugPanel.vue'
 import ReviewChanges from '@/components/letscode/ReviewChanges.vue'
 import MergeEditor from '@/components/letscode/MergeEditor.vue'
 import { blameDecorations } from '@/utils/blame'
+import CommandPalette from '@/components/letscode/CommandPalette.vue'
+import OutlineView from '@/components/letscode/OutlineView.vue'
+import EditorBreadcrumbs from '@/components/letscode/EditorBreadcrumbs.vue'
+import { GROUPS, groupOf, tabsOfGroup, canMoveGroup, moveTab, stepTab, othersToClose, rightToClose } from '@/utils/editorGroups'
+import { symbolsOf, symbolChainAt } from '@/utils/editorSymbols'
+import { renderMarkdownPreview, isMarkdownPath, projectLinkOf } from '@/utils/markdownPreview'
+import { startVim } from '@/utils/vimMode'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -484,7 +584,8 @@ const chatTabs = inject(CODING_CHAT_TABS, null)
 const chatOn = computed(() => !!(chatTabs && chatTabs.bound))
 const chatFront = computed(() => chatOn.value && chatTabs.front)
 function chatTabFront(ct) { return chatFront.value && chatTabs.isActive(ct) }
-function showFilesInFront() { if (chatTabs) chatTabs.showFiles(); pane.value = 'editor' }
+// The chat is in the first editor group: a file opened in the second leaves it in front (ADM-1322).
+function showFilesInFront() { if (chatTabs && focusedGroup.value === 0) chatTabs.showFiles(); pane.value = 'editor' }
 
 // A NARROW SCREEN (640 px and less) shows one pane at a time: the editor (its file and chat tabs) or one sidebar view,
 // chosen in the sidebar's tab row, which gains an Editor tab (ADM-1128, 2026-11-17). Side by side at 375 px the file
@@ -499,9 +600,14 @@ narrowQuery?.addEventListener?.('change', onNarrowChange)
 onBeforeUnmount(() => narrowQuery?.removeEventListener?.('change', onNarrowChange))
 function showSide(tab) { sidebarTab.value = tab; pane.value = 'side' }
 function sideSelected(tab) { return sidebarTab.value === tab && !(narrow.value && pane.value === 'editor') }
-watch(chatFront, (front) => { if (front) pane.value = 'editor' })
+watch(chatFront, (front) => { if (front) { pane.value = 'editor'; focusedGroup.value = 0 } })
 // A file tab, or a file opened from the tree, search or Source control, comes in front of the chat.
-function showFile(id) { showFilesInFront(); activeTabId.value = id }
+function showFile(id) {
+  const tab = openTabs.value.find(t => t.id === id)
+  if (tab) focusedGroup.value = groupOf(tab)
+  showFilesInFront()
+  activeTabId.value = id
+}
 // A tab opened before Monaco loaded got the short fallback list's language: give it Monaco's.
 watch(monacoLanguages, (langs) => {
   if (!langs) return
@@ -509,7 +615,26 @@ watch(monacoLanguages, (langs) => {
     if (tab.path && tab.language != null) tab.language = languageFor(tab.path, langs)
   }
 })
-const activeTabId = ref(null)
+// ── THE TWO EDITOR GROUPS (ADM-1322; utils/editorGroups) ─────────────────────────────────────────────────────
+// Each group shows one of its tabs; `focusedGroup` is the one clicked or typed in last. `activeTabId` is the focused
+// group's tab, so Save, the keys, blame and the language servers act on what the person is working in. Making a tab
+// active puts a new tab in the focused group, and focuses the group of one already open.
+const groups = reactive(GROUPS.map(() => ({ activeId: null })))
+const focusedGroup = ref(0)
+const split = computed(() => openTabs.value.some(t => groupOf(t) === 1))
+const activeTabId = computed({
+  get: () => groups[focusedGroup.value].activeId,
+  set: (id) => {
+    const tab = id == null ? null : openTabs.value.find(t => t.id === id)
+    if (tab) {
+      if (tab.group == null) tab.group = focusedGroup.value
+      else focusedGroup.value = groupOf(tab)
+    }
+    groups[focusedGroup.value].activeId = id
+  },
+})
+// The chat covers the first group's files: the focused group's editor is not shown then.
+const coverFocused = computed(() => chatFront.value && focusedGroup.value === 0)
 const saving = ref(false)
 
 // Monaco follows the editor's own theme (useIdeTheme: the app's until the person picks one): light 'vs', dark
@@ -597,9 +722,9 @@ function isDirty(tab) {
   return props.editable && tab && tab.type === 'file' && tab.original !== undefined && tab.content !== tab.original
 }
 
-function onEditorChange(value) {
+function onEditorChange(value, g = focusedGroup.value) {
   if (!props.editable) return
-  const tab = openTabs.value.find(t => t.id === activeTabId.value)
+  const tab = openTabs.value.find(t => t.id === groups[g].activeId)
   if (tab && tab.type === 'file') tab.content = value
 }
 
@@ -611,13 +736,13 @@ function onEditorChange(value) {
 const CHANGED_SINCE_OPENED = '0'.repeat(64)
 const compareName = (path) => `${path.split('/').pop()} (on disk ↔ yours)`
 
-async function writeTab(tab, sha) {
+async function writeTab(tab, sha, { quiet = false } = {}) {
   const text = tab.content
   const { data } = await api.saveFileContent(props.systemId, props.repositoryId, tab.path, text, sha || undefined)
   tab.original = text
   tab.diskSha = data?.sha ?? null
   projectCache.file.set(props.repositoryId, tab.path, text)
-  notify.success(`Saved ${tab.name}`)
+  if (!quiet) notify.success(`Saved ${tab.name}`)          // an autosave says nothing: the tab's dot goes
   blameRead.delete(tab.path)
   nextTick(applyBlame)
 }
@@ -704,7 +829,7 @@ function toggleBlame() {
 async function applyBlame() {
   clearBlame()
   const tab = activeTab.value
-  if (!blameOn.value || chatFront.value || !tab || tab.type !== 'file' || isDirty(tab)) return
+  if (!blameOn.value || coverFocused.value || !tab || tab.type !== 'file' || isDirty(tab)) return
   let data = blameRead.get(tab.path)
   if (!data) {
     try {
@@ -721,17 +846,40 @@ async function applyBlame() {
 }
 
 async function saveActive() {
-  const tab = openTabs.value.find(t => t.id === activeTabId.value)
-  if (!tab || !isDirty(tab) || saving.value) return
-  saving.value = true
+  return saveTab(openTabs.value.find(t => t.id === activeTabId.value))
+}
+
+// One tab's save, by the person (Save, Ctrl+S, :w) or by autosave (`auto`: 'delay' after a pause in typing, 'focus'
+// when the editor loses the focus; ADM-1322). Both send the sha the tab read: a file changed on disk is never
+// overwritten, it raises the same question. After that question autosave pauses for the tab until the person saves it
+// themselves, so an automatic save never replaces a version they were just shown. An autosave says nothing when it
+// works, and does not format after a pause in typing (the text would move under the cursor; VS Code skips it too).
+async function saveTab(tab, { auto = null } = {}) {
+  if (!tab || !isDirty(tab) || tab.saving || tab.asking) return
+  if (!auto && saving.value) return
+  if (auto && tab.autoSaveHeld) return
+  tab.saving = true
+  if (!auto) saving.value = true
   try {
-    await formatBeforeSave(tab)
-    await writeTab(tab, tab.diskSha)
+    if (auto !== 'delay') await formatBeforeSave(tab)
+    await writeTab(tab, tab.diskSha, { quiet: !!auto })
+    if (!auto) tab.autoSaveHeld = false
   } catch (e) {
-    if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') await changedOnDisk(tab)
-    else notify.error(e?.response?.data?.error || 'Failed to save file')
+    if (e?.response?.status === 409 && e.response.data?.code === 'CHANGED_ON_DISK') {
+      if (auto) tab.autoSaveHeld = true
+      tab.saving = false
+      await changedOnDisk(tab)
+      if (auto && tab.autoSaveHeld && isDirty(tab) && openTabs.value.some(t => t.id === tab.id)) {
+        notify.info(`Autosave is paused for ${tab.name} until you save it yourself.`)
+      }
+    } else if (auto) {
+      tab.autoSaveHeld = true
+      notify.error(`${tab.name} was not saved automatically: ${e?.response?.data?.error || 'the save failed'}. `
+        + 'Autosave is paused for it until you save it yourself.')
+    } else notify.error(e?.response?.data?.error || 'Failed to save file')
   } finally {
-    saving.value = false
+    tab.saving = false
+    if (!auto) saving.value = false
   }
 }
 
@@ -769,7 +917,7 @@ async function formatBeforeSave(tab) {
 function editOpenFile(path, edits) {
   const tab = openTabs.value.find(t => t.type === 'file' && t.path === path)
   if (!tab || tab.content == null) return null
-  const model = tab.id === activeTabId.value && !chatFront.value && editorInst && editorInst.getModel ? editorInst.getModel() : null
+  const model = tab.id === activeTabId.value && !coverFocused.value && editorInst && editorInst.getModel ? editorInst.getModel() : null
   if (model && model.getValue() === tab.content && typeof editorInst.executeEdits === 'function') {
     editorInst.pushUndoStop?.()
     editorInst.executeEdits('lets-code-language-server', edits.map((e) => ({ range: rangeOf(e.range), text: e.newText ?? '',
@@ -783,18 +931,26 @@ function editOpenFile(path, edits) {
 }
 
 async function changedOnDisk(tab) {
-  const overwrite = await confirm({
-    title: `${tab.name} changed in the project`,
-    message: `The Coding Agent, a command or the terminal changed ${tab.path} after you opened it. `
-      + 'Overwrite it with your version, or compare the two first.',
-    confirmText: 'Overwrite with mine',
-    cancelText: 'Compare first',
-    danger: true,
-  })
+  if (tab.asking) return                                       // one question at a time (a save and an autosave)
+  tab.asking = true
+  let overwrite
+  try {
+    overwrite = await confirm({
+      title: `${tab.name} changed in the project`,
+      message: `The Coding Agent, a command or the terminal changed ${tab.path} after you opened it. `
+        + 'Overwrite it with your version, or compare the two first.',
+      confirmText: 'Overwrite with mine',
+      cancelText: 'Compare first',
+      danger: true,
+    })
+  } finally {
+    tab.asking = false
+  }
   if (!openTabs.value.some(t => t.id === tab.id)) return       // closed meanwhile
   if (overwrite) {
     try {
       await writeTab(tab, null)                                // no sha: the person chose to replace it
+      tab.autoSaveHeld = false                                 // they chose their text: autosave goes on
     } catch (e) {
       notify.error(e?.response?.data?.error || 'Failed to save file')
     }
@@ -830,7 +986,7 @@ async function compareWithDisk(tab) {
   else {
     cmp = {
       id: nextTabId(), type: 'diff', compare: true, path: live.path, sha: '', from: '', name: compareName(live.path),
-      language: live.language, ...sides,
+      language: live.language, group: groupOf(live), ...sides,
     }
     openTabs.value.splice(openTabs.value.findIndex(t => t.id === live.id) + 1, 0, cmp)
   }
@@ -844,6 +1000,12 @@ function onKeydown(e) {
   const k = (e.key || '').toLowerCase()
   if (k === 's' && !e.shiftKey) {
     if (props.editable) { e.preventDefault(); saveActive() }
+  } else if (k === 'p' && e.shiftKey) {
+    // The command palette (ADM-1322), as VS Code's Ctrl+Shift+P. Monaco's own list stays on F1.
+    e.preventDefault(); openPalette()
+  } else if ((k === '\\' || e.code === 'Backslash') && !e.shiftKey) {
+    // Split: the tab shown opens to the side (ADM-1322).
+    if (canOpenToSide(activeTab.value) && !coverFocused.value) { e.preventDefault(); moveToOtherGroup(activeTab.value) }
   } else if ((k === 'p' || k === 'e') && !e.shiftKey) {
     // Go to file, as VS Code (never the browser's print or its address bar).
     e.preventDefault(); openQuickOpen()
@@ -868,20 +1030,47 @@ function onQuickPick({ path, line }) {
   else openFile(path)
 }
 const settingsOpen = ref(false)
-const settingsBtn = ref(null)
 const settingsAnchor = ref(null)
-function openSettings() {
-  settingsAnchor.value = settingsBtn.value?.getBoundingClientRect() || null
+// Under the gear that was pressed (each editor group has one); from the command palette, under the focused group's.
+function openSettings(e) {
+  const at = e?.currentTarget || document.querySelector?.(`[data-test="cb-group-${focusedGroup.value}"] .tab-gear`)
+  settingsAnchor.value = at?.getBoundingClientRect?.() || null
   settingsOpen.value = true
 }
 
 // The text editor itself, once Monaco has made it: a search result opens its file at the matching line.
+// Each editor group has its own Monaco editor (`editors`, `diffs`); `editorInst` / `diffInst` are the focused group's.
+// The language servers, the debugger and a merge's conflict actions bind to one editor: the focused group's, again
+// when the focus moves to the other group (ADM-1322).
 let editorInst = null
 let diffInst = null
-function onEditorMount(editor) {
-  editorInst = editor || null
+const editors = GROUPS.map(() => null)
+const diffs = GROUPS.map(() => null)
+function onEditorMount(editor, g = 0) {
+  editors[g] = editor || null
   try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
-  addAskAction(editorInst)
+  if (!editor) return
+  addAskAction(editor)
+  try {
+    editor.onDidFocusEditorWidget?.(() => focusGroup(g))
+    editor.onDidBlurEditorWidget?.(() => autoSaveOnFocusChange(groups[g].activeId))
+    editor.onDidChangeCursorPosition?.((e) => { cursors[g] = { line: e.position.lineNumber, column: e.position.column } })
+    editor.onDidDispose?.(() => {
+      if (editors[g] === editor) editors[g] = null
+      if (editorInst === editor) editorInst = null
+      stopVimOn(g)
+    })
+  } catch { /* an editor without these events keeps working without them */ }
+  startVimOn(g)
+  if (g === focusedGroup.value) useEditor(g)
+  else applyLanguage()
+}
+// The focused group's editor takes the bindings (it is the one being typed in).
+function useEditor(g) {
+  diffInst = diffs[g]
+  const editor = editors[g]
+  if (!editor) return
+  editorInst = editor
   applyLanguage()
   revealPending()
   // The project's language servers (ADM-1205 phase F item 16): hover, completion, go to definition, references and
@@ -929,8 +1118,12 @@ function addAskAction(editor) {
     })
   } catch { /* an editor that cannot take actions keeps working without it */ }
 }
-function onDiffMount(editor) {
-  diffInst = editor || null
+function onDiffMount(editor, g = 0) {
+  diffs[g] = editor || null
+  try {
+    editor?.onDidDispose?.(() => { if (diffs[g] === editor) diffs[g] = null; if (diffInst === editor) diffInst = null })
+  } catch { /* noop */ }
+  if (g === focusedGroup.value) diffInst = diffs[g]
   applyLanguage()
 }
 
@@ -939,22 +1132,27 @@ function onDiffMount(editor) {
 // changed the text, never the language, so every file was coloured as the first one opened (a .ts after a .json had
 // no TypeScript colours). The active tab's language is set on the model here, and on both sides of a diff.
 function applyLanguage() {
-  const tab = activeTab.value
-  if (!monacoNs || !tab) return
-  const lang = tab.language || 'plaintext'
-  const set = (model) => {
-    try { if (model && model.getLanguageId() !== lang) monacoNs.editor.setModelLanguage(model, lang) } catch { /* disposed */ }
-  }
-  if (tab.type === 'file' && editorInst) {
-    const model = editorInst.getModel()
-    set(model)
-    // Tab size is the model's own option (Monaco ignores it as an editor option); "auto" leaves the file's.
-    const size = editorSettings.tabSize
-    if (size !== 'auto') { try { model?.updateOptions({ tabSize: size, indentSize: size, insertSpaces: true }) } catch { /* disposed */ } }
-  }
-  if (tab.type === 'diff' && diffInst) {
-    const pair = diffInst.getModel()
-    if (pair) { set(pair.original); set(pair.modified) }
+  if (!monacoNs) return
+  for (const g of GROUPS) {
+    const tab = groupTab(g)
+    if (!tab) continue
+    const lang = tab.language || 'plaintext'
+    const set = (model) => {
+      try { if (model && model.getLanguageId() !== lang) monacoNs.editor.setModelLanguage(model, lang) } catch { /* disposed */ }
+    }
+    const editor = editors[g]
+    if (tab.type === 'file' && editor && editor.getModel) {
+      const model = editor.getModel()
+      set(model)
+      // Tab size is the model's own option (Monaco ignores it as an editor option); "auto" leaves the file's.
+      const size = editorSettings.tabSize
+      if (size !== 'auto') { try { model?.updateOptions({ tabSize: size, indentSize: size, insertSpaces: true }) } catch { /* disposed */ } }
+    }
+    const diff = diffs[g]
+    if (tab.type === 'diff' && diff && diff.getModel) {
+      const pair = diff.getModel()
+      if (pair) { set(pair.original); set(pair.modified) }
+    }
   }
 }
 
@@ -962,10 +1160,11 @@ function applyLanguage() {
 const activeTab = computed(() => {
   return openTabs.value.find(t => t.id === activeTabId.value)
 })
-// The model's language follows the tab shown (see applyLanguage).
-watch(() => [activeTabId.value, activeTab.value && activeTab.value.language, editorSettings.tabSize], () => nextTick(applyLanguage), { flush: 'post' })
+// The model's language follows the tab shown in each group (see applyLanguage).
+watch(() => [...GROUPS.map((g) => groups[g].activeId), ...GROUPS.map((g) => groupTab(g)?.language), editorSettings.tabSize],
+  () => nextTick(applyLanguage), { flush: 'post' })
 // Blame follows the tab shown, and steps aside while it has unsaved edits (ADM-1321).
-watch(() => [activeTabId.value, activeTab.value && isDirty(activeTab.value), chatFront.value], () => nextTick(applyBlame))
+watch(() => [activeTabId.value, activeTab.value && isDirty(activeTab.value), coverFocused.value], () => nextTick(applyBlame))
 
 // Build a reactive tree node from a server entry. `expanded`/`loaded`/`loading`/`children` are plain
 // fields — they live inside the reactive `rootNodes` array, so mutating them updates the tree.
@@ -1366,7 +1565,7 @@ async function openFile(filePath, { asCode = false } = {}) {
     if (live && [404, 400].includes(error?.response?.status)) {
       // Kept from before, gone now: the tab closes rather than show a file that is not there.
       openTabs.value = openTabs.value.filter(t => t.id !== id)
-      if (activeTabId.value === id) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
+      healGroups()                                    // the group shows its last tab, or none
       projectCache.file.set(repoId, filePath, null)
     }
     notify.error(error?.response?.data?.error || 'Could not open the file')
@@ -1403,17 +1602,19 @@ async function closeTab(tabId) {
     if (!ok) return
   }
 
-  openTabs.value.splice(index, 1)
+  // Switch to the tab on its left in its group when closing the one the group shows (ADM-1322: each group its own).
+  const g = groupOf(tab)
+  const at = tabsOfGroup(openTabs.value, g).findIndex(t => t.id === tabId)
+  const shown = groups[g].activeId === tabId
+  const i = openTabs.value.findIndex(t => t.id === tabId)          // the list may have changed while asking
+  if (i === -1) return
+  openTabs.value.splice(i, 1)
   if (tab.type === 'image' && tab.url) URL.revokeObjectURL(tab.url)     // the picture's memory goes with its tab
-
-  // Switch to another tab if closing active tab
-  if (activeTabId.value === tabId) {
-    if (openTabs.value.length > 0) {
-      activeTabId.value = openTabs.value[Math.max(0, index - 1)].id
-    } else {
-      activeTabId.value = null
-    }
+  if (shown) {
+    const left = tabsOfGroup(openTabs.value, g)
+    groups[g].activeId = left.length ? left[Math.max(0, at - 1)].id : null
   }
+  healGroups()
 }
 
 function detectLanguage(filePath) {
@@ -1654,7 +1855,7 @@ async function deleteEntry(node) {
   dropNode(node.path)
   const closing = new Set(openTabs.value.filter(under).map((t) => t.id))
   openTabs.value = openTabs.value.filter((t) => !closing.has(t.id))
-  if (closing.has(activeTabId.value)) activeTabId.value = openTabs.value.length ? openTabs.value[openTabs.value.length - 1].id : null
+  healGroups()                                        // a group that showed a deleted file shows its last tab
   forgetRecent(props.repositoryId, node.path)
   afterChange(dirOf(node.path))
   notify.success(`Deleted ${node.name}`)
@@ -1829,6 +2030,527 @@ async function openAt({ path, line, column }) {
   revealPending()
 }
 watch(() => activeTab.value && activeTab.value.content, () => { if (pendingReveal) nextTick(revealPending) })
+
+// ── EDITOR GROUPS AND TABS (ADM-1322; utils/editorGroups) ──────────────────────────────────────────────────────
+// A group's tabs (pinned first), the tab it shows, and what each group draws.
+function groupTab(g) {
+  const id = groups[g].activeId
+  return id == null ? null : openTabs.value.find(t => t.id === id && groupOf(t) === g) || null
+}
+const groupViews = computed(() => GROUPS.filter(g => g === 0 || split.value).map(g => ({
+  g, tabs: tabsOfGroup(openTabs.value, g), tab: groupTab(g), reviews: reviewTabs.value.filter(t => groupOf(t) === g),
+})))
+function isShown(tab, g) { return groups[g].activeId === tab.id && !(g === 0 && chatFront.value) }
+
+// Every group shows one of its own tabs (its last when the one it showed has gone). The second group closes when its
+// last tab leaves it; when the first group has nothing left (and no chat), the second becomes the only one.
+function healGroups() {
+  const g1 = tabsOfGroup(openTabs.value, 1)
+  if (g1.length && !chatOn.value && !tabsOfGroup(openTabs.value, 0).length && g1.every(canMoveGroup)) {
+    for (const t of g1) t.group = 0
+    groups[0].activeId = groups[1].activeId
+    groups[1].activeId = null
+    focusedGroup.value = 0
+  }
+  for (const g of GROUPS) {
+    const mine = tabsOfGroup(openTabs.value, g)
+    if (!mine.some(t => t.id === groups[g].activeId)) groups[g].activeId = mine.length ? mine[mine.length - 1].id : null
+  }
+  if (!split.value && focusedGroup.value !== 0) focusedGroup.value = 0
+}
+watch(() => openTabs.value.map(t => `${t.id}:${groupOf(t)}`).join(','), healGroups)
+
+// The group clicked or typed in. `show`: also put the keyboard focus in its editor (on a narrow screen the group then
+// shows, the other hides).
+function focusGroup(g, { show = false } = {}) {
+  if (g === 1 && !split.value) return
+  if (focusedGroup.value !== g) focusedGroup.value = g
+  if (show) nextTick(() => { try { editors[g]?.focus?.() } catch { /* gone */ } })
+}
+watch(focusedGroup, (g) => {
+  diffInst = diffs[g]
+  if (editors[g] && editors[g] !== editorInst) useEditor(g)
+})
+
+// "Open to the side" (Ctrl+\, the tab's menu, or a tab dropped on the editor): the tab moves to the other group and is
+// shown there. A Review or merge tab stays where it is (it holds comments or a merge result not saved). A group's only
+// tab is not offered (with nothing left behind, the group would close, as VS Code's does), unless the chat stays there.
+function canOpenToSide(tab) {
+  return !!tab && canMoveGroup(tab)
+    && (groupOf(tab) === 1 || chatOn.value || tabsOfGroup(openTabs.value, 0).length > 1)
+}
+function moveToOtherGroup(tab, to = 1 - groupOf(tab)) {
+  if (!tab || !canMoveGroup(tab) || groupOf(tab) === to) return
+  openTabs.value = moveTab(openTabs.value, tab.id, { group: to })
+  focusedGroup.value = to
+  groups[to].activeId = tab.id
+  if (to === 0 && chatTabs) chatTabs.showFiles()
+  pane.value = 'editor'
+  healGroups()
+}
+// Close a group: each of its tabs closes as a tab does (one with unsaved edits asks first).
+async function closeGroup(g) {
+  for (const t of tabsOfGroup(openTabs.value, g)) await closeTab(t.id)
+}
+async function closeTabs(list) { for (const t of list) await closeTab(t.id) }
+function togglePin(tab) { if (tab) tab.pinned = !tab.pinned }
+async function saveAll() { for (const t of openTabs.value.filter(isDirty)) await saveTab(t) }
+
+// A tab's keys: Enter / Space show it, Delete closes it, Left / Right / Home / End move along the row,
+// Ctrl+Shift+PageUp / PageDown move the tab itself, the Menu key or Shift+F10 open its menu.
+function focusTabEl(id) {
+  nextTick(() => document.querySelector?.(`.code-browser [data-tab-id="${id}"]`)?.focus())
+}
+function onTabKey(e, tab) {
+  if (e.target !== e.currentTarget) return                       // the tab's own close or unpin button
+  const ctrl = e.ctrlKey || e.metaKey
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showFile(tab.id) }
+  else if (e.key === 'Delete' && !ctrl) { e.preventDefault(); closeTab(tab.id) }
+  else if (ctrl && e.shiftKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    e.preventDefault()
+    openTabs.value = stepTab(openTabs.value, tab.id, e.key === 'PageUp' ? -1 : 1)
+    focusTabEl(tab.id)
+  } else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) && !ctrl) {
+    const row = [...(e.currentTarget.parentElement?.querySelectorAll('[role="tab"]') || [])]
+    const at = row.indexOf(e.currentTarget)
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? row.length - 1
+      : (at + (e.key === 'ArrowLeft' ? -1 : 1) + row.length) % row.length
+    e.preventDefault()
+    row[to]?.focus()
+  } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+    e.preventDefault()
+    const r = e.currentTarget.getBoundingClientRect()
+    openTabMenuAt(r.left + 12, r.bottom, tab)
+  }
+}
+// The middle button closes a tab (a pinned one stays).
+function onTabAuxClick(e, tab) {
+  if (e.button !== 1 || tab.pinned) return
+  e.preventDefault()
+  closeTab(tab.id)
+}
+
+// A tab's menu.
+const tabMenu = reactive({ open: false, x: 0, y: 0, items: [], label: '', target: null })
+function tabMenuItems(tab) {
+  const g = groupOf(tab)
+  const row = tabsOfGroup(openTabs.value, g).filter(t => !!t.pinned === !!tab.pinned)
+  const at = row.indexOf(tab)
+  return [
+    { id: 'pin', label: tab.pinned ? 'Unpin' : 'Pin', icon: tab.pinned ? 'lucide:pin-off' : 'lucide:pin' },
+    ...(canOpenToSide(tab) ? [{ id: 'side', icon: 'lucide:columns-2',
+      label: split.value ? `Move to editor group ${2 - g}` : 'Open to the side', keys: split.value ? '' : 'Ctrl+\\' }] : []),
+    { id: 'left', label: 'Move left', icon: 'lucide:arrow-left', keys: 'Ctrl+Shift+PgUp', disabled: at <= 0 },
+    { id: 'right', label: 'Move right', icon: 'lucide:arrow-right', keys: 'Ctrl+Shift+PgDn', disabled: at === row.length - 1 },
+    { separator: true },
+    { id: 'close', label: 'Close', icon: 'lucide:x', keys: 'Del' },
+    { id: 'close-others', label: 'Close others', icon: 'lucide:copy-x', disabled: !othersToClose(openTabs.value, tab.id).length },
+    { id: 'close-right', label: 'Close to the right', icon: 'lucide:arrow-right-to-line', disabled: !rightToClose(openTabs.value, tab.id).length },
+    ...(tab.path ? [{ separator: true },
+      { id: 'reveal', label: 'Show in Files', icon: 'lucide:folder-search' },
+      { id: 'copy-path', label: 'Copy path', icon: 'lucide:copy' }] : []),
+  ]
+}
+function openTabMenuAt(x, y, tab) {
+  tabMenu.target = tab
+  tabMenu.items = tabMenuItems(tab)
+  tabMenu.label = `Actions for the tab ${tab.name}`
+  tabMenu.x = x
+  tabMenu.y = y
+  tabMenu.open = true
+}
+function openTabMenu(e, tab) { openTabMenuAt(e.clientX, e.clientY, tab) }
+function onTabMenuSelect(item) {
+  const tab = tabMenu.target
+  if (!tab || !openTabs.value.some(t => t.id === tab.id)) return
+  switch (item.id) {
+    case 'pin': return togglePin(tab)
+    case 'side': return moveToOtherGroup(tab)
+    case 'left': case 'right':
+      openTabs.value = stepTab(openTabs.value, tab.id, item.id === 'left' ? -1 : 1)
+      return focusTabEl(tab.id)
+    case 'close': return closeTab(tab.id)
+    case 'close-others': return closeTabs(othersToClose(openTabs.value, tab.id))
+    case 'close-right': return closeTabs(rightToClose(openTabs.value, tab.id))
+    case 'reveal': return revealInFiles(tab.path, { file: true })
+    case 'copy-path': return copyPath({ path: tab.path })
+  }
+}
+
+// Drag a tab along its row, onto the other group's row, or onto an editor (the side: "Open to the side").
+const TAB_DRAG = 'application/x-lets-code-tab'
+const tabDrag = ref(null)            // the id of the tab being dragged
+const tabDrop = ref(null)            // where it would land: { g, id } (before that tab; id null: the end of the row)
+const editorDrop = ref(null)         // the group whose editor it would open in
+const draggedTab = () => (tabDrag.value == null ? null : openTabs.value.find(t => t.id === tabDrag.value) || null)
+function onTabDragStart(e, tab) {
+  tabDrag.value = tab.id
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData(TAB_DRAG, String(tab.id))
+  e.dataTransfer.setData('text/plain', tab.path || tab.name)
+}
+function onTabDragEnd() { tabDrag.value = null; tabDrop.value = null; editorDrop.value = null }
+function onTabDragOver(e, g, target) {
+  const tab = draggedTab()
+  if (!tab || (g !== groupOf(tab) && !canMoveGroup(tab))) return
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'move'
+  const id = target ? target.id : null
+  if (!tabDrop.value || tabDrop.value.g !== g || tabDrop.value.id !== id) tabDrop.value = { g, id }
+}
+function onTabDragLeave(e) { if (!e.currentTarget.contains(e.relatedTarget)) tabDrop.value = null }
+function onTabDrop(e, g, target) {
+  const tab = draggedTab()
+  if (!tab) return
+  e.preventDefault()
+  onTabDragEnd()
+  const moved = moveTab(openTabs.value, tab.id, { group: g, beforeId: target ? target.id : null })
+  if (moved === openTabs.value) return
+  openTabs.value = moved
+  showFile(tab.id)
+  healGroups()
+}
+// The editor area: with one group, a tab dropped on it opens to the side; with two, it moves into that group.
+const editorDropTo = (g) => (split.value ? g : 1)
+function onEditorDragOver(e, g) {
+  const tab = draggedTab()
+  if (!canOpenToSide(tab) || groupOf(tab) === editorDropTo(g) || (narrow.value && !split.value)) return
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'move'
+  editorDrop.value = g
+}
+function onEditorDragLeave(e) { if (!e.currentTarget.contains(e.relatedTarget)) editorDrop.value = null }
+function onEditorDrop(e, g) {
+  const tab = draggedTab()
+  if (!tab || editorDrop.value !== g) return
+  e.preventDefault()
+  onTabDragEnd()
+  moveToOtherGroup(tab, editorDropTo(g))
+}
+
+// ── MARKDOWN PREVIEW (ADM-1322; utils/markdownPreview) ──────────────────────────────────────────────────────────
+// A .md tab shows its text (the default), its preview beside the text, or the preview alone. The editor stays mounted
+// under the preview. Rendered once per text.
+const isMarkdownTab = (tab) => !!tab && tab.type === 'file' && isMarkdownPath(tab.path)
+const mdViewOf = (tab) => (isMarkdownTab(tab) && ['split', 'preview'].includes(tab.mdView) ? tab.mdView : 'text')
+function setMdView(tab, mode) { if (isMarkdownTab(tab)) tab.mdView = tab.mdView === mode ? 'text' : mode }
+const mdRendered = new WeakMap()
+function mdHtml(tab) {
+  const text = tab.content ?? ''
+  const kept = mdRendered.get(tab)
+  if (kept && kept.text === text) return kept.html
+  const html = renderMarkdownPreview(text)
+  mdRendered.set(tab, { text, html })
+  return html
+}
+// A picture the file names by a project path ("docs/shot.png", "../logo.svg") is the project's own file: read through
+// the editor's signed-in API (files/image, as an image tab is) and shown from a blob: URL, since a plain <img src>
+// would ask the app, not the project (live, 2026-11-20). Each project file is read once; the URLs are freed on unmount.
+const previewImages = new Map()                  // project path → Promise<blob: URL | ''>
+function previewImageUrl(path) {
+  if (!previewImages.has(path)) {
+    previewImages.set(path, api.getFileImage(props.systemId, props.repositoryId, path)
+      .then((res) => URL.createObjectURL(res.data)).catch(() => ''))
+  }
+  return previewImages.get(path)
+}
+function onPreviewEl(el, tab) {
+  if (!el) return
+  nextTick(() => {
+    for (const img of el.querySelectorAll('img[src]')) {
+      if (img.dataset.lcSrc) continue
+      const path = projectLinkOf(img.getAttribute('src'), tab.path)
+      if (!path) continue                        // a web address loads as it is
+      img.dataset.lcSrc = path
+      img.removeAttribute('src')
+      previewImageUrl(path).then((url) => { if (url) img.src = url; else img.alt = `${img.alt || path} (not found in the project)` })
+    }
+  })
+}
+onBeforeUnmount(() => {
+  for (const p of previewImages.values()) p.then((url) => { if (url) URL.revokeObjectURL(url) })
+  previewImages.clear()
+})
+// A link to another file of the project opens it in a tab; an anchor in the same file does nothing (the preview has
+// no heading ids); every other link opens in a new browser tab (target="_blank", rel="noopener").
+function onPreviewClick(e, tab) {
+  const a = e.target?.closest?.('a')
+  if (!a) return
+  const href = a.getAttribute('href') || ''
+  if (href.startsWith('#')) { e.preventDefault(); return }
+  const path = projectLinkOf(href, tab.path)
+  if (path) { e.preventDefault(); openFile(path) }
+}
+
+// ── OUTLINE AND BREADCRUMBS (ADM-1322; utils/editorSymbols) ─────────────────────────────────────────────────────
+// Each group's file is asked for its symbols when it is shown and after a pause in typing, and again when its language
+// server becomes ready. Nothing is shown for a file no language server answers for.
+const cursors = reactive(GROUPS.map(() => ({ line: 1, column: 1 })))
+const symbolsByPath = reactive({})               // path → { state: 'starting' | 'ready' | 'none', symbols }
+const symbolTimers = new Map()
+const SYMBOLS_WAIT_MS = 400
+const SYMBOLS_RETRY_MS = 1500
+const SYMBOLS_RETRIES = 40                       // a server still starting is asked again for a minute
+function wantSymbols(tab, wait = SYMBOLS_WAIT_MS) {
+  if (!tab || tab.type !== 'file' || !tab.path) return
+  clearTimeout(symbolTimers.get(tab.path))
+  symbolTimers.set(tab.path, setTimeout(() => readSymbols(tab.path), wait))
+}
+async function readSymbols(path, tries = 0) {
+  symbolTimers.delete(path)
+  if (unmounted) return
+  if (!openTabs.value.some(t => t.type === 'file' && t.path === path)) { delete symbolsByPath[path]; return }
+  if (!languages || typeof languages.documentSymbols !== 'function') { symbolsByPath[path] = { state: 'none', symbols: [] }; return }
+  let r
+  try { r = await languages.documentSymbols(path) } catch { r = { state: 'none' } }
+  if (unmounted) return
+  const kept = symbolsByPath[path]
+  if (r && r.state === 'ready') symbolsByPath[path] = { state: 'ready', symbols: symbolsOf(r.result) }
+  else if (r && r.state === 'starting') {
+    if (!kept || kept.state !== 'ready') symbolsByPath[path] = { state: 'starting', symbols: [] }
+    if (tries < SYMBOLS_RETRIES && !symbolTimers.has(path)) {
+      symbolTimers.set(path, setTimeout(() => readSymbols(path, tries + 1), SYMBOLS_RETRY_MS))
+    }
+  } else symbolsByPath[path] = { state: 'none', symbols: [] }
+}
+const shownText = GROUPS.map(() => ({ path: null, text: null }))
+watch(() => GROUPS.map(g => { const t = groupTab(g); return t && t.type === 'file' ? [t.path, t.content] : null }), (now) => {
+  now.forEach((pair, g) => {
+    const seen = shownText[g]
+    if (!pair) { seen.path = null; seen.text = null; return }
+    const [path, text] = pair
+    if (seen.path === path && seen.text === text) return
+    const first = seen.path !== path
+    seen.path = path
+    seen.text = text
+    wantSymbols(groupTab(g), first && !symbolsByPath[path] ? 0 : SYMBOLS_WAIT_MS)
+  })
+}, { immediate: true })
+if (languages && languages.servers) {
+  watch(() => Object.values(languages.servers).map(s => s && s.state).join(','), () => {
+    for (const g of GROUPS) wantSymbols(groupTab(g), 0)
+  })
+}
+onBeforeUnmount(() => { for (const t of symbolTimers.values()) clearTimeout(t); symbolTimers.clear() })
+
+function symbolsOfTab(tab) { return (tab && tab.type === 'file' && symbolsByPath[tab.path]) || null }
+function crumbChain(view) {
+  const s = symbolsOfTab(view.tab)
+  if (!s || s.state !== 'ready') return []
+  const c = cursors[view.g]
+  return symbolChainAt(s.symbols, c.line, c.column)
+}
+// The Outline view shows the focused group's file.
+const outlineFile = computed(() => (activeTab.value && activeTab.value.type === 'file' && !coverFocused.value ? activeTab.value : null))
+const outlineView = computed(() => {
+  const tab = outlineFile.value
+  if (!tab) return { state: 'none', symbols: [] }
+  return symbolsOfTab(tab) || { state: languages ? 'starting' : 'none', symbols: [] }
+})
+const outlineCurrentKey = computed(() => {
+  const s = outlineView.value
+  if (s.state !== 'ready') return ''
+  const c = cursors[focusedGroup.value]
+  const chain = symbolChainAt(s.symbols, c.line, c.column)
+  return chain.length ? chain[chain.length - 1].key : ''
+})
+// A symbol from the Outline or the breadcrumbs: its name selected, in the middle of the editor.
+function revealSymbol(s, g = focusedGroup.value) {
+  const tab = groupTab(g)
+  const ed = editors[g]
+  if (!s || !tab) return
+  if (mdViewOf(tab) === 'preview') tab.mdView = 'split'
+  pane.value = 'editor'
+  const r = s.selection || s.range
+  const range = { startLineNumber: r.startLine, startColumn: r.startColumn, endLineNumber: r.endLine, endColumn: r.endColumn }
+  nextTick(() => {
+    try {
+      ed?.setSelection?.(range)
+      ed?.revealRangeInCenter?.(range)
+      ed?.focus?.()
+    } catch { /* the editor went away */ }
+  })
+}
+// A folder of the breadcrumbs (or a tab's "Show in Files"): the Files view, with the folders down to it open.
+async function revealInFiles(path, { file = false } = {}) {
+  showSide('files')
+  fileSearch.value = ''
+  const parts = (path || '').split('/').filter(Boolean)
+  const upto = file ? parts.length - 1 : parts.length
+  for (let i = 1; i <= upto; i++) await openFolder(parts.slice(0, i).join('/'))
+}
+
+// ── AUTOSAVE (ADM-1322; the editor's settings, off unless chosen) ────────────────────────────────────────────────
+// 'afterDelay': a tab with unsaved edits is saved after a pause in typing. 'onFocusChange': when its editor loses the
+// focus, another tab is shown in its group, or the browser window is left. Always saveTab: the version-checked save.
+const autoTimers = new Map()          // tab id → the timer of its next save
+const autoSeen = new Map()            // tab id → the text that timer is for
+function scheduleAutoSave(tab) {
+  clearTimeout(autoTimers.get(tab.id))
+  autoTimers.set(tab.id, setTimeout(() => {
+    autoTimers.delete(tab.id)
+    if (!openTabs.value.some(t => t.id === tab.id)) return
+    if (tab.saving) scheduleAutoSave(tab)            // the last save is still going: this text is saved after it
+    else saveTab(tab, { auto: 'delay' })
+  }, editorSettings.autoSaveDelay))
+}
+function clearAutoSave() {
+  for (const t of autoTimers.values()) clearTimeout(t)
+  autoTimers.clear()
+  autoSeen.clear()
+}
+watch(() => openTabs.value.map(t => (t.type === 'file' && isDirty(t) ? t.content : null)), () => {
+  if (!props.editable || editorSettings.autoSave !== 'afterDelay') return
+  for (const t of openTabs.value) {
+    if (t.type !== 'file' || !isDirty(t) || t.autoSaveHeld || autoSeen.get(t.id) === t.content) continue
+    autoSeen.set(t.id, t.content)
+    scheduleAutoSave(t)
+  }
+})
+watch(() => [editorSettings.autoSave, editorSettings.autoSaveDelay], clearAutoSave)
+function autoSaveOnFocusChange(id) {
+  if (!props.editable || editorSettings.autoSave !== 'onFocusChange' || id == null) return
+  const tab = openTabs.value.find(t => t.id === id && t.type === 'file')
+  if (tab && isDirty(tab)) saveTab(tab, { auto: 'focus' })
+}
+watch(() => GROUPS.map(g => groups[g].activeId), (now, before) => {
+  (before || []).forEach((id, g) => { if (id !== now[g]) autoSaveOnFocusChange(id) })
+})
+function onWindowBlur() { for (const t of openTabs.value) autoSaveOnFocusChange(t.id) }
+onMounted(() => { if (props.editable) window.addEventListener('blur', onWindowBlur) })
+onBeforeUnmount(() => { window.removeEventListener('blur', onWindowBlur); clearAutoSave() })
+
+// ── VIM KEYS (ADM-1322; the editor's settings, off unless chosen; utils/vimMode) ────────────────────────────────
+// Each group's editor gets them, with its mode and ":" line in the bar under it. ":w" saves, ":q" closes the tab.
+const vimBars = GROUPS.map(() => null)
+const vimStops = GROUPS.map(() => null)
+let vimFailed = false
+function setVimBar(g, el) { vimBars[g] = el || null }
+async function startVimOn(g) {
+  const editor = editors[g]
+  if (!props.editable || !editorSettings.vim || vimStops[g] || !editor) return
+  vimStops[g] = 'starting'
+  await nextTick()
+  let stop
+  try {
+    stop = await startVim(editor, vimBars[g], {
+      write: () => saveTab(groupTab(g)),
+      quit: () => { const t = groupTab(g); if (t) closeTab(t.id) },
+    })
+  } catch (e) {
+    if (vimStops[g] === 'starting') vimStops[g] = null
+    if (!vimFailed) {
+      vimFailed = true
+      notify.error(`Vim keys could not be turned on: ${e?.message || 'they did not load'}. The editor works as before.`)
+    }
+    return
+  }
+  if (vimStops[g] !== 'starting' || editors[g] !== editor || !editorSettings.vim) {
+    stop()
+    if (vimStops[g] === 'starting') vimStops[g] = null
+    return
+  }
+  vimStops[g] = stop
+}
+function stopVimOn(g) {
+  const stop = vimStops[g]
+  vimStops[g] = null
+  if (typeof stop === 'function') stop()
+}
+watch(() => editorSettings.vim, (on) => { for (const g of GROUPS) { if (on) startVimOn(g); else stopVimOn(g) } })
+onBeforeUnmount(() => { for (const g of GROUPS) stopVimOn(g) })
+
+// ── THE COMMAND PALETTE (Ctrl+Shift+P, ADM-1322) ─────────────────────────────────────────────────────────────────
+// The editor's commands that can run now; Monaco's own list stays on F1 and is one of them.
+const paletteOpen = ref(false)
+let paletteFrom = null
+function openPalette() { paletteFrom = document.activeElement; paletteOpen.value = true }
+function closePalette() {
+  paletteOpen.value = false
+  const back = paletteFrom
+  paletteFrom = null
+  nextTick(() => { if (back && document.contains(back)) back.focus?.() })
+}
+function runPaletteCommand(id) {
+  const c = paletteCommands.value.find(x => x.id === id)
+  closePalette()
+  if (c) nextTick(() => c.run())                    // after the focus is back where it was
+}
+// One of Monaco's own actions, on the focused group's editor.
+function editorAction(id) {
+  const ed = editorInst
+  if (!ed) return
+  try {
+    ed.focus?.()
+    ed.getAction?.(id)?.run()
+  } catch { /* the editor went away */ }
+}
+// The Terminal's own shortcut (BottomPanel, ADM-1325): the command does exactly what Ctrl+` does.
+function terminalKey(newShell) {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: newShell ? '~' : '`', code: 'Backquote', ctrlKey: true,
+    shiftKey: newShell, bubbles: true, cancelable: true }))
+}
+const paletteCommands = computed(() => {
+  const tab = activeTab.value && !coverFocused.value ? activeTab.value : null
+  const file = tab && tab.type === 'file' ? tab : null
+  const dirty = openTabs.value.filter(isDirty)
+  const md = isMarkdownTab(file)
+  const s = editorSettings
+  const act = (id, group, label, keys, icon, action) => ({ id, group, label, keys, icon, run: () => editorAction(action) })
+  return [
+    { id: 'go-to-file', group: 'File', label: 'Go to file', keys: 'Ctrl+P', icon: 'lucide:file-search', run: openQuickOpen },
+    file && isDirty(file) && { id: 'save', group: 'File', label: 'Save', keys: 'Ctrl+S', icon: 'lucide:save', run: () => saveTab(file) },
+    dirty.length > 0 && { id: 'save-all', group: 'File', label: `Save all (${dirty.length})`, icon: 'lucide:save-all', run: saveAll },
+    { id: 'new-file', group: 'File', label: 'New file', icon: 'lucide:file-plus', run: () => startNew('file', '') },
+    { id: 'new-folder', group: 'File', label: 'New folder', icon: 'lucide:folder-plus', run: () => startNew('directory', '') },
+    { id: 'upload', group: 'File', label: 'Upload files', icon: 'lucide:upload', run: () => pickUpload('') },
+    { id: 'download', group: 'File', label: 'Download the project (.tar.gz)', icon: 'lucide:download', run: () => downloadEntry(null) },
+    file && act('format', 'Editor', 'Format document', 'Shift+Alt+F', 'lucide:wand-sparkles', 'editor.action.formatDocument'),
+    file && act('rename', 'Editor', 'Rename symbol', 'F2', 'lucide:pencil-line', 'editor.action.rename'),
+    file && act('quick-fix', 'Editor', 'Quick fix', 'Ctrl+.', 'lucide:lightbulb', 'editor.action.quickFix'),
+    file && act('find', 'Editor', 'Find', 'Ctrl+F', 'lucide:search', 'actions.find'),
+    file && act('replace', 'Editor', 'Replace', 'Ctrl+H', 'lucide:replace', 'editor.action.startFindReplaceAction'),
+    file && act('go-to-line', 'Editor', 'Go to line', 'Ctrl+G', 'lucide:arrow-down-to-line', 'editor.action.gotoLine'),
+    file && act('go-to-symbol', 'Editor', 'Go to symbol in file', 'Ctrl+Shift+O', 'lucide:at-sign', 'editor.action.quickOutline'),
+    file && act('all-editor-commands', 'Editor', "Show all of the text editor's commands", 'F1', 'lucide:command', 'editor.action.quickCommand'),
+    file && act('ask-agent', 'Coding Agent', 'Ask the Coding Agent about this', 'Ctrl+L', 'lucide:sparkles', 'lets-code.ask-coding-agent'),
+    file && debuggerStore && act('toggle-breakpoint', 'Debug', 'Toggle breakpoint', 'F9', 'lucide:circle-dot', 'lets-code.toggle-breakpoint'),
+    file && { id: 'blame', group: 'Source control', label: blameOn.value ? 'Hide who changed each line' : 'Show who changed each line',
+      icon: 'lucide:user-round-search', run: toggleBlame },
+    md && { id: 'md-preview', group: 'Markdown', label: file.mdView === 'preview' ? 'Show the text' : 'Show the preview',
+      icon: 'lucide:eye', run: () => setMdView(file, 'preview') },
+    md && !narrow.value && { id: 'md-side', group: 'Markdown',
+      label: file.mdView === 'split' ? 'Close the preview beside the text' : 'Preview beside the text', icon: 'lucide:columns-2',
+      run: () => setMdView(file, 'split') },
+    { id: 'search', group: 'View', label: 'Search in files', keys: 'Ctrl+Shift+F', icon: 'lucide:search', run: openSearch },
+    { id: 'files', group: 'View', label: 'Show the files', icon: 'lucide:folder', run: () => showSide('files') },
+    { id: 'outline', group: 'View', label: 'Show the outline', icon: 'lucide:list-tree', run: () => showSide('outline') },
+    { id: 'scm', group: 'View', label: 'Show source control', icon: 'lucide:git-branch', run: () => showSide('scm') },
+    debuggerStore && { id: 'debug', group: 'View', label: 'Show run and debug', icon: 'lucide:bug-play', run: () => showSide('debug') },
+    { id: 'terminal', group: 'View', label: 'Toggle the terminal', keys: 'Ctrl+`', icon: 'lucide:square-terminal', run: () => terminalKey(false) },
+    { id: 'new-terminal', group: 'View', label: 'New terminal', keys: 'Ctrl+Shift+`', icon: 'lucide:square-plus', run: () => terminalKey(true) },
+    canOpenToSide(tab) && { id: 'split', group: 'View',
+      label: split.value ? 'Move the tab to the other editor group' : 'Open to the side', keys: 'Ctrl+\\', icon: 'lucide:columns-2',
+      run: () => moveToOtherGroup(tab) },
+    split.value && { id: 'other-group', group: 'View', label: 'Go to the other editor group', icon: 'lucide:panel-right',
+      run: () => focusGroup(1 - focusedGroup.value, { show: true }) },
+    split.value && { id: 'close-group', group: 'View', label: 'Close the second editor group', icon: 'lucide:square-x', run: () => closeGroup(1) },
+    tab && { id: 'pin', group: 'Tab', label: tab.pinned ? 'Unpin the tab' : 'Pin the tab', icon: tab.pinned ? 'lucide:pin-off' : 'lucide:pin',
+      run: () => togglePin(tab) },
+    tab && { id: 'close-tab', group: 'Tab', label: 'Close the tab', icon: 'lucide:x', run: () => closeTab(tab.id) },
+    tab && othersToClose(openTabs.value, tab.id).length > 0 && { id: 'close-others', group: 'Tab', label: 'Close the other tabs',
+      icon: 'lucide:copy-x', run: () => closeTabs(othersToClose(openTabs.value, tab.id)) },
+    { id: 'settings', group: 'Preferences', label: 'Editor settings', icon: 'lucide:settings-2', run: () => openSettings() },
+    { id: 'wrap', group: 'Preferences', label: s.wordWrap ? 'Turn word wrap off' : 'Turn word wrap on', icon: 'lucide:wrap-text',
+      run: () => { s.wordWrap = !s.wordWrap } },
+    { id: 'minimap', group: 'Preferences', label: s.minimap ? 'Hide the minimap' : 'Show the minimap', icon: 'lucide:map',
+      run: () => { s.minimap = !s.minimap } },
+    { id: 'autosave', group: 'Preferences', label: s.autoSave === 'off' ? 'Turn autosave on (after a pause in typing)' : 'Turn autosave off',
+      icon: 'lucide:timer', run: () => { s.autoSave = s.autoSave === 'off' ? 'afterDelay' : 'off' } },
+    { id: 'vim', group: 'Preferences', label: s.vim ? 'Turn vim keys off' : 'Turn vim keys on', icon: 'lucide:keyboard',
+      run: () => { s.vim = !s.vim } },
+  ].filter(Boolean)
+})
 
 // Tree node component with directory support (real per-extension icons via @iconify).
 // The name box for New file / New folder / Rename (see `pending`).
@@ -2189,7 +2911,18 @@ const FileTreeNode = {
   overflow: hidden;
 }
 
+/* The two editor groups (ADM-1322): side by side, each its own tab row, breadcrumbs and editor. The focused one's
+   top edge is coloured, as VS Code marks the active group. A narrow screen shows one at a time. */
+.editor-groups { flex: 1 1 auto; min-height: 0; display: flex; }
+.editor-group { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.editor-groups.split .editor-group + .editor-group { border-left: 1px solid var(--vm-line); }
+.editor-groups.split .editor-group.focused::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--vm-violet); z-index: 3; pointer-events: none;
+}
+.editor-group.group-hidden { display: none; }
+
 .tab-bar {
+  flex: 0 0 auto;
   display: flex;
   background: var(--vm-surface-soft);
   border-bottom: 1px solid var(--vm-line);
@@ -2236,6 +2969,56 @@ const FileTreeNode = {
 }
 
 .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); flex: 0 0 auto; }
+.tab:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; }
+/* Pinned tabs (ADM-1322): first in the row, a pin where the close button is; dragging shows where a tab will land. */
+.tab-pin { color: var(--vm-ink-soft); }
+.tab-pin :deep(svg) { transform: rotate(45deg); }
+.tab.dragging { opacity: .5; }
+.tab-bar { touch-action: manipulation; }
+/* The tablist wraps the tabs only; it takes no box of its own, so the bar lays them out as before. */
+.tab-list { display: contents; }
+.tab-bar .tab { user-select: none; }
+.tab.tab-drop-before { box-shadow: inset 2px 0 0 var(--vm-violet); }
+.tab-bar.tab-drop-end { box-shadow: inset -2px 0 0 var(--vm-violet); }
+.editor-container.tab-drop-side::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: color-mix(in srgb, var(--vm-violet) 12%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--vm-violet) 55%, transparent);
+}
+.drop-hint {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; margin: 0; padding: 4px 10px;
+  border-radius: 6px; background: var(--vm-surface); color: var(--vm-ink); font: 600 12px var(--vm-font-sans);
+  box-shadow: var(--vm-shadow-l); pointer-events: none;
+}
+/* A file's text, and a markdown file's preview beside it or in its place (ADM-1322). */
+.text-view { position: absolute; inset: 0; display: flex; min-width: 0; }
+.text-view > .monaco-editor { flex: 1 1 0; min-width: 0; }
+.text-view.mdv-split > .md-preview { flex: 1 1 0; border-left: 1px solid var(--vm-line); }
+.text-view.mdv-preview > .md-preview { flex: 1 1 auto; }
+.md-preview {
+  min-width: 0; overflow: auto; padding: 20px 28px; background: var(--vm-surface); color: var(--vm-ink);
+  font: 14px/1.6 var(--vm-font-sans); overflow-wrap: anywhere;
+}
+.md-preview:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; }
+.md-preview :deep(h1), .md-preview :deep(h2), .md-preview :deep(h3) { margin: 1.2em 0 .5em; line-height: 1.3; color: var(--vm-ink); text-wrap: balance; }
+.md-preview :deep(h1) { font-size: 1.6em; padding-bottom: .3em; border-bottom: 1px solid var(--vm-line); }
+.md-preview :deep(h2) { font-size: 1.3em; padding-bottom: .2em; border-bottom: 1px solid var(--vm-line); }
+.md-preview :deep(h1:first-child), .md-preview :deep(h2:first-child) { margin-top: 0; }
+.md-preview :deep(p), .md-preview :deep(ul), .md-preview :deep(ol), .md-preview :deep(blockquote) { margin: 0 0 1em; max-width: 80ch; }
+.md-preview :deep(a) { color: var(--vm-link); text-decoration: underline; text-underline-offset: 2px; }
+.md-preview :deep(code) { font: .9em var(--vm-font-mono); padding: .1em .35em; border-radius: 4px; background: var(--vm-surface-soft); }
+.md-preview :deep(pre) { margin: 0 0 1em; padding: 12px 14px; border-radius: 6px; background: var(--vm-surface-soft); overflow: auto; }
+.md-preview :deep(pre code) { padding: 0; background: none; }
+.md-preview :deep(blockquote) { padding-left: 12px; border-left: 3px solid var(--vm-line-2); color: var(--vm-ink-soft); }
+.md-preview :deep(img) { max-width: 100%; height: auto; }
+.md-preview :deep(.md-table) { overflow-x: auto; margin: 0 0 1em; }
+.md-preview :deep(table) { border-collapse: collapse; }
+.md-preview :deep(th), .md-preview :deep(td) { padding: 4px 10px; border: 1px solid var(--vm-line); text-align: left; }
+/* Vim keys (ADM-1322): the mode and the ":" command line, under the editor. */
+.vim-bar {
+  flex: 0 0 auto; min-height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid var(--vm-line);
+  background: var(--vm-surface-soft); color: var(--vm-ink-soft); font: 12px var(--vm-font-mono);
+}
+.vim-bar :deep(input) { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; color: var(--vm-ink); font: inherit; }
 /* The Coding Agent's chat tabs (ADM-1221): a file tab with the agent's mark and a dot for what the chat is doing. */
 .chat-tab-icon { color: var(--vm-violet); }
 .chat-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--vm-line-2); }
@@ -2394,6 +3177,11 @@ const FileTreeNode = {
   }
   .tab { min-height: 44px; }
   .tab-close { width: 36px; height: 36px; }
+  .code-browser.narrow .tab-gear { width: 44px; height: 44px; }
+  /* A markdown preview beside its text: under it, on a narrow screen (no sideways scroll). */
+  .text-view.mdv-split { flex-direction: column; }
+  .text-view.mdv-split > .md-preview { border-left: 0; border-top: 1px solid var(--vm-line); padding: 16px; }
+  .vim-bar { min-height: 32px; }
   .save-btn { min-height: 36px; }
 }
 </style>

@@ -69,6 +69,8 @@ export default defineConfig(({ mode, isSsrBuild }) => {
             if (!id.includes('node_modules')) return
             // Monaco (code editor) is by far the biggest — isolate it.
             if (id.includes('monaco-editor')) return 'monaco'
+            // Vim keys (ADM-1322) are imported only when someone turns them on: their own chunk, never `vendor`.
+            if (id.includes('/monaco-vim/')) return 'vim'
             if (id.includes('pdfjs-dist')) return 'pdf'
             if (id.includes('@vue-flow')) return 'vue-flow'
             // highlight.js and marked are SEPARATE chunks on purpose. Bundled together, the chat route
@@ -108,9 +110,15 @@ export default defineConfig(({ mode, isSsrBuild }) => {
       },
     },
     resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
+      alias: [
+        { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+        // Vim keys in the Let's Code editor (ADM-1322, monaco-vim 0.4.4): its ES module build, which imports the app's
+        // own Monaco (the package's "browser" entry is a UMD build carrying its own copy of Monaco code, made for
+        // monaco-editor 0.33). It imports "monaco-editor/esm/vs/…", a path monaco-editor 0.57's exports map no longer
+        // has ("./*" is "./esm/vs/*.js"): the same files are reached through that map, so it shares the app's Monaco.
+        { find: /^monaco-vim$/, replacement: fileURLToPath(new URL('./node_modules/monaco-vim/dist/index.mjs', import.meta.url)) },
+        { find: /^monaco-editor\/esm\/vs\/(.+)$/, replacement: 'monaco-editor/$1' },
+      ],
     },
     // Dev-server prebundling. Without this, esbuild discovers deps lazily: the first route that pulls
     // `lucide-vue-next` (48 files import named icons from the barrel) triggers a mid-session

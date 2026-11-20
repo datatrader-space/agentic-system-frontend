@@ -7,6 +7,7 @@ import axios from 'axios'
 import { projectCache } from './projectCache'
 import { runProjectJob } from './projectJobs'
 import { MAX_BYTES_PER_PART } from '../utils/droppedFiles'
+import { noteApiResponse, noteApiError } from '../utils/projectOpenTiming'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
@@ -79,9 +80,11 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    noteApiResponse(response.config)      // a Let's Code project's open, step by step (ADM-1326)
     return response
   },
   (error) => {
+    noteApiError(error)
     // Handle errors globally
     if (error.response) {
       // Server responded with error
@@ -1058,8 +1061,15 @@ export default {
   getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
   deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
   retryProject: (repoId, body = {}) => api.post(`/lets-code/projects/${repoId}/retry/`, body),   // { start_empty } for a lost new project
-  getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
+  // `inspect`: the IDE's Preview tab (ADM-1318): the link is to AADML's preview inspector in front of the app, whose pages
+  // report console, network and the selected element to THIS page's origin only (AADML checks it is one it runs on).
+  getProjectPreview: (repoId, port, { inspect = false } = {}) => api.get(`/lets-code/projects/${repoId}/preview/`, {
+    params: inspect ? { port, inspect: 1, origin: window.location.origin } : { port }, noCache: true }),   // { url, inspector } signed now
   // The project's app ports for the IDE's Preview tab (ADM-1205 phase D): { ports: [{ port, listening, started_by: 'agent' | 'you', command }] }
+  // Opening a project, measured (ADM-1326): the click's record, the browser's steps, and the hover's early wake.
+  startProjectOpen: (repoId) => api.post(`/lets-code/projects/${repoId}/open/`),   // { open_id, sandbox, prefetched }
+  reportProjectOpen: (repoId, openId, body) => api.post(`/lets-code/projects/${repoId}/open/${openId}/`, body),
+  wakeProject: (repoId) => api.post(`/lets-code/projects/${repoId}/wake/`),   // { state: started | waking | awake | none | busy }
   getProjectPorts: (repoId) => api.get(`/lets-code/projects/${repoId}/ports/`, { noCache: true }),
   // The project's environment variables (ADM-1205 phase D): names only, a value is never sent back.
   // GET -> { variables: [{ key, updated_at }] }; PUT { changes: { KEY: 'value' | null } } (null removes one).

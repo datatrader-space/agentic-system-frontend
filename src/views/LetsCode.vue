@@ -43,9 +43,10 @@
             </div>
 
             <ul v-else class="lc-list">
-              <li v-for="p in projects" :key="p.repo_id" class="proj" :class="{ failed: isFailed(p) }" @click="openProject(p)">
+              <li v-for="p in projects" :key="p.repo_id" class="proj" :class="{ failed: isFailed(p) }" @click="openProject(p)"
+                  @pointerenter="onCardPointer(p, $event)" @pointerleave="onCardLeave">
                 <div class="proj-row">
-                  <button type="button" class="proj-name" :title="`Open ${p.name}`" @click.stop="openProject(p)">{{ p.name }}</button>
+                  <button type="button" class="proj-name" :title="`Open ${p.name}`" @click.stop="openProject(p)" @focus="onCardFocus(p)">{{ p.name }}</button>
                   <span v-if="p.branch" class="proj-branch"><Icon icon="lucide:git-branch" aria-hidden="true" />{{ p.branch }}</span>
                   <span v-if="p.is_new" class="proj-local" title="Not on GitHub yet: publish it from Source control">Not on GitHub</span>
                   <StatusPill :project="p" class="proj-pill" />
@@ -191,6 +192,13 @@
       <div class="ide-main">
         <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
           <div class="ide-editor">
+            <!-- While the project opens: what it is waiting for, and for how long (ADM-1326). Floats, so the editor
+                 does not move when it goes. -->
+            <p v-if="openLabel" class="ide-open" role="status" aria-live="polite">
+              <Icon icon="lucide:loader-2" class="spin" aria-hidden="true" />
+              <span>{{ openLabel }}</span>
+              <span class="ide-open-s" aria-hidden="true">{{ openProgress.seconds }}&nbsp;s</span>
+            </p>
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
             <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" @branch="onBranchSeen" @ask-selection="onAskSelection" @send-review="onSendReview">
               <!-- The Coding Agent's chats are editor tabs, as Claude Code's are in VS Code (ADM-1221, owner 2026-11-12). -->
@@ -212,7 +220,7 @@
                  role="separator" aria-orientation="horizontal" aria-label="Resize the bottom panel" tabindex="0"
                  :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
                  @dblclick="setBottomHeight(BP_DEFAULT)"></div>
-            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" />
+            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" />
           </div>
         </div>
       </div>
@@ -235,6 +243,7 @@ import { saveBlob, filenameFrom } from '@/utils/saveBlob'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { useIdeTheme } from '@/composables/useIdeTheme'
 import { cloneRequest } from '@/utils/cloneByUrl'
+import { startOpen, endOpen, openProgress, progressLabel, prefetchWake, HOVER_DWELL_MS } from '@/utils/projectOpenTiming'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
@@ -279,6 +288,13 @@ function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelectio
 async function onSendReview({ conversationId, text, done }) {
   let ok = false
   try { ok = !!(await agentChat.value?.sendReview({ conversationId, text })) } catch { ok = false }
+  if (typeof done === 'function') done(ok)
+}
+// The Preview tab's "Ask the agent" about an element (ADM-1318): one message, with the preview's picture, to the chat in
+// front, the same path as the Review tab's comments; the tab hears whether the chat took it.
+async function onAskFromPreview({ text, files, done }) {
+  let ok = false
+  try { ok = !!(await agentChat.value?.sendReview({ text, files })) } catch { ok = false }
   if (typeof done === 'function') done(ok)
 }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
@@ -487,7 +503,28 @@ async function cloneRepo(r) {
   } finally { cloningUrl.value = '' }
 }
 
+// OPENING A PROJECT, MEASURED (ADM-1326): each step to "ready" (the tree and the editor answering) is recorded, and the
+// person sees one line saying what it waits for. A project still being prepared is not measured (its stepper shows).
+const openLabel = computed(() => (active.value && openProgress.value
+  && openProgress.value.repoId === Number(active.value.repo_id) ? progressLabel(openProgress.value) : ''))
+
+// The pointer resting on a project's card, or its keyboard focus, wakes the project's parked sandbox early, so the
+// click finds it waking or awake. A touch opens straight away (the open asks for the wake too).
+let hoverTimer = null
+function mayPrefetch(p) { return isReady(p) && !isFailed(p) }
+function onCardPointer(p, e) {
+  if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return
+  clearTimeout(hoverTimer)
+  if (mayPrefetch(p)) hoverTimer = setTimeout(() => prefetchWake(p, api), HOVER_DWELL_MS)
+}
+function onCardLeave() { clearTimeout(hoverTimer) }
+function onCardFocus(p) { if (mayPrefetch(p)) prefetchWake(p, api) }
+onBeforeUnmount(() => clearTimeout(hoverTimer))
+
 function openProject(p) {
+  clearTimeout(hoverTimer)
+  if (isReady(p)) startOpen(p, api)
+  else endOpen()
   active.value = { ...p }
   pipelineLog.value = p.log || []
   activity.value = []
@@ -655,6 +692,7 @@ async function onBackToProjects() {
 }
 
 function closeProject() {
+  endOpen()
   statusPoller.stop()
   closeWs()
   active.value = null
@@ -739,7 +777,7 @@ function openLinkedProject() {
   router.replace({ query: link.query })
 }
 onBeforeUnmount(() => {
-  statusPoller.stop(); closeWs(); languages.dispose(); debuggerStore.dispose()
+  endOpen(); statusPoller.stop(); closeWs(); languages.dispose(); debuggerStore.dispose()
 })
 </script>
 
@@ -897,6 +935,17 @@ onBeforeUnmount(() => {
 .ide-main { flex: 1; min-height: 0; display: flex; }
 .ide-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ide-editor { flex: 1; min-height: 0; position: relative; }
+/* The opening line (ADM-1326): a quiet pill over the editor's foot, out of the layout. */
+.ide-open {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 32px);
+  display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--vm-line-2); background: var(--vm-surface); color: var(--vm-ink-soft);
+  font: 500 13px/1.3 var(--vm-font-sans); box-shadow: 0 4px 16px color-mix(in srgb, var(--vm-ink) 10%, transparent);
+  pointer-events: none; white-space: nowrap;
+}
+.ide-open :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; color: var(--vm-violet); }
+.ide-open span:first-of-type { overflow: hidden; text-overflow: ellipsis; }
+.ide-open-s { font-variant-numeric: tabular-nums; color: var(--vm-ink-soft); }
 .lc-byurl { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }
 .lc-byurl-l { font: 600 12.5px var(--vm-font-sans); color: var(--vm-ink-soft); }
 .lc-byurl-row { display: flex; gap: 6px; flex-wrap: wrap; }

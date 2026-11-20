@@ -64,7 +64,7 @@ describe('an app in the panel', () => {
     const w = await mountPanel()
     await w.findAll('.pv-open')[1].trigger('click')
     await flushPromises()
-    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 5173)
+    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 5173, { inspect: true })
     const frame = w.find('iframe.pv-frame')
     expect(frame.attributes('src')).toBe(SIGNED)
     expect(frame.attributes('sandbox')).toContain('allow-scripts')
@@ -125,7 +125,7 @@ describe('the bottom panel', () => {
     await w.vm.openPreview(3000)
     await flushPromises()
     expect(w.find('.bp-tab.on').text()).toBe('Preview')
-    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 3000)
+    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 3000, { inspect: true })
     expect(w.find('iframe.pv-frame').exists()).toBe(true)
   })
 
@@ -136,5 +136,169 @@ describe('the bottom panel', () => {
     })
     await w.vm.openPreview(3000)
     expect(w.emitted('toggle')).toHaveLength(1)
+  })
+
+  it("passes the Preview tab's Ask the agent on (ADM-1318)", async () => {
+    const w = mount(BottomPanel, {
+      props: { repoId: 14, ready: true },
+      global: { stubs: { Icon: true, TerminalPanel: true } },
+    })
+    await w.vm.openPreview(3000)
+    await flushPromises()
+    const ask = { text: 'About this element', files: [], done: () => {} }
+    w.findComponent(PreviewPanel).vm.$emit('ask-agent', ask)
+    expect(w.emitted('ask-agent')).toEqual([[ask]])
+  })
+})
+
+// ── the preview inspector (ADM-1318): console, network, devices, select and one message to the agent ──────────────
+const INSPECTED = 'https://47100-k3j9x2signedtoken.proxy.sandbox.aadml.com'
+const ORIGIN = new URL(INSPECTED).origin
+const ELEMENT = {
+  tag: 'button', id: 'buy', classes: ['btn'], text: 'Buy now', html: '<button id="buy" class="btn">', selector: 'main > button#buy',
+  box: { x: 10, y: 20, width: 120, height: 40 }, source: { file: 'src/Buy.vue', line: 12, column: 5, framework: 'Vue' },
+  editable: true, page: '/shop',
+}
+
+describe('the preview tools', () => {
+  let w
+  const frameWin = () => w.find('iframe.pv-frame').element.contentWindow
+  const say = async (data, over = {}) => {
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { source: 'aadml-preview', v: 1, ...data }, origin: ORIGIN, source: frameWin(), ...over,
+    }))
+    await flushPromises()
+  }
+  const openInspected = async () => {
+    api.getProjectPreview.mockResolvedValue({ data: { url: INSPECTED, expires_in: 3600, inspector: true } })
+    w = mount(PreviewPanel, { props: { repoId: 14, ready: true }, global: { stubs: { Icon: true } }, attachTo: document.body })
+    await flushPromises()
+    await w.vm.openPort(5173)
+    await flushPromises()
+  }
+  afterEach(() => { w?.unmount(); w = null })
+
+  it("asks for the inspector, for this page's origin", async () => {
+    await openInspected()
+    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 5173, { inspect: true })
+    expect(w.find('iframe.pv-frame').attributes('src')).toBe(INSPECTED)
+    expect(w.find('[aria-label="Select an element to edit"]').exists()).toBe(true)
+  })
+
+  it('shows console and network entries from the frame only, as text', async () => {
+    await openInspected()
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    await say({ kind: 'console', level: 'error', text: '<img src=x onerror="alert(1)">', at: 1 })
+    await say({ kind: 'console', level: 'log', text: 'from elsewhere', at: 2 }, { origin: 'https://evil.test' })
+    await say({ kind: 'console', level: 'log', text: 'from the editor itself', at: 3 }, { source: window })
+    await say({ kind: 'console', level: 'nope', text: 'bad shape', at: 4 })
+    const rows = w.findAll('.pd-row .c-text').map((r) => r.text())
+    expect(rows).toContain('<img src=x onerror="alert(1)">')
+    expect(rows.join(' ')).not.toMatch(/from elsewhere|from the editor itself|bad shape/)
+    expect(w.find('.pd img').exists()).toBe(false)
+    expect(w.find('.pv-badge').text()).toBe('1')
+    await w.findAll('.pd-tab')[1].trigger('click')
+    await say({ kind: 'network', method: 'POST', url: '/api/cart', status: 500, ms: 31, size: 120, type: 'fetch', at: 5 })
+    const net = w.find('.pd-row.net')
+    expect(net.text()).toContain('POST')
+    expect(net.text()).toContain('/api/cart')
+    expect(net.classes()).toContain('bad')
+    await w.find('[aria-label="Clear the requests"]').trigger('click')
+    expect(w.find('.pd-row.net').exists()).toBe(false)
+  })
+
+  it('keeps every entry and draws only the rows in view', async () => {
+    await openInspected()
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    for (let i = 0; i < 3000; i++) {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { source: 'aadml-preview', v: 1, kind: 'console', level: 'log', text: `line ${i}`, at: i }, origin: ORIGIN, source: frameWin(),
+      }))
+    }
+    await flushPromises()
+    const list = w.find('.pd-rows')
+    expect(list.attributes('style')).toContain(`height: ${3001 * 24}px`)     // 3000 lines and the "Opened port" mark
+    expect(w.findAll('.pd-row-li').length).toBeLessThan(200)
+    expect(w.find('.pd-row-li').attributes('aria-setsize')).toBe('3001')
+  })
+
+  it('device sizes resize the frame; rotation swaps them; Responsive fills the panel', async () => {
+    await openInspected()
+    await w.find('select[name="preview-device"]').setValue('iphone-se')
+    const style = () => w.find('iframe.pv-frame').attributes('style') || ''
+    expect(style()).toContain('width: 375px')
+    expect(style()).toContain('height: 667px')
+    await w.find('[aria-label="Rotate the device"]').trigger('click')
+    expect(style()).toContain('width: 667px')
+    expect(style()).toContain('height: 375px')
+    await w.find('select[name="preview-device"]').setValue('responsive')
+    expect(style()).toBe('')
+  })
+
+  it('select mode, then Ask the agent sends ONE message with the element and the picture', async () => {
+    await openInspected()
+    const posted = vi.spyOn(frameWin(), 'postMessage')
+    await w.find('[aria-label="Select an element to edit"]').trigger('click')
+    expect(posted).toHaveBeenLastCalledWith({ source: 'aadml-editor', v: 1, kind: 'select-mode', on: true }, ORIGIN)
+    await say({ kind: 'select', element: ELEMENT })
+    expect(w.find('.pe-tag').text()).toBe('button#buy.btn')
+    expect(w.find('.pe-src').text()).toBe('src/Buy.vue:12:5')
+    await w.find('.pe-ask textarea').setValue('Make it green')
+    await w.find('.pe-btn.primary').trigger('click')
+    const shot = posted.mock.calls.at(-1)
+    expect(shot[0]).toMatchObject({ source: 'aadml-editor', v: 1, kind: 'screenshot' })
+    expect(shot[1]).toBe(ORIGIN)
+    await say({ kind: 'screenshot', requestId: shot[0].requestId, dataUrl: 'data:image/png;base64,aGk=' })
+    const asks = w.emitted('ask-agent')
+    expect(asks).toHaveLength(1)
+    const { text, files, done } = asks[0][0]
+    expect(text).toContain('CSS selector: main > button#buy')
+    expect(text).toContain('Source: src/Buy.vue:12:5')
+    expect(text.endsWith('Make it green')).toBe(true)
+    expect(files.map((f) => [f.name, f.type])).toEqual([['preview-port-5173.png', 'image/png']])
+    done(true)
+    await flushPromises()
+    expect(w.find('.pe-note').text()).toContain('Sent to the Coding Agent')
+  })
+
+  it('a picture the page could not take is said in the message, which still goes once', async () => {
+    await openInspected()
+    const posted = vi.spyOn(frameWin(), 'postMessage')
+    await say({ kind: 'select', element: { ...ELEMENT, source: null } })
+    await w.find('.pe-btn.primary').trigger('click')
+    const { requestId } = posted.mock.calls.at(-1)[0]
+    await say({ kind: 'screenshot', requestId, error: 'the page did not let the screenshot library load' })
+    const [[{ text, files, done }]] = w.emitted('ask-agent')
+    expect(files).toEqual([])
+    expect(text).toContain('Screenshot: not attached, because the page did not let the screenshot library load')
+    done(false)
+    await flushPromises()
+    expect(w.find('.pe-note.err').text()).toContain('did not take the message')
+  })
+
+  it('Edit text changes the preview only and the change goes into the message', async () => {
+    await openInspected()
+    const posted = vi.spyOn(frameWin(), 'postMessage')
+    await say({ kind: 'select', element: ELEMENT })
+    await w.findAll('.pe-btn')[1].trigger('click')
+    expect(posted).toHaveBeenLastCalledWith({ source: 'aadml-editor', v: 1, kind: 'edit-text' }, ORIGIN)
+    await say({ kind: 'text-edit', ok: true })
+    await say({ kind: 'text-edited', before: 'Buy now', after: 'Buy today' })
+    expect(w.find('.pe-edit').text()).toContain('“Buy now” → “Buy today”')
+  })
+
+  it('when the tools cannot run it says why, and the plain preview is one click away', async () => {
+    api.getProjectPreview.mockRejectedValueOnce(fail(409, { error: 'The preview inspector did not start: boom', code: 'INSPECTOR_UNAVAILABLE' }))
+    w = mount(PreviewPanel, { props: { repoId: 14, ready: true }, global: { stubs: { Icon: true } } })
+    await flushPromises()
+    await w.vm.openPort(5173)
+    await flushPromises()
+    expect(w.find('.pv-status.err').text()).toContain('did not start: boom')
+    api.getProjectPreview.mockResolvedValueOnce({ data: { url: SIGNED, expires_in: 3600, inspector: false } })
+    await w.findAll('.pv-actions .pv-btn').find((b) => b.text() === 'Open without the tools').trigger('click')
+    await flushPromises()
+    expect(api.getProjectPreview).toHaveBeenLastCalledWith(14, 5173)
+    expect(w.find('iframe.pv-frame').attributes('src')).toBe(SIGNED)
+    expect(w.find('[aria-label="Select an element to edit"]').exists()).toBe(false)
   })
 })

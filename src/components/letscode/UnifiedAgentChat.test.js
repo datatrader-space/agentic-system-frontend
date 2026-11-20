@@ -635,4 +635,26 @@ describe('UnifiedAgentChat: review the changes one at a time, and send review co
     expect(chat.pendingAttachments).toEqual([{ name: 'shot.png' }])
     w.unmount()
   })
+
+  it("the Preview tab's picture goes with ITS message only (ADM-1318); one the chat did not take is not left in the box", async () => {
+    const w = await mountChat()
+    chat.conversationId = '31'
+    chat.pendingAttachments = [{ name: 'mine.png' }]
+    const pic = new File(['x'], 'preview-port-5173.png', { type: 'image/png' })
+    let sentWith = null
+    // As the store does: a message that is sent claims the files waiting in the box.
+    chat.sendMessage.mockImplementationOnce(async () => {
+      sentWith = chat.pendingAttachments.map((a) => a.name)
+      chat.pendingAttachments = []
+      return true
+    })
+    expect(await w.vm.sendReview({ text: 'About this element', files: [pic] })).toBe(true)
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+    expect(sentWith).toEqual(['preview-port-5173.png'])
+    expect(chat.pendingAttachments).toEqual([{ name: 'mine.png' }])
+    chat.sendMessage.mockImplementationOnce(async () => false)
+    expect(await w.vm.sendReview({ text: 'About this element', files: [pic] })).toBe(false)
+    expect(chat.pendingAttachments).toEqual([{ name: 'mine.png' }])
+    w.unmount()
+  })
 })
