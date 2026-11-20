@@ -143,6 +143,21 @@ describe('VideoJobCard', () => {
     expect(out.find('[data-test="video-job-extras"] a').attributes('href')).toBe('/p2.png')
   })
 
+  it('a small picture of a video that is not made yet is asked for again until it comes, then shown as the poster', async () => {
+    vi.useFakeTimers()
+    const tried = []
+    class FakeImage { set src(u) { tried.push(u); setTimeout(() => (tried.length < 3 ? this.onerror() : this.onload()), 0) } }
+    vi.stubGlobal('Image', FakeImage)
+    try {
+      const job = { ...base, state: 'ready', output: { attachment_id: 'v9', url: '/media/v9.mp4', media_type: 'video' } }
+      const w = mount(VideoJobCard, { props: { job } })
+      expect(w.find('video').attributes('poster')).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(10000)
+      expect(tried).toEqual(['/api/library/v9/thumbnail/', '/api/library/v9/thumbnail/?try=1', '/api/library/v9/thumbnail/?try=2'])
+      expect(w.find('video').attributes('poster')).toBe('/api/library/v9/thumbnail/?try=2')
+    } finally { vi.unstubAllGlobals(); vi.useRealTimers() }
+  })
+
   it('an uncertain submission says it was not resent', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'submission_uncertain', phase: 'Checking' } } })
     expect(w.text()).toContain('NOT sent again')

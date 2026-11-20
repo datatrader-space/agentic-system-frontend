@@ -11,11 +11,14 @@ import { frameReady } from '/src/components/clip-editor/render/sources.js'
 const kindOf = file => (/\.(png|jpe?g|webp|gif)$/i.test(file) ? 'image' : /\.cube$/i.test(file) ? 'lut' : 'video')
 const load = (el, ev) => new Promise((res, rej) => { el.addEventListener(ev, res, { once: true }); el.addEventListener('error', () => rej(new Error(`cannot load ${el.src}`)), { once: true }) })
 
+// A plain canvas, not an OffscreenCanvas: the harness runs in every browser the test is pointed at (GOLDEN_BROWSER).
+function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
+
 async function pixelsOf(url, w, h) {
   const img = new Image()
   img.src = url
   await load(img, 'load')
-  const c = new OffscreenCanvas(w || img.naturalWidth, h || img.naturalHeight)
+  const c = newCanvas(w || img.naturalWidth, h || img.naturalHeight)
   const g = c.getContext('2d', { colorSpace: 'srgb' })
   g.drawImage(img, 0, 0, c.width, c.height)
   return { data: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height }
@@ -126,9 +129,9 @@ window.golden = async function golden({ base, sample, t, reference, media = {}, 
   const ours = comp.readPixels({ chroma420: chroma420 === true ? 'nearest' : chroma420 || 'off' })
   const score = psnr(ours, ref.data)
   // The rendered frame as a PNG (kept by the test when it fails).
-  const out = new OffscreenCanvas(W, H)
+  const out = newCanvas(W, H)
   out.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ours.buffer), W, H), 0, 0)
-  const blob = await out.convertToBlob({ type: 'image/png' })
+  const blob = await new Promise(res => out.toBlob(res, 'image/png'))
   const bytes = new Uint8Array(await blob.arrayBuffer())
   let bin = ''
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
