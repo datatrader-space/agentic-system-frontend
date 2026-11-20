@@ -19,9 +19,13 @@ export const streamingApi = {
   // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
   // continuously (until it is stopped, the balance runs out or the camera stops answering). `readCodes`: read the
   // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
-  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording }) => {
+  // `detector`: the ready detector's key (people, vehicles, pets and 77 more, on AADML's server); `find`: names SAM 3
+  // finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one answered is not
+  // sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most.
+  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill }) => {
     const noModel = model === null || model === undefined || model === '';
-    const extra = { ...(readCodes ? { read_codes: true } : {}) };
+    const extra = { ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
+      ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}) };
     const head = noModel ? { project } : { project, model };
     // A kept recording ("Use in project", CLOUD_STREAMING_PLAN.md §3.5): read in place, never continuous.
     if (recording !== undefined && recording !== null && recording !== '') {
@@ -34,6 +38,9 @@ export const streamingApi = {
       const body = new FormData();
       body.append('project', project); if (!noModel) body.append('model', String(model)); body.append('fps', String(fps));
       if (readCodes) body.append('read_codes', 'true');
+      if (detector) body.append('detector', detector);
+      if (find) body.append('find', find);
+      if (skipStill) body.append('skip_still', 'true');
       body.append('file', file, file.name);
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body, timeoutMs: UPLOAD_MS });
     }
@@ -396,7 +403,9 @@ export function countsSaid(last) {
 // ── barcodes (backend barcodes.py) ───────────────────────────────────────────────────────────────
 // What runs on each frame of a stream: "walls 1.0.0", "walls 1.0.0 and the barcode reader", or "Barcode reader".
 export function streamWhat(stream) {
-  const model = stream?.model ? `${stream.model.name} ${stream.model.version}` : '';
+  const model = stream?.model ? `${stream.model.name} ${stream.model.version}`
+    : stream?.detector ? stream.detector.name
+      : Array.isArray(stream?.find) && stream.find.length ? `Finding ${stream.find.join(', ')}` : '';
   if (!stream?.read_codes) return model;
   return model ? `${model} and the barcode reader` : 'Barcode reader';
 }
@@ -426,16 +435,20 @@ export function readPriceText(calls) {
   return calls > 1 ? `${calls} photo calls` : `${calls} of a photo call`;
 }
 // What one frame of a stream costs, in photo calls: one for the model's answer, a read's share for its barcodes.
-export function callsAFrame({ useModel = true, readCodes = false, codes = null } = {}) {
-  return (useModel ? 1 : 0) + (readCodes ? readCalls(codes) : 0);
+export function callsAFrame({ useModel = true, readCodes = false, codes = null, detector = false } = {}) {
+  return (useModel ? 1 : 0) + (readCodes ? readCalls(codes) : 0) + (detector ? readCalls(codes) : 0);
 }
 // What the start dialog says a continuous stream costs: per frame, and in photo calls an hour at ``fps``.
-export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1 } = {}) {
-  const calls = callsAFrame({ useModel, readCodes, codes });
-  const perHour = Math.round((Number(fps) || 1) * 3600 * calls).toLocaleString('en-US');
+export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1, detector = false, find = false } = {}) {
   const price = readPriceText(readCalls(codes));
-  const each = useModel && readCodes ? `Each frame is charged for the model and for reading its barcodes (${price})`
-    : readCodes ? `Each frame read costs ${price}` : 'Each frame is one photo call';
+  if (find) {
+    return `Each frame is one SAM 3 image from your balance${readCodes ? `, and reading its barcodes costs ${price}` : ''}: at ${Number(fps) || 1} a second, ${Math.round((Number(fps) || 1) * 3600).toLocaleString('en-US')} images an hour, fewer with Skip still frames.`;
+  }
+  const calls = callsAFrame({ useModel: useModel && !detector, readCodes, codes, detector });
+  const perHour = Math.round((Number(fps) || 1) * 3600 * calls).toLocaleString('en-US');
+  const each = detector ? `Each frame the ready detector answers costs ${price}${readCodes ? ', and reading its barcodes as much again' : ''}`
+    : useModel && readCodes ? `Each frame is charged for the model and for reading its barcodes (${price})`
+      : readCodes ? `Each frame read costs ${price}` : 'Each frame is one photo call';
   return `${each} from your balance: at ${Number(fps) || 1} a second, ${perHour} photo calls an hour.`;
 }
 
@@ -869,7 +882,7 @@ export function cooldownText(seconds) {
 
 // A new rule's form, and what is wrong with it before it is sent (the server decides; this only says it early).
 export function ruleForm(classes = []) {
-  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT };
+  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '' };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -886,20 +899,23 @@ export function ruleProblems(form, limits = {}) {
   return problems;
 }
 export function ruleBody(form) {
-  return { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+  const body = { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+  if (form.zone) body.zone = Number(form.zone);
+  return body;
 }
 
 // The classes a rule may look for: the ones the camera's stream showed, then the ones the server saw, each once.
-export function ruleClasses(stream, seen = []) {
+export function ruleClasses(stream, seen = [], detector = []) {
   const names = classNames(stream, 50);
-  for (const name of seen || []) if (name && !names.includes(name)) names.push(name);
+  for (const name of [...(seen || []), ...(detector || [])]) if (name && !names.includes(name)) names.push(name);
   return names;
 }
 
 // What an event found: "wall 2" (what made its rule match), and when, in UTC.
 export function matchedText(event) {
-  const found = Object.entries(event?.matched || {}).map(([name, count]) => `${name} ${count}`);
-  return found.join(', ');
+  const matched = event?.matched || {};
+  const found = Object.entries(matched).filter(([name]) => name !== 'zone').map(([name, count]) => `${name} ${count}`);
+  return found.join(', ') + (typeof matched.zone === 'string' && matched.zone ? ` in ${matched.zone}` : '');
 }
 export function eventTime(event) {
   const iso = event?.frame_at || event?.at;
@@ -920,4 +936,41 @@ export function workflowFromCamera(source, rule = null) {
   if (workspace != null && /^[1-9][0-9]{0,11}$/.test(String(workspace))) query.set('workspace', String(workspace));
   if (rule?.id) query.set('rule', String(rule.id));
   return `/dashboard/workflow-builder?${query.toString()}`;
+}
+
+// ── a camera's zones, privacy masks and lines (camera_zones_api.py; SMART_CAMERA_AI_PLAN.md Phase A) ───────────────
+// Points are fractions of the picture (0..1). Listed by anyone who may see the workspace's cameras, changed by its
+// camera managers; only the workspace's own cameras have them.
+export const cameraZones = {
+  list: source => apiFetch(`${SOURCES}${enc(source)}/zones/`),
+  add: (source, body) => apiFetch(`${SOURCES}${enc(source)}/zones/`, { method: 'POST', body, timeoutMs: SLOW }),
+  update: (source, zone, body) => apiFetch(`${SOURCES}${enc(source)}/zones/${enc(zone)}/`, { method: 'PATCH', body, timeoutMs: SLOW }),
+  remove: (source, zone) => apiFetch(`${SOURCES}${enc(source)}/zones/${enc(zone)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+};
+export const ZONE_KINDS = [
+  { key: 'zone', label: 'Zone', help: 'An area, such as a desk or a door. A rule can count only what is inside it.' },
+  { key: 'mask', label: 'Privacy mask', help: 'Painted black on every frame before any model, the detector or a snapshot sees it.' },
+  { key: 'line', label: 'Line', help: 'Two points. Counting people crossing in and out comes with the next update.' },
+];
+export const ZONE_POINTS_MAX = 50;
+// A point clicked on the picture, as fractions rounded to 4 places and kept inside it.
+export function zonePoint(x, y, width, height) {
+  const clamp = v => Math.min(1, Math.max(0, v));
+  return [Math.round(clamp(x / (width || 1)) * 10000) / 10000, Math.round(clamp(y / (height || 1)) * 10000) / 10000];
+}
+// The points as an SVG "points" attribute on a 1000 x 1000 view box (the picture is stretched to it).
+export function zoneSvgPoints(points) {
+  return (Array.isArray(points) ? points : []).map(([x, y]) => `${Math.round(x * 1000)},${Math.round(y * 1000)}`).join(' ');
+}
+// What is wrong with a shape before it is saved, as the server checks it.
+export function zoneProblems({ name, kind, points }) {
+  const problems = {};
+  const clean = String(name || '').trim();
+  if (!clean) problems.name = 'Name the shape.';
+  else if (clean.length > 60) problems.name = 'A name is at most 60 characters.';
+  const count = Array.isArray(points) ? points.length : 0;
+  if (kind === 'line') { if (count !== 2) problems.points = 'Click two points on the picture for a line.'; }
+  else if (count < 3) problems.points = 'Click at least three points on the picture.';
+  else if (count > ZONE_POINTS_MAX) problems.points = `A shape has at most ${ZONE_POINTS_MAX} points.`;
+  return problems;
 }

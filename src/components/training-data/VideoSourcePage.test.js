@@ -47,8 +47,8 @@ describe('a video source page', () => {
     expect(w.find('h2').text()).toBe('Test stream (Mux)');
     expect(w.find('.sp-kind').text()).toContain('HLS stream');
     expect(w.findAll('.sp-card-title').map(h => h.text())).toEqual(['Source', 'Model']);
-    // Events and Rules on the camera's own page (phase 6); Recordings only where it can record
-    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results', 'Events', 'Rules']);
+    // Events, Rules and Zones on the camera's own page (phase 6, SMART_CAMERA_AI_PLAN Phase A); Recordings only where it can record
+    expect(w.findAll('[role="tab"]').map(t => t.text())).toEqual(['Results', 'Events', 'Rules', 'Zones']);
     expect(w.text()).toContain('Choose a model to run on this camera, or read its barcodes.');
     expect(w.text()).toContain('Results appear here');
     expect(w.text()).not.toMatch(/Roboflow|Workflow to run/);

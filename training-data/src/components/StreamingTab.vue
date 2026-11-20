@@ -156,14 +156,23 @@ const notifying = ref(false);
 
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
-const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null });
+const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null,
+  useDetector: false, detector: '', useFind: false, find: '', skipStill: false });
+// The ready detector (people, vehicles, pets and 77 more, on AADML's server) and finding objects by name (SAM 3): each
+// in place of the project's model, one of the three at most (SMART_CAMERA_AI_PLAN.md Phase A).
+const detectorsOption = computed(() => options.value.detectors || null);
+const detectorChoices = computed(() => detectorsOption.value?.choices || []);
+const findOption = computed(() => options.value.find || null);
+watch(() => form.value.useModel, on => { if (on) { form.value.useDetector = false; form.value.useFind = false; } });
+watch(() => form.value.useDetector, on => { if (on) { form.value.useModel = false; form.value.useFind = false; } });
+watch(() => form.value.useFind, on => { if (on) { form.value.useModel = false; form.value.useDetector = false; } });
 const chosenSource = computed(() => savedSources.value.find(s => String(s.id) === String(form.value.saved)) || null);
 // A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
 // answered and read for barcodes is charged for each.
 const codesOption = computed(() => options.value.codes || null);
 const readPrice = computed(() => readPriceText(readCalls(codesOption.value)));
 const continuousCharge = computed(() => chargeText({ useModel: form.value.useModel, readCodes: form.value.readCodes,
-  codes: codesOption.value, fps: form.value.fps }));
+  codes: codesOption.value, fps: form.value.fps, detector: form.value.useDetector, find: form.value.useFind }));
 const capMinutes = computed(() => Math.round((Number(options.value.cap?.seconds) || 600) / 60));
 const file = ref(null); const fileInput = ref(null);
 const fieldErrors = ref({}); const formError = ref(''); const addressTouched = ref(false);
@@ -183,8 +192,11 @@ const sourceProblem = computed(() => {
 });
 const startWhy = computed(() => {
   if (!may.value.start) return may.value.reason || (options.value.projects.length ? 'You may not start a stream.' : 'You need the Train right in a photo project to start a stream.');
-  if (!form.value.useModel && !form.value.readCodes) return 'Choose what runs on each frame: the model, Read barcodes, or both.';
-  if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or read barcodes only.';
+  if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes) return 'Choose what runs on each frame: the model, the ready detector, Find by name, or Read barcodes.';
+  if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
+  if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return "The ready detector cannot run on AADML's server right now. Try again later.";
+  if (form.value.useFind && !form.value.find.trim()) return 'Name what to find, for example "person, forklift".';
+  if (form.value.useFind && findOption.value && findOption.value.available === false) return findOption.value.note || 'Finding objects by name is not offered right now.';
   if (form.value.readCodes && codesOption.value && codesOption.value.available === false) return 'Barcodes cannot be read on AADML right now. Run the model on its own, or try again later.';
   return '';
 });
@@ -203,6 +215,8 @@ function openCreate(saved = null, recording = null) {
     source: recording?.id ? 'recording' : saved ? 'saved' : 'file', address: '', fps: options.value.default_fps || 1,
     saved: saved ? String(saved.id) : '', continuous: false, recording: recording?.id ? recording : null,
     useModel: !!first?.models?.length, readCodes: false,
+    useDetector: !first?.models?.length && detectorsOption.value?.available !== false,
+    detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '', skipStill: false,
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
   creating.value = true;
@@ -227,6 +241,8 @@ async function startStream() {
     const body = await streamingApi.start({
       project: form.value.project, model: form.value.useModel ? Number(form.value.model) : null, fps: Number(form.value.fps),
       readCodes: form.value.readCodes,
+      detector: form.value.useDetector ? form.value.detector : '', find: form.value.useFind ? form.value.find.trim() : '',
+      skipStill: form.value.skipStill && (form.value.useModel || form.value.useDetector || form.value.useFind),
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
           : form.value.source === 'recording' ? { recording: form.value.recording.id }
@@ -242,7 +258,7 @@ async function startStream() {
   } catch (e) {
     if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -438,11 +454,34 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <input v-model="form.useModel" type="checkbox" :disabled="!models.length" aria-describedby="st-use-model-help">
               <span><strong>Run the model</strong><small id="st-use-model-help">{{ models.length ? 'The model answers each frame with what it finds.' : 'This project has no trained model yet.' }}</small></span>
             </label>
+            <label v-if="detectorChoices.length" class="st-card" :class="{ chosen: form.useDetector }">
+              <input v-model="form.useDetector" type="checkbox" :disabled="detectorsOption.available === false" aria-describedby="st-detector-help">
+              <span><strong>Ready detector</strong><small id="st-detector-help">Finds people, vehicles, pets and {{ Math.max(0, (detectorsOption.classes || []).length - 3) }} more everyday things, with no model of your own. {{ detectorsOption.note }}</small></span>
+            </label>
+            <label v-if="findOption" class="st-card" :class="{ chosen: form.useFind }">
+              <input v-model="form.useFind" type="checkbox" :disabled="findOption.available === false" aria-describedby="st-find-help">
+              <span><strong>Find by name</strong><small id="st-find-help">{{ findOption.available === false ? findOption.note : `${findOption.what} ${findOption.note}` }}</small></span>
+            </label>
             <label class="st-card" :class="{ chosen: form.readCodes }">
               <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">
-              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
+              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel || form.useDetector || form.useFind ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
             </label>
           </div>
+          <div v-if="form.useDetector && detectorChoices.length > 1" class="st-field">
+            <label for="st-detector">Detector size</label>
+            <select id="st-detector" v-model="form.detector" class="text-input" :aria-invalid="!!fieldErrors.detector">
+              <option v-for="d in detectorChoices" :key="d.key" :value="d.key">{{ d.name }}</option>
+            </select>
+          </div>
+          <div v-if="form.useFind" class="st-field">
+            <label for="st-find">What to find</label>
+            <input id="st-find" v-model="form.find" class="text-input" maxlength="400" placeholder="person, forklift, red helmet" :aria-invalid="!!fieldErrors.find">
+          </div>
+          <label v-if="form.useModel || form.useDetector || form.useFind" class="st-check">
+            <input v-model="form.skipStill" type="checkbox"> <span>{{ options.skip_still_note || 'Skip still frames: a frame nearly the same as the last one answered is not sent, and is not charged.' }}</span>
+          </label>
+          <p v-if="fieldErrors.detector" class="field-error" role="alert">{{ fieldErrors.detector }}</p>
+          <p v-if="fieldErrors.find" class="field-error" role="alert">{{ fieldErrors.find }}</p>
           <p v-if="fieldErrors.read_codes" class="field-error" role="alert">{{ fieldErrors.read_codes }}</p>
         </fieldset>
 
@@ -642,6 +681,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-continuous{margin-top:12px}
 .st-found{color:#33415a!important;overflow-wrap:anywhere}
 .st-frame-codes{margin:4px 0 0!important;font-size:12px!important;color:#33415a!important;overflow-wrap:anywhere}
+.st-check{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13px;color:#33415a}
 .st-codes{margin-top:16px;padding-top:12px;border-top:1px solid #dfe5ee}
 .st-codes h4{margin:0 0 8px;font-size:13px;color:#162139}
 .st-codes h4 small{font-weight:400;color:#5f6d82}

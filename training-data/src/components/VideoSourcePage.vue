@@ -18,6 +18,7 @@ import {
   ArrowDown, ArrowLeft, Bell, ChartLine, Circle, CircleQuestionMark, Disc, Download, FolderInput, History, ImageOff,
   KeyRound, ListChecks, LoaderCircle, Maximize, Pencil, Play, Plus, RadioTower, RefreshCw, RotateCcw, Smartphone, Square, Trash2, Tv, Wallet, Workflow,
 } from 'lucide-vue-next';
+import CameraZones from './CameraZones.vue';
 import LiveView from './LiveView.vue';
 import PushDetails from './PushDetails.vue';
 import PhoneLinkDetails from './PhoneLinkDetails.vue';
@@ -185,7 +186,7 @@ async function newPhoneLink() {
   finally { relinkBusy.value = false; }
 }
 
-const tab = ref('results');                                            // results | events | rules | recordings
+const tab = ref('results');                                            // results | events | rules | zones | recordings
 const today = new Date().toISOString().slice(0, 10);
 const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
@@ -250,7 +251,9 @@ const rulesPage = ref(null); const rulesLoading = ref(false); const rulesError =
 const rules = computed(() => rulesPage.value?.rules || []);
 const ruleLimits = computed(() => rulesPage.value?.limits || {});
 const mayRule = computed(() => !!rulesPage.value?.may?.change);
-const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes));
+const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes, rulesPage.value?.detector_classes));
+// The camera's zones (CameraZones.vue): a rule may count only what is inside one.
+const ruleZones = computed(() => rulesPage.value?.zones || []);
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
   rulesLoading.value = true; rulesError.value = '';
@@ -266,7 +269,7 @@ async function ruleCall(call) {
   ruleBusy.value = true; rulesError.value = '';
   try { const answer = await call(); rulesPage.value = answer; rulesSaid.value = answer?.said || ''; return true; }
   catch (e) {
-    if (e.field && ['class_name', 'min_count', 'cooldown_seconds'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    if (e.field && ['class_name', 'min_count', 'cooldown_seconds', 'zone'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
     else rulesError.value = e.message;
     return false;
   } finally { ruleBusy.value = false; }
@@ -468,6 +471,7 @@ watch(tab, now => {
             <button id="sp-results-h" type="button" role="tab" :aria-selected="tab === 'results'" :class="{ on: tab === 'results' }" @click="tab = 'results'">Results</button>
             <button v-if="own" type="button" role="tab" :aria-selected="tab === 'events'" :class="{ on: tab === 'events' }" @click="tab = 'events'">Events</button>
             <button v-if="own" type="button" role="tab" :aria-selected="tab === 'rules'" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">Rules</button>
+            <button v-if="own" type="button" role="tab" :aria-selected="tab === 'zones'" :class="{ on: tab === 'zones' }" @click="tab = 'zones'">Zones</button>
             <button v-if="rec" type="button" role="tab" :aria-selected="tab === 'recordings'" :class="{ on: tab === 'recordings' }" @click="tab = 'recordings'">Recordings</button>
           </div>
           <UiButton v-if="tab === 'results' && stream && stream.has_results" class="small" @click="emit('download', stream)"><Download :size="14" aria-hidden="true"/> Download results</UiButton>
@@ -514,6 +518,13 @@ watch(tab, now => {
                 <input v-model.number="draft.min_count" class="text-input" type="number" min="1" :max="ruleLimits.count_max || 1000" step="1" :aria-invalid="!!draftErrors.min_count">
                 <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
               </label>
+              <label>Where
+                <select v-model="draft.zone" class="text-input" :aria-invalid="!!draftErrors.zone">
+                  <option value="">The whole picture</option>
+                  <option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">In {{ z.name }}</option>
+                </select>
+                <small v-if="draftErrors.zone" class="field-error">{{ draftErrors.zone }}</small>
+              </label>
               <label>Cooldown (seconds)
                 <input v-model.number="draft.cooldown_seconds" class="text-input" type="number" :min="ruleLimits.cooldown_min || COOLDOWN_MIN" step="1" :aria-invalid="!!draftErrors.cooldown_seconds">
                 <small v-if="draftErrors.cooldown_seconds" class="field-error">{{ draftErrors.cooldown_seconds }}</small>
@@ -543,6 +554,10 @@ watch(tab, now => {
               </span>
             </li>
           </ul>
+        </div>
+        <!-- Zones -->
+        <div v-else-if="tab === 'zones'" class="sp-recs">
+          <CameraZones :source="source" @changed="rulesPage = null"/>
         </div>
         <!-- Recordings -->
         <div v-else-if="tab === 'recordings'" class="sp-recs">
