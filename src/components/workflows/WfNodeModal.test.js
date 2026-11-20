@@ -22,10 +22,10 @@ const baseEdges = [{ id: 'e1', source: 'start', target: 'fetch' }, { id: 'e2', s
 let wrapper
 afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
 
-function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, validation = null } = {}) {
+function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, viewed = null, validation = null } = {}) {
   const doc = fakeDoc({ nodes, edges, vars })
   const history = useWorkflowHistory(doc)
-  const run = fakeRun({ lastRun, nodeStates })
+  const run = fakeRun({ lastRun, nodeStates, viewed })
   const catalog = fakeCatalog(['T'])
   const open = ref(true)
   const Host = defineComponent({
@@ -98,6 +98,15 @@ describe('WfNodeModal', () => {
     await tick()
     expect(button('Run upstream (test)')).toBeUndefined()
     expect(document.body.textContent).toContain('Values from run #3')
+  })
+
+  // Live check 2026-11-20: viewing run #218506 the pane said "Values from run #218507", the newest finished run.
+  it('names the run on screen when a past run is viewed, not the newest finished one', async () => {
+    const nodes = { fetch: { status: 'succeeded', output: { text: 'ok' } } }
+    mountModal({ lastRun: { runId: 3, status: 'success', draftChangedSince: false, nodes }, viewed: { id: 2, status: 'failed', node_runs: [] } })
+    await tick()
+    expect(document.body.textContent).toContain('Values from run #2 (failed), the run on screen.')
+    expect(document.body.textContent).not.toContain('Values from run #3')
   })
 
   it('keyboard pick: Enter (a click) on a key in the Input pane inserts it into the field focused last', async () => {

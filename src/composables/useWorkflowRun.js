@@ -356,20 +356,25 @@ export function useWorkflowRun(graphId, {
     }
   }
 
-  /** Pick up a run that is still going (the workflow's `last_run` after a reload). Returns true when attached. */
+  /** Pick up a run that is still going (the workflow's `last_run` after a reload, or one opened from the Runs list).
+   *  Never replaces a live run that is still going. Returns true when attached. */
   function attach(summary) {
-    if (!summary?.id || live.value) return false
+    if (!summary?.id || running.value) return false
     if (runStopKind(summary.status) === 'final') return false
     beginSession({ id: summary.id, status: summary.status })
     addLog('info', `Run #${summary.id} is ${summary.status}; showing it live.`)
     return true
   }
 
-  /** Show a past run on the canvas without touching the live run. */
+  /** Show a past run on the canvas without touching the live run.
+   *  A run that has NOT ended (waiting on an approval, running) is followed live instead, when no other run is: it is
+   *  not a past run, and its approval must be decidable here (live check 2026-11-20: a run started by the MCP waited on
+   *  an approval the builder showed but offered no Approve for). */
   async function openRun(runId) {
     if (live.value && String(runId) === String(live.value.id)) { closeRun(); return true }
     try {
       const { data } = await api.getWorkflowGraphRun(runId)
+      if (runStopKind(data?.status) !== 'final' && attach({ id: data?.id ?? runId, status: data?.status })) return true
       viewed.value = data
       viewedNodes.value = nodeStatesFrom(data.node_runs)
       return true

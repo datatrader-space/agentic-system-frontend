@@ -107,6 +107,9 @@ const needsUpstream = computed(() => !lastRun.value || lastRun.value.draftChange
 const dateFmt = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null
 const runLine = computed(() => {
   if (run.live.value && run.running.value) return `Run #${run.live.value.id} is ${run.live.value.status}…`
+  // A past run on screen: its values are shown, over the last finished run for the steps it did not reach.
+  const viewed = run.viewed.value
+  if (viewed) return `Values from run #${viewed.id} (${viewed.status}), the run on screen.`
   if (!lastRun.value) return 'Nothing has run yet. Steps show their declared output shape.'
   const when = lastRun.value.finishedAt || lastRun.value.startedAt
   const at = when && dateFmt ? dateFmt.format(new Date(when)) : ''

@@ -164,6 +164,37 @@ describe('live vs viewed (F8)', () => {
     expect(run.nodeStates.value.a.status).toBe('running')
   })
 
+  // Live check 2026-11-20: a run started by the MCP waited on an approval; opened from Runs it was shown as a PAST run,
+  // with no Approve anywhere on the page.
+  it('opening a run that has not ended follows it live, so its approval can be decided here', async () => {
+    const api = makeApi({
+      getWorkflowGraphRun: vi.fn().mockResolvedValue(detail(41, 'waiting', [nr('ok', 'waiting')])),
+      get: vi.fn().mockResolvedValue(detail(41, 'waiting', [nr('ok', 'waiting')])),
+    })
+    const { run, socket } = setup({ api })
+    expect(await run.openRun(41)).toBe(true)
+    await flush()
+    expect(run.viewingPast.value).toBe(false)
+    expect(run.live.value.id).toBe(41)
+    expect(run.held.value).toBe(true)
+    expect(socket.urls.at(-1)).toMatch(/workflow-graph-run\/41\/$/)
+    await run.decide('ok', 'approve')
+    expect(api.approveWorkflowGraphRun).toHaveBeenCalledWith(41, 'ok', 'approve')
+  })
+
+  it('a run that has not ended is only viewed while another run is going; the live run is kept', async () => {
+    const api = makeApi({
+      get: vi.fn().mockResolvedValue(detail(10, 'running', [nr('a', 'running')])),
+      getWorkflowGraphRun: vi.fn().mockResolvedValue(detail(41, 'waiting', [nr('ok', 'waiting')])),
+    })
+    const { run } = setup({ api })
+    await run.start()
+    await flush()
+    await run.openRun(41)
+    expect(run.viewingPast.value).toBe(true)
+    expect(run.live.value.id).toBe(10)
+  })
+
   it('opening the live run itself just returns to the live view', async () => {
     const { run, api } = setup()
     await run.start()

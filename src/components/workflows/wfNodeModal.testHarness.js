@@ -33,15 +33,16 @@ export function fakeDoc({ nodes = [], edges = [], vars = {}, triggers = [], agen
   return doc
 }
 
-export function fakeRun({ lastRun = null, nodeStates = {} } = {}) {
+export function fakeRun({ lastRun = null, nodeStates = {}, viewed = null } = {}) {
   return {
     lastRun: shallowRef(lastRun),
     nodeStates: shallowRef(nodeStates),
+    viewed: shallowRef(viewed),
     live: shallowRef(null),
     running: ref(false),
     starting: ref(false),
     deciding: ref(false),
-    viewingPast: ref(false),
+    viewingPast: ref(!!viewed),
     startError: shallowRef(null),
     start: vi.fn(async () => ({ ok: true, runId: 9 })),
     decide: vi.fn(async () => true),
