@@ -1032,3 +1032,40 @@ export function zoneProblems({ name, kind, points }) {
   else if (count > ZONE_POINTS_MAX) problems.points = `A shape has at most ${ZONE_POINTS_MAX} points.`;
   return problems;
 }
+
+// ── searching the workspace's camera events (camera_search.py; SMART_CAMERA_AI_PLAN.md Phase E) ─────────────────────
+// A time from a datetime-local field has no zone: the server reads it as Pakistan time.
+function eventQuery({ q = '', camera = '', class: klass = '', since = '', until = '', unusual = false, page = 1 } = {}) {
+  const query = new URLSearchParams();
+  if (String(q).trim()) query.set('q', String(q).trim());
+  if (camera) query.append('camera', String(camera));
+  if (String(klass).trim()) query.set('class', String(klass).trim());
+  if (since) query.set('since', since);
+  if (until) query.set('until', until);
+  if (unusual) query.set('unusual', '1');
+  if (Number(page) > 1) query.set('page', String(page));
+  return query.toString();
+}
+export const cameraEvents = {
+  search: (filters = {}) => { const text = eventQuery(filters); return apiFetch(`${APP}/workspace/stream-events/${text ? `?${text}` : ''}`, { timeoutMs: SLOW }); },
+  similar: event => apiFetch(`${APP}/stream-events/${enc(event)}/similar/`, { timeoutMs: SLOW }),
+  timeline: ({ since = '', until = '' } = {}) => {
+    const query = new URLSearchParams();
+    if (since) query.set('since', since);
+    if (until) query.set('until', until);
+    const text = query.toString();
+    return apiFetch(`${APP}/workspace/stream-events/timeline/${text ? `?${text}` : ''}`, { timeoutMs: SLOW });
+  },
+};
+export { eventQuery };
+// Where each event sits on its camera's strip (0..100 % of the time range), with its words for a tooltip.
+export function timelineDots(line) {
+  if (!line?.cameras) return [];
+  const start = Date.parse(line.since); const end = Date.parse(line.until);
+  const span = Math.max(1, end - start);
+  return line.cameras.map(c => ({ id: c.id, name: c.name, dots: (c.events || []).map(e => ({
+    id: e.id, rule: e.rule, unusual: !!e.unusual,
+    left: Math.min(100, Math.max(0, ((Date.parse(e.at) - start) / span) * 100)),
+    when: new Date(e.at).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+  })) }));
+}

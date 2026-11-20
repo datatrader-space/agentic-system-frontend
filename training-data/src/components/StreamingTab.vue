@@ -15,6 +15,7 @@ import {
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import VideoSources from './VideoSources.vue';
+import CameraEvents from './CameraEvents.vue';
 import CameraRecordings from './CameraRecordings.vue';
 import StreamingTermsDialog from './StreamingTermsDialog.vue';
 import UiButton from './UiButton.vue';
@@ -123,8 +124,8 @@ const sourceOpen = ref(false);
 // Cameras and streams, or every kept recording (CameraRecordings.vue; the owner, 2026-11-19: inside Cloud Streaming,
 // not a Deployments tab of its own). Kept for this tab across a reload.
 const VIEW_KEY = 'tmd.streaming.view';
-const VIEWS = [['cameras', 'Cameras and streams'], ['recordings', 'Recordings']];
-function keptView() { try { return sessionStorage.getItem(VIEW_KEY) === 'recordings' ? 'recordings' : 'cameras'; } catch { return 'cameras'; } }
+const VIEWS = [['cameras', 'Cameras and streams'], ['events', 'Events'], ['recordings', 'Recordings']];
+function keptView() { try { const kept = sessionStorage.getItem(VIEW_KEY); return ['recordings', 'events'].includes(kept) ? kept : 'cameras'; } catch { return 'cameras'; } }
 const view = ref(keptView());
 watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
 function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
@@ -317,6 +318,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               :class="{ on: view === id }" @click="view = id">{{ label }}</button>
     </div>
     <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"/>
+    <CameraEvents v-if="view === 'events'" role="tabpanel" aria-labelledby="st-view-events"/>
     </template>
     <p v-if="downloadError" class="field-error" role="alert">{{ downloadError }}</p>
 

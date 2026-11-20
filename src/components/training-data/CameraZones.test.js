@@ -132,3 +132,21 @@ describe('the Phase D rule form', () => {
     expect(ruleBody({ ...base, ai: 'describe', ai_question: ' ' })).not.toHaveProperty('ai_question');
   });
 });
+
+describe('searching the camera events (Phase E)', () => {
+  it('asks with only the filters that are set, and places each event on its camera strip', async () => {
+    const { eventQuery, timelineDots } = await import('../../../training-data/src/api/streaming.js');
+    expect(eventQuery({ q: ' empty desk ', camera: '3', unusual: true, page: 2 })).toBe('q=empty+desk&camera=3&unusual=1&page=2');
+    expect(eventQuery({})).toBe('');
+    const dots = timelineDots({ since: '2026-11-20T00:00:00Z', until: '2026-11-21T00:00:00Z',
+      cameras: [{ id: 3, name: 'Office', events: [{ id: 9, at: '2026-11-20T12:00:00Z', rule: 'person seen', unusual: true }] }] });
+    expect(dots).toEqual([{ id: 3, name: 'Office', dots: [expect.objectContaining({ id: 9, left: 50, unusual: true, rule: 'person seen' })] }]);
+  });
+  it('the Events view searches and shows Find similar', async () => {
+    const { default: CameraEvents } = await import('../../../training-data/src/components/CameraEvents.vue');
+    const w = mount(CameraEvents, { global: { stubs: { UiButton: { template: '<button v-bind="$attrs"><slot/></button>' } } } });
+    await flushPromises();
+    expect(calls.some(c => c.url.includes('/workspace/stream-events/'))).toBe(true);
+    expect(calls.some(c => c.url.includes('/workspace/stream-events/timeline/'))).toBe(true);
+  });
+});
