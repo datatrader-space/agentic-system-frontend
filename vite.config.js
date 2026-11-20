@@ -88,6 +88,13 @@ export default defineConfig(({ mode, isSsrBuild }) => {
             // KaTeX is imported lazily (utils/mathRenderer.js) for chat answers that contain math. Without its own
             // chunk the catch-all below put it, and its fonts' CSS, in `vendor`, which EVERY page preloads.
             if (id.includes('/katex/')) return 'katex'
+            // The Workflow Builder's libraries (ADM-1333): the auto layout (dagre), the output tree (vue-json-pretty) and
+            // the dialog, sheet and command list primitives (reka-ui and what it brings: floating-ui, tanstack virtual,
+            // internationalized dates, vueuse, aria-hidden). In the catch-all they put ~67 kB gzip in `vendor`, which EVERY
+            // page preloads, and the first-load budget (200 kB) failed.
+            if (id.includes('@dagrejs')) return 'wf-layout'
+            if (id.includes('vue-json-pretty')) return 'json-tree'
+            if (/\/(reka-ui|@floating-ui|@tanstack|@internationalized|@vueuse|aria-hidden|ohash|defu|@swc)\//.test(id)) return 'reka'
             if (
               id.includes('/vue/') ||
               id.includes('/@vue/') ||
