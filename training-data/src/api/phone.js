@@ -161,3 +161,21 @@ export function rememberCamera({ facing, sending }, storage = store(), now = Dat
     storage?.setItem(CAMERA_STATE_KEY, JSON.stringify(next));
   } catch { /* no storage here: a reload shows Start */ }
 }
+
+// A person's own workplace link (backend workplace_api.py, ``?consent=<secret>``): what is done and why, their consent
+// with their own photo, their own attendance, withdraw and erase. The link is the only authority; nobody signs in.
+export function consentSecret(search = globalThis.location?.search || '') {
+  const raw = new URLSearchParams(search).get('consent') || '';
+  return /^[A-Za-z0-9_-]{30,100}$/.test(raw) ? raw : '';
+}
+export const workplaceMeApi = {
+  get: (secret, opts) => phoneFetch('workplace/me/', secret, opts),
+  consent: (secret, photo, opts) => {
+    const form = new FormData();
+    form.append('agree', 'true');
+    form.append('photo', photo, photo.name || 'me.jpg');
+    return phoneFetch('workplace/me/consent/', secret, { ...opts, method: 'POST', body: form });
+  },
+  withdraw: (secret, opts) => phoneFetch('workplace/me/withdraw/', secret, { ...opts, method: 'POST', json: {} }),
+  erase: (secret, opts) => phoneFetch('workplace/me/erase/', secret, { ...opts, method: 'POST', json: {} }),
+};

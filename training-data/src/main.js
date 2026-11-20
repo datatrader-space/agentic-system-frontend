@@ -2,7 +2,7 @@ import { createApp, reactive } from 'vue';
 import { loadSession } from './api/session.js';
 import { ApiError, signInUrl } from './api/client.js';
 
-import { cameraSecret, phoneCamSecret, phoneSecret } from './api/phone.js';
+import { cameraSecret, consentSecret, phoneCamSecret, phoneSecret } from './api/phone.js';
 import { watchForUpdates } from './api/updateCheck.js';
 
 // A phone opening a phone upload link (?phone=<secret>), a camera pairing code of "Scan from phone" (?camera=<secret>), or
@@ -25,6 +25,8 @@ function phoneLink(name, read) {
 const secret = phoneLink('phone', phoneSecret);
 const pairing = secret ? '' : phoneLink('camera', cameraSecret);
 const phoneCam = secret || pairing ? '' : phoneLink('phonecam', phoneCamSecret);
+// A person's own workplace consent link (?consent=<secret>, backend workplace_api.py): their page alone, no sign-in.
+const consentLink = secret || pairing || phoneCam ? '' : phoneLink('consent', consentSecret);
 
 // Nothing else shows until AADML says who is signed in. A signed-out person goes to the AADML login page, which sends
 // them back to this exact page afterwards.
@@ -41,6 +43,7 @@ function mountPhonePage(load, props) {
 if (secret) mountPhonePage(() => import('./components/PhoneUpload.vue'), { secret });
 else if (pairing) mountPhonePage(() => import('./components/PhoneCameraScan.vue'), { secret: pairing });
 else if (phoneCam) mountPhonePage(() => import('./components/PhoneCameraSend.vue'), { secret: phoneCam });
+else if (consentLink) mountPhonePage(() => import('./components/WorkplaceConsent.vue'), { secret: consentLink });
 else {
   const app = import('./appEntry.js');
   app.catch(() => { /* said by the step below, once the sign-in is known */ });

@@ -16,6 +16,7 @@ import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import VideoSources from './VideoSources.vue';
 import CameraEvents from './CameraEvents.vue';
+import WorkplaceTab from './WorkplaceTab.vue';
 import CameraRecordings from './CameraRecordings.vue';
 import StreamingTermsDialog from './StreamingTermsDialog.vue';
 import UiButton from './UiButton.vue';
@@ -124,8 +125,8 @@ const sourceOpen = ref(false);
 // Cameras and streams, or every kept recording (CameraRecordings.vue; the owner, 2026-11-19: inside Cloud Streaming,
 // not a Deployments tab of its own). Kept for this tab across a reload.
 const VIEW_KEY = 'tmd.streaming.view';
-const VIEWS = [['cameras', 'Cameras and streams'], ['events', 'Events'], ['recordings', 'Recordings']];
-function keptView() { try { const kept = sessionStorage.getItem(VIEW_KEY); return ['recordings', 'events'].includes(kept) ? kept : 'cameras'; } catch { return 'cameras'; } }
+const VIEWS = [['cameras', 'Cameras and streams'], ['events', 'Events'], ['workplace', 'Workplace'], ['recordings', 'Recordings']];
+function keptView() { try { const kept = sessionStorage.getItem(VIEW_KEY); return ['recordings', 'events', 'workplace'].includes(kept) ? kept : 'cameras'; } catch { return 'cameras'; } }
 const view = ref(keptView());
 watch(view, value => { try { sessionStorage.setItem(VIEW_KEY, value); } catch { /* no storage: not kept */ } });
 function addSource() { view.value = 'cameras'; sourcesRef.value?.openAdd(); }
@@ -323,6 +324,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     </div>
     <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"/>
     <CameraEvents v-if="view === 'events'" role="tabpanel" aria-labelledby="st-view-events"/>
+    <WorkplaceTab v-if="view === 'workplace'" role="tabpanel" aria-labelledby="st-view-workplace"/>
     </template>
     <p v-if="downloadError" class="field-error" role="alert">{{ downloadError }}</p>
 
