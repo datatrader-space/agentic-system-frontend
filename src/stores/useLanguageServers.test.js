@@ -15,6 +15,7 @@ import {
   createLanguageServers, serverFor, languageIdOf, toUri, pathOfUri, problemOf, rangeOf, positionOf,
   hoverContents, locationsOf, completionsOf, applyTextEdits, endOf, workspaceEditFiles, inlayHintsOf, lspRangeOf,
   leaveEditingToServers, RESOURCE_OPERATIONS_REFUSED, PROJECT_LOADING_WAIT_MS, RENAME_WAITING, RENAME_NOT_LOADED,
+  RENAME_DONE_HERE, RENAME_NOTHING,
 } from './useLanguageServers'
 
 const ROOT = '/home/northrays/workspace/repo-4'
@@ -359,7 +360,8 @@ describe('editing through the language servers (ADM-1319)', () => {
     api.saveFileContent.mockResolvedValueOnce({ data: { sha: 'b'.repeat(64) } })
     const out = await e.providers.rename.typescript.provideRenameEdits(e.model, { lineNumber: 1, column: 7 }, 'total')
     expect(c.request).toHaveBeenCalledWith('textDocument/rename', { textDocument: { uri: PAGE }, position: { line: 0, character: 6 }, newName: 'total' })
-    expect(out).toEqual({ edits: [] })                                       // applied here, not by Monaco
+    // applied here, not by Monaco; the rejectReason keeps Monaco from announcing "Made 0 edits in 0 files"
+    expect(out).toEqual({ edits: [], rejectReason: RENAME_DONE_HERE })
     expect(e.tabs.value[0].content).toBe('const total = 1')
     expect(e.tabs.value[0].original).toBe('const a = 1')                     // unsaved: the person saves it
     expect(api.getFileContent).toHaveBeenCalledWith(5, 4, 'lib/util.ts')
@@ -428,6 +430,17 @@ describe('editing through the language servers (ADM-1319)', () => {
     expect(notify.warning).toHaveBeenCalledWith(RENAME_NOT_LOADED)
     expect(e.tabs.value[0].content).toBe('const a = 1')                     // nothing changed
     vi.useRealTimers()
+  })
+
+  it('no rename answer leaves Monaco an edit to announce: each says what happened as its rejectReason (live, 2026-11-20)', async () => {
+    const { e, c } = await ready()
+    const at = { lineNumber: 1, column: 7 }
+    answers(c, { 'textDocument/rename': null })
+    expect(await e.providers.rename.typescript.provideRenameEdits(e.model, at, 'total')).toEqual({ edits: [], rejectReason: RENAME_NOTHING })
+    c.request = vi.fn(async () => { throw new Error('server gone') })
+    expect(await e.providers.rename.typescript.provideRenameEdits(e.model, at, 'total'))
+      .toEqual({ edits: [], rejectReason: 'Nothing was renamed: server gone' })
+    expect(notify.error).toHaveBeenCalledWith('Nothing was renamed: server gone')   // the person's notification
   })
 
   it('a closed file changed on disk meanwhile is reported and never overwritten', async () => {

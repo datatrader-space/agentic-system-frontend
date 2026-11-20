@@ -133,6 +133,9 @@ export const RESOURCE_OPERATIONS_REFUSED = 'This change creates, renames or dele
 // again when a load began while it was being asked (the server's create reaches us before that answer).
 export const PROJECT_LOADING_WAIT_MS = 60000
 export const RENAME_WAITING = 'The project is still loading. The rename runs as soon as it has loaded, so it reaches every file.'
+export const RENAME_NOTHING = 'Nothing was renamed: the language server found nothing to change.'
+// Monaco only logs a rejectReason (standalone notification service), so this line is for the console, not a person.
+export const RENAME_DONE_HERE = 'Renamed through the language server; the editor applied the changes and said so.'
 export const RENAME_NOT_LOADED = 'Nothing was renamed: the project is still loading, and a rename now could miss files. '
   + 'Try again in a moment.'
 function loadingBegan(entry, token) {
@@ -757,17 +760,20 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
         return wordAt(model, position)
       },
       // The edits are applied here, in every file (see applyWorkspaceEdit); Monaco is given none to apply, as its own
-      // edit service knows only the file shown.
+      // edit service knows only the file shown. Every answer carries `rejectReason` (handledHere): with none, Monaco
+      // ran its empty edit and told screen readers "Made 0 edits in 0 files" after a rename of two files (live,
+      // 2026-11-20). With one it applies nothing, announces nothing and only logs it; the person's notification is ours.
       async provideRenameEdits(model, position, newName) {
+        const handledHere = (why) => ({ edits: [], rejectReason: why })
         const f = current(model)
-        if (!f) { notify.info(STARTING); return { edits: [] } }
+        if (!f) { notify.info(STARTING); return handledHere(STARTING) }
         let edit
         // ADM-1335: never while the project loads (the answer would cover the open files only). Asked again, at most
         // twice, when a load began while it was being asked; never applied from a load's half-answer.
         for (let attempt = 0; ; attempt++) {
           if (f.entry.loading.size) {
             if (attempt === 0) notify.info(RENAME_WAITING)
-            if (!(await whenLoaded(f.entry, PROJECT_LOADING_WAIT_MS))) { notify.warning(RENAME_NOT_LOADED); return { edits: [] } }
+            if (!(await whenLoaded(f.entry, PROJECT_LOADING_WAIT_MS))) { notify.warning(RENAME_NOT_LOADED); return handledHere(RENAME_NOT_LOADED) }
           }
           const epoch = f.entry.loadingEpoch
           try {
@@ -775,14 +781,14 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
               position: positionOf(position), newName })
           } catch (e) {
             notify.error(`Nothing was renamed: ${e.message}`)
-            return { edits: [] }
+            return handledHere(`Nothing was renamed: ${e.message}`)
           }
           if (f.entry.loadingEpoch === epoch) break
-          if (attempt >= 2) { notify.warning(RENAME_NOT_LOADED); return { edits: [] } }
+          if (attempt >= 2) { notify.warning(RENAME_NOT_LOADED); return handledHere(RENAME_NOT_LOADED) }
         }
-        if (!edit) { notify.info('Nothing was renamed: the language server found nothing to change.'); return { edits: [] } }
+        if (!edit) { notify.info(RENAME_NOTHING); return handledHere(RENAME_NOTHING) }
         await applyWorkspaceEdit(f.entry, edit, { rename: true })
-        return { edits: [] }
+        return handledHere(RENAME_DONE_HERE)
       },
     })
     add('registerCodeActionProvider', {
