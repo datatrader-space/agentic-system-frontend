@@ -3,7 +3,8 @@
 // every rule (the terms first, Admins only for people and attendance); this page only offers and shows.
 import { apiFetch } from './client.js';
 
-const APP = '/api/training-data/app';
+// apiFetch adds /api itself (live 2026-11-20: '/api/training-data/app' asked /api/api/... and every call was 404).
+const APP = '/training-data/app';
 const SLOW = 60000;
 const enc = value => encodeURIComponent(String(value));
 
@@ -17,7 +18,8 @@ export const workplaceApi = {
   newLink: id => apiFetch(`${APP}/workspace/workplace/people/${enc(id)}/link/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
   withdraw: id => apiFetch(`${APP}/workspace/workplace/people/${enc(id)}/withdraw/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
   attendance: ({ since, until }) => apiFetch(`${APP}/workspace/workplace/attendance/?${new URLSearchParams({ since, until })}`, { timeoutMs: SLOW }),
-  attendanceCsvUrl: ({ since, until }) => `${APP}/workspace/workplace/attendance/?${new URLSearchParams({ since, until, download: 'csv' })}`,
+  // A plain link (the browser downloads it), so the full address with /api.
+  attendanceCsvUrl: ({ since, until }) => `/api${APP}/workspace/workplace/attendance/?${new URLSearchParams({ since, until, download: 'csv' })}`,
   occupancy: () => apiFetch(`${APP}/workspace/workplace/occupancy/`),
   usage: ({ since, until }) => apiFetch(`${APP}/workspace/workplace/usage/?${new URLSearchParams({ since, until })}`),
   plates: () => apiFetch(`${APP}/workspace/workplace/plates/`),

@@ -92,3 +92,14 @@ describe('Phase I: outside AADML', () => {
     expect(ruleBody({ ...ruleForm(['person']), device: '5', share: true })).toMatchObject({ device: 5, share: true });
   });
 });
+
+describe('the addresses asked', () => {
+  beforeEach(() => { calls.length = 0; });
+  it('are /training-data/app/... for apiFetch (which adds /api) and /api/... for the CSV link', async () => {
+    await workplaceApi.settings(); await workplaceApi.endpoints(); await workplaceApi.sharing();
+    expect(calls.map(c => c.url)).toEqual(['/training-data/app/workspace/workplace/', '/training-data/app/workspace/camera-endpoints/',
+      '/training-data/app/workspace/sharing/']);
+    expect(workplaceApi.attendanceCsvUrl({ since: '2026-11-14', until: '2026-11-20' }))
+      .toBe('/api/training-data/app/workspace/workplace/attendance/?since=2026-11-14&until=2026-11-20&download=csv');
+  });
+});
