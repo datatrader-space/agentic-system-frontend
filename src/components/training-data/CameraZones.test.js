@@ -117,7 +117,7 @@ describe('the Phase B rule form', () => {
 describe('the rule form lets the browser submit what it offers', () => {
   it('takes any number of minutes (found live 2026-11-20: step 0.5 from 0.2 made 15 minutes invalid, so Save did nothing)', async () => {
     const { readFileSync } = await import('node:fs');
-    const page = readFileSync(new URL('../../../training-data/src/components/VideoSourcePage.vue', import.meta.url), 'utf8');
+    const page = readFileSync('training-data/src/components/VideoSourcePage.vue', 'utf8');   // vitest runs at the repo root
     const minutes = page.match(/<input v-model\.number="draft\.minutes"[^>]*>/)[0];
     expect(minutes).toContain('step="any"');
   });
