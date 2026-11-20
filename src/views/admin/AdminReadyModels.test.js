@@ -8,6 +8,9 @@ const api = vi.hoisted(() => ({
   readyModelStop: vi.fn(),
   readyModelSetPrice: vi.fn(),
   readyModelAcceptLicence: vi.fn(),
+  readyModelCameraAdd: vi.fn(),
+  readyModelCameraFetch: vi.fn(),
+  readyModelCameraRemove: vi.fn(),
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 const notifyMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
@@ -168,5 +171,88 @@ describe('AdminReadyModels', () => {
     api.readyModelsAdmin.mockRejectedValueOnce({ response: { status: 403, data: { detail: 'Platform administrators only.' } } })
     await render()
     expect(w.get('[data-test="rm-load-error"]').text()).toContain('Platform administrators only.')
+  })
+
+  // Camera models (backend camera_models.py): rows the admin adds from Hugging Face, hosted and priced like SAM 3.
+  const qwen = (over = {}) => sam({ key: 'qwen3-vl-8b', name: 'Qwen3-VL 8B', kind: 'vision', kind_label: 'Vision assistant',
+    licence: 'Apache 2.0', gpu_gb: 22, files_ready: true, needs_licence: false,
+    camera_model: { key: 'qwen3-vl-8b', parts: [{ repo: 'Qwen/Qwen3-VL-8B-Instruct', revision: '0c351dd01ed8', bytes: 1 }] },
+    ...over })
+  const fitted = [
+    { ...machines[0], fits: { sam3: '', 'qwen3-vl-8b': '' } },
+    { ...machines[1], gpu: 'RTX 3070 8 GB', fits: { sam3: 'The SAM License is not accepted for Lab.',
+      'qwen3-vl-8b': 'Old box has no NVIDIA GPU with 22 GB of memory or more, which Qwen3-VL 8B needs.' } },
+  ]
+  const kinds = [{ key: 'detector', label: 'Object detector' }, { key: 'vision', label: 'Vision assistant' },
+    { key: 'search', label: 'Search embeddings' }]
+
+  it('says what a camera model does, its licence and GPU memory, and judges each machine for that model', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
+    await render()
+    const card = w.get('[data-test="rm-model-qwen3-vl-8b"]')
+    expect(card.get('[data-test="rm-kind"]').text()).toBe('Vision assistant')
+    expect(card.get('[data-test="rm-licence"]').text()).toBe('Apache 2.0')
+    expect(card.get('[data-test="rm-gpu"]').text()).toBe('22 GB')
+    expect(card.get('[data-test="rm-files"]').text()).toContain('Qwen/Qwen3-VL-8B-Instruct @ 0c351dd01ed8')
+    const opts = card.get('[data-test="rm-host"]').findAll('option')
+    expect(opts[2].text()).toContain('no NVIDIA GPU with 22 GB')
+    expect(opts[2].attributes('disabled')).toBeDefined()
+    expect(card.find('[data-test="rm-remove"]').exists()).toBe(true)
+    expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-remove"]').exists()).toBe(false)
+  })
+
+  it('adds a camera model with the right call, checks the form first and shows the server\'s refusal', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds } })
+    api.readyModelCameraAdd.mockRejectedValueOnce({ response: { status: 400, data: {
+      error: 'Qwen/Qwen2.5-VL-3B-Instruct has no licence that allows commercial use (other).' } } })
+    await render()
+    const form = w.get('[data-test="rm-add"]')
+    await form.get('form').trigger('submit')
+    expect(form.get('[data-test="rm-add-error"]').text()).toContain('owner/name')
+    expect(api.readyModelCameraAdd).not.toHaveBeenCalled()
+    await form.get('[data-test="rm-add-kind"]').setValue('vision')
+    await form.get('[data-test="rm-add-repo"]').setValue('Qwen/Qwen2.5-VL-3B-Instruct')
+    await form.get('[data-test="rm-add-key"]').setValue('qwen-3b')
+    await form.get('form').trigger('submit')
+    await flushPromises()
+    expect(form.get('[data-test="rm-add-error"]').text()).toContain('no licence that allows commercial use')
+    api.readyModelCameraAdd.mockResolvedValueOnce({ data: qwen({ files_ready: false }) })
+    await form.get('[data-test="rm-add-repo"]').setValue('Qwen/Qwen3-VL-8B-Instruct')
+    await form.get('[data-test="rm-add-key"]').setValue('qwen3-vl-8b')
+    await form.get('[data-test="rm-add-name"]').setValue('Qwen3-VL 8B')
+    await form.get('[data-test="rm-add-gpu"]').setValue('22')
+    await form.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelCameraAdd).toHaveBeenLastCalledWith({ key: 'qwen3-vl-8b', name: 'Qwen3-VL 8B', kind: 'vision',
+      gpu_gb: 22, parts: [{ repo: 'Qwen/Qwen3-VL-8B-Instruct' }] })
+    expect(w.get('[data-test="rm-model-qwen3-vl-8b"]').get('[data-test="rm-files"]').text()).toContain('Being fetched')
+    expect(w.find('[data-test="rm-fetch"]').exists()).toBe(true)
+  })
+
+  it('sends a kind\'s own number with it', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds } })
+    api.readyModelCameraAdd.mockResolvedValue({ data: qwen({ key: 'bge', kind: 'search' }) })
+    await render()
+    const form = w.get('[data-test="rm-add"]')
+    await form.get('[data-test="rm-add-kind"]').setValue('search')
+    await form.get('[data-test="rm-add-repo"]').setValue('BAAI/bge-small-en-v1.5')
+    await form.get('[data-test="rm-add-key"]').setValue('bge')
+    await form.get('[data-test="rm-add-tuning"]').setValue('0.7')
+    await form.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelCameraAdd.mock.calls[0][0].tuning).toEqual({ near: 0.7 })
+  })
+
+  it('removes a camera model only after the in-page confirmation', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
+    api.readyModelCameraRemove.mockResolvedValue({ status: 204 })
+    await render()
+    await w.get('[data-test="rm-remove"]').trigger('click')
+    expect(w.get('[data-test="rm-remove-confirm"]').text()).toContain('Remove Qwen3-VL 8B from the list?')
+    expect(api.readyModelCameraRemove).not.toHaveBeenCalled()
+    await w.get('[data-test="rm-remove-yes"]').trigger('click')
+    await flushPromises()
+    expect(api.readyModelCameraRemove).toHaveBeenCalledExactlyOnceWith('qwen3-vl-8b')
+    expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(false)
   })
 })

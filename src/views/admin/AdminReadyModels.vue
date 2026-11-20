@@ -8,7 +8,8 @@
           <h1 class="admin-page-title">Ready-to-use models</h1>
           <p>
             Only you start and stop these models. One runs on RunPod or on one of your own GPU machines until you stop
-            it; a call never starts it. People pay for each image it answers, from their balance.
+            it; a call never starts it. People pay for each image it answers, from their balance. No model ever runs
+            on AADML's own server. Each camera feature chooses among the running models of its kind.
           </p>
         </div>
       </div>
@@ -50,6 +51,14 @@
         </p>
 
         <dl class="rm-facts">
+          <div v-if="m.kind_label"><dt>What it does</dt><dd data-test="rm-kind">{{ m.kind_label }}</dd></div>
+          <div v-if="m.licence"><dt>Licence</dt><dd data-test="rm-licence">{{ m.licence }}</dd></div>
+          <div v-if="m.gpu_gb != null"><dt>GPU memory</dt>
+            <dd data-test="rm-gpu">{{ m.gpu_gb ? `${m.gpu_gb} GB` : 'None: it runs on a CPU too' }}</dd></div>
+          <div v-if="m.camera_model"><dt>Files</dt>
+            <dd data-test="rm-files">{{ m.files_ready ? 'Ready' : 'Being fetched by AADML' }}
+              <template v-for="p in m.camera_model.parts" :key="p.repo"> · {{ p.repo }} @ {{ p.revision }}</template>
+            </dd></div>
           <div><dt>Where it runs</dt><dd data-test="rm-where">{{ whereWords(m) }}</dd></div>
           <div v-if="m.state !== 'off' && (m.started_by || m.started_at)">
             <dt>Started</dt><dd data-test="rm-started">{{ startedWords(m) }}</dd>
@@ -65,8 +74,8 @@
             <select :id="`rm-host-${m.key}`" v-model="hostPick[m.key]" :disabled="isBusy(m.key) || running(m)"
                     :aria-describedby="`rm-host-help-${m.key}`" data-test="rm-host">
               <option value="runpod">RunPod</option>
-              <option v-for="mc in machines" :key="mc.id" :value="`machine:${mc.id}`" :disabled="!!mc.unavailable">
-                {{ machineWords(mc) }}{{ mc.unavailable ? ` (${mc.unavailable})` : '' }}
+              <option v-for="mc in machines" :key="mc.id" :value="`machine:${mc.id}`" :disabled="!!fitWords(mc, m)">
+                {{ machineWords(mc) }}{{ fitWords(mc, m) ? ` (${fitWords(mc, m)})` : '' }}
               </option>
             </select>
             <small :id="`rm-host-help-${m.key}`">
@@ -82,6 +91,27 @@
                     @click="askStop(m)">
               <Square :size="15" aria-hidden="true" />{{ busy[m.key] === 'stop' ? 'Stopping…' : 'Stop' }}
             </button>
+            <button v-if="m.camera_model && !m.files_ready" class="btn" type="button" :disabled="isBusy(m.key)"
+                    data-test="rm-fetch" @click="fetchAgain(m)">
+              <RefreshCw :size="15" aria-hidden="true" />Fetch its files again
+            </button>
+            <button v-if="m.camera_model && !running(m)" class="btn" type="button" :disabled="isBusy(m.key)"
+                    data-test="rm-remove" @click="removeAsk = m.key">
+              <Trash2 :size="15" aria-hidden="true" />Remove
+            </button>
+          </div>
+        </div>
+
+        <div v-if="removeAsk === m.key" class="rm-confirm" role="group" :aria-labelledby="`rm-remove-q-${m.key}`"
+             data-test="rm-remove-confirm" @keydown.esc.stop.prevent="removeAsk = null">
+          <p :id="`rm-remove-q-${m.key}`">
+            <strong>Remove {{ m.name || m.key }} from the list?</strong> No feature can choose it afterwards. Its
+            files and history are kept.
+          </p>
+          <div class="rm-confirm-actions">
+            <button class="btn" type="button" @click="removeAsk = null">Keep it</button>
+            <button class="btn danger" type="button" :disabled="isBusy(m.key)" data-test="rm-remove-yes"
+                    @click="remove(m)">Remove {{ m.name || m.key }}</button>
           </div>
         </div>
 
@@ -123,6 +153,45 @@
         <p v-if="modelErrors[m.key]" class="rm-error rm-banner" role="alert" data-test="rm-error">{{ modelErrors[m.key] }}</p>
       </section>
 
+      <!-- A camera model from Hugging Face (backend camera_models.py): a row, never a constant in code. -->
+      <section class="rm-card admin-surface" aria-labelledby="rm-add-title" data-test="rm-add">
+        <h2 id="rm-add-title" class="admin-section-title">Add a camera model</h2>
+        <p class="rm-muted">
+          Name a model on Hugging Face. AADML reads it at its newest commit (or the one you give) and pins it, keeps it
+          only with a licence that allows commercial use, refuses one with code of its own, and fetches its files once.
+          Then start and price it here.
+        </p>
+        <form class="rm-add-form" novalidate @submit.prevent="addCamera">
+          <div class="rm-field"><label for="rm-add-kind">What it does</label>
+            <select id="rm-add-kind" v-model="addForm.kind" data-test="rm-add-kind">
+              <option v-for="k in kinds" :key="k.key" :value="k.key">{{ k.label }}</option>
+            </select></div>
+          <div class="rm-field"><label for="rm-add-repo">Hugging Face model</label>
+            <input id="rm-add-repo" v-model.trim="addForm.repo" placeholder="owner/name" autocomplete="off"
+                   data-test="rm-add-repo" /></div>
+          <div class="rm-field"><label for="rm-add-key">Key</label>
+            <input id="rm-add-key" v-model.trim="addForm.key" placeholder="qwen3-vl-8b" autocomplete="off"
+                   data-test="rm-add-key" /><small>3 to 40 lowercase letters, digits and dashes.</small></div>
+          <div class="rm-field"><label for="rm-add-name">Name people read</label>
+            <input id="rm-add-name" v-model.trim="addForm.name" placeholder="Qwen3-VL 8B" data-test="rm-add-name" /></div>
+          <div class="rm-field"><label for="rm-add-gpu">GPU memory it needs (GB)</label>
+            <input id="rm-add-gpu" v-model.trim="addForm.gpu_gb" inputmode="numeric" placeholder="0: it runs on a CPU too"
+                   data-test="rm-add-gpu" /></div>
+          <div class="rm-field"><label for="rm-add-revision">Commit (optional)</label>
+            <input id="rm-add-revision" v-model.trim="addForm.revision" placeholder="the newest" autocomplete="off"
+                   data-test="rm-add-revision" /></div>
+          <div v-if="TUNING[addForm.kind]" class="rm-field"><label for="rm-add-tuning">{{ TUNING[addForm.kind].label }}</label>
+            <input id="rm-add-tuning" v-model.trim="addForm.tuning" inputmode="decimal"
+                   :placeholder="TUNING[addForm.kind].hint" data-test="rm-add-tuning" /></div>
+          <div class="rm-add-actions">
+            <button class="btn primary" type="submit" :disabled="adding" data-test="rm-add-save">
+              <Plus :size="15" aria-hidden="true" />{{ adding ? 'Reading Hugging Face…' : 'Add the model' }}
+            </button>
+          </div>
+          <p v-if="addError" class="rm-error rm-banner" role="alert" data-test="rm-add-error">{{ addError }}</p>
+        </form>
+      </section>
+
       <!-- The admin's own GPU machines, connected through the AADML machine agent. -->
       <section class="rm-card admin-surface" aria-labelledby="rm-machines-title" data-test="rm-machines">
         <h2 id="rm-machines-title" class="admin-section-title">Your GPU machines</h2>
@@ -135,7 +204,8 @@
               <Cpu :size="16" aria-hidden="true" />
               <div>
                 <strong>{{ mc.name }}</strong>
-                <span class="rm-muted"> · {{ mc.gpu || 'No GPU reported' }} · {{ mc.workspace }}</span>
+                <span class="rm-muted"> · {{ (mc.gpus && mc.gpus.join(', ')) || mc.gpu || 'No GPU reported' }} · {{ mc.workspace }}</span>
+                <span v-if="mc.gpu_in_use_gb" class="rm-muted"> · {{ mc.gpu_in_use_gb }} GB of GPU memory in use</span>
                 <div class="rm-muted">
                   {{ mc.online ? 'Online' : 'Offline' }}<template v-if="mc.unavailable"> · {{ mc.unavailable }}</template>
                 </div>
@@ -169,7 +239,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Boxes, CircleCheck, CircleOff, Cpu, LoaderCircle, Play, RefreshCw, Save, ShieldCheck, Square, TriangleAlert } from 'lucide-vue-next'
+import { Boxes, CircleCheck, CircleOff, Cpu, LoaderCircle, Play, Plus, RefreshCw, Save, ShieldCheck, Square, Trash2, TriangleAlert } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 
@@ -193,6 +263,18 @@ const licenceAsk = ref(null)
 const licenceBusy = ref(null)
 const licenceErrors = reactive({})
 const announcement = ref('')
+const kinds = ref([])
+const removeAsk = ref(null)
+const adding = ref(false)
+const addError = ref('')
+const addForm = reactive({ kind: 'detector', repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '' })
+// The one number a model of each kind carries (backend camera_models.TUNING); empty: the platform's own.
+const TUNING = {
+  detector: { name: 'threshold', label: 'How sure an object must be (0.05 to 0.99)', hint: '0.5' },
+  sounds: { name: 'threshold', label: 'How sure a sound must be (0.01 to 0.99)', hint: '0.3' },
+  faces: { name: 'match', label: 'How close two faces must be to be one person (0 to 1)', hint: '0.363' },
+  search: { name: 'near', label: 'How close words must be to match (0 to 1)', hint: '0.68' },
+}
 let confirmEl = null
 let pollTimer = null
 let disposed = false
@@ -214,6 +296,11 @@ function who(by) {
   return typeof by === 'object' ? (by.name || by.username || by.email || '') : String(by)
 }
 function machineWords(mc) { return [mc.name, mc.gpu].filter(Boolean).join(' · ') }
+// Why ``m`` cannot start on ``mc`` now ('' when it can): the machine's own judgement of each model, else SAM 3's.
+function fitWords(mc, m) {
+  if (mc.fits && Object.prototype.hasOwnProperty.call(mc.fits, m.key)) return mc.fits[m.key] || ''
+  return mc.unavailable || ''
+}
 function whereWords(m) {
   if (m.host === 'runpod') return 'RunPod'
   if (m.host === 'machine') return m.machine ? machineWords(m.machine) : 'One of your machines'
@@ -244,6 +331,7 @@ function takeModel(row, { resetPrice = false } = {}) {
 }
 function take(data) {
   machines.value = data.machines || []
+  if (Array.isArray(data.kinds)) kinds.value = data.kinds
   const rows = data.models || []
   models.value = models.value.filter(m => rows.some(r => r.key === m.key))
   for (const row of rows) takeModel(row)
@@ -325,6 +413,62 @@ function savePrice(m) {
     { resetPrice: true })
 }
 
+function fetchAgain(m) {
+  return act(m, 'fetch', () => api.readyModelCameraFetch(m.key), `AADML fetches the files of ${m.name || m.key}.`)
+}
+async function remove(m) {
+  busy[m.key] = 'remove'
+  modelErrors[m.key] = ''
+  try {
+    await api.readyModelCameraRemove(m.key)
+    if (disposed) return
+    removeAsk.value = null
+    models.value = models.value.filter(x => x.key !== m.key)
+    notify.success(`${m.name || m.key} is off the list.`)
+  } catch (e) {
+    if (disposed) return
+    const why = words(e, `${m.name || m.key} could not be removed.`)
+    modelErrors[m.key] = why
+    notify.error(why)
+  } finally {
+    busy[m.key] = ''
+  }
+}
+
+async function addCamera() {
+  addError.value = ''
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(addForm.repo)) {
+    addError.value = 'Name the model as it is on Hugging Face: owner/name.'
+    return
+  }
+  if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(addForm.key)) {
+    addError.value = 'A key is 3 to 40 lowercase letters, digits and dashes.'
+    return
+  }
+  const gpu = addForm.gpu_gb === '' ? 0 : Number(addForm.gpu_gb)
+  if (!Number.isInteger(gpu) || gpu < 0 || gpu > 192) { addError.value = 'The GPU memory is a whole number of GB, 0 to 192.'; return }
+  const body = { key: addForm.key, name: addForm.name || addForm.key, kind: addForm.kind, gpu_gb: gpu,
+    parts: [{ repo: addForm.repo, ...(addForm.revision ? { revision: addForm.revision } : {}) }] }
+  const tune = TUNING[addForm.kind]
+  if (tune && addForm.tuning !== '') {
+    const value = Number(addForm.tuning)
+    if (!Number.isFinite(value)) { addError.value = `${tune.label}: a number.`; return }
+    body.tuning = { [tune.name]: value }
+  }
+  adding.value = true
+  try {
+    const { data } = await api.readyModelCameraAdd(body)
+    if (disposed) return
+    if (data && data.key) takeModel(data)
+    Object.assign(addForm, { repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '' })
+    notify.success(`${data?.name || body.name} is added; AADML fetches its files now.`)
+  } catch (e) {
+    if (!disposed) addError.value = words(e, 'The model could not be added.')
+  } finally {
+    adding.value = false
+  }
+}
+
 async function acceptLicence(mc) {
   licenceBusy.value = mc.id
   licenceErrors[mc.id] = ''
@@ -394,7 +538,10 @@ onBeforeUnmount(() => { disposed = true; stopPolling() })
 .rm-field small { font-size: 12px; color: var(--admin-muted, #667085); }
 .rm-money { display: flex; align-items: center; gap: 6px; }
 .rm-money span { color: var(--admin-muted, #667085); font-weight: 600; }
-.rm-run-actions { display: flex; gap: 8px; }
+.rm-run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rm-add-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
+.rm-add-form .rm-field { flex: 1 1 220px; }
+.rm-add-actions { display: flex; gap: 8px; }
 
 .rm-confirm { margin-top: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--admin-line, #e3e7ee);
   background: var(--admin-soft, #f4f6fa); }
@@ -417,7 +564,8 @@ onBeforeUnmount(() => { disposed = true; stopPolling() })
 @media (max-width: 767px) {
   .rm-card { padding: 16px; }
   .rm :where(.btn, select, input) { min-height: 44px; }
-  .rm-run-actions, .rm-run-actions .btn, .rm-price > .btn, .rm-machine-list .btn { width: 100%; justify-content: center; }
+  .rm-run-actions, .rm-run-actions .btn, .rm-price > .btn, .rm-machine-list .btn, .rm-add-actions,
+  .rm-add-actions .btn { width: 100%; justify-content: center; }
   .rm-confirm-actions .btn { flex: 1 1 auto; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .rm-spin { animation: none; } }

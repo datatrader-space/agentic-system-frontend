@@ -159,8 +159,11 @@ const notifying = ref(false);
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
 const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null,
-  useDetector: false, detector: '', useFind: false, find: '', skipStill: false, listen: false, listenConsent: false });
+  useDetector: false, detector: '', useFind: false, find: '', skipStill: false, listen: false, listenConsent: false,
+  soundModel: '' });
 const listenOption = computed(() => options.value.listen || null);
+// The hosted sound models that run now (backend camera_models.py), each with its price.
+const soundChoices = computed(() => listenOption.value?.choices || []);
 // The ready detector (people, vehicles, pets and 77 more, on AADML's server) and finding objects by name (SAM 3): each
 // in place of the project's model, one of the three at most (SMART_CAMERA_AI_PLAN.md Phase A).
 const detectorsOption = computed(() => options.value.detectors || null);
@@ -198,7 +201,8 @@ const startWhy = computed(() => {
   if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes && !form.value.listen) return 'Choose what runs on each frame: the model, the ready detector, Find by name, Read barcodes, or Listen for sounds.';
   if (form.value.listen && !form.value.listenConsent) return 'Confirm that the people near this camera are told its sound is analysed.';
   if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
-  if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return "The ready detector cannot run on AADML's server right now. Try again later.";
+  if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return 'No ready detector runs now: AADML starts them. Try again later.';
+  if (form.value.listen && listenOption.value && !soundChoices.value.length) return 'No sound model runs now: AADML starts them. Try again later.';
   if (form.value.useFind && !form.value.find.trim()) return 'Name what to find, for example "person, forklift".';
   if (form.value.useFind && findOption.value && findOption.value.available === false) return findOption.value.note || 'Finding objects by name is not offered right now.';
   if (form.value.readCodes && codesOption.value && codesOption.value.available === false) return 'Barcodes cannot be read on AADML right now. Run the model on its own, or try again later.';
@@ -221,7 +225,7 @@ function openCreate(saved = null, recording = null) {
     useModel: !!first?.models?.length, readCodes: false,
     useDetector: !first?.models?.length && detectorsOption.value?.available !== false,
     detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '', skipStill: false,
-    listen: false, listenConsent: false,
+    listen: false, listenConsent: false, soundModel: listenOption.value?.default || soundChoices.value[0]?.key || '',
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
   creating.value = true;
@@ -248,7 +252,7 @@ async function startStream() {
       readCodes: form.value.readCodes,
       detector: form.value.useDetector ? form.value.detector : '', find: form.value.useFind ? form.value.find.trim() : '',
       skipStill: form.value.skipStill && (form.value.useModel || form.value.useDetector || form.value.useFind),
-      listen: form.value.listen && form.value.listenConsent,
+      listen: form.value.listen && form.value.listenConsent, soundModel: form.value.soundModel,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
           : form.value.source === 'recording' ? { recording: form.value.recording.id }
@@ -264,7 +268,7 @@ async function startStream() {
   } catch (e) {
     if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'listen'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'listen', 'sound_model'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -475,10 +479,10 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel || form.useDetector || form.useFind ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
             </label>
           </div>
-          <div v-if="form.useDetector && detectorChoices.length > 1" class="st-field">
-            <label for="st-detector">Detector size</label>
+          <div v-if="form.useDetector && detectorChoices.length" class="st-field">
+            <label for="st-detector">Detector</label>
             <select id="st-detector" v-model="form.detector" class="text-input" :aria-invalid="!!fieldErrors.detector">
-              <option v-for="d in detectorChoices" :key="d.key" :value="d.key">{{ d.name }}</option>
+              <option v-for="d in detectorChoices" :key="d.key" :value="d.key">{{ d.name }}{{ d.price ? ` · ${d.price}` : '' }}</option>
             </select>
           </div>
           <div v-if="form.useFind" class="st-field">
@@ -494,6 +498,13 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <label v-if="form.listen" class="st-check">
             <input v-model="form.listenConsent" type="checkbox"> <span>{{ listenOption.consent }}</span>
           </label>
+          <div v-if="form.listen && soundChoices.length" class="st-field">
+            <label for="st-sound-model">Sound model</label>
+            <select id="st-sound-model" v-model="form.soundModel" class="text-input" :aria-invalid="!!fieldErrors.sound_model">
+              <option v-for="d in soundChoices" :key="d.key" :value="d.key">{{ d.name }}{{ d.price ? ` · ${d.price}` : '' }}</option>
+            </select>
+          </div>
+          <p v-if="fieldErrors.sound_model" class="field-error" role="alert">{{ fieldErrors.sound_model }}</p>
           <p v-if="fieldErrors.listen" class="field-error" role="alert">{{ fieldErrors.listen }}</p>
           <p v-if="fieldErrors.detector" class="field-error" role="alert">{{ fieldErrors.detector }}</p>
           <p v-if="fieldErrors.find" class="field-error" role="alert">{{ fieldErrors.find }}</p>

@@ -19,14 +19,16 @@ export const streamingApi = {
   // An address or a saved source goes as JSON; a video as multipart, with the same fields. Only a saved source may run
   // continuously (until it is stopped, the balance runs out or the camera stops answering). `readCodes`: read the
   // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
-  // `detector`: the ready detector's key (people, vehicles, pets and 77 more, on AADML's server); `find`: names SAM 3
-  // finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one answered is not
-  // sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most.
-  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill, listen }) => {
+  // `detector`: the key of the hosted detector chosen (a camera model AADML hosts, never on AADML's server); `find`:
+  // names SAM 3 finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one
+  // answered is not sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most. `soundModel`: the
+  // hosted sound model it is listened with.
+  start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill, listen,
+    soundModel }) => {
     const noModel = model === null || model === undefined || model === '';
     const extra = { ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
       ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}),
-      ...(listen ? { listen: true, listen_consent: true } : {}) };
+      ...(listen ? { listen: true, listen_consent: true, ...(soundModel ? { sound_model: soundModel } : {}) } : {}) };
     const head = noModel ? { project } : { project, model };
     // A kept recording ("Use in project", CLOUD_STREAMING_PLAN.md §3.5): read in place, never continuous.
     if (recording !== undefined && recording !== null && recording !== '') {
@@ -42,7 +44,10 @@ export const streamingApi = {
       if (detector) body.append('detector', detector);
       if (find) body.append('find', find);
       if (skipStill) body.append('skip_still', 'true');
-      if (listen) { body.append('listen', 'true'); body.append('listen_consent', 'true'); }
+      if (listen) {
+        body.append('listen', 'true'); body.append('listen_consent', 'true');
+        if (soundModel) body.append('sound_model', soundModel);
+      }
       body.append('file', file, file.name);
       return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body, timeoutMs: UPLOAD_MS });
     }

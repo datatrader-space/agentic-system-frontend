@@ -661,13 +661,13 @@ watch(tab, now => {
               <label v-if="draft.ai && visionModels.length">Model
                 <select v-model="draft.ai_model" class="text-input">
                   <option value="">The default</option>
-                  <option v-for="m in visionModels" :key="m.id" :value="m.id">{{ m.name }}</option>
+                  <option v-for="m in visionModels" :key="m.id" :value="m.id">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
                 </select>
               </label>
             </div>
             <label v-if="draft.ai" class="sp-rule-question">The rule in words (optional)
               <input v-model="draft.ai_question" class="text-input" maxlength="300" placeholder="Is someone at the desk without a visible badge?">
-              <small class="sp-muted">The AI sees only the event's picture, with the privacy masks black. Each look is charged to the person running the stream at the model's price.</small>
+              <small class="sp-muted">The AI sees only the event's picture, with the privacy masks black. It runs where AADML hosts it, on its own GPU machines or RunPod: the picture goes to no outside AI provider. Each look is charged to the person running the stream at the model's price an image.</small>
             </label>
             <label class="sp-rule-check"><input v-model="draft.approve_actions" type="checkbox"> Its workflows and device action wait for a camera manager's approval</label>
             <div v-if="(rulesPage?.devices || []).length" class="sp-rule-fields">

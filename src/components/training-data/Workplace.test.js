@@ -11,7 +11,10 @@ vi.mock('../../../training-data/src/api/client.js', async (real) => {
     calls.push({ url, method: init.method || 'GET', body: init.body });
     if (url.endsWith('/workspace/workplace/') && (init.method || 'GET') === 'GET') {
       return { settings: { accepted: false, faces_on: false, plates_on: false, notice_confirmed_at: null, day_start: null, day_end: null,
-        staff_notice: 'Notice to staff ... Urdu ...', terms: { version: '2026-11-20', points: ['Only people who consented are matched.'] } } };
+        staff_notice: 'Notice to staff ... Urdu ...', terms: { version: '2026-11-20', points: ['Only people who consented are matched.'] },
+        face_model: '', search_model: '',
+        models: { faces: [{ key: 'yunet-sface', name: 'YuNet and SFace', price: '$0.001 an image' }],
+                  search: [{ key: 'bge-small-en', name: 'BGE small', price: '$0.0005 an image' }] } } };
     }
     if (url.endsWith('/workspace/workplace/') && init.method === 'POST') {
       return { settings: { accepted: true, faces_on: true, plates_on: false, notice_confirmed_at: '2026-11-20T05:00:00Z', staff_notice: '', terms: { version: '2026-11-20', points: [] } } };
@@ -49,6 +52,20 @@ describe('the Workplace view', () => {
     await flushPromises();
     const saved = calls.find(c => c.method === 'POST');
     expect(saved.body).toMatchObject({ accept: '2026-11-20', notice_confirmed: true, faces_on: true });
+  });
+
+  it('offers the hosted face and search models that run, with their price, and saves the ones chosen', async () => {
+    const w = mount(WorkplaceTab, { global: { stubs: STUBS } });
+    await flushPromises();
+    const face = w.get('[data-test="wp-face-model"]');
+    expect(face.findAll('option').map(o => o.text())).toEqual(['The first that runs', 'YuNet and SFace · $0.001 an image']);
+    await face.setValue('yunet-sface');
+    await w.get('[data-test="wp-search-model"]').setValue('bge-small-en');
+    await w.findAll('button').find(b => b.text() === 'Save').trigger('click');
+    await flushPromises();
+    const saved = calls.find(c => c.method === 'POST');
+    expect(saved.body).toMatchObject({ face_model: 'yunet-sface', search_model: 'bge-small-en' });
+    expect(w.text()).toContain("never on AADML's server");
   });
 });
 

@@ -144,7 +144,7 @@ describe('searching the camera events (Phase E)', () => {
   });
   it('the Events view searches and shows Find similar', async () => {
     const { default: CameraEvents } = await import('../../../training-data/src/components/CameraEvents.vue');
-    const w = mount(CameraEvents, { global: { stubs: { UiButton: { template: '<button v-bind="$attrs"><slot/></button>' } } } });
+    mount(CameraEvents, { global: { stubs: { UiButton: { template: '<button v-bind="$attrs"><slot/></button>' } } } });
     await flushPromises();
     expect(calls.some(c => c.url.includes('/workspace/stream-events/'))).toBe(true);
     expect(calls.some(c => c.url.includes('/workspace/stream-events/timeline/'))).toBe(true);
@@ -160,5 +160,12 @@ describe('Phase G: ready-made rules and listening', () => {
     expect(calls[0].url).toMatch(/video-sources\/7\/presets\/$/);
     await streamingApi.start({ project: 'leads', model: null, fps: 1, source: 3, detector: 'rfdetr-nano', listen: true });
     expect(calls[1].body).toMatchObject({ listen: true, listen_consent: true, detector: 'rfdetr-nano' });
+    // The hosted sound model chosen goes with it (backend camera_models.py), and only when listening.
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, source: 3, detector: 'rfdetr-small', listen: true,
+      soundModel: 'ast-audioset' });
+    expect(calls[2].body).toMatchObject({ detector: 'rfdetr-small', listen: true, sound_model: 'ast-audioset' });
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, source: 3, detector: 'rfdetr-nano', listen: false,
+      soundModel: 'ast-audioset' });
+    expect(calls[3].body.sound_model).toBeUndefined();
   });
 });

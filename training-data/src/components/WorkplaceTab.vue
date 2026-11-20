@@ -22,11 +22,16 @@ async function call(work, after) {
 
 // ── setup ──
 const loadSettings = () => call(() => workplaceApi.settings(), a => { settings.value = a.settings; });
-const draft = ref({ accept: false, notice: false, day_start: '09:00', day_end: '18:00', faces_on: false, plates_on: false });
-watch(settings, s => { if (s) draft.value = { accept: s.accepted, notice: !!s.notice_confirmed_at, day_start: s.day_start || '09:00', day_end: s.day_end || '18:00', faces_on: s.faces_on, plates_on: s.plates_on }; });
+const draft = ref({ accept: false, notice: false, day_start: '09:00', day_end: '18:00', faces_on: false, plates_on: false,
+  face_model: '', search_model: '' });
+watch(settings, s => { if (s) draft.value = { accept: s.accepted, notice: !!s.notice_confirmed_at, day_start: s.day_start || '09:00', day_end: s.day_end || '18:00', faces_on: s.faces_on, plates_on: s.plates_on, face_model: s.face_model || '', search_model: s.search_model || '' }; });
+// The hosted face and search models that run now (backend camera_models.py), each with its price.
+const faceModels = computed(() => settings.value?.models?.faces || []);
+const searchModels = computed(() => settings.value?.models?.search || []);
 function saveSettings() {
   const s = settings.value; const d = draft.value;
-  const body = { day_start: d.day_start, day_end: d.day_end, faces_on: d.faces_on, plates_on: d.plates_on };
+  const body = { day_start: d.day_start, day_end: d.day_end, faces_on: d.faces_on, plates_on: d.plates_on,
+    face_model: d.face_model, search_model: d.search_model };
   if (d.accept && !s.accepted) body.accept = s.terms.version;
   if (d.notice && !s.notice_confirmed_at) body.notice_confirmed = true;
   return call(() => workplaceApi.saveSettings(body), a => { settings.value = a.settings; said.value = 'Saved.'; });
@@ -108,6 +113,23 @@ const ready = computed(() => !!settings.value?.accepted);
       </div>
       <label class="wp-check"><input v-model="draft.faces_on" type="checkbox" :disabled="!ready && !(draft.accept && draft.notice)"> Face recognition (only people who consented on their own link)</label>
       <label class="wp-check"><input v-model="draft.plates_on" type="checkbox" :disabled="!ready && !(draft.accept && draft.notice)"> Number plates (read on vehicle events)</label>
+      <div class="wp-row">
+        <label>Face model
+          <select v-model="draft.face_model" class="text-input" data-test="wp-face-model">
+            <option value="">The first that runs</option>
+            <option v-for="m in faceModels" :key="m.key" :value="m.key">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
+          </select>
+        </label>
+        <label>Search model
+          <select v-model="draft.search_model" class="text-input" data-test="wp-search-model">
+            <option value="">The first that runs</option>
+            <option v-for="m in searchModels" :key="m.key" :value="m.key">{{ m.name }}{{ m.price ? ` · ${m.price}` : '' }}</option>
+          </select>
+        </label>
+      </div>
+      <p class="wp-muted">Both run where AADML hosts them (its own GPU machines or RunPod), never on AADML's server. A face
+        template is matched only with templates of the same face model: after a change of face model, people consent
+        again on their link.</p>
       <UiButton variant="primary" class="small" :disabled="busy" @click="saveSettings">Save</UiButton>
     </div>
 

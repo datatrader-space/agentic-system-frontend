@@ -985,6 +985,11 @@ export default {
   readyModelSetPrice: (key, usdPerImage) =>
     api.patch(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`, { usd_per_image: usdPerImage }),
   readyModelAcceptLicence: (machineId) => api.post('/training-data/admin/ready-models/licence/', { machine: machineId }),
+  // A camera model from Hugging Face (backend camera_models.py): {key, name, kind, gpu_gb, parts: [{repo, revision?,
+  // files?}], tuning?}. Its files are fetched in the background; it is hosted and priced like SAM 3.
+  readyModelCameraAdd: (body) => api.post('/training-data/admin/ready-models/camera/', body),
+  readyModelCameraFetch: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/fetch/`, {}),
+  readyModelCameraRemove: (key) => api.delete(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),
