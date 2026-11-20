@@ -859,6 +859,8 @@ export const streamEvents = {
     const query = new URLSearchParams({ page: String(Math.max(1, Number(page) || 1)), limit: String(Math.max(1, Number(limit) || 20)) });
     return apiFetch(`${SOURCES}${enc(source)}/events/?${query.toString()}`);
   },
+  // "Wrong? Fix it" (Phase B): a camera manager marks an event right or wrong; '' clears the mark.
+  verdict: (event, verdict) => apiFetch(`${APP}/stream-events/${enc(event)}/verdict/`, { method: 'POST', body: { verdict }, timeoutMs: SLOW }),
 };
 
 // The server's own limits, as it says them when it is not asked (stream_events.py).
@@ -881,8 +883,17 @@ export function cooldownText(seconds) {
 }
 
 // A new rule's form, and what is wrong with it before it is sent (the server decides; this only says it early).
+export const RULE_KINDS = [
+  { key: 'seen', label: 'Seen', help: 'At least this many in one frame.' },
+  { key: 'stays', label: 'Stays', help: 'Seen without a break for a time: loitering, a bag left behind, a car parked too long.' },
+  { key: 'absent', label: 'Not there', help: 'Fewer than this many for a time: an empty desk, nobody at reception.' },
+  { key: 'cross', label: 'Crosses a line', help: 'An object crosses one of the camera\'s lines, in or out. Each crossing is also counted.' },
+];
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export function ruleForm(classes = []) {
-  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '' };
+  return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
+    minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
+    start: '09:00', end: '18:00' };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -896,11 +907,28 @@ export function ruleProblems(form, limits = {}) {
   const high = Number(limits.cooldown_max) || 86400;
   const cooldown = Number(form?.cooldown_seconds);
   if (!Number.isInteger(cooldown) || cooldown < low || cooldown > high) problems.cooldown_seconds = `The cooldown is ${low} to ${high} seconds.`;
+  const kind = form?.kind || 'seen';
+  if (kind === 'stays' || kind === 'absent') {
+    const minutes = Number(form?.minutes);
+    if (!Number.isFinite(minutes) || minutes * 60 < 10 || minutes > 1440) problems.minutes = 'How long is from 10 seconds (0.2 minutes) to 1440 minutes.';
+  }
+  if (kind === 'cross' && !form?.line) problems.line = 'Choose the line it crosses. Draw one in the Zones tab first.';
+  if (form?.scheduled) {
+    if (!/^\d{1,2}:\d{2}$/.test(String(form.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(form.end || ''))) problems.schedule = 'The start and the end are times like 09:00.';
+    else if (form.start === form.end) problems.schedule = 'The start and the end are different times.';
+    else if (!(form.days || []).length) problems.schedule = 'Choose at least one day.';
+  }
   return problems;
 }
 export function ruleBody(form) {
   const body = { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
   if (form.zone) body.zone = Number(form.zone);
+  const kind = form.kind || 'seen';
+  if (kind !== 'seen') body.kind = kind;
+  if (kind === 'stays' || kind === 'absent') body.seconds = Math.round(Number(form.minutes) * 60);
+  if (kind === 'cross') { body.line = Number(form.line); body.direction = form.direction || 'any'; }
+  if ((kind === 'seen' || kind === 'cross') && form.once_per_object) body.once_per_object = true;
+  if (form.scheduled) body.schedule = { days: [...(form.days || [])].sort((a, b) => a - b), start: form.start, end: form.end, tz: 'Asia/Karachi' };
   return body;
 }
 
@@ -914,8 +942,12 @@ export function ruleClasses(stream, seen = [], detector = []) {
 // What an event found: "wall 2" (what made its rule match), and when, in UTC.
 export function matchedText(event) {
   const matched = event?.matched || {};
-  const found = Object.entries(matched).filter(([name]) => name !== 'zone').map(([name, count]) => `${name} ${count}`);
-  return found.join(', ') + (typeof matched.zone === 'string' && matched.zone ? ` in ${matched.zone}` : '');
+  const skip = ['zone', 'line', 'direction', 'track', 'tracks', 'seconds'];
+  const found = Object.entries(matched).filter(([name, count]) => !skip.includes(name) && typeof count === 'number').map(([name, count]) => `${name} ${count}`);
+  let text = found.join(', ') + (typeof matched.zone === 'string' && matched.zone ? ` in ${matched.zone}` : '');
+  if (typeof matched.line === 'string') text += ` across ${matched.line}${matched.direction ? ` (${matched.direction})` : ''}`;
+  if (Number(matched.seconds) > 0) text += ` for ${Math.round(Number(matched.seconds) / 60) >= 1 ? `${Math.round(Number(matched.seconds) / 60)} min` : `${matched.seconds} s`}`;
+  return text;
 }
 export function eventTime(event) {
   const iso = event?.frame_at || event?.at;

@@ -31,7 +31,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -254,6 +254,29 @@ const mayRule = computed(() => !!rulesPage.value?.may?.change);
 const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes, rulesPage.value?.detector_classes));
 // The camera's zones (CameraZones.vue): a rule may count only what is inside one.
 const ruleZones = computed(() => rulesPage.value?.zones || []);
+const ruleLines = computed(() => rulesPage.value?.lines || []);
+const kindHelp = computed(() => RULE_KINDS.find(k => k.key === draft.value.kind)?.help || '');
+function toggleDay(day) {
+  const days = new Set(draft.value.days || []);
+  if (days.has(day)) days.delete(day); else days.add(day);
+  draft.value.days = [...days].sort((a, b) => a - b);
+}
+// "Wrong? Fix it" (Phase B): a camera manager marks an event; the list shows the mark.
+const verdictBusy = ref(0);
+async function markEvent(e, verdict) {
+  verdictBusy.value = e.id; evError.value = '';
+  try { const answer = await streamEvents.verdict(e.id, e.verdict === verdict ? '' : verdict); Object.assign(e, answer?.event || {}); }
+  catch (err) { evError.value = err.message; }
+  finally { verdictBusy.value = 0; }
+}
+// An event inside a kept recording opens the Recordings tab on its day (Phase B, feature 27).
+function openRecordingOf(e) {
+  const iso = e?.frame_at || e?.at;
+  if (iso) recDay.value = String(iso).slice(0, 10);
+  tab.value = 'recordings';
+}
+const lineCounts = computed(() => stream.value?.line_counts || []);
+const answers = computed(() => !!(stream.value?.model || stream.value?.detector || (stream.value?.find || []).length));
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
   rulesLoading.value = true; rulesError.value = '';
@@ -269,7 +292,8 @@ async function ruleCall(call) {
   ruleBusy.value = true; rulesError.value = '';
   try { const answer = await call(); rulesPage.value = answer; rulesSaid.value = answer?.said || ''; return true; }
   catch (e) {
-    if (e.field && ['class_name', 'min_count', 'cooldown_seconds', 'zone'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    if (e.field && ['class_name', 'min_count', 'cooldown_seconds', 'zone', 'line', 'direction', 'schedule'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
+    else if (e.field === 'seconds') draftErrors.value = { ...draftErrors.value, minutes: e.message };
     else rulesError.value = e.message;
     return false;
   } finally { ruleBusy.value = false; }
@@ -495,6 +519,13 @@ watch(tab, now => {
                 <span v-else class="sp-ev-none"><ImageOff :size="18" aria-hidden="true"/></span>
                 <span class="sp-ev-text"><strong>{{ e.rule.text }}</strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
                   <small v-if="e.model">{{ modelName(e.model) }}<template v-if="e.project"> · {{ e.project.name }}</template><template v-if="e.workflows_started"> · {{ e.workflows_started }} workflow{{ e.workflows_started === 1 ? '' : 's' }} started</template></small></span>
+                <span class="sp-ev-acts">
+                  <UiButton v-if="e.recording && rec" class="small" :aria-label="`Open the recording of ${e.rule.text}`" @click="openRecordingOf(e)"><Disc :size="13" aria-hidden="true"/></UiButton>
+                  <template v-if="rulesPage ? mayRule : may.change !== false">
+                    <UiButton class="small" :class="{ 'sp-on': e.verdict === 'right' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'right'" @click="markEvent(e, 'right')">Right</UiButton>
+                    <UiButton class="small" :class="{ 'sp-on': e.verdict === 'wrong' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'wrong'" @click="markEvent(e, 'wrong')">Wrong</UiButton>
+                  </template>
+                </span>
               </li>
             </ul>
             <div v-if="evPages > 1" class="sp-pager">
@@ -509,16 +540,37 @@ watch(tab, now => {
           <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown. A workflow with this camera's events as its trigger starts on each event.</p>
           <form v-if="adding" class="sp-rule-form" @submit.prevent="saveRule">
             <div class="sp-rule-fields">
+              <label>What
+                <select v-model="draft.kind" class="text-input">
+                  <option v-for="k in RULE_KINDS" :key="k.key" :value="k.key">{{ k.label }}</option>
+                </select>
+              </label>
               <label>Class
                 <input v-model="draft.class_name" class="text-input" list="sp-rule-classes" maxlength="64" autocomplete="off" :aria-invalid="!!draftErrors.class_name">
                 <datalist id="sp-rule-classes"><option v-for="c in classChoices" :key="c" :value="c"></option></datalist>
                 <small v-if="draftErrors.class_name" class="field-error">{{ draftErrors.class_name }}</small>
               </label>
-              <label>At least
+              <label v-if="draft.kind !== 'cross'">{{ draft.kind === 'absent' ? 'Fewer than' : 'At least' }}
                 <input v-model.number="draft.min_count" class="text-input" type="number" min="1" :max="ruleLimits.count_max || 1000" step="1" :aria-invalid="!!draftErrors.min_count">
                 <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
               </label>
-              <label>Where
+              <label v-if="draft.kind === 'stays' || draft.kind === 'absent'">For (minutes)
+                <input v-model.number="draft.minutes" class="text-input" type="number" min="0.2" max="1440" step="0.5" :aria-invalid="!!draftErrors.minutes">
+                <small v-if="draftErrors.minutes" class="field-error">{{ draftErrors.minutes }}</small>
+              </label>
+              <label v-if="draft.kind === 'cross'">Line
+                <select v-model="draft.line" class="text-input" :aria-invalid="!!draftErrors.line">
+                  <option value="">Choose a line</option>
+                  <option v-for="l in ruleLines" :key="l.id" :value="String(l.id)">{{ l.name }}</option>
+                </select>
+                <small v-if="draftErrors.line" class="field-error">{{ draftErrors.line }}</small>
+              </label>
+              <label v-if="draft.kind === 'cross'">Direction
+                <select v-model="draft.direction" class="text-input">
+                  <option value="any">In or out</option><option value="in">In</option><option value="out">Out</option>
+                </select>
+              </label>
+              <label v-if="draft.kind !== 'cross'">Where
                 <select v-model="draft.zone" class="text-input" :aria-invalid="!!draftErrors.zone">
                   <option value="">The whole picture</option>
                   <option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">In {{ z.name }}</option>
@@ -530,7 +582,18 @@ watch(tab, now => {
                 <small v-if="draftErrors.cooldown_seconds" class="field-error">{{ draftErrors.cooldown_seconds }}</small>
               </label>
             </div>
-            <p v-if="!classChoices.length" class="sp-muted">Run a model on this camera to choose from the classes it finds, or type a class name.</p>
+            <p class="sp-muted">{{ kindHelp }}<template v-if="draft.kind === 'cross'"> "In" is crossing towards the right of the line, walking from its first point to its second.</template></p>
+            <label v-if="draft.kind === 'seen' || draft.kind === 'cross'" class="sp-rule-check"><input v-model="draft.once_per_object" type="checkbox"> One event for each {{ draft.class_name || 'object' }} (tracked from frame to frame), not one per cooldown</label>
+            <label class="sp-rule-check"><input v-model="draft.scheduled" type="checkbox"> Only at these times (Pakistan time)</label>
+            <div v-if="draft.scheduled" class="sp-rule-schedule">
+              <span class="sp-days" role="group" aria-label="Days">
+                <button v-for="(d, i) in WEEKDAYS" :key="d" type="button" :class="{ on: (draft.days || []).includes(i) }" :aria-pressed="(draft.days || []).includes(i)" @click="toggleDay(i)">{{ d }}</button>
+              </span>
+              <label>From <input v-model="draft.start" class="text-input" type="time"></label>
+              <label>To <input v-model="draft.end" class="text-input" type="time"></label>
+              <small v-if="draftErrors.schedule" class="field-error">{{ draftErrors.schedule }}</small>
+            </div>
+            <p v-if="!classChoices.length" class="sp-muted">Run a model or the ready detector on this camera to choose from the classes it finds, or type a class name.</p>
             <span class="sp-rec-acts">
               <UiButton type="submit" variant="primary" class="small" :disabled="ruleBusy">Save rule</UiButton>
               <UiButton type="button" class="small" :disabled="ruleBusy" @click="adding = false">Cancel</UiButton>
@@ -546,7 +609,7 @@ watch(tab, now => {
           </div>
           <ul v-else-if="rules.length" class="sp-rec-list" aria-label="Rules">
             <li v-for="r in rules" :key="r.id" :class="{ off: !r.enabled }">
-              <span><strong>{{ r.text }}</strong><small>At most once every {{ cooldownText(r.cooldown_seconds) }}<template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
+              <span><strong>{{ r.text }}</strong><small><template v-if="r.once_per_object">One event for each one</template><template v-else>At most once every {{ cooldownText(r.cooldown_seconds) }}</template><template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
               <span class="sp-rec-acts">
                 <a v-if="r.enabled" class="button small" :href="workflowFromCamera(source, r)" :aria-label="`Build a workflow on the rule ${r.text}`"><Workflow :size="13" aria-hidden="true"/></a>
                 <UiButton v-if="mayRule" class="small" :disabled="ruleBusy" @click="toggleRule(r)">{{ r.enabled ? 'Turn off' : 'Turn on' }}</UiButton>
@@ -592,14 +655,20 @@ watch(tab, now => {
           <p class="sp-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="sp-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="stream.state === 'queued'">Waiting for a worker to read the camera</template>
-            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
+            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : stream.detector ? 'Getting the ready detector ready and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="sp-frame-error">This frame got no answer: {{ last.error }}</p>
-          <div v-if="stream.model" class="sp-counts" :class="{ waiting: !answered }">
+          <div v-if="answers" class="sp-counts" :class="{ waiting: !answered }">
             <div v-for="name in names" :key="name" class="sp-count"><span class="sp-num">{{ answered ? countOf(last, name) : '–' }}</span><span class="sp-what">{{ name }}</span></div>
             <div v-if="!names.length" class="sp-count"><span class="sp-num">{{ answered ? 0 : '–' }}</span><span class="sp-what">found</span></div>
           </div>
+          <section v-if="lineCounts.length" class="sp-codes" aria-labelledby="sp-lines-h">
+            <h4 id="sp-lines-h">Counted across lines <small>this stream</small></h4>
+            <ul class="sp-line-counts">
+              <li v-for="c in lineCounts" :key="c.line"><strong>{{ c.name }}</strong> <span>in {{ c.in }}</span> <span>out {{ c.out }}</span> <span>inside now {{ Math.max(0, c.in - c.out) }}</span></li>
+            </ul>
+          </section>
           <section v-if="stream.read_codes" class="sp-codes" aria-labelledby="sp-codes-h">
             <h4 id="sp-codes-h">Barcodes read <small>newest first</small></h4>
             <p v-if="last && !last.error && frameCodesText(last)" class="sp-muted">This frame: {{ frameCodesText(last) }}</p>
@@ -747,6 +816,15 @@ watch(tab, now => {
 .sp-ev-text strong{font-size:14px;color:#17243b;overflow-wrap:anywhere}
 .sp-ev-text small{color:#64748b;font-size:12px;overflow-wrap:anywhere}
 .sp-pager{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-rule-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#33415a}
+.sp-rule-schedule{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sp-days{display:flex;gap:4px;flex-wrap:wrap}
+.sp-days button{min-height:32px;padding:0 10px;border:1px solid #d5dce7;border-radius:8px;background:#fff;font:inherit;font-size:13px;cursor:pointer}
+.sp-days button.on{background:var(--aadml-soft);border-color:var(--aadml-primary);color:var(--aadml-primary);font-weight:600}
+.sp-ev-acts{display:flex;gap:4px;margin-left:auto;align-items:center}
+.sp-on{outline:2px solid var(--aadml-primary)}
+.sp-line-counts{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.sp-line-counts li{display:flex;gap:12px;flex-wrap:wrap}
 .sp-rule-form{display:grid;gap:10px;padding:12px;border:1px solid #eef1f5;border-radius:10px;background:#f8fafc}
 .sp-rule-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .sp-rule-fields label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#33415a}

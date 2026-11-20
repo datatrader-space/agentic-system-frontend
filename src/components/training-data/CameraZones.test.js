@@ -20,7 +20,7 @@ vi.mock('../../../training-data/src/api/client.js', async (real) => {
   }) };
 });
 import CameraZones from '../../../training-data/src/components/CameraZones.vue';
-import { chargeText, matchedText, ruleBody, streamingApi, streamWhat, zonePoint, zoneProblems, zoneSvgPoints } from '../../../training-data/src/api/streaming.js';
+import { chargeText, matchedText, ruleBody, ruleForm, ruleProblems, streamingApi, streamWhat, zonePoint, zoneProblems, zoneSvgPoints } from '../../../training-data/src/api/streaming.js';
 
 const SOURCE = { id: 7, name: 'Office', thumbnail_url: '' };
 
@@ -89,5 +89,25 @@ describe('the Zones tab', () => {
     await flushPromises();
     expect(calls.some(c => c.method === 'POST')).toBe(false);
     expect(w.text()).toContain('Click at least three points');
+  });
+});
+
+describe('the Phase B rule form', () => {
+  it('sends an empty-desk rule with its minutes and its office hours in Pakistan time', () => {
+    const form = { ...ruleForm(['person']), kind: 'absent', minutes: 15, zone: '4', scheduled: true, days: [4, 0, 1, 2, 3] };
+    expect(ruleProblems(form, {})).toEqual({});
+    expect(ruleBody(form)).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, zone: 4, kind: 'absent', seconds: 900,
+      schedule: { days: [0, 1, 2, 3, 4], start: '09:00', end: '18:00', tz: 'Asia/Karachi' } });
+  });
+  it('sends a line rule, one event for each person, and refuses one without its line', () => {
+    const form = { ...ruleForm(['person']), kind: 'cross', line: '9', direction: 'in', once_per_object: true };
+    expect(ruleBody(form)).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, kind: 'cross', line: 9, direction: 'in', once_per_object: true });
+    expect(ruleProblems({ ...form, line: '' }, {}).line).toMatch(/Choose the line/);
+    expect(ruleProblems({ ...ruleForm(['person']), kind: 'stays', minutes: 0 }, {}).minutes).toBeTruthy();
+    expect(ruleProblems({ ...ruleForm(['person']), scheduled: true, start: '09:00', end: '09:00' }, {}).schedule).toMatch(/different/);
+  });
+  it('says what a timed or a line event matched', () => {
+    expect(matchedText({ matched: { person: 0, zone: 'Desk 1', seconds: 600 } })).toBe('person 0 in Desk 1 for 10 min');
+    expect(matchedText({ matched: { person: 1, line: 'Door', direction: 'in', track: 3 } })).toBe('person 1 across Door (in)');
   });
 });
