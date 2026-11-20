@@ -916,7 +916,7 @@ export function ruleForm(classes = []) {
   return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
     minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
     start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
-    approve_actions: false };
+    approve_actions: false, device: '', share: false };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -960,6 +960,8 @@ export function ruleBody(form) {
     if (form.ai_model) body.ai_model = form.ai_model;
   }
   if (form.approve_actions) body.approve_actions = true;
+  if (form.device) body.device = Number(form.device);
+  if (form.share) body.share = true;
   return body;
 }
 

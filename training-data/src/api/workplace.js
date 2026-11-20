@@ -24,6 +24,14 @@ export const workplaceApi = {
   addPlate: body => apiFetch(`${APP}/workspace/workplace/plates/`, { method: 'POST', body, timeoutMs: SLOW }),
   removePlate: id => apiFetch(`${APP}/workspace/workplace/plates/${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
   sightings: kind => apiFetch(`${APP}/workspace/workplace/sightings/${kind ? `?kind=${enc(kind)}` : ''}`),
+  // Phase I (backend integrations_api.py): signed webhooks, a monitoring partner, device actions, sharing agreements.
+  endpoints: () => apiFetch(`${APP}/workspace/camera-endpoints/`),
+  addEndpoint: body => apiFetch(`${APP}/workspace/camera-endpoints/`, { method: 'POST', body, timeoutMs: SLOW }),
+  removeEndpoint: id => apiFetch(`${APP}/workspace/camera-endpoints/${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
+  sharing: () => apiFetch(`${APP}/workspace/sharing/`),
+  propose: (purpose, pictures) => apiFetch(`${APP}/workspace/sharing/`, { method: 'POST', body: { propose: { purpose, pictures: !!pictures } }, timeoutMs: SLOW }),
+  accept: code => apiFetch(`${APP}/workspace/sharing/`, { method: 'POST', body: { accept: String(code).trim() }, timeoutMs: SLOW }),
+  endAgreement: id => apiFetch(`${APP}/workspace/sharing/${enc(id)}/`, { method: 'DELETE', timeoutMs: SLOW }),
 };
 
 // A day as the server reads it (Pakistan time): YYYY-MM-DD, `days` before today.

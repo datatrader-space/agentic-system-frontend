@@ -81,3 +81,14 @@ describe("a person's own consent page", () => {
     expect(workplaceMeApi.erase).toBeTypeOf('function');
   });
 });
+
+describe('Phase I: outside AADML', () => {
+  beforeEach(() => { calls.length = 0; });
+  it('proposes and accepts a sharing agreement, and sends a device and share on a rule', async () => {
+    await workplaceApi.propose('Banned visitors', true);
+    await workplaceApi.accept(' code-123 ');
+    expect(calls.map(c => c.body)).toEqual([{ propose: { purpose: 'Banned visitors', pictures: true } }, { accept: 'code-123' }]);
+    const { ruleBody, ruleForm } = await import('../../../training-data/src/api/streaming.js');
+    expect(ruleBody({ ...ruleForm(['person']), device: '5', share: true })).toMatchObject({ device: 5, share: true });
+  });
+});

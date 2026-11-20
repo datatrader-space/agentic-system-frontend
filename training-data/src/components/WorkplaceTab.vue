@@ -10,7 +10,7 @@ import { percent, pkDay, workplaceApi } from '../api/workplace.js';
 
 const part = ref('setup');                      // setup | people | attendance | desks | usage | plates
 const PARTS = [['setup', 'Setup'], ['people', 'People'], ['attendance', 'Attendance'], ['desks', 'Desks now'],
-  ['usage', 'Space use'], ['plates', 'Plates']];
+  ['usage', 'Space use'], ['plates', 'Plates'], ['outside', 'Outside AADML']];
 const error = ref(''); const said = ref(''); const busy = ref(false);
 const settings = ref(null); const forbidden = ref(false);
 async function call(work, after) {
@@ -62,7 +62,25 @@ const loadPlates = () => call(() => workplaceApi.plates(), a => { plates.value =
 const addPlate = () => call(() => workplaceApi.addPlate(newPlate.value), a => { plates.value = a.plates || []; newPlate.value = { plate: '', label: '', list: 'allow' }; });
 const removePlate = p => call(() => workplaceApi.removePlate(p.id), () => loadPlates());
 
-const loaders = { setup: loadSettings, people: loadPeople, attendance: loadAttendance, desks: loadDesks, usage: loadUsage, plates: loadPlates };
+// ── outside AADML (Phase I): webhooks, the monitoring partner, device actions, sharing ──
+const endpoints = ref([]); const agreements = ref([]); const shownSecret = ref(''); const shownCode = ref('');
+const newEndpoint = ref({ kind: 'webhook', name: '', url: '', critical_only: true, site_address: '', contacts: '', partner_terms: false, body: '' });
+const proposal = ref({ purpose: '', pictures: false }); const acceptCode = ref('');
+const loadOutside = () => call(() => workplaceApi.endpoints(), a => { endpoints.value = a.endpoints || []; })
+  .then(() => workplaceApi.sharing().then(a => { agreements.value = a.agreements || []; }).catch(() => {}));
+function addEndpoint() {
+  const e = newEndpoint.value;
+  let body = {};
+  if (e.kind === 'device' && e.body.trim()) { try { body = JSON.parse(e.body); } catch { error.value = 'The device body is JSON, like {"relay": 1}.'; return null; } }
+  return call(() => workplaceApi.addEndpoint({ ...e, body }), a => { endpoints.value = a.endpoints || []; shownSecret.value = a.secret || '';
+    newEndpoint.value = { kind: 'webhook', name: '', url: '', critical_only: true, site_address: '', contacts: '', partner_terms: false, body: '' }; });
+}
+const removeEndpoint = e => call(() => workplaceApi.removeEndpoint(e.id), () => loadOutside());
+const propose = () => call(() => workplaceApi.propose(proposal.value.purpose, proposal.value.pictures), a => { agreements.value = a.agreements || []; shownCode.value = a.code || ''; });
+const accept = () => call(() => workplaceApi.accept(acceptCode.value), a => { agreements.value = a.agreements || []; acceptCode.value = ''; });
+const endAgreement = a => call(() => workplaceApi.endAgreement(a.id), () => loadOutside());
+
+const loaders = { setup: loadSettings, people: loadPeople, attendance: loadAttendance, desks: loadDesks, usage: loadUsage, plates: loadPlates, outside: loadOutside };
 watch(part, now => loaders[now]?.());
 onMounted(loadSettings);
 const ready = computed(() => !!settings.value?.accepted);
@@ -180,6 +198,41 @@ const ready = computed(() => !!settings.value?.accepted);
       <h4>Read lately</h4>
       <ul v-if="recent.length" class="wp-list"><li v-for="(s, i) in recent" :key="i"><strong>{{ s.value }}</strong> <small>{{ s.camera }} · {{ s.at }}</small></li></ul>
       <p v-else class="wp-muted">No plate read yet. Add the "Number plates at the gate" ready-made rule to a camera.</p>
+    </div>
+    <!-- Outside AADML -->
+    <div v-else-if="part === 'outside'" class="wp-card">
+      <h3>Where events go</h3>
+      <p class="wp-muted">Each delivery is signed: the receiver checks X-AADML-Signature (HMAC-SHA256 of the timestamp and the body) with the secret shown when it is added.</p>
+      <form class="wp-row" @submit.prevent="addEndpoint">
+        <select v-model="newEndpoint.kind" class="text-input" aria-label="Kind"><option value="webhook">Your system (webhook)</option><option value="monitoring">Monitoring partner</option><option value="device">Device action (siren, light, relay)</option></select>
+        <input v-model="newEndpoint.name" class="text-input" maxlength="80" placeholder="Name" aria-label="Name" required>
+        <input v-model="newEndpoint.url" class="text-input" maxlength="500" placeholder="https://" aria-label="Address" required>
+        <label v-if="newEndpoint.kind === 'webhook'" class="wp-check"><input v-model="newEndpoint.critical_only" type="checkbox"> Critical events only</label>
+        <template v-if="newEndpoint.kind === 'monitoring'">
+          <input v-model="newEndpoint.site_address" class="text-input" maxlength="300" placeholder="Site address" aria-label="Site address">
+          <input v-model="newEndpoint.contacts" class="text-input" maxlength="300" placeholder="Contacts (names, phones)" aria-label="Contacts">
+          <label class="wp-check"><input v-model="newEndpoint.partner_terms" type="checkbox"> I accepted the monitoring company's terms</label>
+        </template>
+        <input v-if="newEndpoint.kind === 'device'" v-model="newEndpoint.body" class="text-input" placeholder='Body JSON, e.g. {"relay": 1}' aria-label="Body">
+        <UiButton type="submit" variant="primary" class="small" :disabled="busy"><Plus :size="13" aria-hidden="true"/> Add</UiButton>
+      </form>
+      <p v-if="shownSecret" class="wp-link" role="status"><strong>Signing secret (shown only now):</strong> <code>{{ shownSecret }}</code></p>
+      <ul v-if="endpoints.length" class="wp-list"><li v-for="e in endpoints" :key="e.id"><strong>{{ e.name }}</strong> <span>{{ e.kind_label }}</span> <small>{{ e.host }}<template v-if="e.last_status"> · last {{ e.last_status }}</template></small>
+        <UiButton class="small sp-danger" :aria-label="`Remove ${e.name}`" @click="removeEndpoint(e)"><Trash2 :size="13" aria-hidden="true"/></UiButton></li></ul>
+      <h3>Sharing with another workspace</h3>
+      <p class="wp-muted">Only alerts of rules marked "Share", for the purpose you agree; never live access to a camera. Either side can end it.</p>
+      <form class="wp-row" @submit.prevent="propose">
+        <input v-model="proposal.purpose" class="text-input" maxlength="200" placeholder="Purpose, e.g. banned visitors in the mall" aria-label="Purpose" required>
+        <label class="wp-check"><input v-model="proposal.pictures" type="checkbox"> With the picture (a 15-minute link)</label>
+        <UiButton type="submit" class="small" :disabled="busy">Propose</UiButton>
+      </form>
+      <p v-if="shownCode" class="wp-link" role="status"><strong>Give this code to an Admin of the other workspace (shown only now):</strong> <code>{{ shownCode }}</code></p>
+      <form class="wp-row" @submit.prevent="accept">
+        <input v-model="acceptCode" class="text-input" placeholder="A code you were given" aria-label="Code">
+        <UiButton type="submit" class="small" :disabled="busy || !acceptCode.trim()">Accept</UiButton>
+      </form>
+      <ul v-if="agreements.length" class="wp-list"><li v-for="a in agreements" :key="a.id"><strong>{{ a.purpose }}</strong> <span>{{ a.state === 'active' ? `with ${a.with}` : 'waiting for the other side' }}</span> <small>{{ a.pictures ? 'with pictures' : 'alerts only' }}</small>
+        <UiButton class="small sp-danger" @click="endAgreement(a)">End</UiButton></li></ul>
     </div>
   </section>
 </template>

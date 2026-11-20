@@ -669,7 +669,13 @@ watch(tab, now => {
               <input v-model="draft.ai_question" class="text-input" maxlength="300" placeholder="Is someone at the desk without a visible badge?">
               <small class="sp-muted">The AI sees only the event's picture, with the privacy masks black. Each look is charged to the person running the stream at the model's price.</small>
             </label>
-            <label class="sp-rule-check"><input v-model="draft.approve_actions" type="checkbox"> Its workflows wait for a camera manager's approval</label>
+            <label class="sp-rule-check"><input v-model="draft.approve_actions" type="checkbox"> Its workflows and device action wait for a camera manager's approval</label>
+            <div v-if="(rulesPage?.devices || []).length" class="sp-rule-fields">
+              <label>Device action
+                <select v-model="draft.device" class="text-input"><option value="">None</option><option v-for="d in rulesPage.devices" :key="d.id" :value="String(d.id)">{{ d.name }}</option></select>
+              </label>
+            </div>
+            <label class="sp-rule-check"><input v-model="draft.share" type="checkbox"> Share its alerts with the workspaces of our sharing agreements</label>
             <label class="sp-rule-check"><input v-model="draft.scheduled" type="checkbox"> Only at these times (Pakistan time)</label>
             <div v-if="draft.scheduled" class="sp-rule-schedule">
               <span class="sp-days" role="group" aria-label="Days">
