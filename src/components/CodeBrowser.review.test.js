@@ -56,6 +56,19 @@ beforeEach(() => {
 })
 
 describe('CodeBrowser: the Review tab (ADM-1314)', () => {
+  it('opened from the person\'s message (no count yet) it is "Review" until the review has loaded', async () => {
+    const w = await browser()
+    let answer
+    api.getLetsCodeMessageReview.mockImplementationOnce(() => new Promise((r) => { answer = r }))
+    w.vm.openReview({ messageId: 90, conversationId: 31 })
+    await flushPromises()
+    expect(tabNames(w)).toEqual(['Review'])
+    answer({ data: { message_id: 90, checkpoint: 'c', files: [] } })
+    await flushPromises()
+    expect(tabNames(w)).toEqual(['Review: 0 files'])
+    w.unmount()
+  })
+
   it('opens one Review tab per message, named by its files; asked again, that tab comes in front', async () => {
     const w = await browser()
     const st = w.vm.$.setupState

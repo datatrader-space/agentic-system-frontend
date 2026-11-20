@@ -233,6 +233,19 @@ describe('UnifiedAgentChat: restore to before a message (AGENT_ENGINE_CAPABILITI
     w.unmount()
   })
 
+  it('offers Review changes beside it, kept after a reload (no turn card needed, ADM-1314)', async () => {
+    const w = await mountChat()
+    chat.conversationId = 31
+    chat.messages = thread()                                     // as read back from history: no lcCard anywhere
+    await flushPromises()
+    const review = w.findAll('[data-test="review-message"]')
+    expect(review).toHaveLength(1)
+    expect(review[0].text()).toBe('Review changes')
+    await review[0].trigger('click')
+    expect(w.emitted('review-changes')).toEqual([[{ messageId: 501, conversationId: 31, count: null }]])
+    w.unmount()
+  })
+
   it('asks first, and does nothing when the person cancels', async () => {
     const api = await apiOf()
     confirmMock.mockResolvedValueOnce(false)

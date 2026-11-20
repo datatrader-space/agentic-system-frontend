@@ -1080,8 +1080,9 @@ const unsavedCount = computed(() => openTabs.value.filter(isDirty).length)
 // "Review changes" from the chat (ADM-1314): the changes since that message, in a Review tab of their own. One tab per
 // message: asked again, the tab already open comes in front.
 const reviewTabs = computed(() => openTabs.value.filter(t => t.type === 'review'))
-const reviewName = (n) => `Review: ${n} ${n === 1 ? 'file' : 'files'}`
-function openReview({ messageId, conversationId = null, count = 0 } = {}) {
+// Until the review has loaded, a tab opened without a count (from the person's message) is just "Review".
+const reviewName = (n) => (n == null ? 'Review' : `Review: ${n} ${n === 1 ? 'file' : 'files'}`)
+function openReview({ messageId, conversationId = null, count = null } = {}) {
   if (messageId == null || messageId === '') return
   showFilesInFront()
   const existing = openTabs.value.find(t => t.type === 'review' && String(t.messageId) === String(messageId))

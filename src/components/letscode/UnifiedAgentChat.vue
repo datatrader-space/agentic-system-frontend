@@ -56,6 +56,15 @@
                     :class="{ spin: String(restoringId) === String(message.serverId) }" aria-hidden="true" />
               {{ String(restoringId) === String(message.serverId) ? 'Restoring' : 'Restore to before this message' }}
             </button>
+            <!-- ADM-1314: the same review as the turn card's, kept after a reload (it hangs on the saved checkpoint). -->
+            <button
+              type="button" class="uac-restore-btn" data-test="review-message"
+              title="Go through the changes since this message, one at a time"
+              @click="emit('review-changes', { messageId: message.serverId, conversationId: chat.conversationId || null, count: null })"
+            >
+              <Icon icon="lucide:list-checks" aria-hidden="true" />
+              Review changes
+            </button>
           </div>
           <div v-if="message.lcCard" class="uac-cards">
             <div v-if="message.lcCard.changes" class="ai-changes">
@@ -733,7 +742,7 @@ defineExpose({ send, addSelection, sendReview })
 .uac-tasks + .uac-composer { border-top: none; }
 
 /* ── Restore to before a message: a quiet action under the person's own bubble ── */
-.uac-restore { display: flex; justify-content: flex-end; margin: -8px 0 14px; }
+.uac-restore { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin: -8px 0 14px; }
 .uac-restore-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--vm-ink-soft); font: 600 12px var(--vm-font-sans); cursor: pointer; transition: color .15s, background-color .15s, border-color .15s; }
 .uac-restore-btn :deep(svg) { width: 14px; height: 14px; }
 .uac-restore-btn:hover:not(:disabled) { color: var(--vm-ink); background: var(--vm-surface-soft); border-color: var(--vm-line); }
