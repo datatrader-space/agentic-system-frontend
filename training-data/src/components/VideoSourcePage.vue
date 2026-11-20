@@ -31,7 +31,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS, RULE_ALERTS, myCameraAlerts,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -281,7 +281,7 @@ const mine = ref(null); const mineOpen = ref(false); const mineBusy = ref(false)
 async function openMine() {
   mineOpen.value = !mineOpen.value; mineSaid.value = ''; mineError.value = '';
   if (mineOpen.value && !mine.value) {
-    try { const answer = await myCameraAlerts.get(); mine.value = { quiet: !!answer?.settings?.quiet_from, quiet_from: answer?.settings?.quiet_from || '22:00', quiet_to: answer?.settings?.quiet_to || '07:00', email: answer?.settings?.email !== false }; }
+    try { const answer = await myCameraAlerts.get(); mine.value = { quiet: !!answer?.settings?.quiet_from, quiet_from: answer?.settings?.quiet_from || '22:00', quiet_to: answer?.settings?.quiet_to || '07:00', email: answer?.settings?.email !== false, daily_summary: answer?.settings?.daily_summary !== false }; }
     catch (e) { mineError.value = e.message; }
   }
 }
@@ -289,12 +289,19 @@ async function saveMine() {
   mineBusy.value = true; mineError.value = '';
   try {
     const m = mine.value;
-    const answer = await myCameraAlerts.save({ quiet_from: m.quiet ? m.quiet_from : '', quiet_to: m.quiet ? m.quiet_to : '', email: m.email });
+    const answer = await myCameraAlerts.save({ quiet_from: m.quiet ? m.quiet_from : '', quiet_to: m.quiet ? m.quiet_to : '', email: m.email, daily_summary: m.daily_summary });
     mineSaid.value = answer?.said || 'Saved.';
   } catch (e) { mineError.value = e.message; }
   finally { mineBusy.value = false; }
 }
 const alertLabel = key => RULE_ALERTS.find(a => a.key === (key || ''))?.label || '';
+const visionModels = computed(() => rulesPage.value?.vision_models || []);
+async function decideActions(e, approve) {
+  verdictBusy.value = e.id; evError.value = '';
+  try { const answer = await streamEvents.actions(e.id, approve); Object.assign(e, answer?.event || {}); }
+  catch (err) { evError.value = err.message; }
+  finally { verdictBusy.value = 0; }
+}
 const answers = computed(() => !!(stream.value?.model || stream.value?.detector || (stream.value?.find || []).length));
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
@@ -536,10 +543,15 @@ watch(tab, now => {
               <li v-for="e in events" :key="e.id">
                 <img v-if="e.snapshot_url" :src="e.snapshot_url" :alt="`Frame of ${source.name} when ${e.rule.text}`" referrerpolicy="no-referrer" loading="lazy">
                 <span v-else class="sp-ev-none"><ImageOff :size="18" aria-hidden="true"/></span>
-                <span class="sp-ev-text"><strong>{{ e.rule.text }}</strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
+                <span class="sp-ev-text"><strong>{{ e.rule.text }}<span v-if="e.unusual" class="sp-tag">Unusual</span><span v-if="e.actions === 'waiting'" class="sp-tag warn">Waiting for approval</span></strong><small>{{ eventTime(e) }}<template v-if="matchedText(e)"> · {{ matchedText(e) }}</template></small>
+                  <small v-if="e.ai && e.ai.text" class="sp-ai">AI: {{ e.ai.text }}<template v-if="e.ai.importance !== null && e.ai.importance !== undefined"> · importance {{ e.ai.importance }} of 100</template></small>
                   <small v-if="e.model">{{ modelName(e.model) }}<template v-if="e.project"> · {{ e.project.name }}</template><template v-if="e.workflows_started"> · {{ e.workflows_started }} workflow{{ e.workflows_started === 1 ? '' : 's' }} started</template></small></span>
                 <span class="sp-ev-acts">
                   <UiButton v-if="e.recording && rec" class="small" :aria-label="`Open the recording of ${e.rule.text}`" @click="openRecordingOf(e)"><Disc :size="13" aria-hidden="true"/></UiButton>
+                  <template v-if="(rulesPage ? mayRule : may.change !== false) && e.actions === 'waiting'">
+                    <UiButton variant="primary" class="small" :disabled="verdictBusy === e.id" @click="decideActions(e, true)">Approve</UiButton>
+                    <UiButton class="small" :disabled="verdictBusy === e.id" @click="decideActions(e, false)">Decline</UiButton>
+                  </template>
                   <template v-if="rulesPage ? mayRule : may.change !== false">
                     <UiButton class="small" :class="{ 'sp-on': e.verdict === 'right' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'right'" @click="markEvent(e, 'right')">Right</UiButton>
                     <UiButton class="small" :class="{ 'sp-on': e.verdict === 'wrong' }" :disabled="verdictBusy === e.id" :aria-pressed="e.verdict === 'wrong'" @click="markEvent(e, 'wrong')">Wrong</UiButton>
@@ -562,6 +574,7 @@ watch(tab, now => {
             <p v-if="mineError" class="field-error" role="alert">{{ mineError }}</p>
             <template v-if="mine">
               <label class="sp-rule-check"><input v-model="mine.email" type="checkbox"> E-mail me camera alerts (the bell always shows them)</label>
+              <label class="sp-rule-check"><input v-model="mine.daily_summary" type="checkbox"> A summary of yesterday's camera events every morning (for camera managers)</label>
               <label class="sp-rule-check"><input v-model="mine.quiet" type="checkbox"> Quiet hours: the bell only, except critical alerts (Pakistan time)</label>
               <div v-if="mine.quiet" class="sp-rule-schedule">
                 <label>From <input v-model="mine.quiet_from" class="text-input" type="time"></label>
@@ -625,6 +638,24 @@ watch(tab, now => {
               </label>
             </div>
             <label v-if="draft.alert" class="sp-rule-check"><input v-model="draft.critical" type="checkbox"> Critical: e-mail even in quiet hours</label>
+            <div class="sp-rule-fields">
+              <label>AI on each event's picture
+                <select v-model="draft.ai" class="text-input">
+                  <option v-for="a in RULE_AI" :key="a.key" :value="a.key">{{ a.label }}</option>
+                </select>
+              </label>
+              <label v-if="draft.ai && visionModels.length">Model
+                <select v-model="draft.ai_model" class="text-input">
+                  <option value="">The default</option>
+                  <option v-for="m in visionModels" :key="m.id" :value="m.id">{{ m.name }}</option>
+                </select>
+              </label>
+            </div>
+            <label v-if="draft.ai" class="sp-rule-question">The rule in words (optional)
+              <input v-model="draft.ai_question" class="text-input" maxlength="300" placeholder="Is someone at the desk without a visible badge?">
+              <small class="sp-muted">The AI sees only the event's picture, with the privacy masks black. Each look is charged to the person running the stream at the model's price.</small>
+            </label>
+            <label class="sp-rule-check"><input v-model="draft.approve_actions" type="checkbox"> Its workflows wait for a camera manager's approval</label>
             <label class="sp-rule-check"><input v-model="draft.scheduled" type="checkbox"> Only at these times (Pakistan time)</label>
             <div v-if="draft.scheduled" class="sp-rule-schedule">
               <span class="sp-days" role="group" aria-label="Days">
@@ -857,6 +888,10 @@ watch(tab, now => {
 .sp-ev-text strong{font-size:14px;color:#17243b;overflow-wrap:anywhere}
 .sp-ev-text small{color:#64748b;font-size:12px;overflow-wrap:anywhere}
 .sp-pager{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:600;vertical-align:middle}
+.sp-tag.warn{background:#fef3c7;color:#92400e}
+.sp-ai{color:#334155!important}
+.sp-rule-question{display:grid;gap:4px;font-size:13px;font-weight:600;color:#33415a}
 .sp-linkish{border:0;background:none;padding:0;color:var(--aadml-primary);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
 .sp-rule-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#33415a}
 .sp-rule-schedule{display:flex;flex-wrap:wrap;gap:10px;align-items:center}

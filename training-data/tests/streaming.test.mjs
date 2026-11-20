@@ -660,7 +660,8 @@ test('a rule reads as its class and count, and its cooldown in words', () => {
 test('a new rule is a class, a count of at least 1 and a cooldown of at least ten seconds', () => {
   assert.deepEqual(ruleForm(['person', 'car']), { class_name: 'person', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '',
     kind: 'seen', minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
-    start: '09:00', end: '18:00', alert: 'managers', critical: false });   // zone, kind, timer, line, schedule, alert (A to C)
+    start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
+    approve_actions: false });   // zone, kind, timer, line, schedule, alert, AI, approval (Phases A to D)
   assert.equal(COOLDOWN_MIN, 10);
   assert.deepEqual(ruleProblems({ class_name: 'person', min_count: 1, cooldown_seconds: 60 }), {});
   const bad = ruleProblems({ class_name: ' ', min_count: 0, cooldown_seconds: 9 });

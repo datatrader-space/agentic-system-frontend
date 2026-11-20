@@ -122,3 +122,13 @@ describe('the rule form lets the browser submit what it offers', () => {
     expect(minutes).toContain('step="any"');
   });
 });
+
+describe('the Phase D rule form', () => {
+  it('sends the AI, the rule in words, the model and the approval only when chosen', () => {
+    const base = { ...ruleForm(['person']) };
+    expect(ruleBody(base)).not.toHaveProperty('ai');
+    expect(ruleBody({ ...base, ai: 'verify', ai_question: '  Is the door open? ', ai_model: 'google/gemini-4-argon', approve_actions: true }))
+      .toMatchObject({ ai: 'verify', ai_question: 'Is the door open?', ai_model: 'google/gemini-4-argon', approve_actions: true });
+    expect(ruleBody({ ...base, ai: 'describe', ai_question: ' ' })).not.toHaveProperty('ai_question');
+  });
+});

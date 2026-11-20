@@ -861,6 +861,8 @@ export const streamEvents = {
   },
   // "Wrong? Fix it" (Phase B): a camera manager marks an event right or wrong; '' clears the mark.
   verdict: (event, verdict) => apiFetch(`${APP}/stream-events/${enc(event)}/verdict/`, { method: 'POST', body: { verdict }, timeoutMs: SLOW }),
+  // Phase D: a camera manager approves (its workflows start now) or declines an event's waiting actions.
+  actions: (event, approve) => apiFetch(`${APP}/stream-events/${enc(event)}/actions/`, { method: 'POST', body: { approve: !!approve }, timeoutMs: SLOW }),
 };
 
 // The server's own limits, as it says them when it is not asked (stream_events.py).
@@ -891,6 +893,11 @@ export const RULE_KINDS = [
 ];
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 // Whom a rule's events alert (camera_alerts.py, Phase C): a bell entry and an e-mail, grouped within 5 minutes.
+export const RULE_AI = [
+  { key: '', label: 'Off' },
+  { key: 'describe', label: 'Describe each event' },
+  { key: 'verify', label: 'Check each event (drop false alarms)' },
+];
 export const RULE_ALERTS = [
   { key: 'managers', label: 'The camera managers' }, { key: 'everyone', label: 'Everyone who sees the cameras' },
   { key: 'me', label: 'Only me' }, { key: '', label: 'Nobody (keep the event only)' },
@@ -903,7 +910,8 @@ export const myCameraAlerts = {
 export function ruleForm(classes = []) {
   return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
     minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
-    start: '09:00', end: '18:00', alert: 'managers', critical: false };
+    start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
+    approve_actions: false };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -941,6 +949,12 @@ export function ruleBody(form) {
   if (form.scheduled) body.schedule = { days: [...(form.days || [])].sort((a, b) => a - b), start: form.start, end: form.end, tz: 'Asia/Karachi' };
   body.alert = form.alert ?? 'managers';
   if (form.critical) body.critical = true;
+  if (form.ai) {
+    body.ai = form.ai;
+    if (String(form.ai_question || '').trim()) body.ai_question = String(form.ai_question).trim();
+    if (form.ai_model) body.ai_model = form.ai_model;
+  }
+  if (form.approve_actions) body.approve_actions = true;
   return body;
 }
 
