@@ -36,7 +36,7 @@ describe('the zone helpers', () => {
     expect(zoneProblems({ name: 'Desk', kind: 'zone', points: [[0, 0], [1, 0], [1, 1]] })).toEqual({});
   });
   it('send a rule of one zone and say where an event matched', () => {
-    expect(ruleBody({ class_name: ' person ', min_count: 1, cooldown_seconds: 60, zone: '4' })).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, zone: 4 });
+    expect(ruleBody({ class_name: ' person ', min_count: 1, cooldown_seconds: 60, zone: '4' })).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, zone: 4, alert: 'managers' });
     expect(ruleBody({ class_name: 'person', min_count: 1, cooldown_seconds: 60, zone: '' })).not.toHaveProperty('zone');
     expect(matchedText({ matched: { person: 1, zone: 'Desk 1' } })).toBe('person 1 in Desk 1');
     expect(matchedText({ matched: { wall: 2 } })).toBe('wall 2');
@@ -97,11 +97,13 @@ describe('the Phase B rule form', () => {
     const form = { ...ruleForm(['person']), kind: 'absent', minutes: 15, zone: '4', scheduled: true, days: [4, 0, 1, 2, 3] };
     expect(ruleProblems(form, {})).toEqual({});
     expect(ruleBody(form)).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, zone: 4, kind: 'absent', seconds: 900,
-      schedule: { days: [0, 1, 2, 3, 4], start: '09:00', end: '18:00', tz: 'Asia/Karachi' } });
+      schedule: { days: [0, 1, 2, 3, 4], start: '09:00', end: '18:00', tz: 'Asia/Karachi' }, alert: 'managers' });
+    expect(ruleBody({ ...form, alert: '', critical: false }).alert).toBe('');
+    expect(ruleBody({ ...form, alert: 'everyone', critical: true })).toMatchObject({ alert: 'everyone', critical: true });
   });
   it('sends a line rule, one event for each person, and refuses one without its line', () => {
     const form = { ...ruleForm(['person']), kind: 'cross', line: '9', direction: 'in', once_per_object: true };
-    expect(ruleBody(form)).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, kind: 'cross', line: 9, direction: 'in', once_per_object: true });
+    expect(ruleBody(form)).toEqual({ class_name: 'person', min_count: 1, cooldown_seconds: 60, kind: 'cross', line: 9, direction: 'in', once_per_object: true, alert: 'managers' });
     expect(ruleProblems({ ...form, line: '' }, {}).line).toMatch(/Choose the line/);
     expect(ruleProblems({ ...ruleForm(['person']), kind: 'stays', minutes: 0 }, {}).minutes).toBeTruthy();
     expect(ruleProblems({ ...ruleForm(['person']), scheduled: true, start: '09:00', end: '09:00' }, {}).schedule).toMatch(/different/);

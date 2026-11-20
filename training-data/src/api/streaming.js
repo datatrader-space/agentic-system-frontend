@@ -890,10 +890,20 @@ export const RULE_KINDS = [
   { key: 'cross', label: 'Crosses a line', help: 'An object crosses one of the camera\'s lines, in or out. Each crossing is also counted.' },
 ];
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Whom a rule's events alert (camera_alerts.py, Phase C): a bell entry and an e-mail, grouped within 5 minutes.
+export const RULE_ALERTS = [
+  { key: 'managers', label: 'The camera managers' }, { key: 'everyone', label: 'Everyone who sees the cameras' },
+  { key: 'me', label: 'Only me' }, { key: '', label: 'Nobody (keep the event only)' },
+];
+// A person's own camera-alert settings: quiet hours (Pakistan time) and whether alerts e-mail them.
+export const myCameraAlerts = {
+  get: () => apiFetch(`${APP}/workspace/camera-alerts/me/`),
+  save: body => apiFetch(`${APP}/workspace/camera-alerts/me/`, { method: 'POST', body, timeoutMs: SLOW }),
+};
 export function ruleForm(classes = []) {
   return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
     minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
-    start: '09:00', end: '18:00' };
+    start: '09:00', end: '18:00', alert: 'managers', critical: false };
 }
 export function ruleProblems(form, limits = {}) {
   const problems = {};
@@ -929,6 +939,8 @@ export function ruleBody(form) {
   if (kind === 'cross') { body.line = Number(form.line); body.direction = form.direction || 'any'; }
   if ((kind === 'seen' || kind === 'cross') && form.once_per_object) body.once_per_object = true;
   if (form.scheduled) body.schedule = { days: [...(form.days || [])].sort((a, b) => a - b), start: form.start, end: form.end, tz: 'Asia/Karachi' };
+  body.alert = form.alert ?? 'managers';
+  if (form.critical) body.critical = true;
   return body;
 }
 

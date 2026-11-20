@@ -31,7 +31,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS, RULE_ALERTS, myCameraAlerts,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -276,6 +276,25 @@ function openRecordingOf(e) {
   tab.value = 'recordings';
 }
 const lineCounts = computed(() => stream.value?.line_counts || []);
+// My alerts (Phase C): each person's own quiet hours and e-mail switch for camera alerts.
+const mine = ref(null); const mineOpen = ref(false); const mineBusy = ref(false); const mineSaid = ref(''); const mineError = ref('');
+async function openMine() {
+  mineOpen.value = !mineOpen.value; mineSaid.value = ''; mineError.value = '';
+  if (mineOpen.value && !mine.value) {
+    try { const answer = await myCameraAlerts.get(); mine.value = { quiet: !!answer?.settings?.quiet_from, quiet_from: answer?.settings?.quiet_from || '22:00', quiet_to: answer?.settings?.quiet_to || '07:00', email: answer?.settings?.email !== false }; }
+    catch (e) { mineError.value = e.message; }
+  }
+}
+async function saveMine() {
+  mineBusy.value = true; mineError.value = '';
+  try {
+    const m = mine.value;
+    const answer = await myCameraAlerts.save({ quiet_from: m.quiet ? m.quiet_from : '', quiet_to: m.quiet ? m.quiet_to : '', email: m.email });
+    mineSaid.value = answer?.said || 'Saved.';
+  } catch (e) { mineError.value = e.message; }
+  finally { mineBusy.value = false; }
+}
+const alertLabel = key => RULE_ALERTS.find(a => a.key === (key || ''))?.label || '';
 const answers = computed(() => !!(stream.value?.model || stream.value?.detector || (stream.value?.find || []).length));
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
@@ -537,7 +556,21 @@ watch(tab, now => {
         </div>
         <!-- Rules -->
         <div v-else-if="tab === 'rules'" class="sp-recs">
-          <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown. A workflow with this camera's events as its trigger starts on each event.</p>
+          <p class="sp-muted">A rule keeps an event when a model running on this camera finds a class in a frame, at most once in its cooldown, and alerts the people it names in the bell and by e-mail (one alert for a burst). A workflow with this camera's events as its trigger starts on each event.
+            <button type="button" class="sp-linkish" :aria-expanded="mineOpen" @click="openMine">My alerts</button></p>
+          <div v-if="mineOpen" class="sp-rule-form" aria-label="My camera alerts">
+            <p v-if="mineError" class="field-error" role="alert">{{ mineError }}</p>
+            <template v-if="mine">
+              <label class="sp-rule-check"><input v-model="mine.email" type="checkbox"> E-mail me camera alerts (the bell always shows them)</label>
+              <label class="sp-rule-check"><input v-model="mine.quiet" type="checkbox"> Quiet hours: the bell only, except critical alerts (Pakistan time)</label>
+              <div v-if="mine.quiet" class="sp-rule-schedule">
+                <label>From <input v-model="mine.quiet_from" class="text-input" type="time"></label>
+                <label>To <input v-model="mine.quiet_to" class="text-input" type="time"></label>
+              </div>
+              <span class="sp-rec-acts"><UiButton variant="primary" class="small" :disabled="mineBusy" @click="saveMine">Save my alerts</UiButton></span>
+              <p v-if="mineSaid" class="sp-muted" role="status">{{ mineSaid }}</p>
+            </template>
+          </div>
           <form v-if="adding" class="sp-rule-form" @submit.prevent="saveRule">
             <div class="sp-rule-fields">
               <label>What
@@ -584,6 +617,14 @@ watch(tab, now => {
             </div>
             <p class="sp-muted">{{ kindHelp }}<template v-if="draft.kind === 'cross'"> "In" is crossing towards the right of the line, walking from its first point to its second.</template></p>
             <label v-if="draft.kind === 'seen' || draft.kind === 'cross'" class="sp-rule-check"><input v-model="draft.once_per_object" type="checkbox"> One event for each {{ draft.class_name || 'object' }} (tracked from frame to frame), not one per cooldown</label>
+            <div class="sp-rule-fields">
+              <label>Alert
+                <select v-model="draft.alert" class="text-input">
+                  <option v-for="a in RULE_ALERTS" :key="a.key" :value="a.key">{{ a.label }}</option>
+                </select>
+              </label>
+            </div>
+            <label v-if="draft.alert" class="sp-rule-check"><input v-model="draft.critical" type="checkbox"> Critical: e-mail even in quiet hours</label>
             <label class="sp-rule-check"><input v-model="draft.scheduled" type="checkbox"> Only at these times (Pakistan time)</label>
             <div v-if="draft.scheduled" class="sp-rule-schedule">
               <span class="sp-days" role="group" aria-label="Days">
@@ -609,7 +650,7 @@ watch(tab, now => {
           </div>
           <ul v-else-if="rules.length" class="sp-rec-list" aria-label="Rules">
             <li v-for="r in rules" :key="r.id" :class="{ off: !r.enabled }">
-              <span><strong>{{ r.text }}</strong><small><template v-if="r.once_per_object">One event for each one</template><template v-else>At most once every {{ cooldownText(r.cooldown_seconds) }}</template><template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
+              <span><strong>{{ r.text }}</strong><small><template v-if="r.once_per_object">One event for each one</template><template v-else>At most once every {{ cooldownText(r.cooldown_seconds) }}</template><template v-if="r.project"> · only {{ r.project.name }}</template><template v-if="r.alert"> · alerts {{ alertLabel(r.alert).toLowerCase() }}<template v-if="r.critical"> (critical)</template></template><template v-if="!r.enabled"> · Off</template><template v-if="r.last_fired_at"> · last event {{ timeAgo(r.last_fired_at) }}</template></small></span>
               <span class="sp-rec-acts">
                 <a v-if="r.enabled" class="button small" :href="workflowFromCamera(source, r)" :aria-label="`Build a workflow on the rule ${r.text}`"><Workflow :size="13" aria-hidden="true"/></a>
                 <UiButton v-if="mayRule" class="small" :disabled="ruleBusy" @click="toggleRule(r)">{{ r.enabled ? 'Turn off' : 'Turn on' }}</UiButton>
@@ -816,6 +857,7 @@ watch(tab, now => {
 .sp-ev-text strong{font-size:14px;color:#17243b;overflow-wrap:anywhere}
 .sp-ev-text small{color:#64748b;font-size:12px;overflow-wrap:anywhere}
 .sp-pager{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-linkish{border:0;background:none;padding:0;color:var(--aadml-primary);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
 .sp-rule-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#33415a}
 .sp-rule-schedule{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .sp-days{display:flex;gap:4px;flex-wrap:wrap}
