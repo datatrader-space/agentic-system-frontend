@@ -182,7 +182,12 @@ test('the Train page describes the chosen model size and offers a comparison of 
   const { readFile } = await import('node:fs/promises');
   const studio = await readFile(new URL('../src/components/ProjectStudio.vue', import.meta.url), 'utf8');
   assert.ok(studio.includes('const sizeDetails=computed(()=>trainModel.value?.size_details||[]);'), 'sizes come from the server');
-  assert.ok(studio.includes('${sizeDetailOf(s).side} px · ${sizeDetailOf(s).best_for}'), 'each option says its side and use');
+  assert.ok(studio.includes('${forcedSide||sizeDetailOf(s).side} px · ${sizeDetailOf(s).best_for}'), 'each option says its side and use');
+  // Live, 2026-11-20: the page said "Nano · photos seen at 312 × 312 px" and the run trained at 648, the chosen
+  // version's 640 resize. The side said is the one the run is given: the version's (the server's `sides`) when it sets one.
+  assert.ok(studio.includes('?.sides?.[trainModel.value?.value]||null'), 'a version that resizes sets the side said');
+  assert.ok(studio.includes("photos seen at {{ seenSide.side }} × {{ seenSide.side }} px{{ seenSide.fromVersion ? ' (the size this dataset version resizes them to)' : '' }}"),
+    'the chosen size says the side the run sees, and why when the version sets it');
   assert.ok(studio.includes('class="size-about"') && studio.includes('{{ sizeAbout.description }}'), 'the chosen size is explained');
   assert.ok(studio.includes('Measured on everyday objects, not on your photos'), 'the published figures say what they measure');
   assert.ok(studio.includes('<summary>Compare all sizes</summary>'), 'every size can be compared');
