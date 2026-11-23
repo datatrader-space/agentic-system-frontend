@@ -79,10 +79,10 @@
 
 <script setup>
 import { watch, nextTick, ref, shallowRef, onMounted, onBeforeUnmount } from 'vue'
-// Reka's FocusScope joins the trap of an AppDialog/AppSheet under the question. It is loaded when a confirm first opens,
-// never with the page: this host is mounted on EVERY page, and a static import put the whole Reka chunk (42 kB gzip) in
-// the first load, over the 200 kB budget (CI, 2026-11-20). The question always shows at once (a plain wrapper until
-// then); asked from inside a dialog, Reka is already loaded by that dialog, so the scope is there in a microtask.
+// Reka's FocusScope joins the trap of an AppDialog/AppSheet under the question. It is fetched after the page has
+// loaded (and at the latest when a confirm opens), never WITH the page: this host is mounted on EVERY page, and a static
+// import put the whole Reka chunk (42 kB gzip) in the first load, over the 200 kB budget (CI, 2026-11-20). The question
+// always shows at once; if the scope arrives while it is open, the panel is drawn again inside it and focus is put back.
 const focusScope = shallowRef(null)
 // Until then the panel renders as itself, with no wrapper element (the layer stays its direct parent).
 const Passthrough = (_props, { slots }) => slots.default?.()
@@ -114,16 +114,25 @@ function onKey(e) {
 
 // Focus a button when the dialog opens (keyboard + a11y). A destructive dialog starts on Cancel, so
 // a stray Enter can never be the thing that deletes.
-watch(() => state.open, async (open) => {
+async function focusFirst() {
+  await nextTick()
+  const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
+  if (first) first.focus()
+}
+watch(() => state.open, (open) => {
   if (open) {
     loadFocusScope()
-    await nextTick()
-    const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
-    if (first) first.focus()
+    focusFirst()
   }
 })
+// The scope arriving while a question is open draws the panel again: its buttons are new elements, so focus goes back.
+watch(focusScope, () => { if (state.open) focusFirst() })
 
-onMounted(() => window.addEventListener('keydown', onKey))
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+  // After the page is up, so it is never part of the first load, and ready before anyone asks a question.
+  setTimeout(loadFocusScope, 0)
+})
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
