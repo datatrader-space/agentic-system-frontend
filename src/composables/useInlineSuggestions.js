@@ -2,7 +2,7 @@
 // (which enforces it on every request), and why suggestions are stopped when they are. One state for every editor on
 // the page: a stop in one project (daily limit, balance, the model failing) is true for all of them.
 import { reactive, readonly } from 'vue'
-import api from '@/services/api'
+import api from '@/services/inlineEditorApi'
 
 // Codes the server answers a refusal with. Each stops suggestions until the person acts: 'off' is the setting itself;
 // the others are shown in the editor's status line with a Resume button (the next request says if the cause is still

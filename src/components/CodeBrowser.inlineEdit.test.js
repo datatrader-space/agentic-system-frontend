@@ -20,6 +20,8 @@ vi.mock('../services/api', () => ({
     inlineEditSelection: vi.fn(),
   },
 }))
+// Ctrl+K and the inline suggestions call through services/inlineEditorApi: the same mocked functions.
+vi.mock('../services/inlineEditorApi', async () => ({ default: (await import('../services/api')).default }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }))
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn() }))
 

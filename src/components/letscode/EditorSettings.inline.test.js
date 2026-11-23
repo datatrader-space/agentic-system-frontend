@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const api = vi.hoisted(() => ({ getInlineCompletionSettings: vi.fn(), saveInlineCompletionSettings: vi.fn() }))
-vi.mock('@/services/api', () => ({ default: api }))
+vi.mock('@/services/inlineEditorApi', () => ({ default: api }))
 
 import EditorSettings from './EditorSettings.vue'
 import { _resetInlineSuggestions, stopInlineSuggestions, useInlineSuggestions } from '@/composables/useInlineSuggestions'

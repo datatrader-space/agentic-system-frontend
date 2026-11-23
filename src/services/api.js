@@ -620,20 +620,6 @@ export default {
   // -> { ran, problems: [{ path, line, column, severity, code, message, source }], count, error? }
   checkProjectProblems: (systemId, repoId, opts) => projectJob(systemId, repoId,
     () => api.get(`${_projectBase(systemId, repoId)}/problems/check/`, { noCache: true }), opts),
-  // Inline edit on a selection (ADM-1315, Ctrl+K): one engine turn on the server as a background job, answered as
-  // { path, start_line, end_line, replacement, cost_usd, price_usd, conversation_id }. `body` is utils/inlineEdit's
-  // `inlineEditRequest`. One runs at a time per project: a press while another runs is refused here (code BUSY),
-  // never answered with the other one's change.
-  inlineEditSelection: (systemId, repoId, body, opts) => projectJob(systemId, repoId, async () => {
-    const res = await api.post(`${_projectBase(systemId, repoId)}/inline-edit/`, body)
-    if (res?.status === 202 && res.data?.started === false) {
-      const err = new Error('Another inline edit is still being made in this project.')
-      err.response = { status: 409, data: { error: 'Another inline edit is still being made in this project. Try '
-        + 'again when it finishes.', code: 'BUSY' }, headers: {} }
-      throw err
-    }
-    return res
-  }, opts),
   // The person's jobs on a project still running, for a page opened again while they run (ADM-1269).
   getRunningProjectJobs: (systemId, repoId) =>
     api.get(`${_projectBase(systemId, repoId)}/jobs/`, { noCache: true }),
@@ -1090,14 +1076,6 @@ export default {
   getProjectPorts: (repoId) => api.get(`/lets-code/projects/${repoId}/ports/`, { noCache: true }),
   // The project's environment variables (ADM-1205 phase D): names only, a value is never sent back.
   // GET -> { variables: [{ key, updated_at }] }; PUT { changes: { KEY: 'value' | null } } (null removes one).
-  // Inline code suggestions in the editor (ADM-1316): one per pause in typing, cancelled by the next keystroke.
-  // POST { path, prefix, suffix, language } -> { suggestion, cost_usd, spent_today_usd, daily_limit_usd, skipped? };
-  // a refusal answers { error, code } (off, daily_limit, balance, budget, no_model, price_missing, model_failed).
-  requestInlineCompletion: (repoId, body, { signal } = {}) => api.post(`/lets-code/projects/${repoId}/inline-completion/`,
-    body, { signal }),
-  // The person's setting: { enabled, daily_limit_usd, spent_today_usd, resets_at, model: { name } | null }.
-  getInlineCompletionSettings: () => api.get('/lets-code/inline-completion/', { noCache: true }),
-  saveInlineCompletionSettings: (body) => api.put('/lets-code/inline-completion/', body),   // { enabled?, daily_limit_usd? }
   getProjectEnv: (repoId) => api.get(`/lets-code/projects/${repoId}/env/`, { noCache: true }),
   saveProjectEnv: (repoId, changes) => api.put(`/lets-code/projects/${repoId}/env/`, { changes }),
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),

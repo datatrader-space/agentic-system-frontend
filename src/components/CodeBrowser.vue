@@ -492,6 +492,7 @@ import { codeSelection } from '@/utils/codeMentions'
 import { inlineEditRequest, requestForLines, mountInlineEdit, applyInlineEdit } from '@/utils/inlineEdit'
 import InlineEditWidget from '@/components/letscode/InlineEditWidget.vue'
 import api from '../services/api'
+import editorApi from '../services/inlineEditorApi'   // Ctrl+K and inline suggestions (ADM-1315/1316)
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { useIdeTheme } from '@/composables/useIdeTheme'
@@ -1111,7 +1112,7 @@ function bindInlineSuggestions() {
   if (!props.editable || inlineRegistration || !monacoNs?.languages?.registerInlineCompletionsProvider) return
   loadInlineSuggestions()
   inlineProvider = createInlineCompletionProvider({
-    request: (body, opts) => api.requestInlineCompletion(props.repositoryId, body, opts),
+    request: (body, opts) => editorApi.requestInlineCompletion(props.repositoryId, body, opts),
     fileOf: inlineFileOf,
     active: suggestionsActive,
     stop: stopInlineSuggestions,
@@ -1250,7 +1251,7 @@ async function sendInlineEdit(instruction) {
     state: 'running', replacement: '', error: '', detail: '', usage: null })
   const seq = inlineSeq
   try {
-    const { data } = await api.inlineEditSelection(props.systemId, props.repositoryId, req,
+    const { data } = await editorApi.inlineEditSelection(props.systemId, props.repositoryId, req,
       { isCancelled: () => seq !== inlineSeq })
     if (seq !== inlineSeq || !inlineEdit.value) return
     const replacement = String(data?.replacement ?? '')
