@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cameraConstraints, codecOrder, preferCodecs, sessionUrlOf, whipUrlOk, publish, retryDelay, PublishError, REFUSED_TEXT,
-  swapCamera, shapeOf, canHoldLandscape, holdLandscape, releaseLandscape,
+  swapCamera, shapeOf, canHoldLandscape, holdLandscape, releaseLandscape, hasMicrophone, soundWhipUrlOk, SOUND_CONSTRAINTS,
 } from '../src/api/phoneCamera.js';
 import { phoneCamSecret, phoneCameraApi, recordingOf, elapsedText } from '../src/api/phone.js';
 import { phoneLinkDetails, phoneLinkUntil, sourceBody, canWatch, sourceKindLabel, PHONE_STEPS } from '../src/api/streaming.js';
@@ -257,3 +257,46 @@ test('a tab remembers its camera and that it was sending, so a reload resumes, n
   assert.deepEqual(cameraMemory(broken, 1), { facing: 'environment', resume: false });
   rememberCamera({ sending: true }, broken, 1);                                                  // no storage: no throw
 });
+
+test('the page knows whether the phone has a microphone without asking, and asks for sound alone', async () => {
+  assert.equal(await hasMicrophone({ enumerateDevices: async () => [{ kind: 'videoinput' }, { kind: 'audioinput' }] }), true);
+  assert.equal(await hasMicrophone({ enumerateDevices: async () => [{ kind: 'videoinput' }] }), false);
+  assert.equal(await hasMicrophone({ enumerateDevices: async () => { throw new Error('not allowed'); } }), false);
+  assert.equal(await hasMicrophone({}), false);
+  assert.equal(await hasMicrophone(undefined), false);
+  assert.equal(SOUND_CONSTRAINTS.video, false);
+  assert.equal(SOUND_CONSTRAINTS.audio.echoCancellation, true);
+});
+
+test("the phone's sound goes only to its camera's own sound path, never to the video's, and alone", async () => {
+  assert.equal(soundWhipUrlOk('/live-publish/src12a/whip'), true);
+  for (const bad of ['/live-publish/src12/whip', '/live-publish/src12b/whip', '/live-publish/src0a/whip',
+    'https://evil.example/live-publish/src12a/whip', '']) assert.equal(soundWhipUrlOk(bad), false, bad);
+  assert.equal(whipUrlOk('/live-publish/src12a/whip'), false);          // the video never goes to the sound path
+  assert.equal(sessionUrlOf(`/src12a/whip/${SESSION}`, '/live-publish/src12a/whip'), `/live-publish/src12a/whip/${SESSION}`);
+  assert.equal(sessionUrlOf(`/src12/whip/${SESSION}`, '/live-publish/src12a/whip'), '');      // the video's session
+  const f = fakes({ location: `/live-publish/src12a/whip/${SESSION}`, answer: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\n' });
+  const audio = { kind: 'audio' };
+  const stream = { getAudioTracks: () => [audio], getVideoTracks: () => [f.track] };
+  await assert.rejects(publish({ whipUrl: '/live-publish/src12/whip', secret: SECRET, stream, sound: true, fetchImpl: f.fetchImpl, PeerConnection: f.PC, Sender: f.Sender }),
+    e => e instanceof PublishError && e.code === 'refused');
+  const made = await publish({ whipUrl: '/live-publish/src12a/whip', secret: SECRET, stream, sound: true, fetchImpl: f.fetchImpl, PeerConnection: f.PC, Sender: f.Sender });
+  const [pc] = f.pcs;
+  assert.equal(pc.track, audio);                                          // the microphone alone, no video
+  assert.equal(pc.codecs, undefined);                                    // no video codec chosen for sound
+  assert.equal((made.codec || '').toLowerCase(), 'opus');
+  assert.equal(made.sessionUrl, `/live-publish/src12a/whip/${SESSION}`);
+  await assert.rejects(publish({ whipUrl: '/live-publish/src12a/whip', secret: SECRET, stream: { getAudioTracks: () => [] }, sound: true,
+    fetchImpl: f.fetchImpl, PeerConnection: f.PC, Sender: f.Sender }), e => e.code === 'camera');
+});
+
+test('the phone says whether it has a microphone, with its link as Bearer', async () => {
+  const seen = [];
+  globalThis.fetch = async (url, init) => { seen.push({ url, init }); return new Response(JSON.stringify({ has_sound: true, sound_whip: '/live-publish/src12a/whip' }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+  const answer = await phoneCameraApi.sound(SECRET, true);
+  assert.equal(answer.sound_whip, '/live-publish/src12a/whip');
+  assert.ok(seen[0].url.endsWith('/phone-camera/sound/'));
+  assert.equal(seen[0].init.method, 'POST');
+  assert.equal(JSON.parse(seen[0].init.body).microphone, true);
+});
+

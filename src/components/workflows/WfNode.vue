@@ -74,14 +74,16 @@
       <button type="button" class="wf-hunk-btn is-reject" :aria-label="`Reject the proposed ${MARK_WORD[view.mark]} of ${title}`" title="Reject" @click.stop="ctx.reject(view.hunk)"><Icon icon="lucide:x" aria-hidden="true" /></button>
     </span>
 
-    <!-- Hover toolbar (plan §3.2). -->
-    <NodeToolbar v-if="!view.ghost && !view.mark && !view.readOnly" :is-visible="toolbarVisible" :position="Position.Top" :offset="6">
+    <!-- Hover toolbar (plan §3.2). Read only (a viewer or runner, ADM-1339): Open, and Test up to here for a runner. -->
+    <NodeToolbar v-if="!view.ghost && !view.mark" :is-visible="toolbarVisible" :position="Position.Top" :offset="6">
       <div class="wf-node-toolbar" role="toolbar" :aria-label="`${title} actions`" @mouseenter="setHover(true)" @mouseleave="setHover(false)" @focusin="setHover(true)" @focusout="setHover(false)">
         <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Open ${title}`" title="Open (Enter)" @click.stop="ctx.open(id)"><Icon icon="lucide:settings-2" aria-hidden="true" /></button>
-        <button type="button" class="wf-tb-btn nodrag nopan" :disabled="view.running" :aria-label="`Test up to ${title}`" title="Test up to here" @click.stop="ctx.testUntil(id)"><Icon icon="lucide:flask-conical" aria-hidden="true" /></button>
-        <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Rename ${title}`" title="Rename (F2)" @click.stop="ctx.rename(id)"><Icon icon="lucide:pencil" aria-hidden="true" /></button>
-        <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Duplicate ${title}`" title="Duplicate" @click.stop="ctx.duplicate(id)"><Icon icon="lucide:copy-plus" aria-hidden="true" /></button>
-        <button type="button" class="wf-tb-btn is-danger nodrag nopan" :aria-label="`Delete ${title}`" title="Delete" @click.stop="ctx.remove({ nodeIds: [id] })"><Icon icon="lucide:trash-2" aria-hidden="true" /></button>
+        <button v-if="view.canRun !== false" type="button" class="wf-tb-btn nodrag nopan" :disabled="view.running" :aria-label="`Test up to ${title}`" title="Test up to here" @click.stop="ctx.testUntil(id)"><Icon icon="lucide:flask-conical" aria-hidden="true" /></button>
+        <template v-if="!view.readOnly">
+          <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Rename ${title}`" title="Rename (F2)" @click.stop="ctx.rename(id)"><Icon icon="lucide:pencil" aria-hidden="true" /></button>
+          <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Duplicate ${title}`" title="Duplicate" @click.stop="ctx.duplicate(id)"><Icon icon="lucide:copy-plus" aria-hidden="true" /></button>
+          <button type="button" class="wf-tb-btn is-danger nodrag nopan" :aria-label="`Delete ${title}`" title="Delete" @click.stop="ctx.remove({ nodeIds: [id] })"><Icon icon="lucide:trash-2" aria-hidden="true" /></button>
+        </template>
       </div>
     </NodeToolbar>
   </div>

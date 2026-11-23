@@ -12,14 +12,16 @@ export const WAITING = {
 
 const pause = (seconds) => new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(seconds, 2), 30) * 1000))
 
-// { url, expiresIn } | { error, retryable, status } | { gone: true } (the caller stopped waiting: `gone()` is true).
-export async function fetchPreviewLink(repoId, port, { onWaiting = () => {}, gone = () => false, sleep = pause } = {}) {
+// { url, expiresIn, inspector } | { error, retryable, status, code } | { gone: true } (the caller stopped waiting: `gone()`
+// is true). `inspect`: a link to the preview inspector in front of the app (the IDE's Preview tab, ADM-1318); when it
+// cannot run the answer is `code: 'INSPECTOR_UNAVAILABLE'` with AADML's reason, and the caller offers the plain preview.
+export async function fetchPreviewLink(repoId, port, { onWaiting = () => {}, gone = () => false, sleep = pause, inspect = false } = {}) {
   const started = Date.now()
   while (!gone()) {
     try {
-      const { data } = await api.getProjectPreview(repoId, port)
+      const { data } = await (inspect ? api.getProjectPreview(repoId, port, { inspect: true }) : api.getProjectPreview(repoId, port))
       if (gone()) break
-      if (data?.url) return { url: data.url, expiresIn: Number(data.expires_in) || 0 }
+      if (data?.url) return { url: data.url, expiresIn: Number(data.expires_in) || 0, inspector: data.inspector === true }
       return { error: 'The preview could not be opened. Try again.', retryable: true, status: 200 }
     } catch (e) {
       if (gone()) break
@@ -32,6 +34,7 @@ export async function fetchPreviewLink(repoId, port, { onWaiting = () => {}, gon
       }
       return {
         status,
+        code: typeof body.code === 'string' ? body.code : '',
         retryable: status !== 404,
         error: status === 404
           ? 'This preview is not one of your projects.'

@@ -29,7 +29,8 @@
     </div>
     <!-- The Preview tab (ADM-1205 phase D): built the first time it is opened, then kept, so an app stays loaded. -->
     <div v-if="previewOpened && repoId" v-show="!collapsed && tab === 'preview'" class="bp-term" role="tabpanel">
-      <PreviewPanel ref="previewPanel" :repo-id="repoId" :ready="ready" :maximized="maximized" @maximize="$emit('maximize')" />
+      <PreviewPanel ref="previewPanel" :repo-id="repoId" :ready="ready" :maximized="maximized" @maximize="$emit('maximize')"
+                    @ask-agent="$emit('ask-agent', $event)" @open-file="$emit('open-file', $event)" />
     </div>
   </div>
 </template>
@@ -56,7 +57,9 @@ const props = defineProps({
   // The panel fills the editor's column (the terminal's Maximize, ADM-1211).
   maximized: { type: Boolean, default: false },
 })
-const emit = defineEmits(['toggle', 'maximize'])
+// `ask-agent`: the Preview tab's "Ask the agent" about an element (ADM-1318), one chat message: LetsCode.vue sends it.
+// `open-file` { path, line, column }: a place the Preview tab found the element at, opened in the editor by LetsCode.vue.
+const emit = defineEmits(['toggle', 'maximize', 'ask-agent', 'open-file'])
 
 // Log = the project's clone/index pipeline log; Activity = the coding agent's tool calls; Terminal = shells in the
 // project's sandbox and the commands the Coding Agent ran; Preview = the project's running ports and an app on one;

@@ -10,6 +10,7 @@ const AXE_OUT = process.env.WF_AXE_OUT || ''
 const clone = (v) => JSON.parse(JSON.stringify(v))
 const baseGraph = {
   id: 86, public_id: 'wf_86', name: 'Customer intake', status: 'draft', version: 1, etag: 'initial', triggers: [], last_run: null,
+  my_role: 'owner', owner: { id: 1, email: 'olga@example.test', name: 'Olga Owner' },
   graph: {
     nodes: [
       { id: 'start', type: 'trigger.manual', position: { x: 80, y: 160 }, data: { label: 'Receive request', inputs: [] } },
@@ -45,6 +46,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
 async function prepare(page, overrides = {}) {
   const state = {
     graph: clone(baseGraph), requests: [], failSave: false, failLoad: false, running: false, run: null,
+    shares: [{ user_id: 7, email: 'ann@example.test', name: 'Ann Approver', role: 'viewer', added_by: 1, created_at: '2026-11-20T09:00:00Z' }],
     validation: { ok: true, warnings: [] }, ...overrides,
   }
   const errors = []
@@ -84,6 +86,7 @@ async function prepare(page, overrides = {}) {
     if (path === '/api/workflow-graphs/' && method === 'POST') return json({ id: 87, ...body })
     if (path.endsWith('/validate/')) return json(state.validation)
     if (path.endsWith('/run/')) {
+      if (state.forbidRun) return json({ error: 'Your role on this workflow no longer allows running it.', code: 'forbidden_role', required: 'run' }, 403)
       state.run = { id: 501, status: state.running ? 'running' : 'success', dry_run: body.dry_run, node_runs: [], duration_ms: 50 }
       return json({ run_id: 501, status: state.run.status })
     }
@@ -101,11 +104,28 @@ async function prepare(page, overrides = {}) {
     if (path.endsWith('/metrics/')) return json({ success_rate: 0.5, avg_duration_ms: 1200, total_cost: 0.0123, total_runs: 52 })
     if (path.endsWith('/versions/')) return json({ results: [{ id: 1, version: 1, label: 'First', created_at: '2026-11-19T06:00:00Z' }], next_cursor: null, has_more: false, limit: 50 })
     if (path.endsWith('/restore/')) return json({ ...state.graph, graph: clone(baseGraph.graph), etag: 'restored' })
+    // Sharing (ADM-1339): the owner manages shares; the people list feeds the approvers picker.
+    if (/\/workflow-graphs\/\d+\/shares\/$/.test(path) && method === 'GET') return json({ owner: state.graph.owner, results: state.shares })
+    if (/\/workflow-graphs\/\d+\/shares\/$/.test(path) && method === 'POST') {
+      if (!String(body.email).endsWith('@example.test')) return json({ error: `${body.email} is not a member of this workflow's workspace.`, code: 'not_workspace_member' }, 400)
+      const row = { user_id: 100 + state.shares.length, email: body.email, name: '', role: body.role, added_by: 1, created_at: '2026-11-20T10:00:00Z' }
+      state.shares = [...state.shares, row]
+      return json(row, 201)
+    }
+    if (/\/workflow-graphs\/\d+\/shares\/\d+\/$/.test(path)) {
+      const uid = Number(path.split('/')[5])
+      if (method === 'DELETE') { state.shares = state.shares.filter((r) => r.user_id !== uid); return route.fulfill({ status: 204 }) }
+      state.shares = state.shares.map((r) => (r.user_id === uid ? { ...r, role: body.role } : r))
+      return json(state.shares.find((r) => r.user_id === uid))
+    }
+    if (/\/workflow-graphs\/\d+\/people\/$/.test(path)) {
+      return json({ results: [{ user_id: 1, email: state.graph.owner.email, name: state.graph.owner.name, role: 'owner' }, ...state.shares.map(({ user_id, email, name, role }) => ({ user_id, email, name, role }))] })
+    }
     if (path === '/api/tools/') return json({ tools: [{ name: 'FIXTURE_TOOL', description: 'Synthetic test tool', category: 'utility' }], total_count: 1 })
     if (path.includes('mcp-catalog')) return json({ enabled: true, servers: [{ id: 7, name: 'Fixture MCP', tools: [{ name: 'fixture_read', description: 'Read synthetic data' }] }] })
     return json({})
   })
-  await page.goto('/dashboard/workflow-builder/86', { waitUntil: 'commit' })
+  await page.goto(state.path || '/dashboard/workflow-builder/86', { waitUntil: 'commit' })
   if (!state.failLoad) await expect(page.locator('.wfb-name')).toContainText('Customer intake', { timeout: 60000 })
   await page.waitForFunction(() => document.querySelectorAll('.vue-flow__node').length >= 0 && !!document.querySelector('.vue-flow'))
   return { state, errors }
@@ -573,6 +593,156 @@ for (const width of [1440, 375]) {
       else await expect(page.getByRole('tablist', { name: 'Console views' })).toBeVisible()
       await page.waitForTimeout(400)
       expect(summary(await axeScan(page, `${width} ${theme} console`))).toEqual([])
+      await closeLayers(page)
+      await menu(page, 'Share')
+      await expect(page.getByRole('dialog', { name: 'Share workflow' })).toContainText('Ann Approver')
+      await page.waitForTimeout(400)
+      expect(summary(await axeScan(page, `${width} ${theme} share dialog`))).toEqual([])
     })
   }
 }
+
+
+// ── sharing and roles (ADM-1339): the page follows the server's `my_role`; the server enforces it ──
+const asRole = (role) => ({ ...clone(baseGraph), my_role: role })
+const menuItems = async (page) => {
+  await page.getByRole('button', { name: 'More workflow actions' }).click()
+  const items = await page.getByRole('menuitem').allInnerTexts()
+  await page.keyboard.press('Escape')
+  return items.map((t) => t.replace(/\s+/g, ' ').replace(/ (Ctrl|⌘)\+S$| \?$/, '').trim())
+}
+
+test('a viewer sees the workflow read-only: no edit, add, Save, Publish, Test or Run, and nothing is sent', async ({ page }) => {
+  const { state, errors } = await prepare(page, { graph: asRole('viewer') })
+  await expect(page.locator('.wfb-pill.is-role')).toHaveText('Your role: Viewer')
+  for (const name of ['Add a step', 'Test', 'Run', 'Publish', 'Tidy up']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Rename workflow' })).toHaveCount(0)
+  expect(await menuItems(page)).toEqual(['Versions', 'Duplicate workflow', 'Outline', 'Shortcuts', 'Help'])
+  // The canvas: no hover toolbar, no + to add, keyboard edits do nothing.
+  await node(page, 'log').hover()
+  await expect(page.getByRole('button', { name: 'Test up to Record result' })).toHaveCount(0)
+  await node(page, 'log').click()
+  await page.keyboard.press('Delete')
+  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+Enter')
+  await page.keyboard.press('F2')
+  await expect(page.locator('[role="dialog"], [role="alertdialog"]')).toHaveCount(0)
+  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+  // The step window shows the settings, disabled, and no test.
+  await node(page, 'log').dblclick()
+  const win = page.getByRole('dialog')
+  await expect(win).toContainText('Your role on this workflow lets you see this step, not change it.')
+  await expect(win.getByRole('textbox', { name: 'Step name' })).toBeDisabled()
+  await expect(win.getByRole('button', { name: 'Test this step' })).toHaveCount(0)
+  await closeLayers(page)
+  expect(state.requests.filter((r) => r.method !== 'GET')).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test('a runner may Test and Run but not edit; a refusal from the server shows its sentence', async ({ page }) => {
+  const { state } = await prepare(page, { graph: asRole('runner') })
+  await expect(page.locator('.wfb-pill.is-role')).toHaveText('Your role: Runner')
+  await expect(page.getByRole('button', { name: 'Add a step', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0)
+  expect(await menuItems(page)).toEqual(['Versions', 'Duplicate workflow', 'Outline', 'Shortcuts', 'Help'])
+  await node(page, 'log').hover()
+  await expect(page.getByRole('button', { name: 'Test up to Record result' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Delete Record result' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Test', exact: true }).click()
+  await expect.poll(() => mutations(state, '/run/').length).toBe(1)
+  expect(mutations(state, '/run/')[0].body).toMatchObject({ dry_run: true })
+  state.forbidRun = true
+  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  await expect(page.getByText('Your role on this workflow no longer allows running it.')).toBeVisible()
+  expect(state.requests.filter((r) => r.method === 'PUT')).toEqual([])
+})
+
+test('an editor edits but cannot share or archive', async ({ page }) => {
+  await prepare(page, { graph: asRole('editor') })
+  await expect(page.getByRole('button', { name: 'Add a step', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
+  const items = await menuItems(page)
+  expect(items).toEqual(expect.arrayContaining(['Save', 'Validate', 'Versions']))
+  expect(items).not.toContain('Share')
+  expect(items).not.toContain('Archive workflow')
+})
+
+test('the owner shares from the menu: add, a refused add, change a role, remove after asking', async ({ page }) => {
+  const { state } = await prepare(page)
+  await menu(page, 'Share')
+  const dlg = page.getByRole('dialog', { name: 'Share workflow' })
+  await expect(dlg).toContainText('Olga Owner')
+  await expect(dlg.getByRole('combobox', { name: 'Role of Ann Approver' })).toHaveValue('viewer')
+  // Someone outside the workspace: the server's sentence.
+  await dlg.getByRole('textbox', { name: 'Email' }).fill('stranger@elsewhere.test')
+  await dlg.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(dlg.getByRole('alert')).toContainText("stranger@elsewhere.test is not a member of this workflow's workspace.")
+  // A member, as an editor.
+  await dlg.getByRole('textbox', { name: 'Email' }).fill('bo@example.test')
+  await dlg.getByRole('combobox', { name: 'Role', exact: true }).selectOption('editor')
+  await dlg.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(dlg.getByRole('combobox', { name: 'Role of bo@example.test' })).toHaveValue('editor')
+  await dlg.getByRole('combobox', { name: 'Role of Ann Approver' }).selectOption('runner')
+  await expect.poll(() => state.shares.find((r) => r.user_id === 7).role).toBe('runner')
+  await dlg.getByRole('button', { name: 'Remove bo@example.test' }).click()
+  const ask = page.getByRole('alertdialog', { name: 'Remove bo@example.test?' })
+  await ask.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(dlg.getByRole('combobox', { name: 'Role of bo@example.test' })).toHaveCount(0)
+  expect(state.requests.filter((r) => r.path.includes('/shares/') && r.method !== 'GET').map((r) => r.method)).toEqual(['POST', 'POST', 'PATCH', 'DELETE'])
+})
+
+test('approvers are picked from the people; a waiting approval offers Approve only to who may decide', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.last_run = { id: 910, status: 'waiting' }
+  graph.graph.nodes.push({ id: 'ok', type: 'logic.approval', position: { x: 740, y: 160 }, data: { label: 'Manager OK', message: 'Go?' } })
+  graph.graph.edges.push({ id: 'e_log_ok', source: 'log', target: 'ok' })
+  const waitingOutput = { approvers: [{ user_id: 7, email: 'ann@example.test', name: 'Ann Approver' }], can_decide: false }
+  const runDetails = { 910: { id: 910, status: 'waiting', node_runs: [
+    { node_id: 'start', status: 'succeeded', attempt: 1 }, { node_id: 'log', status: 'succeeded', attempt: 1 },
+    { node_id: 'ok', status: 'waiting', attempt: 1, output: waitingOutput },
+  ] } }
+  const { state } = await prepare(page, { graph, runDetails })
+  await expect(page.getByText('Manager OK: Waiting for Ann Approver to decide.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0)
+  await node(page, 'ok').dblclick()
+  const win = page.getByRole('dialog')
+  await expect(win.getByRole('group', { name: 'Approval decision' })).toContainText('Waiting for Ann Approver to decide.')
+  await expect(win.getByRole('checkbox')).toHaveCount(2)
+  await win.getByRole('checkbox', { name: /Ann Approver/ }).check()
+  await closeLayers(page)
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  expect(state.graph.graph.nodes.find((n) => n.id === 'ok').data.approvers).toEqual([7])
+})
+
+// The approval notification links to /dashboard/workflow-builder/<id>?run=<run id>: that run opens in the console.
+test('a link with ?run= opens that run, live when it still waits', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.graph.nodes.push({ id: 'ok', type: 'logic.approval', position: { x: 740, y: 160 }, data: { label: 'Manager OK', message: 'Go?' } })
+  const runDetails = { 920: { id: 920, status: 'waiting', node_runs: [
+    { node_id: 'start', status: 'succeeded', attempt: 1 },
+    { node_id: 'ok', status: 'waiting', attempt: 1, output: { approvers: [{ user_id: 1, email: 'olga@example.test', name: 'Olga Owner' }], can_decide: true } },
+  ] } }
+  const { state } = await prepare(page, { graph, runDetails, path: '/dashboard/workflow-builder/86?run=920' })
+  await expect(page.getByText('Manager OK needs your approval')).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'Approve', exact: true }).first().click()
+  await expect.poll(() => mutations(state, '/approve/').map((r) => r.body)).toEqual([{ node_id: 'ok', decision: 'approve' }])
+})
+
+// The app's confirm asked from inside a sheet (Restore) can be clicked: the sheet underneath neither swallows the
+// press nor closes under the question.
+test('Restore in the Versions sheet asks with the app confirm, and its buttons work', async ({ page }) => {
+  const { state } = await prepare(page)
+  await menu(page, 'Versions')
+  const sheet = page.getByRole('dialog', { name: 'Versions' })
+  await sheet.getByRole('button', { name: 'Restore version 1' }).click()
+  const ask = page.getByRole('alertdialog', { name: 'Restore version 1?' })
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(ask).toHaveCount(0)
+  await expect(sheet).toBeVisible()
+  await sheet.getByRole('button', { name: 'Restore version 1' }).click()
+  await page.getByRole('alertdialog', { name: 'Restore version 1?' }).getByRole('button', { name: 'Restore', exact: true }).click()
+  await expect.poll(() => mutations(state, '/restore/').length).toBe(1)
+})

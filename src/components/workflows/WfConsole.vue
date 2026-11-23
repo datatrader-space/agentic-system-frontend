@@ -5,7 +5,7 @@
   arrow keys. Below 1024 px wide it opens as a bottom sheet instead.
 
   Run state comes only from useWorkflowRun. A waiting approval is decided here, on the live run, so it stays reachable
-  after a reload (F10).
+  after a reload (F10), and offered only to a person the server says may decide; anyone else is told who decides.
 -->
 <template>
   <section class="wfb-console" :class="{ 'is-open': open && !sheet, 'is-sheet': sheet }" :style="open && !sheet ? { height: `${height}px` } : null" aria-label="Console">
@@ -46,10 +46,14 @@
         <span class="wfb-console__approve-text">Waiting for sub-workflow run {{ waitingSub.ids.map((id) => `#${id}`).join(', ') }}</span>
         <RouterLink v-for="id in waitingSub.ids" :key="id" class="wfb-link-btn" :to="{ name: 'dashboard-workflow-runs', query: { run: id } }">Open run #{{ id }}</RouterLink>
       </span>
-      <span v-if="waitingApprovals.length" class="wfb-console__approve">
+      <span v-if="waitingApprovals.length && decider.canDecide" class="wfb-console__approve">
         <span class="wfb-console__approve-text">{{ titleOf(waitingApprovals[0]) }} needs your approval</span>
         <button type="button" class="wfb-btn is-small is-success" :disabled="run.deciding.value" @click="run.decide(waitingApprovals[0], 'approve')"><Icon icon="lucide:check" aria-hidden="true" />Approve</button>
         <button type="button" class="wfb-btn is-small is-danger" :disabled="run.deciding.value" @click="run.decide(waitingApprovals[0], 'reject')"><Icon icon="lucide:x" aria-hidden="true" />Reject</button>
+      </span>
+      <span v-else-if="waitingApprovals.length" class="wfb-console__approve" role="status">
+        <Icon icon="lucide:hourglass" class="is-waiting" aria-hidden="true" />
+        <span class="wfb-console__approve-text">{{ titleOf(waitingApprovals[0]) }}: {{ decider.text }}</span>
       </span>
     </div>
 
@@ -74,6 +78,7 @@ import defaultApi from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { NODE_STATUS_ICONS, NODE_STATUS_LABELS } from '@/utils/wfNodeView'
 import { runStopKind } from '@/utils/workflowRunPolling'
+import { approvalDecider, serverSentence } from '@/utils/workflowAccess'
 import { nodeTitle } from './wfNodeData'
 
 const props = defineProps({
@@ -84,6 +89,8 @@ const props = defineProps({
   height: { type: Number, default: 240 },
   sheet: { type: Boolean, default: false },
   api: { type: Object, default: () => defaultApi },
+  // False for a viewer (ADM-1339): no re-run is offered (the server refuses it anyway).
+  canRun: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:open', 'update:height', 'focus-node', 'rerun'])
 
@@ -151,6 +158,11 @@ const waitingApprovals = computed(() => {
   const states = props.run.nodeStates.value || {}
   return props.doc.nodes.value.filter((n) => n.type === 'logic.approval' && states[n.id]?.status === 'waiting').map((n) => n.id)
 })
+// Approve and Reject only for a person the server says may decide (the node output's `can_decide`, ADM-1339).
+const decider = computed(() => {
+  const id = waitingApprovals.value[0]
+  return approvalDecider(id ? props.run.nodeStates.value?.[id]?.output : null, props.doc.meta?.owner)
+})
 const waitingSub = computed(() => {
   const w = props.run.waitingOn.value
   if (props.run.viewingPast.value || !w?.subworkflow) return null
@@ -212,8 +224,7 @@ async function loadRuns({ more = false } = {}) {
     runsMore.value = page.more
     runsLoaded.value = true
   } catch (e) {
-    const s = e?.response?.status
-    runsError.value = e?.response ? `Could not load the run history (error ${s}).` : (e?.message || 'Could not load the run history.')
+    runsError.value = e?.response ? serverSentence(e, 'Could not load the run history') : (e?.message || 'Could not load the run history.')
   } finally {
     runsLoading.value = false
   }
@@ -247,7 +258,7 @@ const timelineRows = computed(() => {
   }))
 })
 const mediaJobs = computed(() => (shown.value?.node_runs || []).filter((n) => n.output?.awaiting_media_job && n.output.job_id))
-const canRerun = computed(() => shown.value?.status === 'failed' && !props.run.running.value)
+const canRerun = computed(() => props.canRun && shown.value?.status === 'failed' && !props.run.running.value)
 
 // ── resize ──
 let drag = null

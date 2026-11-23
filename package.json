@@ -35,6 +35,7 @@
     "marked-highlight": "^2.2.3",
     "monaco-editor": "0.57.0",
     "monaco-editor-vue3": "^1.0.5",
+    "monaco-vim": "0.4.4",
     "pdfjs-dist": "^5.5.207",
     "pinia": "^2.1.7",
     "reka-ui": "2.11.0",

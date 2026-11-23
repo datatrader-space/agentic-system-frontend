@@ -8,7 +8,9 @@ import WfNodeModal from './WfNodeModal.vue'
 import { fakeCatalog, fakeDoc, fakeRun } from './wfNodeModal.testHarness'
 import { useWorkflowHistory } from '@/composables/useWorkflowHistory'
 
-vi.mock('@/services/api', () => ({ default: { get: vi.fn(async () => ({ data: [] })), getMediaRoutes: vi.fn() } }))
+const people = vi.hoisted(() => ({ results: [] }))
+const peopleApi = vi.hoisted(() => vi.fn(async () => ({ data: { results: people.results } })))
+vi.mock('@/services/api', () => ({ default: { get: vi.fn(async () => ({ data: [] })), getMediaRoutes: vi.fn(), getWorkflowPeople: peopleApi } }))
 
 const tick = async () => { await flushPromises(); await nextTick(); await new Promise((r) => setTimeout(r, 0)); await nextTick() }
 
@@ -22,15 +24,17 @@ const baseEdges = [{ id: 'e1', source: 'start', target: 'fetch' }, { id: 'e2', s
 let wrapper
 afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
 
-function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, viewed = null, validation = null } = {}) {
+function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, viewed = null, validation = null, readOnly = false, canRun = true, live = null, owner = null } = {}) {
   const doc = fakeDoc({ nodes, edges, vars })
+  doc.meta.owner = owner
   const history = useWorkflowHistory(doc)
   const run = fakeRun({ lastRun, nodeStates, viewed })
+  run.live.value = live
   const catalog = fakeCatalog(['T'])
   const open = ref(true)
   const Host = defineComponent({
     setup: () => () => h(WfNodeModal, {
-      open: open.value, 'onUpdate:open': (v) => { open.value = v }, nodeId, doc, history, run, catalog, validation,
+      open: open.value, 'onUpdate:open': (v) => { open.value = v }, nodeId, doc, history, run, catalog, validation, readOnly, canRun,
     }),
   })
   wrapper = mount(Host, { attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' } } } })
@@ -154,10 +158,146 @@ describe('WfNodeModal', () => {
     expect(history.past.value.map((e) => e.label)).toEqual(['Edit Signing secret'])
   })
 
-  it('the approval step has no approvers field (ADM-1339)', async () => {
-    mountModal({ nodeId: 'ok', nodes: [{ id: 'ok', type: 'logic.approval', data: { message: 'Go?' } }], edges: [] })
-    await tick()
-    expect(document.body.textContent.toLowerCase()).not.toContain('approver')
+  describe('approval step: approvers are people (ADM-1339)', () => {
+    const approval = (data = {}) => [{ id: 'ok', type: 'logic.approval', data: { message: 'Go?', ...data } }]
+    const PEOPLE = [
+      { user_id: 1, email: 'owner@x.test', name: 'Olga Owner', role: 'owner' },
+      { user_id: 7, email: 'ann@x.test', name: 'Ann', role: 'viewer' },
+      { user_id: 9, email: 'bo@x.test', name: '', role: 'editor' },
+    ]
+    const box = (name) => qa('.apf-row').find((r) => r.textContent.includes(name)).querySelector('input')
+
+    it('lists the people who can see the workflow; ticking stores their user ids, one history entry each', async () => {
+      people.results = PEOPLE
+      const { doc, history } = mountModal({ nodeId: 'ok', nodes: approval(), edges: [] })
+      await tick()
+      expect(peopleApi).toHaveBeenCalledWith(1)
+      expect(qa('.apf-row').map((r) => [...r.querySelectorAll('.apf-name, .apf-email, .apf-role')].map((e) => e.textContent).join(' '))).toEqual([
+        'Olga Owner owner@x.test Owner', 'Ann ann@x.test Viewer', 'bo@x.test Editor'])
+      expect(q('.apf').textContent).toContain('Nobody ticked: the owner decides.')
+      box('Ann').click()
+      await tick()
+      box('bo@x.test').click()
+      await tick()
+      expect(doc.nodes.value[0].data.approvers).toEqual([7, 9])
+      expect(history.past.value.map((e) => e.label)).toEqual(['Edit Approvers', 'Edit Approvers'])
+      expect(q('.apf').textContent).toContain('Any one of the people ticked')
+      box('Ann').click()
+      await tick()
+      expect(doc.nodes.value[0].data.approvers).toEqual([9])
+    })
+
+    it('an old free-text value asks to pick again, and the first person ticked replaces it', async () => {
+      people.results = PEOPLE
+      const { doc } = mountModal({ nodeId: 'ok', nodes: approval({ approvers: 'ann@x.test, bo@x.test' }), edges: [] })
+      await tick()
+      const note = q('.apf-msg--warn')
+      expect(note.getAttribute('role')).toBe('alert')
+      expect(note.textContent).toContain('Pick the approvers again; free-text emails are no longer read.')
+      expect(note.textContent).toContain('ann@x.test, bo@x.test')
+      expect(qa('.apf-row input').every((i) => !i.checked)).toBe(true)
+      box('Ann').click()
+      await tick()
+      expect(doc.nodes.value[0].data.approvers).toEqual([7])
+      expect(q('.apf-msg--warn')).toBeNull()
+    })
+
+    it('a person who lost access stays listed and ticked so they can be cleared; the server finding shows beside the field', async () => {
+      people.results = PEOPLE
+      const validation = { errors: [{ node_id: 'ok', path: 'data.approvers', code: 'approvers.unknown', message: '1 approver cannot see this workflow.' }], warnings: [] }
+      const { doc } = mountModal({ nodeId: 'ok', nodes: approval({ approvers: [7, 44] }), edges: [], validation })
+      await tick()
+      expect(box('Person #44').checked).toBe(true)
+      expect(q('.apf').textContent).toContain('No longer has access')
+      expect(q('.apf .apf-msg--err').textContent).toContain('1 approver cannot see this workflow.')
+      expect(q('.wfm-issues')).toBeNull()
+      box('Person #44').click()
+      await tick()
+      expect(doc.nodes.value[0].data.approvers).toEqual([7])
+    })
+
+    it('a failed people list shows the server sentence and offers Try again', async () => {
+      peopleApi.mockRejectedValueOnce({ response: { status: 403, data: { error: 'Only people who can see this workflow can list them.', code: 'forbidden_role' } } })
+      people.results = PEOPLE
+      mountModal({ nodeId: 'ok', nodes: approval(), edges: [] })
+      await tick()
+      expect(q('.apf [role="alert"]').textContent).toContain('Only people who can see this workflow can list them.')
+      button('Try again').click()
+      await tick()
+      expect(qa('.apf-row')).toHaveLength(3)
+    })
+
+    it('Approve and Reject only when the server says this person may decide', async () => {
+      people.results = PEOPLE
+      const waiting = (output) => ({ ok: { status: 'waiting', output } })
+      const { run } = mountModal({
+        nodeId: 'ok', nodes: approval({ approvers: [7] }), edges: [], live: { id: 5, status: 'waiting' },
+        nodeStates: waiting({ approvers: [{ user_id: 7, email: 'ann@x.test', name: 'Ann' }], can_decide: false }),
+      })
+      await tick()
+      expect(q('[aria-label="Approval decision"]').textContent).toContain('Waiting for Ann to decide.')
+      expect(button('Approve')).toBeUndefined()
+      run.nodeStates.value = waiting({ approvers: [], can_decide: true })
+      await tick()
+      button('Approve').click()
+      expect(run.decide).toHaveBeenCalledWith('ok', 'approve')
+    })
+
+    it('with no approvers, anyone else is told the owner decides, by name', async () => {
+      people.results = PEOPLE
+      mountModal({
+        nodeId: 'ok', nodes: approval(), edges: [], live: { id: 5, status: 'waiting' }, owner: { id: 1, email: 'owner@x.test', name: 'Olga Owner' },
+        nodeStates: { ok: { status: 'waiting', output: { approvers: [], can_decide: false } } },
+      })
+      await tick()
+      expect(q('[aria-label="Approval decision"]').textContent).toContain('Waiting for the owner, Olga Owner, to decide.')
+      expect(button('Approve')).toBeUndefined()
+    })
+  })
+
+  describe('read only (a viewer or runner, ADM-1339)', () => {
+    it('a viewer sees the settings disabled, nothing is written, and the tests are hidden', async () => {
+      people.results = []
+      const { doc, history } = mountModal({ readOnly: true, canRun: false })
+      await tick()
+      expect(document.body.textContent).toContain('Your role on this workflow lets you see this step, not change it.')
+      const prompt = q('textarea[placeholder^="Extract the decisions"]')
+      expect(prompt.closest('fieldset').disabled).toBe(true)
+      await type(prompt, ['changed'])
+      expect(doc.nodes.value.find((n) => n.id === 'think').data.prompt).toBe('')
+      expect(history.past.value).toHaveLength(0)
+      expect(button('Test this step')).toBeUndefined()
+      expect(button('Run upstream (test)')).toBeUndefined()
+    })
+
+    it('a trigger address the server keeps from a viewer or runner is explained, not "save first"', async () => {
+      mountModal({ nodeId: 'hook', nodes: [{ id: 'hook', type: 'trigger.webhook', data: {} }], edges: [], readOnly: true, canRun: true })
+      await tick()
+      expect(q('.iu-empty').textContent).toBe('Only the owner and editors of this workflow see this address.')
+    })
+
+    it('a runner keeps the tests of the draft', async () => {
+      const { run } = mountModal({ readOnly: true, canRun: true })
+      await tick()
+      expect(button('Run upstream (test)')).toBeTruthy()
+      button('Test this step').click()
+      await tick()
+      expect(run.start).toHaveBeenCalledWith({ dryRun: true, untilNode: 'think', payload: { city: 'Oslo' } })
+    })
+
+    it('an approver who is a viewer can still decide: the decision sits outside the disabled settings', async () => {
+      people.results = []
+      const { run } = mountModal({
+        nodeId: 'ok', nodes: [{ id: 'ok', type: 'logic.approval', data: { message: 'Go?', approvers: [3] } }], edges: [],
+        readOnly: true, canRun: false, live: { id: 5, status: 'waiting' }, nodeStates: { ok: { status: 'waiting', output: { can_decide: true } } },
+      })
+      await tick()
+      const approve = button('Approve')
+      expect(approve.disabled).toBe(false)
+      expect(approve.closest('fieldset')).toBeNull()
+      approve.click()
+      expect(run.decide).toHaveBeenCalledWith('ok', 'approve')
+    })
   })
 
   it('a sub-workflow step waiting on its child run links to that run', async () => {

@@ -29,7 +29,7 @@
       <button type="button" class="ip-btn" @click="$emit('reload-last-run')">Retry</button>
     </p>
 
-    <div v-if="needsUpstream && parents.length" class="ip-upstream">
+    <div v-if="needsUpstream && parents.length && editor.canRun.value" class="ip-upstream">
       <p class="ip-help">Run the earlier steps as a test (no real side effects) to see their real output here.</p>
       <button
         v-for="p in parents" :key="p.id" type="button" class="ip-btn ip-btn--primary"

@@ -165,6 +165,7 @@ for (const [file, call, fn] of [
   ['ProjectStudio.vue', 'liveApi.approveMany(', 'approvePicked'],
   ['ProjectStudio.vue', 'liveApi.takeBack(', 'confirmTakeBack'],
   ['AnnotationEditor.vue', 'liveApi.takeBack(', 'takeBackLive'],
+  ['AnnotationEditor.vue', 'liveApi.sendToUnannotated(', 'sendToUnannotatedLive'],
   ['AnnotationJob.vue', 'api.reopen(', 'reopenNow'],
   ['LlmReview.vue', 'llmApi.decideMany(', 'approvePicked'],
   ['LlmReview.vue', 'llmApi.takeBack(', 'confirmTakeBack'],

@@ -164,6 +164,12 @@ const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, 
 const listenOption = computed(() => options.value.listen || null);
 // The hosted sound models that run now (backend camera_models.py), each with its price.
 const soundChoices = computed(() => listenOption.value?.choices || []);
+// Whether the chosen camera gives sound (backend VideoSource.has_sound: its audio track, its phone's microphone, or what
+// a stream heard); null while not known. A camera known to have none cannot be listened to.
+const cameraSound = computed(() => (form.value.source === 'saved' && chosenSource.value ? chosenSource.value.has_sound ?? null : null));
+const noSoundWhy = computed(() => (cameraSound.value === false
+  ? (chosenSource.value.kind === 'phone' ? 'This phone sends no sound: it has no microphone, or the browser was not allowed to use it.'
+    : "This camera's stream has no sound.") : ''));
 // The ready detector (people, vehicles, pets and 77 more, on AADML's server) and finding objects by name (SAM 3): each
 // in place of the project's model, one of the three at most (SMART_CAMERA_AI_PLAN.md Phase A).
 const detectorsOption = computed(() => options.value.detectors || null);
@@ -203,6 +209,7 @@ const startWhy = computed(() => {
   if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
   if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return 'No ready detector runs now: AADML starts them. Try again later.';
   if (form.value.listen && listenOption.value && !soundChoices.value.length) return 'No sound model runs now: AADML starts them. Try again later.';
+  if (form.value.listen && noSoundWhy.value) return noSoundWhy.value;
   if (form.value.useFind && !form.value.find.trim()) return 'Name what to find, for example "person, forklift".';
   if (form.value.useFind && findOption.value && findOption.value.available === false) return findOption.value.note || 'Finding objects by name is not offered right now.';
   if (form.value.readCodes && codesOption.value && codesOption.value.available === false) return 'Barcodes cannot be read on AADML right now. Run the model on its own, or try again later.';
@@ -493,8 +500,10 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             <input v-model="form.skipStill" type="checkbox"> <span>{{ options.skip_still_note || 'Skip still frames: a frame nearly the same as the last one answered is not sent, and is not charged.' }}</span>
           </label>
           <label v-if="listenOption" class="st-check">
-            <input v-model="form.listen" type="checkbox"> <span><strong>Listen for sounds</strong>: {{ (listenOption.sounds || []).join(', ') }}. {{ listenOption.note }}</span>
+            <input v-model="form.listen" type="checkbox" :disabled="!!noSoundWhy" data-test="st-listen"> <span><strong>Listen for sounds</strong>: {{ (listenOption.sounds || []).join(', ') }}. {{ listenOption.note }}</span>
           </label>
+          <p v-if="listenOption && form.source === 'saved' && chosenSource" class="st-help" data-test="st-camera-sound">
+            {{ noSoundWhy || (cameraSound ? 'This camera gives sound.' : 'Whether this camera gives sound is not known yet: a stream that listens finds out.') }}</p>
           <label v-if="form.listen" class="st-check">
             <input v-model="form.listenConsent" type="checkbox"> <span>{{ listenOption.consent }}</span>
           </label>

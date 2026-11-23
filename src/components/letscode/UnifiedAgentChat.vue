@@ -627,7 +627,8 @@ async function reviewChanges(answer) {
 // The Review tab's comments (ADM-1329): ONE message to the chat that made the change, the way the editor's "Ask the
 // Coding Agent about this" reaches it. That chat's tab is opened (or brought in front); a chat that cannot be opened
 // leaves the one in front to take it. The words in the box and its files stay for the person's own next message.
-async function sendReview({ conversationId = null, text = '' } = {}) {
+// `files`: pictures sent with THIS message only (the Preview tab's "Ask the agent" sends the preview's, ADM-1318).
+async function sendReview({ conversationId = null, text = '', files = [] } = {}) {
   const msg = String(text || '').trim()
   if (!msg || !props.crsReady || !agentId.value) return false
   const cid = conversationId != null && conversationId !== '' ? String(conversationId) : ''
@@ -638,10 +639,14 @@ async function sendReview({ conversationId = null, text = '' } = {}) {
   tabsStore.front = true
   const held = chat.pendingAttachments.slice()
   chat.pendingAttachments = []
+  const own = Array.isArray(files) ? files : []
   let ok = false
   try {
+    if (own.length) chat.addAttachments(own)
     ok = !!(await chat.sendMessage(msg))
   } finally {
+    // A message the chat did not take leaves no picture of its own behind in the box.
+    if (!ok && own.length) chat.pendingAttachments = chat.pendingAttachments.filter((a) => !own.includes(a.file))
     if (held.length) chat.pendingAttachments = [...held, ...chat.pendingAttachments]
   }
   if (ok) {

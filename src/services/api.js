@@ -7,6 +7,7 @@ import axios from 'axios'
 import { projectCache } from './projectCache'
 import { runProjectJob } from './projectJobs'
 import { MAX_BYTES_PER_PART } from '../utils/droppedFiles'
+import { noteApiResponse, noteApiError } from '../utils/projectOpenTiming'
 
 // Create axios instance
 // Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
@@ -79,9 +80,11 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    noteApiResponse(response.config)      // a Let's Code project's open, step by step (ADM-1326)
     return response
   },
   (error) => {
+    noteApiError(error)
     // Handle errors globally
     if (error.response) {
       // Server responded with error
@@ -1083,8 +1086,18 @@ export default {
   getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
   deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
   retryProject: (repoId, body = {}) => api.post(`/lets-code/projects/${repoId}/retry/`, body),   // { start_empty } for a lost new project
-  getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
+  // `inspect`: the IDE's Preview tab (ADM-1318): the link is to AADML's preview inspector in front of the app, whose pages
+  // report console, network and the selected element to THIS page's origin only (AADML checks it is one it runs on).
+  getProjectPreview: (repoId, port, { inspect = false } = {}) => api.get(`/lets-code/projects/${repoId}/preview/`, {
+    params: inspect ? { port, inspect: 1, origin: window.location.origin } : { port }, noCache: true }),   // { url, inspector } signed now
+  // Where an element picked in the Preview tab is written in the project (ADM-1318), for a page that does not say so:
+  // element = { tag, id, classes, text, html, page } -> { locations: [{ path, line, column, why }] best first, searched, reason? }
+  locatePreviewElement: (repoId, element) => api.post(`/lets-code/projects/${repoId}/preview/locate/`, element),
   // The project's app ports for the IDE's Preview tab (ADM-1205 phase D): { ports: [{ port, listening, started_by: 'agent' | 'you', command }] }
+  // Opening a project, measured (ADM-1326): the click's record, the browser's steps, and the hover's early wake.
+  startProjectOpen: (repoId) => api.post(`/lets-code/projects/${repoId}/open/`),   // { open_id, sandbox, prefetched }
+  reportProjectOpen: (repoId, openId, body) => api.post(`/lets-code/projects/${repoId}/open/${openId}/`, body),
+  wakeProject: (repoId) => api.post(`/lets-code/projects/${repoId}/wake/`),   // { state: started | waking | awake | none | busy }
   getProjectPorts: (repoId) => api.get(`/lets-code/projects/${repoId}/ports/`, { noCache: true }),
   // The project's environment variables (ADM-1205 phase D): names only, a value is never sent back.
   // GET -> { variables: [{ key, updated_at }] }; PUT { changes: { KEY: 'value' | null } } (null removes one).
@@ -1386,6 +1399,13 @@ export default {
   getWorkflowMcpCatalog: () => api.get('/workflow-graphs/mcp-catalog/'),
   createWorkflowGraphFromTemplate: (key, name) =>
     api.post('/workflow-graph-templates/create/', name ? { key, name } : { key }),
+  // Sharing a workflow with named people (ADM-1339). Owner only; the server refuses anyone else (403) and decides
+  // every ability. `role` is 'viewer' | 'runner' | 'editor'. People = the owner plus every share (approvers picker).
+  getWorkflowShares: (id) => api.get(`/workflow-graphs/${id}/shares/`),
+  addWorkflowShare: (id, { email, role }) => api.post(`/workflow-graphs/${id}/shares/`, { email, role }),
+  updateWorkflowShare: (id, userId, role) => api.patch(`/workflow-graphs/${id}/shares/${userId}/`, { role }),
+  removeWorkflowShare: (id, userId) => api.delete(`/workflow-graphs/${id}/shares/${userId}/`),
+  getWorkflowPeople: (id) => api.get(`/workflow-graphs/${id}/people/`),
 
   // ── Workflow operations (ADM-278 / P7) ───────────────────────────────────
   // Cross-workflow, unlike getWorkflowGraphRuns(id) which serves the builder for ONE workflow. An

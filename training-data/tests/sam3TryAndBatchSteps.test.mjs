@@ -19,6 +19,12 @@ test('Try SAM 3 offers no Start or Stop of a GPU server, and never says the wall
   assert.doesNotMatch(page, /finds the walls, windows and doors of your photo/);
 });
 
+// ADM-1344 part F: Aadml-Vision-seg-A0 and the FitMyWall geometry detector are hosted like SAM 3, but they answer
+// walls (call "walls"): their Try intro says what they mark, never "finds what you name".
+test('a hosted walls model\'s Try says what it marks; only a segment model finds what you name', () => {
+  assert.match(page, /findsByName \? `\$\{trying\.name\} finds what you name in your photo\.` : `\$\{trying\.name\} marks \$\{trying\.marks \|\| 'walls, windows and doors'\} in your photo\.`/);
+});
+
 test('the person names what SAM 3 finds, and those names are sent with the photo', () => {
   // Nothing is filled in (ADM-1182, 2026-11-19): the person names every thing to find.
   assert.match(page, /const classes = ref\(\[\]\);/);

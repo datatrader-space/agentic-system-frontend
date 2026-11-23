@@ -81,6 +81,8 @@ const props = defineProps({
   proposal: { type: Object, default: null },
   // While the page is loading or failed to load, nothing on the canvas may be edited.
   readOnly: { type: Boolean, default: false },
+  // False for a viewer (ADM-1339): no "Test up to here" on a step. The server refuses a viewer's run anyway.
+  canRun: { type: Boolean, default: true },
 })
 const emit = defineEmits(['open', 'pick', 'test-until', 'rename', 'duplicate', 'remove', 'announce'])
 
@@ -130,6 +132,7 @@ const nodeViews = computed(() => {
       hunk: hunkById.value[n.id] ?? null,
       ghost,
       readOnly: props.readOnly,
+      canRun: props.canRun,
       running,
       connected: connected[n.id] || new Set(),
     }
@@ -206,7 +209,7 @@ provide(WF_CANVAS, {
   },
   open: (id) => emit('open', id),
   pick: (ctx) => { if (!props.readOnly) emit('pick', ctx) },
-  testUntil: (id) => emit('test-until', id),
+  testUntil: (id) => { if (props.canRun) emit('test-until', id) },
   rename: (id) => emit('rename', id),
   duplicate: (id) => emit('duplicate', id),
   remove: (target) => { if (!props.readOnly) emit('remove', target) },

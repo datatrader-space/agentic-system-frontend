@@ -273,6 +273,10 @@ export function locationsOf(result) {
     : { uri: l.uri, range: l.range })).filter((l) => l.uri && l.range)
 }
 
+// A completion whose text is a snippet (LSP InsertTextFormat 2: "${1:name}" places to fill, Tab to the next) is inserted
+// as one by Monaco (CompletionItemInsertTextRule.InsertAsSnippet; ADM-1322). The client says it supports snippets.
+const SNIPPET_FORMAT = 2
+const INSERT_AS_SNIPPET = 4
 /** LSP CompletionItemKind → Monaco's (they are numbered differently). */
 const KIND = { 1: 18, 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 7, 9: 8, 10: 9, 11: 12, 12: 13, 13: 15, 14: 17, 15: 27,
   16: 19, 17: 20, 18: 21, 19: 23, 20: 16, 21: 14, 22: 6, 23: 10, 24: 11, 25: 24 }
@@ -285,6 +289,7 @@ export function completionsOf(result, wordRange) {
     return { label: it.label, kind: KIND[it.kind] ?? 18, detail: it.detail || '',
       documentation: doc ? (typeof doc === 'string' ? doc : { value: doc.value }) : undefined,
       insertText: (edit && edit.newText) || it.insertText || it.label, range,
+      ...(it.insertTextFormat === SNIPPET_FORMAT ? { insertTextRules: INSERT_AS_SNIPPET } : {}),
       sortText: it.sortText, filterText: it.filterText }
   })
 }
@@ -399,7 +404,9 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
           textDocument: {
             synchronization: { didSave: true, dynamicRegistration: false },
             hover: { contentFormat: ['markdown', 'plaintext'] },
-            completion: { completionItem: { snippetSupport: false, documentationFormat: ['markdown', 'plaintext'] } },
+            completion: { completionItem: { snippetSupport: true, documentationFormat: ['markdown', 'plaintext'] } },
+            // The Outline view and the breadcrumbs (ADM-1322): a tree of the file's symbols.
+            documentSymbol: { hierarchicalDocumentSymbolSupport: true },
             signatureHelp: { signatureInformation: { documentationFormat: ['markdown', 'plaintext'] } },
             definition: { linkSupport: true }, references: {},
             publishDiagnostics: { relatedInformation: false },
@@ -1001,6 +1008,28 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
     }
   }
 
+  // ── the Outline view and the breadcrumbs (ADM-1322) ──
+  /** The symbols of `path`, a file open in a tab, from its language server: `{ state: 'ready', result }` (the server's
+   *  answer as LSP gives it, see utils/editorSymbols), `{ state: 'starting' }` while its server starts or has not opened
+   *  the file yet, or `{ state: 'none' }` when no server answers for it: none for its language, a server without
+   *  symbols, one that stopped, or an error. */
+  async function documentSymbols(path) {
+    const lang = serverFor(path)
+    const entry = lang && conns[lang]
+    const s = lang && servers[lang]
+    if (!lang) return { state: 'none' }
+    if (!entry || !entry.ready) return { state: s && ['error', 'closed'].includes(s.state) ? 'none' : 'starting' }
+    if (!entry.caps.documentSymbolProvider) return { state: 'none' }
+    if (!entry.opened.has(path)) return { state: 'starting' }
+    flush(entry)
+    try {
+      const r = await entry.conn.request('textDocument/documentSymbol', { textDocument: { uri: toUri(entry.root, path) } })
+      return { state: 'ready', result: Array.isArray(r) ? r : [] }
+    } catch {
+      return { state: 'none' }
+    }
+  }
+
   // ── the editor binds itself ──
   function bind(editorCtx) {
     unbind()
@@ -1085,7 +1114,7 @@ export function createLanguageServers({ systemId, repoId, Connection = LspConnec
   }
 
   return { servers, problems, counts, references, panel, checking, checkError, check, open, bind, unbind, reset, dispose,
-    canFormat, formatEdits,
+    canFormat, formatEdits, documentSymbols,
     // for tests
     _conns: conns, _diagnostics: diagnostics, _changed: changed, _flush: flush, _syncDocs: syncDocs,
     _applyWorkspaceEdit: applyWorkspaceEdit }

@@ -133,11 +133,13 @@
 .wfb-toolbar__sep{width:1px;height:20px;margin:0 4px;background:var(--wf-line-2)}
 .wfb-name{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:320px;min-height:32px;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--wf-ink);font-size:14px!important;font-weight:600!important}
 .wfb-name:hover:not(:disabled){background:var(--wf-hover)}
+.wfb-name.is-static:hover{background:none}
 .wfb-name__text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wfb-name svg{width:13px;height:13px;color:var(--wf-muted)}
 .wfb-name-input{width:min(280px,100%);min-width:80px;min-height:32px;padding:4px 8px;border:1px solid var(--wf-focus);border-radius:8px;background:var(--wf-surface);color:var(--wf-ink);font:600 14px var(--vm-font-sans,Inter,system-ui,sans-serif)}
 .wfb-pill{flex-shrink:0;padding:3px 8px;border:1px solid var(--wf-line-2);border-radius:999px;background:var(--wf-surface-soft);color:var(--wf-ink-soft);font-size:11px;font-weight:600;white-space:nowrap}
 .wfb-pill.is-published{background:var(--wf-success-soft);border-color:var(--wf-success-line);color:var(--wf-success-ink)}
+.wfb-pill.is-role{background:var(--wf-accent-soft);border-color:var(--wf-accent-line);color:var(--wf-accent-ink)}
 .wfb-pill.is-paused{background:var(--wf-warn-soft);border-color:var(--wf-warn-line);color:var(--wf-warn-ink)}
 .wfb-save-state{display:inline-flex;align-items:center;gap:5px;min-width:0;min-height:32px;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--wf-muted);font-size:12px!important;white-space:nowrap}
 .wfb-save-state.is-dirty{color:var(--wf-warn-ink);font-weight:550!important}
@@ -374,7 +376,7 @@
   .wfb-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 .wfb-root.is-compact .wfb-stage__toolbar{top:8px;left:8px;right:8px}
-.wfb-root.is-compact .wfb-pill{display:none}
+.wfb-root.is-compact .wfb-pill:not(.is-role){display:none}
 .wfb-root.is-compact .wfb-save-state__text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .wfb-root.is-compact .wfb-name{max-width:none;flex:1 1 auto}
 .wfb-root.is-compact .wfb-console__counts,.wfb-root.is-compact .wfb-console__toggle kbd{display:none}

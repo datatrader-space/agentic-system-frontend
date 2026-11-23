@@ -27,19 +27,22 @@ test('the card asks for a model, a typed class name and an optional description'
 
 test('the typed class is sent instead of the project classes, and the API says so', () => {
   assert.match(editor, /runDetect\(pickedSource\.value\.id,null,\{name:findClass\.value,description:findDescription\.value\.trim\(\)\}\)/);
-  assert.match(editor, /liveApi\.detect\(props\.state\.ref,it\.id,id,find\?null:askedClasses\(props\.state\.ref,classNames\.value\),find\)/);
+  // Label Assist (LABEL_EDITOR_TOOLS_PLAN.md 2.3) asks the classes ticked in its dialog through the same call.
+  assert.match(editor, /liveApi\.detect\(props\.state\.ref,it\.id,id,find\?null:\(classes\|\|askedClasses\(props\.state\.ref,classNames\.value\)\),find\)/);
   assert.match(api, /\.\.\.\(find \? \{ find \} : classes \? \{ classes \} : \{\}\)/);
   // The poll for a model that is being started keeps asking for the same class.
-  assert.match(editor, /pollTimer=setTimeout\(\(\)=>runDetect\(id,refine,find\),4000\)/);
+  assert.match(editor, /pollTimer=setTimeout\(\(\)=>runDetect\(id,refine,find,classes\),4000\)/);
 });
 
 test('what was found is reviewed on the photo with a confidence slider before anything is added', () => {
-  assert.match(editor, /Found \$\{found\.shapes\.length\} object\$\{found\.shapes\.length===1\?'':'s'\} matching "\$\{found\.cls\}"/);
-  assert.match(editor, /No object matching "\$\{found\.cls\}" was found/);
+  // The count is of the way shown (contract C3: an answer carries its polygons and its masks).
+  assert.match(editor, /Found \$\{n\} object\$\{n===1\?'':'s'\} matching "\$\{found\.value\.cls\}"/);
+  assert.match(editor, /No object matching "\$\{found\.value\.cls\}" was found/);
   assert.match(editor, /<label v-if="foundScored" class="find-threshold">/);
   assert.match(editor, /x\.score\*100>=findThreshold\.value/);
-  assert.match(editor, /<g v-if="found" class="find-preview" pointer-events="none"><polygon v-for="shape in foundKept"/);
-  assert.match(editor, /<UiButton @click="found=null">Back<\/UiButton>/);
+  assert.match(editor, /<g v-if="found" class="find-preview" pointer-events="none"><polygon v-for="shape in foundPolygons"/);
+  assert.match(editor, /const foundPolygons=computed\(\(\)=>foundKept\.value\.filter\(x=>x\.points\)\)/);
+  assert.match(editor, /<UiButton v-else @click="found=null">Back<\/UiButton>/);
   assert.match(editor, /`Save \(\$\{foundKept\.length\}\)`/);
 });
 
@@ -48,7 +51,9 @@ test('Save adds the kept shapes beside what is drawn, as one Undo step, and adds
   assert.doesNotMatch(editor, /What is drawn now is thrown away and replaced/);
   // The new class takes the next palette colour no class of the project has (live, 2026-11-19: "sofa" got the red of "wall").
   assert.match(editor, /liveApi\.addClass\(props\.state\.ref,\{name:f\.cls,color:nextClassColor\(props\.state\.classes\),description:findDescription\.value\.trim\(\)\}\)/);
-  assert.match(editor, /liveApi\.addClass\(props\.state\.ref,\{name:editorClassName\.value,color:nextClassColor\(props\.state\.classes\)\}\)/);
+  // The editor's "Add class" and Label Assist's add a class through one function.
+  assert.match(editor, /async function addProjectClass\(name\)\{const body=await liveApi\.addClass\(props\.state\.ref,\{name,color:nextClassColor\(props\.state\.classes\)\}\)/);
+  assert.match(editor, /kind\.value=await addProjectClass\(editorClassName\.value\)/);
   // A class that could not be added adds nothing.
   assert.match(editor, /was not added to the project's classes, so nothing was added/);
 });

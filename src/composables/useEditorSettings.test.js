@@ -29,6 +29,14 @@ describe('useEditorSettings', () => {
     expect(clean({ formatOnSave: 'yes' }).formatOnSave).toBe(false)
   })
 
+  it('autosave and vim keys are off unless chosen, and only allowed values are kept (ADM-1322)', () => {
+    expect([DEFAULTS.autoSave, DEFAULTS.autoSaveDelay, DEFAULTS.vim]).toEqual(['off', 1000, false])
+    expect(clean({ autoSave: 'onFocusChange', autoSaveDelay: 2000, vim: true }))
+      .toMatchObject({ autoSave: 'onFocusChange', autoSaveDelay: 2000, vim: true })
+    expect(clean({ autoSave: 'always', autoSaveDelay: 7, vim: 'yes' }))
+      .toMatchObject({ autoSave: 'off', autoSaveDelay: 1000, vim: false })
+  })
+
   it('reset restores the defaults', () => {
     const { settings, reset } = useEditorSettings()
     settings.lineNumbers = 'off'

@@ -33,7 +33,8 @@ const tick = async () => { await flushPromises(); await nextTick(); await new Pr
 
 const page = (rows, extra = {}) => ({ data: { count: rows.length, next: null, results: rows, ...extra } })
 const graph = (id, over = {}) => ({
-  id, name: `Flow ${id}`, status: 'draft', is_active: true, node_count: 2, run_count: 1, description: '', last_run: null, ...over,
+  id, name: `Flow ${id}`, status: 'draft', is_active: true, node_count: 2, run_count: 1, description: '', last_run: null,
+  my_role: 'owner', owner: { id: 1, email: 'me@x.test', name: 'Me' }, ...over,
 })
 
 let wrapper
@@ -111,6 +112,56 @@ describe('WorkflowsList — archive names a real control (F16)', () => {
     await tick()
     expect(api.saveWorkflowGraph).toHaveBeenCalledWith(3, { is_active: true })
     expect(w.findAll('article.wf-card')[1].find('[aria-label="Archive Flow 3"]').exists()).toBe(true)
+  })
+})
+
+describe('WorkflowsList — shared with me (ADM-1339)', () => {
+  const shared = (id, role) => graph(id, { my_role: role, owner: { id: 5, email: 'sam@x.test', name: 'Sam Lee' } })
+
+  it('lists owned and shared workflows by default, and narrows with ?shared=mine or ?shared=me', async () => {
+    const w = mountPage()
+    await tick()
+    expect(api.getWorkflowGraphs).toHaveBeenLastCalledWith({ limit: 30, offset: 0 })
+    const radios = w.findAll('input[name="wf-scope"]')
+    expect(radios.map((r) => r.element.closest('label').textContent.trim())).toEqual(['All', 'Mine', 'Shared with me'])
+    api.getWorkflowGraphs.mockResolvedValue(page([shared(4, 'runner')]))
+    await radios[2].setValue(true)
+    await tick()
+    expect(api.getWorkflowGraphs).toHaveBeenLastCalledWith({ limit: 30, offset: 0, shared: 'me' })
+    await radios[1].setValue(true)
+    await tick()
+    expect(api.getWorkflowGraphs).toHaveBeenLastCalledWith({ limit: 30, offset: 0, shared: 'mine' })
+  })
+
+  it('a shared card names the owner and my role, and offers no owner-only action', async () => {
+    api.getWorkflowGraphs.mockResolvedValue(page([graph(1), shared(4, 'runner'), shared(6, 'viewer')]))
+    const w = mountPage()
+    await tick()
+    const cards = w.findAll('article.wf-card')
+    expect(cards[0].find('.wf-card__shared').exists()).toBe(false)
+    expect(cards[1].find('.wf-card__shared').text()).toBe('Shared by Sam LeeRunner')
+    expect(cards[2].find('.wf-card__shared').text()).toContain('Viewer')
+    expect(cards[1].findAll('.wf-card__actions button').map((b) => b.attributes('aria-label'))).toEqual(['Duplicate Flow 4', 'Export Flow 4'])
+  })
+
+  it('an archived shared workflow offers no Restore; a role the page does not know is read as viewer', async () => {
+    api.getWorkflowGraphs.mockResolvedValue(page([shared(4, 'editor'), graph(7, { is_active: false, my_role: 'superuser' })]))
+    const w = mountPage()
+    await tick()
+    const cards = w.findAll('article.wf-card')
+    expect(cards[0].find('[aria-label="Archive Flow 4"]').exists()).toBe(false)
+    expect(cards[1].find('[aria-label="Restore Flow 7"]').exists()).toBe(false)
+    expect(cards[1].find('.wf-chip--role').text()).toBe('Viewer')
+  })
+
+  it('an empty "Shared with me" says so, without offering to create a workflow', async () => {
+    const w = mountPage()
+    await tick()
+    api.getWorkflowGraphs.mockResolvedValue(page([]))
+    await w.findAll('input[name="wf-scope"]')[2].setValue(true)
+    await tick()
+    expect(w.text()).toContain('Nothing is shared with you yet')
+    expect(w.text()).not.toContain('Create your first workflow')
   })
 })
 

@@ -24,7 +24,7 @@
         <input :id="`${uid}-manual`" ref="manualEl" class="iu-manual" type="text" readonly :value="address" @focus="$event.target.select()">
       </div>
     </template>
-    <p v-else class="iu-empty">Save the workflow to get the address.</p>
+    <p v-else class="iu-empty">{{ emptyText }}</p>
   </div>
 </template>
 
@@ -37,6 +37,8 @@ const props = defineProps({
   path: { type: String, default: '' },
   label: { type: String, default: 'Address' },
   method: { type: String, default: '' },
+  // Said when there is no address: before the first save, or (ADM-1339) when the person's role is not shown it.
+  emptyText: { type: String, default: 'Save the workflow to get the address.' },
 })
 const uid = `iu-${useId()}`
 const state = ref('idle')          // idle | copied | failed

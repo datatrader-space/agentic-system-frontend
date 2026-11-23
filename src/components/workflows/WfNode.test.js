@@ -123,4 +123,14 @@ describe('WfNode', () => {
     expect(ctx.remove).toHaveBeenCalledWith({ nodeIds: ['n1'] })
     expect(bar.findAll('button').every((b) => b.attributes('aria-label'))).toBe(true)
   })
+
+  it('read only (ADM-1339): a runner gets Open and Test up to here, a viewer only Open; no + and no edit', async () => {
+    for (const [canRun, labels] of [[true, ['Open Fetch', 'Test up to Fetch']], [false, ['Open Fetch']]]) {
+      const { w } = card({ type: 'action.http', data: { label: 'Fetch', url: 'x' } }, ctxWith({ readOnly: true, canRun }))
+      await w.find('.wf-node').trigger('mouseenter')
+      expect(w.find('.vf-toolbar').findAll('button').map((b) => b.attributes('aria-label'))).toEqual(labels)
+      expect(w.findAll('.wf-plus')).toHaveLength(0)
+      w.unmount()
+    }
+  })
 })

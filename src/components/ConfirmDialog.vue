@@ -2,6 +2,11 @@
   Global confirm dialog host. Mounted ONCE in app.vue. Reads the shared
   confirmState singleton from useConfirm.js and resolves the pending promise
   when the user chooses. Replaces every native window.confirm() in the app.
+
+  It may be asked from inside an open AppDialog or AppSheet (Reka). Those keep the page behind them inert (body
+  pointer-events: none) and trap focus, so this host takes pointer events back for itself and joins Reka's focus-scope
+  stack (FocusScope, trapped): the dialog underneath pauses while the question is open and gets focus back after.
+  The dialog underneath also ignores a press in here (appOverlayFocus onInteractOutside).
 -->
 <template>
   <Teleport to="body">
@@ -9,13 +14,14 @@
       <div
         v-if="state.open"
         class="fixed inset-0 flex items-center justify-center p-4"
-        style="z-index: 10000"
+        style="z-index: 10000; pointer-events: auto"
         @keydown.esc.prevent="cancel"
       >
         <!-- backdrop -->
         <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-[1px]" @click="cancel"></div>
 
         <!-- dialog -->
+        <component :is="focusScope || Passthrough" v-bind="focusScope ? { asChild: true, trapped: true, loop: true } : {}" @mount-auto-focus.prevent>
         <div
           ref="panel"
           class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
@@ -65,13 +71,25 @@
             </button>
           </div>
         </div>
+        </component>
       </div>
     </Transition>
   </Teleport>
 </template>
 
 <script setup>
-import { watch, nextTick, ref, onMounted, onBeforeUnmount } from 'vue'
+import { watch, nextTick, ref, shallowRef, onMounted, onBeforeUnmount } from 'vue'
+// Reka's FocusScope joins the trap of an AppDialog/AppSheet under the question. It is fetched after the page has
+// loaded (and at the latest when a confirm opens), never WITH the page: this host is mounted on EVERY page, and a static
+// import put the whole Reka chunk (42 kB gzip) in the first load, over the 200 kB budget (CI, 2026-11-20). The question
+// always shows at once; if the scope arrives while it is open, the panel is drawn again inside it and focus is put back.
+const focusScope = shallowRef(null)
+// Until then the panel renders as itself, with no wrapper element (the layer stays its direct parent).
+const Passthrough = (_props, { slots }) => slots.default?.()
+function loadFocusScope() {
+  if (focusScope.value) return
+  import('reka-ui').then((m) => { focusScope.value = m.FocusScope }).catch(() => { /* the plain wrapper stays */ })
+}
 import { confirmState, _settleConfirm } from '../composables/useConfirm'
 
 const state = confirmState
@@ -96,15 +114,25 @@ function onKey(e) {
 
 // Focus a button when the dialog opens (keyboard + a11y). A destructive dialog starts on Cancel, so
 // a stray Enter can never be the thing that deletes.
-watch(() => state.open, async (open) => {
+async function focusFirst() {
+  await nextTick()
+  const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
+  if (first) first.focus()
+}
+watch(() => state.open, (open) => {
   if (open) {
-    await nextTick()
-    const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
-    if (first) first.focus()
+    loadFocusScope()
+    focusFirst()
   }
 })
+// The scope arriving while a question is open draws the panel again: its buttons are new elements, so focus goes back.
+watch(focusScope, () => { if (state.open) focusFirst() })
 
-onMounted(() => window.addEventListener('keydown', onKey))
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+  // After the page is up, so it is never part of the first load, and ready before anyone asks a question.
+  setTimeout(loadFocusScope, 0)
+})
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 

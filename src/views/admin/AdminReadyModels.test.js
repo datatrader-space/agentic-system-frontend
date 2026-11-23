@@ -201,6 +201,29 @@ describe('AdminReadyModels', () => {
     expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-remove"]').exists()).toBe(false)
   })
 
+  // ADM-1344 part F: the two published models AADML hosts (kind walls) say where their files stand and can have them
+  // made again, and are never removed (they are no camera models).
+  it('shows a hosted walls model\'s files and offers to make them ready while they are not', async () => {
+    const walls = (over = {}) => sam({ key: 'segformer-b0', name: 'Aadml-Vision-seg-A0', kind: 'walls',
+      kind_label: 'Semantic segmentation: marks walls, windows and doors (fmw-predict.v1)',
+      licence: 'NVIDIA research licence: research or evaluation use only', gpu_gb: 0, files_ready: false,
+      files_text: 'Its files are being made ready by AADML.', ...over })
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), walls()], machines: fitted, kinds } })
+    await render()
+    const card = w.get('[data-test="rm-model-segformer-b0"]')
+    expect(card.get('[data-test="rm-files"]').text()).toBe('Its files are being made ready by AADML.')
+    expect(card.get('[data-test="rm-gpu"]').text()).toBe('None: it runs on a CPU too')
+    expect(card.find('[data-test="rm-fetch"]').exists()).toBe(true)
+    expect(card.find('[data-test="rm-remove"]').exists()).toBe(false)
+    expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-files"]').exists()).toBe(false)
+    w.unmount()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [walls({ files_ready: true, files_text: '' })], machines: fitted, kinds } })
+    await render()
+    const ready = w.get('[data-test="rm-model-segformer-b0"]')
+    expect(ready.get('[data-test="rm-files"]').text()).toBe('Ready')
+    expect(ready.find('[data-test="rm-fetch"]').exists()).toBe(false)
+  })
+
   it('adds a camera model with the right call, checks the form first and shows the server\'s refusal', async () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds } })
     api.readyModelCameraAdd.mockRejectedValueOnce({ response: { status: 400, data: {

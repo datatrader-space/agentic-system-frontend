@@ -288,3 +288,34 @@ describe('useWorkflowDoc', () => {
     expect(count()).toBe(1)
   })
 })
+
+describe('useWorkflowDoc: the role the server sends (ADM-1339)', () => {
+  const withGraph = (extra) => makeApi({
+    getWorkflowGraphBundle: vi.fn().mockResolvedValue({ data: { graph: { ...structuredClone(GRAPH), ...extra }, agents: [], all_graphs: [], scripts: [] } }),
+  })
+
+  it('keeps my_role and the owner from the load', async () => {
+    const { doc } = setup(withGraph({ my_role: 'runner', owner: { id: 3, email: 'o@x.test', name: 'Olga' } }))
+    await doc.load()
+    expect(doc.meta.myRole).toBe('runner')
+    expect(doc.meta.owner).toEqual({ id: 3, email: 'o@x.test', name: 'Olga' })
+  })
+
+  it('reads a missing or unknown role as viewer (fail closed: the page offers less, never more)', async () => {
+    for (const extra of [{}, { my_role: 'admin' }]) {
+      const { doc } = setup(withGraph(extra))
+      await doc.load()
+      expect(doc.meta.myRole).toBe('viewer')
+    }
+  })
+
+  it('a save the server refuses for the role shows the server sentence', async () => {
+    const api = withGraph({ my_role: 'editor' })
+    api.saveWorkflowGraph = vi.fn().mockRejectedValue({ response: { status: 403, data: { error: 'Only editors and the owner can change this workflow.', code: 'forbidden_role', required: 'edit' } } })
+    const { doc } = setup(api)
+    await doc.load()
+    doc.applyOps([{ op: 'set_name', name: 'Renamed' }])
+    expect(await doc.save()).toBe(false)
+    expect(notify.error).toHaveBeenCalledWith('Only editors and the owner can change this workflow.')
+  })
+})

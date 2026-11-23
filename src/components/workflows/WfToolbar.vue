@@ -5,6 +5,10 @@
     right   Test, Run / Stop, Publish and the menu (Save, Versions, Validate, Outline, Shortcuts, Help, ...)
   At phone width (`compact`) the row keeps back, the name, Run / Stop and the menu; everything else moves into the
   menu, so nothing is lost and the canvas still fills the screen.
+
+  `role` = the person's role on the workflow (ADM-1339, utils/workflowAccess): a control the role cannot use is not
+  shown (a viewer sees no edit, Test or Run; a runner sees Test and Run; only the owner sees Share and Archive). The
+  server refuses those requests anyway. A shared workflow shows the person's role beside its status.
 -->
 <template>
   <div class="wfb-toolbar" role="toolbar" aria-label="Workflow">
@@ -26,40 +30,44 @@
         @keydown.esc.prevent.stop="cancel"
         @blur="commit"
       />
-      <button v-else type="button" class="wfb-name" :disabled="disabled" title="Rename workflow (F2)" @click="startRename">
+      <button v-else-if="can.edit" type="button" class="wfb-name" :disabled="disabled" title="Rename workflow (F2)" @click="startRename">
         <span class="wfb-name__text" translate="no">{{ name || 'Untitled workflow' }}</span>
         <Icon icon="lucide:pencil" aria-hidden="true" />
         <span class="wf-sr">Rename workflow</span>
       </button>
+      <span v-else class="wfb-name is-static"><span class="wfb-name__text" translate="no">{{ name || 'Untitled workflow' }}</span></span>
       <span v-if="statusText" class="wfb-pill" :class="`is-${status}`">{{ statusText }}</span>
-      <button v-if="saveState === 'dirty'" type="button" class="wfb-save-state is-dirty" :aria-label="`Unsaved changes. Save (${mod}+S)`" :title="`Save (${mod}+S)`" @click="emit('save')">
+      <span v-if="roleText" class="wfb-pill is-role" :title="roleTitle"><span class="wf-sr">Your role: </span>{{ roleText }}</span>
+      <button v-if="can.edit && saveState === 'dirty'" type="button" class="wfb-save-state is-dirty" :aria-label="`Unsaved changes. Save (${mod}+S)`" :title="`Save (${mod}+S)`" @click="emit('save')">
         <Icon icon="lucide:circle-dot" aria-hidden="true" /><span class="wfb-save-state__text">Unsaved changes</span>
       </button>
-      <span v-else class="wfb-save-state" role="status">
+      <span v-else-if="can.edit" class="wfb-save-state" role="status">
         <span class="wfb-save-state__text">{{ SAVE_TEXT[saveState] }}</span>
       </span>
     </div>
 
     <div v-if="!compact" class="wfb-toolbar__centre">
-      <button type="button" class="wfb-icon-btn" :disabled="disabled" aria-label="Add a step" title="Add a step (N)" @click="emit('add')"><Icon icon="lucide:plus" aria-hidden="true" /></button>
-      <span class="wfb-toolbar__sep" aria-hidden="true"></span>
-      <button type="button" class="wfb-icon-btn" :disabled="disabled || !canUndo" :aria-label="undoLabel ? `Undo ${undoLabel}` : 'Undo'" :title="`Undo (${mod}+Z)`" @click="emit('undo')"><Icon icon="lucide:undo-2" aria-hidden="true" /></button>
-      <button type="button" class="wfb-icon-btn" :disabled="disabled || !canRedo" :aria-label="redoLabel ? `Redo ${redoLabel}` : 'Redo'" :title="`Redo (${mod}+Shift+Z)`" @click="emit('redo')"><Icon icon="lucide:redo-2" aria-hidden="true" /></button>
-      <button type="button" class="wfb-icon-btn" :disabled="disabled" aria-label="Tidy up" title="Tidy up (Shift+Alt+T)" @click="emit('tidy')"><Icon icon="lucide:network" aria-hidden="true" /></button>
+      <template v-if="can.edit">
+        <button type="button" class="wfb-icon-btn" :disabled="disabled" aria-label="Add a step" title="Add a step (N)" @click="emit('add')"><Icon icon="lucide:plus" aria-hidden="true" /></button>
+        <span class="wfb-toolbar__sep" aria-hidden="true"></span>
+        <button type="button" class="wfb-icon-btn" :disabled="disabled || !canUndo" :aria-label="undoLabel ? `Undo ${undoLabel}` : 'Undo'" :title="`Undo (${mod}+Z)`" @click="emit('undo')"><Icon icon="lucide:undo-2" aria-hidden="true" /></button>
+        <button type="button" class="wfb-icon-btn" :disabled="disabled || !canRedo" :aria-label="redoLabel ? `Redo ${redoLabel}` : 'Redo'" :title="`Redo (${mod}+Shift+Z)`" @click="emit('redo')"><Icon icon="lucide:redo-2" aria-hidden="true" /></button>
+        <button type="button" class="wfb-icon-btn" :disabled="disabled" aria-label="Tidy up" title="Tidy up (Shift+Alt+T)" @click="emit('tidy')"><Icon icon="lucide:network" aria-hidden="true" /></button>
+      </template>
       <button type="button" class="wfb-icon-btn" :disabled="loading" aria-label="Fit the workflow in view" title="Fit (1)" @click="emit('fit')"><Icon icon="lucide:scan" aria-hidden="true" /></button>
     </div>
 
     <div class="wfb-toolbar__right">
-      <button v-if="!compact" type="button" class="wfb-btn" :disabled="disabled || running" title="Test the draft without real side effects" @click="emit('test')">
+      <button v-if="!compact && can.run" type="button" class="wfb-btn" :disabled="disabled || running" title="Test the draft without real side effects" @click="emit('test')">
         <Icon icon="lucide:flask-conical" aria-hidden="true" />Test
       </button>
-      <button v-if="!running" type="button" class="wfb-btn is-primary" :disabled="disabled" :title="`Run (${mod}+Enter)`" @click="emit('run')">
+      <button v-if="can.run && !running" type="button" class="wfb-btn is-primary" :disabled="disabled" :title="`Run (${mod}+Enter)`" @click="emit('run')">
         <Icon icon="lucide:play" aria-hidden="true" />Run
       </button>
-      <button v-else type="button" class="wfb-btn is-stop" :disabled="stopping" @click="emit('stop')">
+      <button v-else-if="can.run" type="button" class="wfb-btn is-stop" :disabled="stopping" @click="emit('stop')">
         <Icon icon="lucide:square" aria-hidden="true" />{{ stopping ? 'Stopping…' : 'Stop' }}
       </button>
-      <button v-if="!compact" type="button" class="wfb-btn" :disabled="disabled || running" title="Publish the saved draft as the version triggers run" @click="emit('publish')">
+      <button v-if="!compact && can.edit" type="button" class="wfb-btn" :disabled="disabled || running" title="Publish the saved draft as the version triggers run" @click="emit('publish')">
         <Icon icon="lucide:upload" aria-hidden="true" />Publish
       </button>
       <DropdownMenuRoot v-model:open="menuOpen">
@@ -69,28 +77,37 @@
         <DropdownMenuPortal>
           <DropdownMenuContent class="wfb-root wfb-layer wfb-menu" align="end" :side-offset="6">
             <template v-if="compact">
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('add')"><Icon icon="lucide:plus" aria-hidden="true" />Add a step</DropdownMenuItem>
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !canUndo" @select="emit('undo')"><Icon icon="lucide:undo-2" aria-hidden="true" />Undo</DropdownMenuItem>
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !canRedo" @select="emit('redo')"><Icon icon="lucide:redo-2" aria-hidden="true" />Redo</DropdownMenuItem>
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('tidy')"><Icon icon="lucide:network" aria-hidden="true" />Tidy up</DropdownMenuItem>
+              <template v-if="can.edit">
+                <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('add')"><Icon icon="lucide:plus" aria-hidden="true" />Add a step</DropdownMenuItem>
+                <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !canUndo" @select="emit('undo')"><Icon icon="lucide:undo-2" aria-hidden="true" />Undo</DropdownMenuItem>
+                <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !canRedo" @select="emit('redo')"><Icon icon="lucide:redo-2" aria-hidden="true" />Redo</DropdownMenuItem>
+                <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('tidy')"><Icon icon="lucide:network" aria-hidden="true" />Tidy up</DropdownMenuItem>
+              </template>
               <DropdownMenuItem class="wfb-menu__item" :disabled="loading" @select="emit('fit')"><Icon icon="lucide:scan" aria-hidden="true" />Fit the workflow</DropdownMenuItem>
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || running" @select="emit('test')"><Icon icon="lucide:flask-conical" aria-hidden="true" />Test</DropdownMenuItem>
-              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || running" @select="emit('publish')"><Icon icon="lucide:upload" aria-hidden="true" />Publish</DropdownMenuItem>
+              <DropdownMenuItem v-if="can.run" class="wfb-menu__item" :disabled="disabled || running" @select="emit('test')"><Icon icon="lucide:flask-conical" aria-hidden="true" />Test</DropdownMenuItem>
+              <DropdownMenuItem v-if="can.edit" class="wfb-menu__item" :disabled="disabled || running" @select="emit('publish')"><Icon icon="lucide:upload" aria-hidden="true" />Publish</DropdownMenuItem>
               <DropdownMenuSeparator class="wfb-menu__sep" />
             </template>
-            <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !dirty" @select="emit('save')"><Icon icon="lucide:save" aria-hidden="true" />Save<kbd>{{ mod }}+S</kbd></DropdownMenuItem>
-            <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !dirty" @select="emit('discard')"><Icon icon="lucide:rotate-ccw" aria-hidden="true" />Discard changes</DropdownMenuItem>
-            <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('validate')"><Icon icon="lucide:shield-check" aria-hidden="true" />Validate</DropdownMenuItem>
+            <template v-if="can.edit">
+              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !dirty" @select="emit('save')"><Icon icon="lucide:save" aria-hidden="true" />Save<kbd>{{ mod }}+S</kbd></DropdownMenuItem>
+              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled || !dirty" @select="emit('discard')"><Icon icon="lucide:rotate-ccw" aria-hidden="true" />Discard changes</DropdownMenuItem>
+              <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('validate')"><Icon icon="lucide:shield-check" aria-hidden="true" />Validate</DropdownMenuItem>
+            </template>
             <DropdownMenuItem class="wfb-menu__item" :disabled="loading" @select="emit('versions')"><Icon icon="lucide:history" aria-hidden="true" />Versions</DropdownMenuItem>
-            <DropdownMenuItem v-if="status === 'published'" class="wfb-menu__item" :disabled="disabled" @select="emit('pause')"><Icon icon="lucide:pause" aria-hidden="true" />Pause triggers</DropdownMenuItem>
-            <DropdownMenuItem v-else-if="status === 'paused'" class="wfb-menu__item" :disabled="disabled" @select="emit('resume')"><Icon icon="lucide:play" aria-hidden="true" />Resume triggers</DropdownMenuItem>
+            <template v-if="can.edit">
+              <DropdownMenuItem v-if="status === 'published'" class="wfb-menu__item" :disabled="disabled" @select="emit('pause')"><Icon icon="lucide:pause" aria-hidden="true" />Pause triggers</DropdownMenuItem>
+              <DropdownMenuItem v-else-if="status === 'paused'" class="wfb-menu__item" :disabled="disabled" @select="emit('resume')"><Icon icon="lucide:play" aria-hidden="true" />Resume triggers</DropdownMenuItem>
+            </template>
+            <DropdownMenuItem v-if="can.share" class="wfb-menu__item" :disabled="loading" @select="emit('share')"><Icon icon="lucide:users" aria-hidden="true" />Share</DropdownMenuItem>
             <DropdownMenuItem class="wfb-menu__item" :disabled="disabled" @select="emit('duplicate')"><Icon icon="lucide:copy" aria-hidden="true" />Duplicate workflow</DropdownMenuItem>
             <DropdownMenuSeparator class="wfb-menu__sep" />
             <DropdownMenuItem class="wfb-menu__item" :disabled="loading" @select="emit('outline')"><Icon icon="lucide:list-tree" aria-hidden="true" />Outline</DropdownMenuItem>
             <DropdownMenuItem class="wfb-menu__item" @select="emit('shortcuts')"><Icon icon="lucide:keyboard" aria-hidden="true" />Shortcuts<kbd>?</kbd></DropdownMenuItem>
             <DropdownMenuItem class="wfb-menu__item" @select="emit('help')"><Icon icon="lucide:circle-help" aria-hidden="true" />Help</DropdownMenuItem>
-            <DropdownMenuSeparator class="wfb-menu__sep" />
-            <DropdownMenuItem class="wfb-menu__item is-danger" :disabled="disabled || running" @select="emit('archive')"><Icon icon="lucide:archive" aria-hidden="true" />Archive workflow</DropdownMenuItem>
+            <template v-if="can.archive">
+              <DropdownMenuSeparator class="wfb-menu__sep" />
+              <DropdownMenuItem class="wfb-menu__item is-danger" :disabled="disabled || running" @select="emit('archive')"><Icon icon="lucide:archive" aria-hidden="true" />Archive workflow</DropdownMenuItem>
+            </template>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
@@ -102,6 +119,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from 'reka-ui'
+import { ROLE_HELP, ROLE_LABELS, workflowAbilities } from '@/utils/workflowAccess'
 
 const props = defineProps({
   name: { type: String, default: '' },
@@ -119,11 +137,18 @@ const props = defineProps({
   stopping: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
   mod: { type: String, default: 'Ctrl' },
+  // The person's role on this workflow (ADM-1339): 'owner' | 'editor' | 'runner' | 'viewer'.
+  role: { type: String, default: 'owner' },
 })
 const emit = defineEmits([
   'back', 'rename', 'save', 'discard', 'add', 'undo', 'redo', 'tidy', 'fit', 'test', 'run', 'stop', 'publish',
-  'validate', 'versions', 'pause', 'resume', 'duplicate', 'outline', 'shortcuts', 'help', 'archive',
+  'validate', 'versions', 'pause', 'resume', 'duplicate', 'outline', 'shortcuts', 'help', 'archive', 'share',
 ])
+
+const can = computed(() => workflowAbilities(props.role))
+// The owner sees no role pill; anyone the workflow is shared with sees theirs.
+const roleText = computed(() => (props.loading || props.role === 'owner' ? '' : ROLE_LABELS[props.role] || ''))
+const roleTitle = computed(() => (roleText.value ? `Shared with you as ${roleText.value}. ${ROLE_HELP[props.role] || ''}`.trim() : ''))
 
 const SAVE_TEXT = { loading: 'Loading…', error: 'Not loaded', saving: 'Saving…', saved: 'Saved', conflict: 'Changed elsewhere' }
 const statusText = computed(() => {
@@ -138,7 +163,7 @@ const renaming = ref(false)
 const draft = ref('')
 const nameInput = ref(null)
 function startRename() {
-  if (props.disabled) return
+  if (props.disabled || !can.value.edit) return
   draft.value = props.name
   renaming.value = true
   nextTick(() => { nameInput.value?.focus(); nameInput.value?.select() })

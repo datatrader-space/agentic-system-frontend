@@ -30,7 +30,7 @@ describe('one icon and category map (registry)', () => {
     expect(nodeAccent('llm.call')).toBe('var(--wf-cat-agent)')
     expect(nodeAccent('trigger.webhook')).toBe('var(--wf-cat-trigger)')
   })
-  it('the approval step offers no approvers field (not enforced yet, ADM-1339)', () => {
+  it('the approval step keeps approvers out of its schema fields: they are picked from people (ADM-1339)', () => {
     expect(wfFields('logic.approval').map((f) => f.key)).not.toContain('approvers')
   })
 })
