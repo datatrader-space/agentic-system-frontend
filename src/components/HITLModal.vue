@@ -913,6 +913,12 @@ watch(currentRequest, () => {
 }
 .link-btn:hover { text-decoration: underline; }
 .link-btn:focus-visible { outline: 2px solid var(--vm-primary); outline-offset: 2px; border-radius: 4px; }
+/* A finger, not a pointer (ADM-1330, live at 375 px 2026-11-23: Approve was 120×40): every control of the card is at
+   least 44 px tall on a phone, the field's text 16 px so iOS does not zoom when it takes focus. */
+@media (max-width: 640px) {
+  .hitl-modal--approval .btn, .btn-approve, .btn-reject, .btn-instruct, .btn-link, .link-btn { min-height: 44px; }
+  .instruction-input { min-height: 44px; font-size: 16px; }
+}
 .link-btn--stop { color: var(--vm-red-ink); }
 
 /* Compact ask = small card DOCKED at the bottom of the chat (Claude AskUserQuestion style) — NOT a

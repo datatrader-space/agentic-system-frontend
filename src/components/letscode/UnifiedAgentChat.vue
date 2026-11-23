@@ -932,6 +932,11 @@ defineExpose({ send, addSelection, sendReview, openChat })
   .uac-hint > span:last-child { display: none; }
   .ai-changes-open, .ai-preview-open, .uac-restore-btn { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
+  /* WRAP, never overlap (ADM-1330, live at 375 px 2026-11-23): the attach button, the model picker and the Chat/Work
+     switch at their 44 px size do not fit one row beside Send/Stop, which then covered the switch. The left group
+     wraps onto a second line and Send/Stop stays at the bottom right, as in ChatComposer. */
+  .uac-box-bar { align-items: flex-end; }
+  .uac-bar-left { flex: 1 1 auto; flex-wrap: wrap; row-gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .uac-restore-btn .spin { animation: none; }
