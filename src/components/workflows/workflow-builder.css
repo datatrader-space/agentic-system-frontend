@@ -6,8 +6,9 @@
    This file is imported once by the builder page and is NOT scoped: every rule starts with .wfb-root, and the
    builder's dialogs, sheets and menus (which Reka moves to the end of <body>) carry `wfb-root wfb-layer`, so the
    tokens reach them too. The node window (WfNodeModal, lane FE-4) is portalled the same way and carries `wf-tokens`,
-   which gets the tokens only. */
-.wfb-root,.wf-tokens{
+   which gets the tokens only. A builder dialog's footer (AppDialog's own, outside the body's `wfb-root wfb-layer`)
+   gets them through `.app-dialog:has(.wfb-layer)`, or its buttons had no colours. */
+.wfb-root,.wf-tokens,.app-dialog:has(.wfb-layer){
   --wf-bg:var(--vm-bg);
   --wf-canvas:var(--vm-surface-soft);
   --wf-surface:var(--vm-surface);
@@ -55,7 +56,7 @@
   --wf-cat-media:#B45309;--wf-cat-media-soft:#FFFBEB;
   --wf-cat-vision:#BE185D;--wf-cat-vision-soft:#FDF2F8;
 }
-[data-theme="dark"] .wfb-root,[data-theme="dark"] .wf-tokens{
+[data-theme="dark"] .wfb-root,[data-theme="dark"] .wf-tokens,[data-theme="dark"] .app-dialog:has(.wfb-layer){
   --wf-shadow-tint:rgb(0 0 0 / .45);
   --wf-scrim:rgb(0 0 0 / .55);
   --wf-cat-trigger:#34D399;--wf-cat-trigger-soft:#113537;
@@ -80,11 +81,11 @@
 .wfb-root{display:flex;flex-direction:column;height:100%;min-height:0;min-width:0;overflow:hidden;background:var(--wf-canvas);color:var(--wf-ink);font-family:var(--vm-font-sans,Inter,system-ui,sans-serif);font-size:13px;-webkit-tap-highlight-color:transparent}
 .wfb-root.wfb-layer{display:block;height:auto;min-height:0;overflow:visible;background:transparent}
 .wfb-root *,.wfb-root *::before,.wfb-root *::after{box-sizing:border-box}
-.wfb-root button{font:inherit;cursor:pointer;touch-action:manipulation}
-.wfb-root button:disabled{opacity:.5;cursor:not-allowed}
+.wfb-root button,.app-dialog:has(.wfb-layer) .wfb-btn{font:inherit;cursor:pointer;touch-action:manipulation}
+.wfb-root button:disabled,.app-dialog:has(.wfb-layer) .wfb-btn:disabled{opacity:.5;cursor:not-allowed}
 /* icons only: Vue Flow's own svgs (edges, background, minimap) size themselves */
 .wfb-root :where(svg.iconify){width:16px;height:16px;flex-shrink:0}
-.wfb-root :is(button,input,select,textarea,a,[tabindex]):focus-visible{outline:2px solid var(--wf-focus);outline-offset:2px}
+.wfb-root :is(button,input,select,textarea,a,[tabindex]):focus-visible,.app-dialog:has(.wfb-layer) .wfb-btn:focus-visible{outline:2px solid var(--wf-focus);outline-offset:2px}
 .wfb-root kbd{font:500 11px/1 var(--vm-font-mono,ui-monospace,monospace);padding:3px 5px;border:1px solid var(--wf-line-2);border-bottom-width:2px;border-radius:4px;background:var(--wf-surface-soft);color:var(--wf-ink-soft)}
 .wfb-root .wf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 .wfb-root .wf-spin{animation:wf-spin 1s linear infinite}
@@ -392,6 +393,23 @@
 .wfb-validate__list li.is-warn{background:var(--wf-warn-soft);color:var(--wf-warn-ink)}
 .wfb-validate__json summary{cursor:pointer;font-weight:550;color:var(--wf-ink-soft)}
 .wfb-validate__json pre{max-height:320px;margin:8px 0 0;padding:10px;overflow:auto;border:1px solid var(--wf-line);border-radius:8px;background:var(--wf-surface-soft);color:var(--wf-ink-soft);font:12px/1.5 var(--vm-font-mono,ui-monospace,monospace);white-space:pre-wrap;overflow-wrap:anywhere}
+/* what uses the workflow, asked before publishing (WfPublishDialog, ADM-1351 phase 4) */
+.wfb-layer.wfb-impact{display:flex;flex-direction:column;gap:14px}
+.wfb-impact__status{display:flex;align-items:center;gap:8px;margin:0;color:var(--wf-ink-soft)}
+.wfb-impact__group{display:flex;flex-direction:column;gap:6px}
+.wfb-impact__h{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:var(--wf-ink)}
+.wfb-impact__h svg{flex-shrink:0;width:15px;height:15px;color:var(--wf-ink-soft)}
+.wfb-impact__count{padding:1px 7px;border:1px solid var(--wf-line-2);border-radius:999px;background:var(--wf-surface-soft);color:var(--wf-ink-soft);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.wfb-impact__list{display:flex;flex-direction:column;margin:0;padding:0;border:1px solid var(--wf-line);border-radius:8px;list-style:none;overflow:hidden}
+.wfb-impact__item{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;min-height:40px;padding:6px 10px;border-top:1px solid var(--wf-line);overflow-wrap:anywhere}
+.wfb-impact__item:first-child{border-top:0}
+.wfb-impact__item.is-hidden{color:var(--wf-ink-soft);font-style:italic}
+.wfb-impact__item.is-hidden svg{flex-shrink:0;width:14px;height:14px}
+.wfb-impact__name{flex:1;min-width:0;color:var(--wf-ink);font-weight:550}
+.wfb-impact__meta{flex-shrink:0;padding:2px 7px;border:1px solid var(--wf-line-2);border-radius:999px;background:var(--wf-surface-soft);color:var(--wf-ink-soft);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.wfb-impact__notes{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;color:var(--wf-ink-soft);font-size:12px;line-height:1.5}
+.wfb-impact__notes li{display:flex;align-items:flex-start;gap:6px}
+.wfb-impact__notes svg{flex-shrink:0;width:14px;height:14px;margin-top:2px}
 .wfb-versions{padding:8px 12px}
 .wfb-version{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 8px;border-bottom:1px solid var(--wf-line)}
 .wfb-version__num{font-weight:600}

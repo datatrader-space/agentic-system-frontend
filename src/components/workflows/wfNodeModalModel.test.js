@@ -82,6 +82,20 @@ describe('the Input pane', () => {
     expect(buildSources({ nodeId: 'fetch', nodes, edges }).find((s) => s.id === 'trigger').value).toEqual({ city: 'Oslo' })
   })
 
+  it('before a run, a Run script step offers the image it may leave as {{nodes.<id>.output.image}} (ADM-1351 phase 4)', () => {
+    const scriptNodes = [
+      { id: 'start', type: 'trigger.manual', data: { inputs: [{ key: 'photo', type: 'image' }] } },
+      { id: 'blur', type: 'action.script', data: { script_id: 3, image: '{{trigger.photo}}' } },
+      { id: 'find', type: 'vision.model', data: {} },
+    ]
+    const scriptEdges = [{ id: 'e1', source: 'start', target: 'blur' }, { id: 'e2', source: 'blur', target: 'find' }]
+    const sources = buildSources({ nodeId: 'find', nodes: scriptNodes, edges: scriptEdges })
+    expect(sources.find((s) => s.id === 'node:blur')).toMatchObject({ real: false, value: { image: { kind: 'image' } } })
+    const items = pickerItems(sources).map((i) => i.id)
+    expect(items).toContain('{{nodes.blur.output.image}}')
+    expect(items).toContain('{{nodes.blur.output.text}}')
+  })
+
   it('offers {{item}} on a for-each step only', () => {
     expect(buildSources({ nodeId: 'loop', nodes, edges }).some((s) => s.base === 'item')).toBe(true)
     expect(buildSources({ nodeId: 'think', nodes, edges }).some((s) => s.base === 'item')).toBe(false)

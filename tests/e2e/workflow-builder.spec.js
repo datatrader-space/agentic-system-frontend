@@ -25,6 +25,23 @@ const baseGraph = {
   },
 }
 const html = '<!doctype html><html lang="en"><head><title>Workflow builder test</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body,#app,.workflow-test-root{height:100%;margin:0;min-width:0}</style></head><body><div id="app"></div><script type="module" src="/tests/e2e/workflow-harness.js"></script></body></html>'
+// What runs the workflow now (ADM-1351 phase 4), GET /api/workflow-graphs/<id>/impact/: nothing by default.
+const NO_IMPACT = { workflow: { id: 86, public_id: 'wf_86', published_version: null }, items: [], counts: { stream: 0, batch: 0, app: 0, trigger: 0, parent: 0 }, not_shown: { stream: 0, batch: 0, app: 0 }, total: 0, confirm: false, message: 'Nothing runs this workflow now.', notes: ["Only this workflow's workspace is read. Workflows you cannot see are not listed as callers."] }
+const STREAM_IMPACT = {
+  ...NO_IMPACT,
+  items: [
+    { kind: 'stream', id: 5, name: 'Shelves: Aisle 3 camera', state: 'running', version: 1, project: 9 },
+    { kind: 'app', id: 3, name: 'Shop floor app', state: 'active', version: null },
+    { kind: 'trigger', id: 'trg_1', name: 'Every morning (0 7 * * *)', state: 'active', version: null, binding: 'schedule', node_id: 'start' },
+    { kind: 'parent', id: 90, name: 'Nightly audit', state: 'published', version: 4 },
+  ],
+  counts: { stream: 3, batch: 0, app: 1, trigger: 1, parent: 1 },
+  not_shown: { stream: 2, batch: 0, app: 0 },
+  total: 6,
+  confirm: true,
+  message: '3 live streams use this workflow (version 1). A stream keeps the version it started with until it is restarted: publishing does not change it. Connected Apps, triggers and workflows that run this one as a sub-workflow use the new version from their next run.',
+  notes: [...NO_IMPACT.notes, "Some streams, batches or apps are counted but not named: they are in Training Data projects you are not in, or in this workspace's Training Data, which you cannot open."],
+}
 const runPage = (n, start = 0) => Array.from({ length: n }, (_, i) => ({ id: 600 - start - i, status: i % 3 ? 'success' : 'failed', dry_run: i % 2 === 0, duration_ms: 1200, created_at: '2026-11-19T06:00:00Z' }))
 
 // A cold dev server optimises its dependencies on the first page load and then reloads it, which can take longer
@@ -85,6 +102,10 @@ async function prepare(page, overrides = {}) {
     if (path === '/api/workflow-graphs/step-types/') {
       if (state.failSteps) { state.failSteps -= 1; return json({ error: 'The step list is not available right now.' }, 503) }
       return json(stepTypes)
+    }
+    if (/\/workflow-graphs\/\d+\/impact\/$/.test(path)) {
+      if (state.failImpact) { state.failImpact -= 1; return json({ error: 'The check is not available right now.' }, 503) }
+      return json(state.impact || NO_IMPACT)
     }
     if (/\/workflow-graphs\/\d+\/vision-models\/$/.test(path)) return json({ models: [{ value: 'sam3', label: 'SAM 3', kind: 'ready' }] })
     if (/\/workflow-graphs\/\d+\/images\/$/.test(path) && method === 'POST') {
@@ -459,6 +480,57 @@ test('Publish, Pause and Resume', async ({ page }) => {
   await expect(page.locator('.wfb-pill')).toHaveText('Paused')
   await menu(page, 'Resume triggers')
   expect(state.requests.filter((r) => r.body?.status).map((r) => r.body.status)).toEqual(['published', 'paused', 'published'])
+  // Publish asked what uses the workflow first; nothing does, so it published at once.
+  expect(state.requests.findIndex((r) => r.path.endsWith('/impact/'))).toBeLessThan(state.requests.findIndex((r) => r.body?.status === 'published'))
+})
+
+// ── Publish asks what uses the workflow first (ADM-1351 phase 4) ──
+// Publish is a toolbar button from 640 px; below that it is in the menu.
+async function pressPublish(page) {
+  const btn = page.getByRole('button', { name: 'Publish', exact: true })
+  if (await btn.count()) await btn.click()
+  else await menu(page, 'Publish')
+}
+const publishes = (state) => state.requests.filter((r) => r.method === 'PUT' && r.body?.status === 'published')
+test('Publish with a live stream on it asks first: what uses it, grouped; Cancel publishes nothing, Publish anyway does', async ({ page }) => {
+  const { state, errors } = await prepare(page, { impact: STREAM_IMPACT })
+  await page.getByRole('button', { name: 'Publish', exact: true }).click()
+  const dlg = page.getByRole('dialog', { name: 'Publish this workflow?' })
+  await expect(dlg).toBeVisible()
+  await expect(dlg).toContainText('3 live streams use this workflow (version 1).')
+  await expect(dlg.getByRole('heading', { level: 3 })).toHaveText(['Live streams3', 'Connected Apps1', 'Triggers1', 'Workflows that run this one1'])
+  await expect(dlg.getByRole('region', { name: /Live streams/ }).getByRole('listitem')).toHaveText(['Shelves: Aisle 3 camera, v1, Running', '2 more you cannot see'])
+  await expect(dlg).toContainText('Nightly audit')
+  await expect(dlg).toContainText('Some streams, batches or apps are counted but not named')
+  if (SHOTS) await dlg.screenshot({ path: resolve(SHOTS, 'publish-impact.png') })
+  await dlg.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dlg).toHaveCount(0)
+  expect(publishes(state)).toHaveLength(0)
+  await expect(page.locator('.wfb-pill')).toHaveText('Draft')
+
+  await page.getByRole('button', { name: 'Publish', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Publish this workflow?' }).getByRole('button', { name: 'Publish anyway' }).click()
+  await expect(page.locator('.wfb-pill')).toHaveText('Published v2')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(publishes(state)).toHaveLength(1)
+  expect(state.requests.filter((r) => r.path.endsWith('/impact/'))).toHaveLength(2)
+  expect(errors).toEqual([])
+})
+
+test('Publish when the check fails: says so and publishes nothing; Try again checks again, then says what uses it', async ({ page }) => {
+  const impact = { ...NO_IMPACT, items: [{ kind: 'trigger', id: 'trg_1', name: 'Webhook', state: 'active', version: null, binding: 'webhook', node_id: 'start' }], counts: { ...NO_IMPACT.counts, trigger: 1 }, total: 1, message: 'Connected Apps, triggers and workflows that run this one as a sub-workflow use the new version from their next run.' }
+  const { state, errors } = await prepare(page, { impact, failImpact: 1 })
+  await pressPublish(page)
+  const dlg = page.getByRole('dialog', { name: 'Publish: check what uses this workflow' })
+  await expect(dlg.getByRole('alert')).toHaveText('What uses this workflow could not be checked: The check is not available right now.')
+  await expect(dlg.getByRole('button', { name: 'Publish anyway' })).toHaveCount(0)
+  expect(publishes(state)).toHaveLength(0)
+  await dlg.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('.wfb-pill')).toHaveText('Published v2')
+  await expect(dlg).toHaveCount(0)
+  await expect(page.getByText('Published (v2). Used by 1 trigger.', { exact: false })).toBeVisible()
+  expect(publishes(state)).toHaveLength(1)
+  expect(errors).toEqual([])
 })
 
 test('Validate shows the reason and the JSON, never hides them (F12)', async ({ page }) => {
@@ -775,7 +847,7 @@ for (const width of [1440, 375]) {
   for (const theme of ['light', 'dark']) {
     test(`axe: no serious or critical finding at ${width}px in ${theme}, with the node window and the console`, async ({ page }) => {
       await page.setViewportSize({ width, height: width < 641 ? 812 : 900 })
-      await prepare(page, { theme })
+      await prepare(page, { theme, impact: STREAM_IMPACT })
       await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
       await page.waitForTimeout(1200)
       expect(summary(await axeScan(page, `${width} ${theme} canvas`))).toEqual([])
@@ -794,6 +866,12 @@ for (const width of [1440, 375]) {
       await expect(page.getByRole('dialog', { name: 'Share workflow' })).toContainText('Ann Approver')
       await page.waitForTimeout(400)
       expect(summary(await axeScan(page, `${width} ${theme} share dialog`))).toEqual([])
+      await closeLayers(page)
+      await pressPublish(page)
+      await expect(page.getByRole('dialog', { name: 'Publish this workflow?' })).toContainText('Shelves: Aisle 3 camera')
+      await page.waitForTimeout(400)
+      expect(summary(await axeScan(page, `${width} ${theme} publish dialog`))).toEqual([])
+      if (SHOTS) await page.screenshot({ path: resolve(SHOTS, `publish-impact-${width}-${theme}.png`) })
     })
   }
 }

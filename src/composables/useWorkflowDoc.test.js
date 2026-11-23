@@ -258,6 +258,17 @@ describe('useWorkflowDoc', () => {
     expect(await doc.publish()).toBe(true)
     expect(api.saveWorkflowGraph.mock.calls[1][1]).toEqual({ status: 'published' })
     expect(doc.meta.status).toBe('published')
+    expect(notify.success).toHaveBeenLastCalledWith('Published (v5)')
+  })
+
+  it('publish adds the note of what uses the workflow to its message; the request is the same (ADM-1351 phase 4)', async () => {
+    const { doc, api } = setup()
+    await doc.load()
+    api.saveWorkflowGraph.mockResolvedValueOnce({ data: { status: 'published', version: 6 } })
+    expect(await doc.publish({ note: 'Used by 2 triggers.' })).toBe(true)
+    expect(api.saveWorkflowGraph).toHaveBeenCalledTimes(1)
+    expect(api.saveWorkflowGraph.mock.calls[0][1]).toEqual({ status: 'published' })
+    expect(notify.success).toHaveBeenLastCalledWith('Published (v6). Used by 2 triggers.', { timeout: 9000 })
   })
 
   it('discard asks, restores the saved state and tells listeners (the history) to reset', async () => {

@@ -188,3 +188,39 @@ describe('SchemaForm: a Model call with images (ADM-1351 phase 3)', () => {
     expect(data(ctx).prompt).toBe('Describe{{trigger.text}}')
   })
 })
+
+describe('SchemaForm: Run script with images (ADM-1351 phase 4)', () => {
+  it('offers the saved scripts and the optional Image, Images and Detections fields with their server help', async () => {
+    const ctx = mountForm({ id: 'script', type: 'action.script', data: { script_id: null, image: '', images: '', detections: '' } },
+      { scripts: [{ id: 3, name: 'Blur faces' }, { id: 4, file_path: 'tools/count.py' }] })
+    const select = wrapper.get('select')
+    expect(select.findAll('option').map((o) => o.text())).toEqual(expect.arrayContaining(['Blur faces', 'tools/count.py']))
+    await select.setValue(String(select.findAll('option').findIndex((o) => o.text() === 'tools/count.py') - 1))
+    expect(data(ctx).script_id).toBe(4)
+    for (const key of ['image', 'images', 'detections']) expect(wrapper.find(`input[id$="-${key}"]`).exists()).toBe(true)
+    expect(wrapper.text()).toContain('Image (optional)')
+    expect(wrapper.text()).toContain('Detections (optional)')
+    expect(wrapper.text()).toContain('../input/inputs.json')
+  })
+
+  it('Images takes a list: a second variable is set apart with a comma; Image is one image and is not', async () => {
+    const ctx = mountForm({ id: 'script', type: 'action.script', data: { script_id: 3, image: '', images: '{{nodes.crop.output.images}}', detections: '' } },
+      { scripts: [{ id: 3, name: 'Blur faces' }] })
+    const images = wrapper.find('input[id$="-images"]')
+    images.element.focus()
+    await images.trigger('focus')
+    images.element.setSelectionRange(29, 29)
+    await images.trigger('blur')
+    expect(ctx.editor.insertIntoActive('{{trigger.photo}}')).toBe(true)
+    await flushPromises()
+    expect(data(ctx).images).toBe('{{nodes.crop.output.images}}, {{trigger.photo}}')
+
+    const image = wrapper.find('input[id$="-image"]')
+    image.element.focus()
+    await image.trigger('focus')
+    await image.trigger('blur')
+    expect(ctx.editor.insertIntoActive('{{trigger.photo}}')).toBe(true)
+    await flushPromises()
+    expect(data(ctx).image).toBe('{{trigger.photo}}')
+  })
+})

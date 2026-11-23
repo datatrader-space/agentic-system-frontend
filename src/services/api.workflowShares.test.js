@@ -43,3 +43,12 @@ describe('workflow shares', () => {
     expect(h.get.mock.calls[0][1].params).toEqual({ limit: 30, offset: 0, shared: 'me' })
   })
 })
+
+describe('what uses a workflow (ADM-1351 phase 4)', () => {
+  it('reads the impact fresh every time: never served from the cache', async () => {
+    await api.getWorkflowGraphImpact(86)
+    await api.getWorkflowGraphImpact(86)
+    expect(h.get).toHaveBeenCalledTimes(2)
+    expect(h.get.mock.calls.map((c) => c[0])).toEqual(['/workflow-graphs/86/impact/', '/workflow-graphs/86/impact/'])
+  })
+})

@@ -365,14 +365,16 @@ export function useWorkflowDoc(graphId, {
   }
 
   // Publishing freezes an immutable version, which is what a triggered run executes. The server validates on
-  // publish, so the draft is saved first or it would validate the previously saved version.
-  async function publish() {
+  // publish, so the draft is saved first or it would validate the previously saved version. `note` is added to the
+  // "Published" message: what uses the workflow (useWorkflowPublish asks the server before publishing).
+  async function publish({ note = '' } = {}) {
     if (!(await saveIfDirty())) return false
     saving.value = true
     try {
       const { data } = await api.saveWorkflowGraph(graphId, { status: 'published' })
       absorb(data)
-      notify.success(`Published (v${meta.version})`)
+      if (note) notify.success(`Published (v${meta.version}). ${note}`, { timeout: 9000 })
+      else notify.success(`Published (v${meta.version})`)
       return true
     } catch (e) {
       reportError(e, 'The workflow could not be published. Try again.')

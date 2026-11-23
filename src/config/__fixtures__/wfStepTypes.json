@@ -1053,7 +1053,10 @@
    "palette": true,
    "custom_tail": "",
    "defaults": {
-    "script_id": null
+    "script_id": null,
+    "image": "",
+    "images": "",
+    "detections": ""
    },
    "fields": [
     {
@@ -1062,21 +1065,74 @@
      "optionsKey": "scripts",
      "title": "Saved script",
      "placeholder": "Select a script\u2026"
+    },
+    {
+     "key": "image",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Image (optional)",
+     "placeholder": "{{trigger.photo}}",
+     "help": "One image the script works on. It reads it as ../input/image.jpg (or .png, .webp); ../input/inputs.json names every file it was given."
+    },
+    {
+     "key": "images",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Images (optional)",
+     "placeholder": "{{nodes.crop.output.images}}",
+     "help": "Several images, for example the crops of a Crop objects step, separated by commas. The script reads them as ../input/images/0.jpg, 1.jpg\u2026 At most 10 images, 20 MB in all, with Image."
+    },
+    {
+     "key": "detections",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Detections (optional)",
+     "placeholder": "{{nodes.find.output.detections}}",
+     "help": "What a Find objects (or Filter objects) step found. The script reads it as ../input/detections.json, every box in the pixels of its image."
     }
    ],
-   "hint": "Runs a SavedScript you own in the sandbox. Manage scripts on the Scripts page.",
-   "output_sample": null,
+   "hint": "Runs a SavedScript you own in the sandbox, never on AADML's servers. Manage scripts on the Scripts page. A script that writes ../output/image.jpg (or .png or .webp) gives the next steps that image as {{nodes.<id>.output.image}}. A Test run does not run the script. A stream's frames cannot run a script: each run of a script is a sandbox run, and a stream's frames run only steps without side effects.",
+   "output_sample": {
+    "text": "script output",
+    "script": "Script name",
+    "image": {
+     "kind": "image",
+     "id": "(image)"
+    }
+   },
    "outputs": {
     "text": {
      "kind": "text",
      "description": "the script's output"
     },
+    "stderr": {
+     "kind": "text",
+     "description": "what the script wrote to stderr"
+    },
     "script": {
      "kind": "text",
      "description": "the script's name"
+    },
+    "image": {
+     "kind": "image",
+     "description": "the image the script wrote to ../output/image.jpg, .png or .webp, when it wrote one"
     }
    },
-   "inputs": {}
+   "inputs": {
+    "image": [
+     "image"
+    ],
+    "images": [
+     "image",
+     "images"
+    ],
+    "detections": [
+     "detections"
+    ]
+   }
   },
   {
    "type": "action.channel",

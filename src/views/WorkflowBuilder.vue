@@ -86,7 +86,7 @@
         @test="startRun({ dryRun: true })"
         @run="startRun({ dryRun: false })"
         @stop="run.stop()"
-        @publish="doc.publish()"
+        @publish="startPublish"
         @validate="validate"
         @versions="openVersions"
         @pause="setLifecycle('paused')"
@@ -165,6 +165,7 @@
     <WfOutline v-if="steps.ready" v-model:open="outlineOpen" :doc="doc" :run="run" @open-node="(id) => { outlineOpen = false; openNode(id) }" @focus-node="(id) => { outlineOpen = false; focusNode(id) }" />
     <WfShortcuts v-model:open="shortcutsOpen" :mod="mod" />
     <WfShareDialog v-if="can.share" v-model:open="shareOpen" :graph-id="graphId" :name="doc.name.value" />
+    <WfPublishDialog :flow="publishFlow" />
 
     <AppDialog v-model:open="inputsOpen" :title="inputsTitle" :description="inputsDescription" size="sm">
       <form id="wfb-run-inputs" class="wfb-root wfb-layer wfb-form" novalidate @submit.prevent="submitInputs">
@@ -285,6 +286,7 @@ import WfShortcuts from '@/components/workflows/WfShortcuts.vue'
 import WfAgentBar from '@/components/workflows/WfAgentBar.vue'
 import WfNodeModal from '@/components/workflows/WfNodeModal.vue'
 import WfShareDialog from '@/components/workflows/WfShareDialog.vue'
+import WfPublishDialog from '@/components/workflows/WfPublishDialog.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 import AppSheet from '@/components/common/AppSheet.vue'
 import { useWorkflowDoc } from '@/composables/useWorkflowDoc'
@@ -292,6 +294,7 @@ import { useWorkflowHistory } from '@/composables/useWorkflowHistory'
 import { useWorkflowRun } from '@/composables/useWorkflowRun'
 import { useWorkflowCatalog } from '@/composables/useWorkflowCatalog'
 import { useWorkflowProposal } from '@/composables/useWorkflowProposal'
+import { useWorkflowPublish } from '@/composables/useWorkflowPublish'
 import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 import { useHelpAssistant } from '@/composables/useHelpAssistant'
 import { notify } from '@/composables/useNotify'
@@ -320,6 +323,8 @@ const consoleEl = ref(null)
 const run = useWorkflowRun(graphId, { ensureSaved: () => doc.saveIfDirty(), onRunEnd: () => consoleEl.value?.refresh() })
 const catalog = useWorkflowCatalog()
 const proposal = useWorkflowProposal(doc, history)
+// Publish asks the server what uses the workflow first (ADM-1351 phase 4): WfPublishDialog asks when a live stream does.
+const publishFlow = useWorkflowPublish(graphId, doc)
 const { openAssistant } = useHelpAssistant()
 setBreadcrumbLabel(() => doc.name.value)
 
@@ -355,7 +360,7 @@ const editLocked = computed(() => locked.value || !can.value.edit)
 // Until the workflow is loaded the toolbar keeps its full (disabled) row; then it shows what the role allows.
 const toolbarRole = computed(() => (locked.value ? 'owner' : doc.meta.myRole))
 const shareOpen = ref(false)
-const actionsDisabled = computed(() => locked.value || doc.saving.value || run.starting.value)
+const actionsDisabled = computed(() => locked.value || doc.saving.value || run.starting.value || publishFlow.busy.value)
 const saveState = computed(() => {
   if (doc.loading.value) return 'loading'
   if (doc.loadError.value) return 'error'
@@ -695,6 +700,12 @@ async function launch({ dryRun, untilNode = null, payload }) {
 async function rerunFailed() { if (can.value.run) await run.rerun() }
 
 // ── lifecycle ──
+// Publish: the server is asked what uses the workflow first; the dialog opens only when the person must decide.
+function startPublish() {
+  if (!can.value.edit || actionsDisabled.value) return
+  announce('Checking what uses this workflow…')
+  publishFlow.start()
+}
 async function setLifecycle(next) {
   if (!can.value.edit) return
   if (await doc.setStatus(next)) notify.success(next === 'paused' ? 'Paused: no new triggered runs start.' : 'Resumed: triggers run the published version again.')

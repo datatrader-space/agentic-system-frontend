@@ -1385,6 +1385,9 @@ export default {
   getWorkflowGraphVersions: (id, params) => api.get(`/workflow-graphs/${id}/versions/`, { params }),
   restoreWorkflowGraphVersion: (id, versionId) =>
     api.post(`/workflow-graphs/${id}/versions/${versionId}/restore/`),
+  // What runs the workflow now (ADM-1351 phase 4), read before publishing: { workflow, items: [{ kind, id, name, state,
+  // version }], counts, not_shown, total, confirm, message, notes }. The view right; 404 for anyone else.
+  getWorkflowGraphImpact: (id) => api.get(`/workflow-graphs/${id}/impact/`),
   getWorkflowGraphTemplates: () => api.get('/workflow-graph-templates/'),
   getWorkflowMcpCatalog: () => api.get('/workflow-graphs/mcp-catalog/'),
   // The step registry (ADM-1351, D4): every step type's category, settings fields, defaults, outputs and inputs. The
