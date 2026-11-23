@@ -30,7 +30,14 @@ const CONFIGURED = {
   'logic.approval': (d) => !!(d.message || '').trim(),
   'logic.foreach': (d) => !!(d.items_template || '').trim() || Array.isArray(d.items),
   'action.subworkflow': (d) => !!d.graph_id,
+  // Vision (ADM-1351): Find objects needs an image and a model; the steps after it need the detections they work on.
+  'vision.model': (d) => !!(String(d.image ?? '').trim() && String(d.model ?? '').trim()),
+  'vision.filter': (d) => !!String(d.detections ?? '').trim(),
+  'vision.crop': (d) => !!String(d.detections ?? '').trim(),
+  'vision.draw': (d) => !!String(d.detections ?? '').trim(),
 }
+
+const isSet = (v) => v !== null && v !== undefined && String(v).trim() !== ''
 
 // A condition's rules that name something to test.
 function conditionRules(d) {
@@ -111,6 +118,15 @@ export function nodeConfigPreview(type, data) {
     if (type === 'logic.foreach') return d.items_template || (Array.isArray(d.items) ? `${d.items.length} items` : '')
     if (type === 'action.subworkflow') return d.graph_name || (d.graph_id ? `graph #${d.graph_id}` : '')
     if (type === 'logic.approval') return d.message || ''
+    if (type === 'vision.model') {
+      return [isSet(d.classes) ? `find ${String(d.classes).trim()}` : '', isSet(d.threshold) ? `min ${d.threshold}` : ''].filter(Boolean).join(' · ')
+    }
+    if (type === 'vision.filter') {
+      return [isSet(d.classes) ? `keep ${String(d.classes).trim()}` : '', isSet(d.min_score) ? `min ${d.min_score}` : '', isSet(d.zone) ? `zone ${d.zone}` : '']
+        .filter(Boolean).join(' · ')
+    }
+    if (type === 'vision.crop') return isSet(d.max) ? `up to ${d.max} crops${Number(d.padding) > 0 ? ` · ${d.padding}% padding` : ''}` : ''
+    if (type === 'vision.draw') return d.labels === false ? 'boxes only' : 'boxes and labels'
   } catch { /* defensive */ }
   return ''
 }

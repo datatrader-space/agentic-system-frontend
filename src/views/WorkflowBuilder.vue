@@ -15,12 +15,22 @@
   The page only follows it: a viewer sees the workflow read-only (no edit, no add step, no Save or Publish, no Test or
   Run); a runner sees it read-only but may Test and Run; an editor has everything but Share and Archive, which are the
   owner's (WfShareDialog). A refusal the server still sends (403 forbidden_role) is shown in its own words.
+
+  STEPS FROM THE SERVER (ADM-1351, D4). The step types come from GET /api/workflow-graphs/step-types/, read once per
+  page session (config/wfStepRegistry.js) before the canvas, the picker and the node window are drawn (the canvas
+  builds its node types when it is set up). While it loads the page says so; a failed read is shown with Try again.
+  There is no bundled copy to fall back to.
+
+  RUN WITH INPUTS. A manual trigger's input of type `image` asks for a photo (JPEG, PNG or WebP up to 15 MB): each is
+  uploaded for this workflow (POST /workflow-graphs/<id>/images/) and the run's payload carries the image reference
+  the server returned. A run, or a test from the node window, of a workflow with an image input always asks.
 -->
 <template>
   <div class="wfb-root" :class="{ 'is-compact': compact }">
     <h1 class="wf-sr">{{ doc.name.value || 'Workflow' }}: workflow builder</h1>
     <div class="wfb-stage">
       <WfCanvas
+        v-if="steps.ready"
         ref="canvas"
         :doc="doc"
         :history="history"
@@ -82,15 +92,23 @@
         @share="shareOpen = true"
       />
 
-      <div v-if="doc.loadError.value" class="wfb-overlay" role="alert">
+      <div v-if="steps.error" class="wfb-overlay" role="alert">
+        <div class="wfb-card">
+          <Icon icon="lucide:cloud-off" class="wfb-card__icon" aria-hidden="true" />
+          <p class="wfb-card__title">{{ steps.error }}</p>
+          <p class="wfb-card__text">The builder needs the list of steps to draw this workflow.</p>
+          <button type="button" class="wfb-btn is-primary" :disabled="steps.loading" @click="loadSteps">Try again</button>
+        </div>
+      </div>
+      <div v-else-if="doc.loadError.value" class="wfb-overlay" role="alert">
         <div class="wfb-card">
           <Icon icon="lucide:cloud-off" class="wfb-card__icon" aria-hidden="true" />
           <p class="wfb-card__title">{{ doc.loadError.value }}</p>
           <button type="button" class="wfb-btn is-primary" @click="load">Try again</button>
         </div>
       </div>
-      <div v-else-if="doc.loading.value" class="wfb-overlay" role="status" aria-live="polite">
-        <span class="wfb-card is-quiet"><Icon icon="lucide:loader-circle" class="wf-spin" aria-hidden="true" />Loading workflow…</span>
+      <div v-else-if="doc.loading.value || !steps.ready" class="wfb-overlay" role="status" aria-live="polite">
+        <span class="wfb-card is-quiet"><Icon icon="lucide:loader-circle" class="wf-spin" aria-hidden="true" />{{ doc.loading.value ? 'Loading workflow…' : 'Loading the steps…' }}</span>
       </div>
       <div v-else-if="!doc.nodes.value.length && !can.edit" class="wfb-overlay is-passive">
         <div class="wfb-card">
@@ -117,6 +135,7 @@
     </div>
 
     <WfConsole
+      v-if="steps.ready"
       ref="consoleEl"
       :open="consoleOpen"
       @update:open="setConsoleOpen"
@@ -130,22 +149,34 @@
       @rerun="rerunFailed"
     />
 
-    <WfNodePicker v-model:open="pickerOpen" :ctx="pickerCtx" :catalog="catalog" :agents="doc.agents.value" @choose="addFromPicker" />
-    <WfNodeModal v-model:open="modalOpen" :node-id="modalNodeId" :doc="doc" :history="history" :run="run" :catalog="catalog" :validation="validation.data || null" :read-only="editLocked" :can-run="can.run" />
-    <WfOutline v-model:open="outlineOpen" :doc="doc" :run="run" @open-node="(id) => { outlineOpen = false; openNode(id) }" @focus-node="(id) => { outlineOpen = false; focusNode(id) }" />
+    <WfNodePicker v-if="steps.ready" v-model:open="pickerOpen" :ctx="pickerCtx" :catalog="catalog" :agents="doc.agents.value" @choose="addFromPicker" />
+    <WfNodeModal v-if="steps.ready" v-model:open="modalOpen" :node-id="modalNodeId" :doc="doc" :history="history" :run="run" :catalog="catalog" :validation="validation.data || null" :read-only="editLocked" :can-run="can.run" :ask-inputs="startRun" />
+    <WfOutline v-if="steps.ready" v-model:open="outlineOpen" :doc="doc" :run="run" @open-node="(id) => { outlineOpen = false; openNode(id) }" @focus-node="(id) => { outlineOpen = false; focusNode(id) }" />
     <WfShortcuts v-model:open="shortcutsOpen" :mod="mod" />
     <WfShareDialog v-if="can.share" v-model:open="shareOpen" :graph-id="graphId" :name="doc.name.value" />
 
     <AppDialog v-model:open="inputsOpen" title="Run with inputs" description="Values for this run only. The defaults come from the manual trigger." size="sm">
-      <form id="wfb-run-inputs" class="wfb-root wfb-layer wfb-form" @submit.prevent="submitInputs">
-        <label v-for="f in inputFields" :key="f" class="wfb-field">
-          <span class="wfb-field__label" translate="no">{{ f }}</span>
-          <input v-model="inputValues[f]" class="wfb-input" :name="f" autocomplete="off" />
-        </label>
+      <form id="wfb-run-inputs" class="wfb-root wfb-layer wfb-form" novalidate @submit.prevent="submitInputs">
+        <div v-for="f in inputFields" :key="f.key" class="wfb-field">
+          <label class="wfb-field__label" :for="`wfb-in-${f.key}`" translate="no">{{ f.key }}<template v-if="f.type === 'image'"> (photo)</template></label>
+          <input
+            v-if="f.type === 'image'" :id="`wfb-in-${f.key}`" type="file" class="wfb-input wfb-file" :name="f.key"
+            :accept="IMAGE_TYPES.join(',')" required :disabled="uploading"
+            :aria-describedby="`wfb-in-${f.key}-help${inputErrors[f.key] ? ` wfb-in-${f.key}-err` : ''}`"
+            :aria-invalid="inputErrors[f.key] ? 'true' : undefined"
+            @change="pickFile(f.key, $event)"
+          />
+          <input v-else :id="`wfb-in-${f.key}`" v-model="inputValues[f.key]" class="wfb-input" :name="f.key" autocomplete="off" :disabled="uploading" />
+          <p v-if="f.type === 'image'" :id="`wfb-in-${f.key}-help`" class="wfb-field__help">A JPEG, PNG or WebP photo, up to 15 MB.</p>
+          <p v-if="inputErrors[f.key]" :id="`wfb-in-${f.key}-err`" class="wfb-field__error" role="alert">
+            <Icon icon="lucide:circle-alert" aria-hidden="true" /><span>{{ inputErrors[f.key] }}</span>
+          </p>
+        </div>
+        <p v-if="uploading" class="wfb-field__help" role="status">Uploading the photo…</p>
       </form>
       <template #footer>
         <button type="button" class="wfb-btn" @click="inputsOpen = false">Cancel</button>
-        <button type="submit" form="wfb-run-inputs" class="wfb-btn is-primary" :disabled="run.starting.value">{{ pendingRun?.dryRun ? 'Start test' : 'Start run' }}</button>
+        <button type="submit" form="wfb-run-inputs" class="wfb-btn is-primary" :disabled="run.starting.value || uploading">{{ uploading ? 'Uploading…' : pendingRun?.dryRun ? 'Start test' : 'Start run' }}</button>
       </template>
     </AppDialog>
 
@@ -255,7 +286,8 @@ import { useHelpAssistant } from '@/composables/useHelpAssistant'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import api from '@/services/api'
-import { wfDef, wfIcon } from '@/config/wfNodeDefinitions'
+import { stepRegistryReady, wfDef, wfIcon } from '@/config/wfNodeDefinitions'
+import { loadStepRegistry } from '@/config/wfStepRegistry'
 import { serverSentence, workflowAbilities } from '@/utils/workflowAccess'
 import { deleteSelection } from '@/utils/wfFlow'
 import { WorkflowInputError } from '@/utils/workflowInput'
@@ -290,8 +322,20 @@ function onResize() { width.value = window.innerWidth }
 const compact = computed(() => width.value < 640)
 const consoleAsSheet = computed(() => width.value < 1024)
 
+// ── the step registry (ADM-1351, D4): read before anything that draws a step ──
+const steps = reactive({ ready: stepRegistryReady(), loading: false, error: '' })
+let stepsLoad = Promise.resolve()
+function loadSteps() {
+  if (steps.ready) return stepsLoad
+  steps.loading = true
+  steps.error = ''
+  stepsLoad = loadStepRegistry().then(() => { steps.ready = true }).catch((e) => { steps.error = e?.message || 'The step list could not be loaded.' })
+    .finally(() => { steps.loading = false })
+  return stepsLoad
+}
+
 // ── state shown in the toolbar ──
-const locked = computed(() => doc.loading.value || !!doc.loadError.value)
+const locked = computed(() => doc.loading.value || !!doc.loadError.value || !steps.ready)
 // What the person's role allows (the server's `my_role`; the server enforces it). Nothing is editable while the page
 // is loading or failed to load, nor for a viewer or runner.
 const can = computed(() => workflowAbilities(doc.meta.myRole))
@@ -350,6 +394,9 @@ async function load() {
   run.attach(doc.meta.lastRun)
   // Never as a sheet on load: below 1024 px the console is a dialog, opened only by the person.
   consoleOpen.value = hasRun.value && consoleChoice.value === 'open' && !consoleAsSheet.value
+  // The console (and its Timeline) is drawn once the steps are known.
+  await stepsLoad
+  await nextTick()
   await openLinkedRun()
 }
 
@@ -556,9 +603,16 @@ async function focusNode(id) {
 
 // ── running ──
 const inputsOpen = ref(false)
-const inputFields = ref([])
+const inputFields = ref([])      // [{ key, type: 'text' | 'image' }]
 const inputValues = reactive({})
+const inputFiles = reactive({})  // an image input's chosen file
+const inputErrors = reactive({})
+const uploading = ref(false)
 const pendingRun = ref(null)
+// What the server takes (POST /workflow-graphs/<id>/images/); it checks again and says why it refuses.
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const IMAGE_MAX_BYTES = 15 * 1024 * 1024
+const clear = (o) => { for (const k of Object.keys(o)) delete o[k] }
 function manualInputs() {
   const t = doc.nodes.value.find((n) => n.type === 'trigger.manual')
   return (Array.isArray(t?.data?.inputs) ? t.data.inputs : []).filter((i) => i && i.key)
@@ -567,18 +621,51 @@ function startRun(opts) {
   if (actionsDisabled.value || run.running.value || !can.value.run) return
   const inputs = manualInputs()
   if (inputs.length) {
-    for (const k of Object.keys(inputValues)) delete inputValues[k]
-    for (const i of inputs) inputValues[i.key] = i.default ?? ''
-    inputFields.value = inputs.map((i) => i.key)
+    clear(inputValues)
+    clear(inputFiles)
+    clear(inputErrors)
+    inputFields.value = inputs.map((i) => ({ key: i.key, type: i.type === 'image' ? 'image' : 'text' }))
+    for (const i of inputs) if (i.type !== 'image') inputValues[i.key] = i.default ?? ''
     pendingRun.value = opts
     inputsOpen.value = true
     return
   }
   launch({ ...opts, payload: {} })
 }
-function submitInputs() {
+function pickFile(key, e) {
+  const file = e?.target?.files?.[0] || null
+  inputFiles[key] = file
+  delete inputErrors[key]
+  if (!file) return
+  if (!IMAGE_TYPES.includes(file.type)) inputErrors[key] = 'Choose a JPEG, PNG or WebP photo.'
+  else if (file.size > IMAGE_MAX_BYTES) inputErrors[key] = 'The photo is larger than 15 MB. Choose a smaller one.'
+}
+async function submitInputs() {
+  if (uploading.value) return
+  const images = inputFields.value.filter((f) => f.type === 'image')
+  for (const f of images) if (!inputFiles[f.key] && !inputErrors[f.key]) inputErrors[f.key] = 'Choose a photo for this input.'
+  if (images.some((f) => inputErrors[f.key])) return
+  const payload = {}
+  for (const f of inputFields.value) if (f.type === 'text') payload[f.key] = inputValues[f.key] ?? ''
+  uploading.value = true
+  try {
+    for (const f of images) {
+      try {
+        const { data } = await api.uploadWorkflowImage(graphId, inputFiles[f.key])
+        const image = data?.image
+        if (!image || image.kind !== 'image' || !image.id) throw new Error('The server did not say which image it stored. Try again.')
+        payload[f.key] = image
+      } catch (e) {
+        const d = e?.response?.data
+        inputErrors[f.key] = (d && (d.error || d.detail)) || (e?.response ? `The photo was not uploaded (error ${e.response.status}). Try again.` : (e?.message || 'The photo was not uploaded. Check your connection.'))
+        return
+      }
+    }
+  } finally {
+    uploading.value = false
+  }
   inputsOpen.value = false
-  launch({ ...pendingRun.value, payload: { ...inputValues } })
+  launch({ ...pendingRun.value, payload })
 }
 async function launch({ dryRun, untilNode = null, payload }) {
   const res = await run.start({ payload, dryRun, untilNode })
@@ -772,6 +859,7 @@ const shortcutsOpen = ref(false)
 onMounted(() => {
   window.addEventListener('keydown', onKeydown, true)
   window.addEventListener('resize', onResize)
+  loadSteps()
   load()
 })
 onBeforeUnmount(() => {

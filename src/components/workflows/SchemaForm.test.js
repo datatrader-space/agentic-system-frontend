@@ -2,16 +2,18 @@
 // SchemaForm in the node window (ADM-1333): every change is a history operation, one entry per field edit;
 // F5: an enum keeps its declared type, and a number's min/max are enforced with an inline error.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { resetVisionModels } from './settings/visionModels'
 import { h } from 'vue'
 import SchemaForm from './SchemaForm.vue'
 import { wfFields } from '@/config/wfNodeDefinitions'
 import { editorHarness } from './wfNodeModal.testHarness'
 
-vi.mock('@/services/api', () => ({ default: { get: vi.fn(), getMediaRoutes: vi.fn() } }))
+const apiMock = vi.hoisted(() => ({ get: vi.fn(), getMediaRoutes: vi.fn(), getWorkflowVisionModels: vi.fn() }))
+vi.mock('@/services/api', () => ({ default: apiMock }))
 
 let wrapper
-afterEach(() => { wrapper?.unmount(); wrapper = null })
+afterEach(() => { wrapper?.unmount(); wrapper = null; resetVisionModels(); apiMock.getWorkflowVisionModels.mockReset() })
 
 function mountForm(node, options = {}) {
   const ctx = editorHarness({
@@ -97,15 +99,63 @@ describe('SchemaForm', () => {
   it('key/value rows are added, edited and removed through history operations', async () => {
     const ctx = mountForm({ id: 'start', type: 'trigger.manual', data: {} })
     await wrapper.get('.sf-add').trigger('click')
-    expect(data(ctx).inputs).toEqual([{ key: '', default: '' }])
+    expect(data(ctx).inputs).toEqual([{ key: '', type: 'text', default: '' }])
     const key = wrapper.get('input[aria-label="Inputs 1: key"]')
     await key.trigger('focus')
     key.element.value = 'city'
     await key.trigger('input')
     await key.trigger('blur')
-    expect(data(ctx).inputs).toEqual([{ key: 'city', default: '' }])
+    expect(data(ctx).inputs).toEqual([{ key: 'city', type: 'text', default: '' }])
     await wrapper.get('button[aria-label="Remove Inputs 1"]').trigger('click')
     expect(data(ctx).inputs).toEqual([])
     expect(ctx.history.past.value).toHaveLength(3)
+  })
+
+  it("a manual input's type is a select (Text or Image); a row saved before it reads as Text (ADM-1351)", async () => {
+    const ctx = mountForm({ id: 'start', type: 'trigger.manual', data: { inputs: [{ key: 'city', default: 'Oslo' }] } })
+    const type = wrapper.get('select[aria-label="Inputs 1: type"]')
+    expect(type.findAll('option').map((o) => o.text())).toEqual(['Text', 'Image'])
+    expect(type.element.value).toBe('text')
+    await type.setValue('image')
+    expect(data(ctx).inputs).toEqual([{ key: 'city', type: 'image', default: 'Oslo' }])
+    expect(ctx.history.past.value).toHaveLength(1)
+  })
+
+  it("showIf is data: a field shows while the step's field has the value (ADM-1351)", async () => {
+    const ctx = mountForm({ id: 'send', type: 'action.channel', data: { kind: 'log', message: '' } })
+    expect(wrapper.text()).not.toContain('Slack channel')
+    ctx.history.run('kind', [{ op: 'update_node', id: 'send', data: { kind: 'slack' } }])
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Slack channel')
+    expect(wrapper.text()).not.toContain('Telegram chat id')
+  })
+
+  it("Find objects offers the workflow's vision models, read once per workflow (ADM-1351)", async () => {
+    apiMock.getWorkflowVisionModels.mockResolvedValue({ data: { models: [{ value: 'sam3', label: 'SAM 3', kind: 'ready' }, { value: 'p:4', label: 'Shelf model', kind: 'project' }] } })
+    const ctx = mountForm({ id: 'find', type: 'vision.model', data: { image: '', model: '', classes: '', threshold: null } })
+    await flushPromises()
+    expect(apiMock.getWorkflowVisionModels).toHaveBeenCalledWith(1)
+    const select = wrapper.findAll('select').find((s) => s.text().includes('SAM 3'))
+    expect(select.findAll('option').map((o) => o.text())).toEqual(['Select a model…', 'SAM 3', 'Shelf model'])
+    await select.setValue('1')
+    expect(data(ctx).model).toBe('p:4')
+    wrapper.unmount()
+    mountForm({ id: 'find', type: 'vision.model', data: { model: 'p:4' } })
+    await flushPromises()
+    expect(apiMock.getWorkflowVisionModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('a model list that failed to load says why and Retry asks again; the saved model is kept', async () => {
+    apiMock.getWorkflowVisionModels.mockRejectedValueOnce({ response: { status: 503, data: { error: 'Training Data is not answering.' } } })
+    const ctx = mountForm({ id: 'find', type: 'vision.model', data: { image: '{{trigger.photo}}', model: 'sam3' } })
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Training Data is not answering.')
+    expect(wrapper.text()).toContain('Saved: sam3 (no longer in the list)')
+    apiMock.getWorkflowVisionModels.mockResolvedValueOnce({ data: { models: [{ value: 'sam3', label: 'SAM 3', kind: 'ready' }] } })
+    await wrapper.get('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(data(ctx).model).toBe('sam3')
+    expect(apiMock.getWorkflowVisionModels).toHaveBeenCalledTimes(2)
   })
 })

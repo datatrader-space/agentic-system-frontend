@@ -120,6 +120,8 @@ const props = defineProps({
   validation: { type: Object, default: null },
   readOnly: { type: Boolean, default: false },
   canRun: { type: Boolean, default: true },
+  // The page's Run dialog, opened for a test when the manual trigger declares an image input (ADM-1351).
+  askInputs: { type: Function, default: null },
 })
 const emit = defineEmits(['update:open'])
 
@@ -128,6 +130,7 @@ const PANES = [{ id: 'input', label: 'Input' }, { id: 'settings', label: 'Settin
 const editor = createNodeEditor({
   nodeId: toRef(props, 'nodeId'), doc: props.doc, history: props.history, run: props.run, catalog: props.catalog,
   validation: () => props.validation, readOnly: () => props.readOnly, canRun: () => props.canRun,
+  askInputs: (opts) => props.askInputs?.(opts),
 })
 provideNodeEditor(editor)
 const run = props.run

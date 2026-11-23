@@ -253,7 +253,8 @@ export function buildSources({ nodeId, nodes = [], edges = [], vars = {}, states
     out.push({ id: 'trigger', label: 'Trigger', base: 'trigger', value: fired.output.trigger, real: true })
   } else if (triggerNodes.length || TRIGGER_TYPES(self?.type)) {
     const sample = {}
-    for (const i of inputs) sample[i.key] = i.default ?? ''
+    // An image input (ADM-1351) arrives as an image reference; '(image)' marks the sample, which is never fetched.
+    for (const i of inputs) sample[i.key] = i.type === 'image' ? { kind: 'image', id: '(image)' } : (i.default ?? '')
     out.push({ id: 'trigger', label: 'Trigger', base: 'trigger', value: sample, real: false })
   }
 

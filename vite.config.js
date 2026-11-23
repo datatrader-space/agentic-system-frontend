@@ -20,7 +20,9 @@ export default defineConfig(({ mode, isSsrBuild }) => {
     base: env.VITE_APP_BASE_URL || '/',
     plugins: [vue(), iconSubset({ srcDir: fileURLToPath(new URL('./src', import.meta.url)) }), ...analyzePlugins],
     // training-data/ is its own page with its own tests, run by Node's test runner ("test" in package.json).
-    test: { exclude: [...configDefaults.exclude, 'training-data/**', 'tests/e2e/**'] },
+    // The Workflow Builder's step registry comes from the server (ADM-1351); the tests take it in from the committed
+    // fixture of the server's answer.
+    test: { exclude: [...configDefaults.exclude, 'training-data/**', 'tests/e2e/**'], setupFiles: ['src/test/wfStepRegistrySetup.js'] },
     // Production builds drop console.log / console.debug / console.info: they printed whole server error
     // bodies and every WebSocket frame into the browser console of every user (audit finding A14).
     // console.warn and console.error stay, so real failures are still visible.

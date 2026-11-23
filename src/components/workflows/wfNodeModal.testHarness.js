@@ -55,7 +55,7 @@ export function fakeCatalog(toolNames = []) {
 }
 
 /** { doc, history, run, catalog, editor, Host }: Host provides the editor of `nodeId` to `render()`. */
-export function editorHarness({ nodeId, render, validation = null, ...docOptions }) {
+export function editorHarness({ nodeId, render, validation = null, askInputs = null, ...docOptions }) {
   const doc = fakeDoc(docOptions)
   const history = useWorkflowHistory(doc)
   const run = fakeRun(docOptions)
@@ -63,7 +63,7 @@ export function editorHarness({ nodeId, render, validation = null, ...docOptions
   const ctx = { doc, history, run, catalog, editor: null }
   const Host = defineComponent({
     setup() {
-      ctx.editor = createNodeEditor({ nodeId: ref(nodeId), doc, history, run, catalog, validation: () => validation })
+      ctx.editor = createNodeEditor({ nodeId: ref(nodeId), doc, history, run, catalog, validation: () => validation, askInputs })
       provideNodeEditor(ctx.editor)
       return () => h('div', render ? render(ctx.editor) : null)
     },

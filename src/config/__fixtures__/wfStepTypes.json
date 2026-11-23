@@ -1,0 +1,1433 @@
+{
+ "steps": [
+  {
+   "type": "media.generate",
+   "category": "media",
+   "label": "Generate media",
+   "sub": "Review a Studio estimate before spending",
+   "order": 0,
+   "trigger": false,
+   "executable": true,
+   "billable": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "operation": "image",
+    "route_id": "",
+    "prompt": "",
+    "params": {},
+    "references": [],
+    "cinema": {}
+   },
+   "fields": [
+    {
+     "key": "operation",
+     "type": "enum",
+     "title": "Operation",
+     "options": [
+      "image",
+      "video",
+      "edit_image",
+      "speech",
+      "sound",
+      "music",
+      "sfx",
+      "upscale",
+      "lipsync",
+      "motion",
+      "avatar",
+      "voice_change",
+      "transcribe"
+     ]
+    },
+    {
+     "key": "route_id",
+     "type": "media-route",
+     "title": "Model"
+    },
+    {
+     "key": "prompt",
+     "type": "textarea",
+     "title": "Prompt",
+     "insertable": true
+    },
+    {
+     "key": "params_json",
+     "type": "textarea",
+     "title": "Parameters (JSON)",
+     "mono": true
+    },
+    {
+     "key": "references_json",
+     "type": "textarea",
+     "title": "References (JSON array)",
+     "mono": true,
+     "help": "[{\"attachment_id\":\"{{nodes.id.attachment_id}}\",\"role\":\"subject\"}]"
+    },
+    {
+     "key": "cinema_json",
+     "type": "textarea",
+     "title": "Cinema (JSON)",
+     "mono": true,
+     "showIf": {
+      "operation": "video"
+     }
+    }
+   ],
+   "hint": "The run waits on a job approval card. Generate authorizes only that job; Decline stops the run.",
+   "output_sample": {
+    "attachment_id": "(attachment)",
+    "url": "(url)",
+    "extra_attachment_ids": []
+   },
+   "outputs": {
+    "attachment_id": {
+     "kind": "text",
+     "description": "the media result's attachment id"
+    },
+    "url": {
+     "kind": "text",
+     "description": "the media result's address"
+    },
+    "extra_attachment_ids": {
+     "kind": "list",
+     "description": "more results of the same job"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.manual",
+   "category": "trigger",
+   "label": "Manual trigger",
+   "sub": "Runs on demand",
+   "order": 1,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {},
+   "fields": [
+    {
+     "type": "note",
+     "text": "Manual triggers run when you press Run. Declare inputs to be prompted at run time; reference them as {{trigger.key}}. An image input asks for a photo."
+    },
+    {
+     "key": "inputs",
+     "type": "kv",
+     "title": "Inputs",
+     "addLabel": "+ Add input",
+     "cols": [
+      {
+       "key": "key",
+       "ph": "key",
+       "mono": true
+      },
+      {
+       "key": "type",
+       "ph": "type",
+       "options": [
+        [
+         "text",
+         "Text"
+        ],
+        [
+         "image",
+         "Image"
+        ]
+       ]
+      },
+      {
+       "key": "default",
+       "ph": "default (optional)"
+      }
+     ]
+    }
+   ],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the run's inputs: each declared input by its key (an image input is an image)"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.schedule",
+   "category": "trigger",
+   "label": "Schedule",
+   "sub": "Cron trigger",
+   "order": 2,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "cron": "0 8 * * *"
+   },
+   "fields": [
+    {
+     "key": "cron",
+     "type": "string",
+     "mono": true,
+     "title": "Cron (m h dom mon dow)",
+     "placeholder": "0 8 * * *"
+    }
+   ],
+   "hint": "Save to register the schedule. A scheduler tick fires it when the cron matches.",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the trigger payload"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.webhook",
+   "category": "trigger",
+   "label": "Webhook",
+   "sub": "Inbound HTTP",
+   "order": 3,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": true,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {},
+   "fields": [],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the request payload"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.channel",
+   "category": "trigger",
+   "label": "Channel message",
+   "sub": "Inbound slack/telegram/email",
+   "order": 4,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "channelUrl",
+   "defaults": {
+    "platform": "slack",
+    "channel": "",
+    "keyword": ""
+   },
+   "fields": [
+    {
+     "key": "platform",
+     "type": "enum",
+     "title": "Platform",
+     "options": [
+      [
+       "slack",
+       "Slack"
+      ],
+      [
+       "telegram",
+       "Telegram"
+      ],
+      [
+       "email",
+       "Email"
+      ]
+     ]
+    },
+    {
+     "key": "channel",
+     "type": "string",
+     "title": "Channel (optional)",
+     "placeholder": "#general / chat id"
+    },
+    {
+     "key": "keyword",
+     "type": "string",
+     "title": "Keyword filter (optional)",
+     "placeholder": "only fire if message contains\u2026"
+    }
+   ],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the channel message"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.connector",
+   "category": "trigger",
+   "label": "Connector event",
+   "sub": "A connected account fires",
+   "order": 5,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "connectorUrl",
+   "defaults": {
+    "provider": "",
+    "connection": "",
+    "event_type": "",
+    "filters": {}
+   },
+   "fields": [
+    {
+     "key": "provider",
+     "type": "string",
+     "title": "Provider",
+     "placeholder": "github / highlevel"
+    },
+    {
+     "key": "connection",
+     "type": "string",
+     "title": "Connection id",
+     "placeholder": "which connected account to listen to"
+    },
+    {
+     "key": "event_type",
+     "type": "string",
+     "title": "Event type",
+     "placeholder": "the provider's own name, e.g. push"
+    },
+    {
+     "key": "filters_json",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "title": "Resource filters (optional)",
+     "placeholder": "{ \"repository.name\": \"salon-site\" }"
+    }
+   ],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the connector's event"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "trigger.training.stream_event",
+   "category": "trigger",
+   "label": "Camera event",
+   "sub": "A camera rule matched",
+   "order": 6,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "source": null,
+    "rule": null,
+    "source_name": ""
+   },
+   "fields": [
+    {
+     "type": "note",
+     "text": "Starts when a rule on this camera matches what a model finds, at most once in the rule's cooldown. Read the event as {{trigger.source.name}}, {{trigger.matched}} and {{trigger.frame_time}}. {{trigger.image}} is the frame, for a vision step. A step opens the frame with {{trigger.snapshot_url}} (it works for 15 minutes after the run starts); {{trigger.snapshot_link}} is for a signed-in person."
+    },
+    {
+     "key": "source",
+     "type": "number",
+     "min": 1,
+     "title": "Camera id",
+     "placeholder": "from the camera's page in Training Data"
+    },
+    {
+     "key": "rule",
+     "type": "number",
+     "min": 1,
+     "title": "Rule id (optional)",
+     "placeholder": "any rule of the camera"
+    }
+   ],
+   "hint": "Publish the workflow to have it start. It starts only for a camera of this workflow's workspace.",
+   "output_sample": {
+    "event": 0,
+    "source": {
+     "id": 0,
+     "name": "Camera"
+    },
+    "matched": {
+     "person": 1
+    },
+    "frame_time": "2026-11-18T09:00:00+00:00",
+    "image": {
+     "kind": "image",
+     "event": 0
+    },
+    "snapshot_link": "(link)",
+    "snapshot_url": "(15-minute link)"
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the camera event (event, source {id, name}, rule, frame_time, matched, answer, image, snapshot_link, snapshot_url)"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "agent.run",
+   "category": "agent",
+   "label": "Run agent",
+   "sub": "Run an AgentProfile",
+   "order": 7,
+   "trigger": false,
+   "executable": true,
+   "billable": true,
+   "custom": true,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "prompt": "",
+    "agent_id": null,
+    "agent_name": ""
+   },
+   "fields": [],
+   "hint": "",
+   "output_sample": {
+    "text": "agent reply text",
+    "agent": "Agent name"
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the agent's answer"
+    },
+    "agent": {
+     "kind": "text",
+     "description": "the agent's name"
+    },
+    "<field>": {
+     "kind": "any",
+     "description": "each field of data.output_schema, when data.output_mode is json or schema"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "llm.call",
+   "category": "agent",
+   "label": "Model call",
+   "sub": "One structured LLM call",
+   "order": 8,
+   "trigger": false,
+   "executable": true,
+   "billable": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "prompt": "",
+    "system": "",
+    "model_id": null,
+    "output_mode": "text",
+    "output_schema_json": ""
+   },
+   "fields": [
+    {
+     "key": "prompt",
+     "type": "textarea",
+     "rows": 6,
+     "insertable": true,
+     "title": "Prompt",
+     "placeholder": "Extract the decisions from {{nodes.fetch.output.text}}"
+    },
+    {
+     "key": "system",
+     "type": "textarea",
+     "rows": 2,
+     "insertable": true,
+     "title": "System prompt (optional)",
+     "placeholder": "You extract structured facts and never invent them."
+    },
+    {
+     "key": "model_id",
+     "type": "string",
+     "mono": true,
+     "title": "Model (optional)",
+     "placeholder": "leave blank to use your default"
+    },
+    {
+     "key": "output_mode",
+     "type": "enum",
+     "title": "Output",
+     "options": [
+      [
+       "text",
+       "Text"
+      ],
+      [
+       "json",
+       "JSON object"
+      ],
+      [
+       "schema",
+       "JSON Schema"
+      ]
+     ]
+    },
+    {
+     "key": "output_schema_json",
+     "type": "textarea",
+     "mono": true,
+     "rows": 6,
+     "title": "Output schema (JSON Schema)",
+     "placeholder": "{ \"type\": \"object\", \"properties\": { \"summary\": { \"type\": \"string\" } }, \"required\": [\"summary\"] }"
+    }
+   ],
+   "hint": "On JSON/Schema output a reply that does not parse, or that omits a required field, FAILS the step. Partial data would let a downstream condition read a missing field, evaluate false and take the wrong branch silently.",
+   "output_sample": {
+    "text": "model reply",
+    "model": "Model name"
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the model's answer"
+    },
+    "model": {
+     "kind": "text",
+     "description": "the model's name"
+    },
+    "<field>": {
+     "kind": "any",
+     "description": "each field of the declared output schema, when data.output_mode is json or schema"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "vision.model",
+   "category": "vision",
+   "label": "Find objects",
+   "sub": "Run a vision model on an image",
+   "order": 9,
+   "trigger": false,
+   "executable": true,
+   "billable": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "image": "",
+    "model": "",
+    "classes": "",
+    "threshold": null
+   },
+   "fields": [
+    {
+     "key": "image",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Image",
+     "placeholder": "{{trigger.photo}}",
+     "help": "An image from an earlier step or from the trigger: a manual trigger's image input, a camera event's {{trigger.image}}, or {{nodes.<id>.output.image}}."
+    },
+    {
+     "key": "model",
+     "type": "enum",
+     "optionsKey": "visionModels",
+     "title": "Model",
+     "placeholder": "Select a model\u2026",
+     "help": "A model of one of your Training Data projects (its test server or staging deployment must be running), or a ready model. Each image is paid from your balance at the model's price."
+    },
+    {
+     "key": "classes",
+     "type": "string",
+     "title": "What to find",
+     "placeholder": "person, car",
+     "help": "SAM 3 finds exactly these. For other models it keeps only these classes. Comma separated, for example person, car. Empty keeps every class."
+    },
+    {
+     "key": "threshold",
+     "type": "number",
+     "min": 0,
+     "max": 1,
+     "title": "Least confidence (optional)",
+     "placeholder": "the model's own"
+    }
+   ],
+   "hint": "A Test run does not call the model and charges nothing: it shows an empty answer. Use Run to find objects on a real image.",
+   "output_sample": {
+    "detections": {
+     "kind": "detections",
+     "items": [
+      {
+       "class": "person",
+       "score": 0.91,
+       "box": [
+        10,
+        20,
+        110,
+        220
+       ],
+       "polygon": null
+      }
+     ]
+    },
+    "count": 1,
+    "classes": {
+     "person": 1
+    },
+    "image": {
+     "kind": "image",
+     "id": "(image)"
+    }
+   },
+   "outputs": {
+    "detections": {
+     "kind": "detections",
+     "description": "what the model found, in the image's pixels"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many objects were found"
+    },
+    "classes": {
+     "kind": "object",
+     "description": "how many of each class"
+    },
+    "image": {
+     "kind": "image",
+     "description": "the image the model looked at"
+    },
+    "cost_usd": {
+     "kind": "number",
+     "description": "what the call cost"
+    }
+   },
+   "inputs": {
+    "image": [
+     "image"
+    ]
+   }
+  },
+  {
+   "type": "vision.filter",
+   "category": "vision",
+   "label": "Filter objects",
+   "sub": "Keep objects by class, confidence or zone",
+   "order": 10,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "detections": "",
+    "classes": "",
+    "min_score": null,
+    "zone": null
+   },
+   "fields": [
+    {
+     "key": "detections",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Detections",
+     "placeholder": "{{nodes.find.output.detections}}",
+     "help": "What a Find objects step (or a Filter step) found."
+    },
+    {
+     "key": "classes",
+     "type": "string",
+     "title": "Classes to keep",
+     "placeholder": "person",
+     "help": "Comma separated, for example person, car. Empty keeps every class."
+    },
+    {
+     "key": "min_score",
+     "type": "number",
+     "min": 0,
+     "max": 1,
+     "title": "Least confidence (optional)"
+    },
+    {
+     "key": "zone",
+     "type": "number",
+     "min": 1,
+     "title": "Camera zone id (optional)",
+     "help": "Keep only objects inside this zone of one of your workspace's cameras (Training Data, the camera's Zones)."
+    }
+   ],
+   "hint": "",
+   "output_sample": {
+    "detections": {
+     "kind": "detections",
+     "items": []
+    },
+    "count": 0,
+    "classes": {}
+   },
+   "outputs": {
+    "detections": {
+     "kind": "detections",
+     "description": "the objects kept"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many were kept"
+    },
+    "classes": {
+     "kind": "object",
+     "description": "how many of each class were kept"
+    }
+   },
+   "inputs": {
+    "detections": [
+     "detections"
+    ]
+   }
+  },
+  {
+   "type": "vision.crop",
+   "category": "vision",
+   "label": "Crop objects",
+   "sub": "One image per object found",
+   "order": 11,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "detections": "",
+    "padding": 0,
+    "max": 20
+   },
+   "fields": [
+    {
+     "key": "detections",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Detections",
+     "placeholder": "{{nodes.find.output.detections}}",
+     "help": "What a Find objects step (or a Filter step) found."
+    },
+    {
+     "key": "padding",
+     "type": "number",
+     "min": 0,
+     "max": 50,
+     "title": "Padding (% of the object's size)"
+    },
+    {
+     "key": "max",
+     "type": "number",
+     "min": 1,
+     "max": 50,
+     "title": "At most this many crops"
+    }
+   ],
+   "hint": "Run a step on each crop with a For-each over {{nodes.<id>.output.images}}.",
+   "output_sample": {
+    "images": [
+     {
+      "kind": "image",
+      "id": "(image)"
+     }
+    ],
+    "count": 1
+   },
+   "outputs": {
+    "images": {
+     "kind": "images",
+     "description": "one image per object, in the detections' order"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many crops were made"
+    }
+   },
+   "inputs": {
+    "detections": [
+     "detections"
+    ]
+   }
+  },
+  {
+   "type": "vision.draw",
+   "category": "vision",
+   "label": "Draw objects",
+   "sub": "Boxes and labels on the image",
+   "order": 12,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "detections": "",
+    "labels": true
+   },
+   "fields": [
+    {
+     "key": "detections",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Detections",
+     "placeholder": "{{nodes.find.output.detections}}",
+     "help": "What a Find objects step (or a Filter step) found."
+    },
+    {
+     "key": "labels",
+     "type": "boolean",
+     "title": "Write each object's class and confidence"
+    }
+   ],
+   "hint": "",
+   "output_sample": {
+    "image": {
+     "kind": "image",
+     "id": "(image)"
+    }
+   },
+   "outputs": {
+    "image": {
+     "kind": "image",
+     "description": "the image with the objects drawn on it"
+    }
+   },
+   "inputs": {
+    "detections": [
+     "detections"
+    ]
+   }
+  },
+  {
+   "type": "action.tool",
+   "category": "action",
+   "label": "Run tool",
+   "sub": "Call a registered tool",
+   "order": 13,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "tool": "",
+    "params_json": "{}"
+   },
+   "fields": [
+    {
+     "key": "tool",
+     "type": "string",
+     "mono": true,
+     "list": "tools",
+     "title": "Tool name",
+     "placeholder": "GITHUB_LIST_REPOSITORIES"
+    },
+    {
+     "key": "params_json",
+     "type": "textarea",
+     "mono": true,
+     "rows": 5,
+     "insertable": true,
+     "title": "Params (JSON)",
+     "placeholder": "{ \"owner\": \"me\" }"
+    }
+   ],
+   "hint": "Read-only tools run unattended; approval-required tools are blocked in workflows.",
+   "output_sample": {
+    "text": "tool result text",
+    "result": "(the tool result)",
+    "tool": "TOOL_NAME"
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the tool's result"
+    },
+    "result": {
+     "kind": "any",
+     "description": "the tool's result, parsed"
+    },
+    "tool": {
+     "kind": "text",
+     "description": "the tool's name"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "action.mcp_tool",
+   "category": "action",
+   "label": "MCP tool",
+   "sub": "Deterministic MCP call",
+   "order": 14,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": true,
+   "palette": false,
+   "custom_tail": "",
+   "defaults": {
+    "agent_id": null,
+    "agent_name": "",
+    "server_id": null,
+    "server_name": "",
+    "tool_name": "",
+    "params_json": "{}"
+   },
+   "fields": [],
+   "hint": "",
+   "output_sample": {
+    "text": "MCP tool result",
+    "result": "(the tool result)",
+    "tool": "tool_name",
+    "server_id": 0
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the tool's result"
+    },
+    "result": {
+     "kind": "any",
+     "description": "the tool's result, parsed"
+    },
+    "tool": {
+     "kind": "text",
+     "description": "the tool's name"
+    },
+    "server_id": {
+     "kind": "number",
+     "description": "the MCP server"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "action.script",
+   "category": "action",
+   "label": "Run script",
+   "sub": "Run a saved script",
+   "order": 15,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "script_id": null
+   },
+   "fields": [
+    {
+     "key": "script_id",
+     "type": "enum",
+     "optionsKey": "scripts",
+     "title": "Saved script",
+     "placeholder": "Select a script\u2026"
+    }
+   ],
+   "hint": "Runs a SavedScript you own in the sandbox. Manage scripts on the Scripts page.",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the script's output"
+    },
+    "script": {
+     "kind": "text",
+     "description": "the script's name"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "action.channel",
+   "category": "action",
+   "label": "Send to channel",
+   "sub": "log / slack / webhook / telegram / email",
+   "order": 16,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "kind": "log",
+    "message": "",
+    "slack_channel": "",
+    "url": "",
+    "chat_id": "",
+    "to": "",
+    "subject": ""
+   },
+   "fields": [
+    {
+     "key": "kind",
+     "type": "enum",
+     "title": "Channel",
+     "options": [
+      [
+       "log",
+       "Log (always works)"
+      ],
+      [
+       "slack",
+       "Slack"
+      ],
+      [
+       "webhook",
+       "Webhook"
+      ],
+      [
+       "telegram",
+       "Telegram"
+      ],
+      [
+       "email",
+       "Email"
+      ]
+     ]
+    },
+    {
+     "key": "slack_channel",
+     "type": "string",
+     "title": "Slack channel (id or #name)",
+     "placeholder": "C0123\u2026 or #general",
+     "showIf": {
+      "kind": "slack"
+     }
+    },
+    {
+     "key": "url",
+     "type": "string",
+     "title": "Webhook URL",
+     "placeholder": "https://\u2026",
+     "showIf": {
+      "kind": "webhook"
+     }
+    },
+    {
+     "key": "chat_id",
+     "type": "string",
+     "title": "Telegram chat id",
+     "placeholder": "123456789",
+     "showIf": {
+      "kind": "telegram"
+     },
+     "help": "Uses your connected Telegram bot, or set a bot token below."
+    },
+    {
+     "key": "bot_token",
+     "type": "password",
+     "title": "Bot token (optional)",
+     "placeholder": "overrides the connected bot",
+     "showIf": {
+      "kind": "telegram"
+     }
+    },
+    {
+     "key": "to",
+     "type": "string",
+     "title": "Recipient(s)",
+     "placeholder": "to@example.com, other@\u2026",
+     "showIf": {
+      "kind": "email"
+     }
+    },
+    {
+     "key": "subject",
+     "type": "string",
+     "title": "Subject",
+     "placeholder": "Workflow notification",
+     "showIf": {
+      "kind": "email"
+     }
+    },
+    {
+     "key": "message",
+     "type": "textarea",
+     "rows": 5,
+     "insertable": true,
+     "title": "Message",
+     "placeholder": "Message to send. Insert variables from upstream nodes."
+    }
+   ],
+   "hint": "",
+   "output_sample": {
+    "text": "sent message",
+    "channel": "log",
+    "delivered": true
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "the message sent"
+    },
+    "channel": {
+     "kind": "text",
+     "description": "the channel"
+    },
+    "delivered": {
+     "kind": "boolean",
+     "description": "log channel"
+    },
+    "status_code": {
+     "kind": "number",
+     "description": "webhook, telegram"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "action.http",
+   "category": "action",
+   "label": "HTTP request",
+   "sub": "GET/POST a URL",
+   "order": 17,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "method": "GET",
+    "url": "",
+    "json_text": ""
+   },
+   "fields": [
+    {
+     "key": "method",
+     "type": "enum",
+     "title": "Method",
+     "options": [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE"
+     ]
+    },
+    {
+     "key": "url",
+     "type": "string",
+     "insertable": true,
+     "title": "URL",
+     "placeholder": "https://\u2026"
+    },
+    {
+     "key": "json_text",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "insertable": true,
+     "title": "JSON body (optional)",
+     "placeholder": "{ \"key\": \"value\" }"
+    }
+   ],
+   "hint": "",
+   "output_sample": {
+    "status_code": 200,
+    "text": "response body"
+   },
+   "outputs": {
+    "status_code": {
+     "kind": "number",
+     "description": "the response status"
+    },
+    "text": {
+     "kind": "text",
+     "description": "the response body"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "logic.condition",
+   "category": "logic",
+   "label": "Condition",
+   "sub": "Branch true / false",
+   "order": 18,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "expression": ""
+   },
+   "fields": [
+    {
+     "key": "expression",
+     "type": "string",
+     "mono": true,
+     "insertable": true,
+     "title": "Expression",
+     "placeholder": "{{nodes.<id>.output.text}} contains ok"
+    }
+   ],
+   "hint": "Supports == != > < >= <= and \"contains\". The true / false handles route each branch.",
+   "output_sample": {
+    "result": true,
+    "text": "True",
+    "expression": "\u2026 contains ok"
+   },
+   "outputs": {
+    "result": {
+     "kind": "boolean",
+     "description": "the condition's answer"
+    },
+    "text": {
+     "kind": "text",
+     "description": "True or False"
+    },
+    "expression": {
+     "kind": "text",
+     "description": "the expression as evaluated"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "logic.approval",
+   "category": "logic",
+   "label": "Approval",
+   "sub": "Wait for human OK",
+   "order": 19,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "approval",
+   "defaults": {
+    "message": "Approve to continue?"
+   },
+   "fields": [
+    {
+     "key": "message",
+     "type": "textarea",
+     "rows": 3,
+     "title": "Approval message",
+     "placeholder": "What needs approval? Shown to the approver."
+    }
+   ],
+   "hint": "The run pauses here until approved. Connect the normal handle for approve, the on-error handle for reject.",
+   "output_sample": null,
+   "outputs": {
+    "awaiting_approval": {
+     "kind": "boolean",
+     "description": "while it waits"
+    },
+    "message": {
+     "kind": "text",
+     "description": "the approval message"
+    },
+    "approval_id": {
+     "kind": "text",
+     "description": "the approval"
+    },
+    "approvers": {
+     "kind": "list",
+     "description": "who may decide"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "logic.foreach",
+   "category": "logic",
+   "label": "For-each",
+   "sub": "Run per list item",
+   "order": 20,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": true,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "items_template": "",
+    "do": {
+     "type": "action.channel",
+     "data": {
+      "kind": "log",
+      "message": "item {{item}}"
+     }
+    }
+   },
+   "fields": [],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "count": {
+     "kind": "number",
+     "description": "how many items ran"
+    },
+    "results": {
+     "kind": "list",
+     "description": "one {item, status, error, text, output} per item"
+    },
+    "text": {
+     "kind": "text",
+     "description": "a summary"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "logic.delay",
+   "category": "logic",
+   "label": "Delay",
+   "sub": "Wait (durable >60s)",
+   "order": 21,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "seconds": 5
+   },
+   "fields": [
+    {
+     "key": "seconds",
+     "type": "number",
+     "min": 0,
+     "title": "Seconds to wait",
+     "help": "Up to 60 seconds the step waits in place. A longer delay pauses the run and resumes it when the time is up."
+    }
+   ],
+   "hint": "",
+   "output_sample": null,
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "what happened"
+    }
+   },
+   "inputs": {}
+  },
+  {
+   "type": "action.subworkflow",
+   "category": "action",
+   "label": "Sub-workflow",
+   "sub": "Run another graph",
+   "order": 22,
+   "trigger": false,
+   "executable": true,
+   "billable": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "graph_id": null,
+    "graph_name": ""
+   },
+   "fields": [
+    {
+     "key": "graph_id",
+     "type": "enum",
+     "optionsKey": "graphs",
+     "title": "Workflow to run",
+     "placeholder": "Select a workflow\u2026"
+    }
+   ],
+   "hint": "Runs another graph you own and waits for it (max depth 3). Its trigger payload receives this run's context.",
+   "output_sample": {
+    "sub_run_id": 0,
+    "text": "sub-workflow ok"
+   },
+   "outputs": {
+    "sub_run_id": {
+     "kind": "number",
+     "description": "the sub-workflow's run"
+    },
+    "text": {
+     "kind": "text",
+     "description": "its answer"
+    }
+   },
+   "inputs": {}
+  }
+ ],
+ "kinds": [
+  "text",
+  "number",
+  "boolean",
+  "object",
+  "list",
+  "image",
+  "images",
+  "detections",
+  "any"
+ ],
+ "categories": [
+  "trigger",
+  "agent",
+  "action",
+  "logic",
+  "media",
+  "vision"
+ ]
+}

@@ -12,12 +12,24 @@
   pick(token), and the button (or the key) can be dragged into a field (drag payload WF_VAR_MIME and text/plain).
   Nothing here closes or unmounts on dragstart (F19): Chrome cancels a drag whose source leaves the page.
   Emits: pick(token), drag-start(token), drag-end().
+
+  IMAGES (ADM-1351). In the values view, every image in the value is shown above the tree as a thumbnail, and every
+  detections value as its image with the boxes drawn on it and "N objects: ..." in words (WfImagePreview). Nothing is
+  cut: a step that made 50 crops shows 50 thumbnails. The registry's samples ('(image)') are shapes and show none.
 -->
 <template>
   <div class="otree" :class="{ 'otree--virtual': virtual }" :aria-label="label || undefined" role="group">
     <p v-if="value === undefined" class="otree-empty">No value.</p>
+    <ul v-if="media.length" class="otree-media" :class="{ 'otree-media--grid': media.every((m) => m.kind === 'image') }" aria-label="Images">
+      <li v-for="m in media" :key="m.path">
+        <WfImagePreview
+          :image="m.kind === 'image' ? m.value : null" :detections="m.kind === 'detections' ? m.value : null"
+          :label="m.path"
+        />
+      </li>
+    </ul>
     <VueJsonPretty
-      v-else
+      v-if="value !== undefined"
       :data="shown"
       :deep="Infinity"
       :show-length="true"
@@ -40,6 +52,8 @@ import VueJsonPretty from 'vue-json-pretty'
 import 'vue-json-pretty/lib/styles.css'
 import { Icon } from '@iconify/vue'
 import { WF_VAR_MIME, countRows, prettyPathToEngine, schemaOf, tokenFor } from './wfNodeModalModel'
+import WfImagePreview from './WfImagePreview.vue'
+import { findMedia } from '@/utils/wfImages'
 
 const props = defineProps({
   value: { type: null, default: undefined },
@@ -49,11 +63,14 @@ const props = defineProps({
   insertable: { type: Boolean, default: true },
   virtualThreshold: { type: Number, default: 200 },
   height: { type: Number, default: 320 },
+  // Show the value's images above the tree (values view only).
+  images: { type: Boolean, default: true },
 })
 const emit = defineEmits(['pick', 'drag-start', 'drag-end'])
 
 const shown = computed(() => (props.mode === 'schema' ? schemaOf(props.value) : props.value))
 const virtual = computed(() => countRows(shown.value) > props.virtualThreshold)
+const media = computed(() => (props.images && props.mode === 'json' && props.value !== undefined ? findMedia(props.value) : []))
 
 // The app's theme, so the library's own colours (overridden below with tokens) never fight it.
 const theme = ref('light')
@@ -111,6 +128,8 @@ function renderActions({ node }) {
 <style scoped>
 .otree { min-width: 0; font-size: 12px; color: var(--vm-ink); }
 .otree-empty { margin: 0; padding: 6px 2px; color: var(--vm-ink-faint); }
+.otree-media { display: grid; gap: 10px; margin: 0 0 8px; padding: 0; list-style: none; }
+.otree-media--grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); align-items: start; }
 .otree :deep(.vjs-tree) { font-family: var(--vm-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; line-height: 1.5; }
 .otree :deep(.vjs-tree-node) { position: relative; align-items: flex-start; border-radius: 4px; padding-right: 2px; }
 .otree :deep(.vjs-tree-node:hover), .otree :deep(.vjs-tree-node.is-highlight), .otree :deep(.vjs-tree-node.dark:hover) { background-color: var(--vm-surface-soft); }

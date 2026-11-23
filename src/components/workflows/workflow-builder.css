@@ -46,13 +46,14 @@
   --wf-status-failed:var(--wf-danger-ink);
   --wf-status-skipped:var(--wf-muted);
   --wf-status-cancelled:var(--wf-muted);
-  /* Node categories (plan §3.2): trigger emerald, agent/LLM violet, action blue, logic slate, media amber.
+  /* Node categories (plan §3.2): trigger emerald, agent/LLM violet, action blue, logic slate, media amber, vision pink.
      <id> is the icon and text colour, <id>-soft the tile behind it. */
   --wf-cat-trigger:#047857;--wf-cat-trigger-soft:#ECFDF5;
   --wf-cat-agent:#6D28D9;--wf-cat-agent-soft:#F5F3FF;
   --wf-cat-action:#1D4ED8;--wf-cat-action-soft:#EFF6FF;
   --wf-cat-logic:#475569;--wf-cat-logic-soft:#F1F5F9;
   --wf-cat-media:#B45309;--wf-cat-media-soft:#FFFBEB;
+  --wf-cat-vision:#BE185D;--wf-cat-vision-soft:#FDF2F8;
 }
 [data-theme="dark"] .wfb-root,[data-theme="dark"] .wf-tokens{
   --wf-shadow-tint:rgb(0 0 0 / .45);
@@ -62,6 +63,7 @@
   --wf-cat-action:#60A5FA;--wf-cat-action-soft:#192B4C;
   --wf-cat-logic:#94A3B8;--wf-cat-logic-soft:#202939;
   --wf-cat-media:#FBBF24;--wf-cat-media-soft:#3A3022;
+  --wf-cat-vision:#F472B6;--wf-cat-vision-soft:#3A1D2E;
 }
 /* Vue Flow's theme, mapped onto our tokens in this ONE block (D1 rule 5). On the move to @xyflow/vue 2.x
    (ADM-1336) these become --xy-* names and the .vue-flow__* selectors below change here only. */
@@ -124,6 +126,13 @@
 .wfb-field__help{margin:0;font-size:12px;color:var(--wf-muted)}
 .wfb-input{width:100%;min-height:36px;padding:7px 10px;border:1px solid var(--wf-line-2);border-radius:8px;background:var(--wf-surface);color:var(--wf-ink);font:inherit}
 .wfb-input::placeholder{color:var(--wf-muted)}
+.wfb-input:focus-visible{outline:2px solid var(--wf-focus);outline-offset:1px}
+/* A photo for a manual trigger's image input (ADM-1351). */
+.wfb-file{padding:5px 6px;cursor:pointer}
+.wfb-file::file-selector-button{min-height:28px;margin-right:10px;padding:4px 10px;border:1px solid var(--wf-line-2);border-radius:6px;background:var(--wf-surface-soft);color:var(--wf-ink);font:inherit;font-size:12px;cursor:pointer}
+.wfb-file:hover::file-selector-button{border-color:var(--wf-muted)}
+.wfb-field__error{display:flex;align-items:flex-start;gap:6px;margin:0;font-size:12px;color:var(--wf-danger-ink)}
+.wfb-field__error svg{width:14px;height:14px;flex-shrink:0;margin-top:1px}
 
 /* ── toolbar ──────────────────────────────────────────────────────────────────────────────────────────────────── */
 .wfb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;padding:6px;border:1px solid var(--wf-line);border-radius:12px;background:color-mix(in srgb,var(--wf-surface) 94%,transparent);box-shadow:0 6px 20px var(--wf-shadow-tint);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
@@ -176,6 +185,7 @@
 .wfb-root .wf-mm--action{fill:var(--wf-cat-action)}
 .wfb-root .wf-mm--logic{fill:var(--wf-cat-logic)}
 .wfb-root .wf-mm--media{fill:var(--wf-cat-media)}
+.wfb-root .wf-mm--vision{fill:var(--wf-cat-vision)}
 
 /* ── node card (plan §3.2) ────────────────────────────────────────────────────────────────────────────────────── */
 .wf-node{position:relative;display:flex;align-items:center;gap:10px;width:200px;height:64px;padding:0 12px 0 13px;border:1px solid var(--wf-line-2);border-radius:12px;background:var(--wf-surface);color:var(--wf-ink);box-shadow:0 1px 3px var(--wf-shadow-tint);transition:box-shadow .15s,border-color .15s,opacity .15s}

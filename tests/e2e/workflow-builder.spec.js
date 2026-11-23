@@ -3,11 +3,15 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { resolve } from 'node:path'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const SHOTS = process.env.WF_SHOT_DIR || ''
 const AXE_OUT = process.env.WF_AXE_OUT || ''
 const clone = (v) => JSON.parse(JSON.stringify(v))
+// The server's step registry (ADM-1351, D4): the committed fixture of GET /api/workflow-graphs/step-types/.
+const stepTypes = JSON.parse(readFileSync(resolve('src/config/__fixtures__/wfStepTypes.json'), 'utf8'))
+// A 4 x 2 grey PNG: what an image's viewer link answers with (same origin; the harness never reaches outside).
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAIAAADwyuo0AAAAEElEQVR4nGOYsngHHDEgcwDIEg95KuyVFwAAAABJRU5ErkJggg==', 'base64')
 const baseGraph = {
   id: 86, public_id: 'wf_86', name: 'Customer intake', status: 'draft', version: 1, etag: 'initial', triggers: [], last_run: null,
   my_role: 'owner', owner: { id: 1, email: 'olga@example.test', name: 'Olga Owner' },
@@ -34,7 +38,8 @@ test.beforeAll(async ({ browser }, testInfo) => {
     if (url.origin !== 'http://127.0.0.1:5177') return route.abort()
     if (req.resourceType() === 'document') return route.fulfill({ contentType: 'text/html', body: html })
     if (url.pathname.startsWith('/api/')) {
-      return route.fulfill({ contentType: 'application/json', body: url.pathname.endsWith('/bundle/') ? JSON.stringify({ graph: baseGraph, agents: [], all_graphs: [], scripts: [] }) : '{}' })
+      const body = url.pathname.endsWith('/bundle/') ? { graph: baseGraph, agents: [], all_graphs: [], scripts: [] } : url.pathname.endsWith('/step-types/') ? stepTypes : {}
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
     }
     return route.continue()
   })
@@ -50,6 +55,7 @@ async function prepare(page, overrides = {}) {
     validation: { ok: true, warnings: [] }, ...overrides,
   }
   const errors = []
+  const failSteps = !!state.failSteps   // counted down by the route as the reads fail
   page.on('pageerror', (e) => errors.push(e.message))
   if (process.env.WF_DEBUG) page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[browser ${m.type()}]`, m.text().slice(0, 400)) })
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5177' })
@@ -68,12 +74,27 @@ async function prepare(page, overrides = {}) {
     const path = url.pathname
     if (url.origin !== 'http://127.0.0.1:5177') return route.abort()
     if (req.resourceType() === 'document' && path.startsWith('/dashboard')) return route.fulfill({ contentType: 'text/html', body: html })
+    if (path.startsWith('/e2e-image/')) { state.imageLoads = (state.imageLoads || 0) + 1; return route.fulfill({ contentType: 'image/png', body: PNG }) }
     if (!path.startsWith('/api/')) return route.continue()
     const method = req.method()
     let body = null
     try { body = req.postDataJSON() } catch { body = null }
     state.requests.push({ path, method, body, query: Object.fromEntries(url.searchParams) })
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
+    // Vision workflows (ADM-1351): the step registry, the models, an uploaded photo and an image's 15-minute link.
+    if (path === '/api/workflow-graphs/step-types/') {
+      if (state.failSteps) { state.failSteps -= 1; return json({ error: 'The step list is not available right now.' }, 503) }
+      return json(stepTypes)
+    }
+    if (/\/workflow-graphs\/\d+\/vision-models\/$/.test(path)) return json({ models: [{ value: 'sam3', label: 'SAM 3', kind: 'ready' }] })
+    if (/\/workflow-graphs\/\d+\/images\/$/.test(path) && method === 'POST') {
+      const type = req.headers()['content-type'] || ''
+      if (!type.startsWith('multipart/form-data')) return json({ error: 'Send the photo as a file.', code: 'not_multipart' }, 400)
+      state.uploads = (state.uploads || 0) + 1
+      return json({ image: { kind: 'image', id: `img-${state.uploads}`, width: 2, height: 2 } }, 201)
+    }
+    if (/\/workflow-graphs\/images\/[^/]+\/$/.test(path)) return json({ url: `/e2e-image/${path.split('/')[4]}.png`, expires_in: 900 })
+    if (path.endsWith('/last-run/')) return json(state.lastRun || {})
     if (/\/workflow-graphs\/\d+\/bundle\/$/.test(path)) {
       return state.failLoad ? json({ error: 'Unavailable' }, 503) : json({ graph: state.graph, agents: [{ id: 1, name: 'Fixture agent' }], all_graphs: [], scripts: [] })
     }
@@ -127,7 +148,7 @@ async function prepare(page, overrides = {}) {
   })
   await page.goto(state.path || '/dashboard/workflow-builder/86', { waitUntil: 'commit' })
   if (!state.failLoad) await expect(page.locator('.wfb-name')).toContainText('Customer intake', { timeout: 60000 })
-  await page.waitForFunction(() => document.querySelectorAll('.vue-flow__node').length >= 0 && !!document.querySelector('.vue-flow'))
+  if (!failSteps) await page.waitForFunction(() => document.querySelectorAll('.vue-flow__node').length >= 0 && !!document.querySelector('.vue-flow'))
   return { state, errors }
 }
 const node = (page, id) => page.locator(`.vue-flow__node[data-id="${id}"]`)
@@ -516,6 +537,77 @@ test('a failed load says so and retries', async ({ page }) => {
   state.failLoad = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+})
+
+test('a step list that cannot be read says so and retries; nothing is drawn from a bundled copy (ADM-1351)', async ({ page }) => {
+  const { state, errors } = await prepare(page, { failSteps: 1 })
+  await expect(page.getByRole('alert').filter({ hasText: 'The step list is not available right now.' })).toBeVisible()
+  await expect(page.locator('.vue-flow')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('.vue-flow__node')).toHaveCount(2)
+  expect(state.requests.filter((r) => r.path === '/api/workflow-graphs/step-types/')).toHaveLength(2)
+  expect(errors).toEqual([])
+})
+
+test('a photo input: Run asks for a photo, uploads it and runs with its reference; the step shows the boxes (ADM-1351)', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.graph.nodes = [
+    { id: 'start', type: 'trigger.manual', position: { x: 80, y: 160 }, data: { label: 'Photo in', inputs: [{ key: 'note', type: 'text', default: 'shelf 4' }, { key: 'photo', type: 'image' }] } },
+    { id: 'find', type: 'vision.model', position: { x: 410, y: 160 }, data: { image: '{{trigger.photo}}', model: 'sam3', classes: 'cat, dog', threshold: null } },
+  ]
+  graph.graph.edges = [{ id: 'e_start_find', source: 'start', target: 'find' }]
+  const detections = { kind: 'detections', image: { kind: 'image', id: 'img-1' }, size: [200, 100], items: [
+    { class: 'cat', score: 0.9, box: [10, 10, 80, 60], polygon: null }, { class: 'cat', score: 0.8, box: [100, 40, 190, 95], polygon: null },
+    { class: 'dog', score: 0.7, box: [60, 50, 120, 90], polygon: null },
+  ] }
+  const lastRun = { run_id: 700, status: 'success', node_runs: [{ node_id: 'start', status: 'succeeded' }, { node_id: 'find', status: 'succeeded', output: { detections, count: 3, classes: { cat: 2, dog: 1 }, image: detections.image, cost_usd: 0.001 } }] }
+  const { state, errors } = await prepare(page, { graph, lastRun })
+  await expect(node(page, 'find')).toContainText('Find objects')
+
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  const dlg = page.getByRole('dialog', { name: 'Run with inputs' })
+  await expect(dlg).toBeVisible()
+  await expect(dlg.getByLabel('note', { exact: true })).toHaveValue('shelf 4')
+  const photo = dlg.getByLabel('photo (photo)')
+  await expect(photo).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp')
+  await dlg.getByRole('button', { name: 'Start run' }).click()
+  await expect(dlg.getByRole('alert')).toContainText('Choose a photo for this input.')
+  await photo.setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hi') })
+  await expect(dlg.getByRole('alert')).toContainText('Choose a JPEG, PNG or WebP photo.')
+  await photo.setInputFiles({ name: 'shelf.png', mimeType: 'image/png', buffer: PNG })
+  await expect(dlg.getByRole('alert')).toHaveCount(0)
+  await dlg.getByRole('button', { name: 'Start run' }).click()
+  await expect.poll(() => mutations(state, '/run/').length).toBe(1)
+  expect(state.uploads).toBe(1)
+  expect(mutations(state, '/run/')[0].body).toMatchObject({ dry_run: false, payload: { note: 'shelf 4', photo: { kind: 'image', id: 'img-1', width: 2, height: 2 } } })
+  await expect(dlg).toHaveCount(0)
+
+  // Test this step from the step window also asks for the photo (a photo has no default).
+  await node(page, 'find').dblclick()
+  const win = page.getByRole('dialog').filter({ hasText: 'Test this step' })
+  await expect(win).toBeVisible()
+  await expect(win.getByRole('combobox', { name: 'Model' })).toContainText('SAM 3')
+  await win.getByRole('button', { name: 'Test this step' }).click()
+  const ask = page.getByRole('dialog', { name: 'Run with inputs' })
+  await expect(ask).toBeVisible()
+  await expect(ask.getByRole('button', { name: 'Start test' })).toBeVisible()
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(ask).toHaveCount(0)
+  expect(mutations(state, '/run/')).toHaveLength(1)
+
+  // The last run's output: the photo with its boxes, and the count in words.
+  await expect(win.getByRole('tab', { name: 'Output' })).toHaveAttribute('aria-selected', 'true')
+  const figure = page.locator('figure.wip--det')
+  await expect(figure).toBeVisible()
+  await expect(figure).toContainText('3 objects: cat 2, dog 1')
+  await expect(figure.locator('rect.wip-box')).toHaveCount(3)
+  const link = figure.getByRole('link', { name: /Opens full size in a new tab/ })
+  await expect(link).toHaveAttribute('href', '/e2e-image/img-1.png')
+  await expect(link).toHaveAttribute('target', '_blank')
+  await expect.poll(() => figure.locator('img').evaluate((im) => im.complete && im.naturalWidth)).toBe(4)
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'vision-output.png') })
+  expect(errors).toEqual([])
 })
 
 test('leaving with unsaved changes asks first', async ({ page }) => {

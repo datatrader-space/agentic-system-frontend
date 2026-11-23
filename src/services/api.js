@@ -1387,6 +1387,19 @@ export default {
     api.post(`/workflow-graphs/${id}/versions/${versionId}/restore/`),
   getWorkflowGraphTemplates: () => api.get('/workflow-graph-templates/'),
   getWorkflowMcpCatalog: () => api.get('/workflow-graphs/mcp-catalog/'),
+  // The step registry (ADM-1351, D4): every step type's category, settings fields, defaults, outputs and inputs. The
+  // builder reads it once per page session (config/wfStepRegistry.js), so it is not in _CACHE_TTL.
+  getWorkflowStepTypes: () => api.get('/workflow-graphs/step-types/'),
+  // Vision workflows (ADM-1351): the models a Find objects step may use ({ models: [{ value, label, kind }] }), an image
+  // uploaded for a run (JPEG, PNG or WebP up to 15 MB; 201 { image: { kind, id, width, height } }), and a 15-minute link
+  // to an image of a run (never cached: the link expires).
+  getWorkflowVisionModels: (id) => api.get(`/workflow-graphs/${id}/vision-models/`),
+  uploadWorkflowImage: (id, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/workflow-graphs/${id}/images/`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  getWorkflowImage: (imageId) => api.get(`/workflow-graphs/images/${encodeURIComponent(imageId)}/`),
   createWorkflowGraphFromTemplate: (key, name) =>
     api.post('/workflow-graph-templates/create/', name ? { key, name } : { key }),
   // Sharing a workflow with named people (ADM-1339). Owner only; the server refuses anyone else (403) and decides

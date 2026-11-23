@@ -24,7 +24,7 @@ const baseEdges = [{ id: 'e1', source: 'start', target: 'fetch' }, { id: 'e2', s
 let wrapper
 afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
 
-function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, viewed = null, validation = null, readOnly = false, canRun = true, live = null, owner = null } = {}) {
+function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, vars = {}, lastRun = null, nodeStates = {}, viewed = null, validation = null, readOnly = false, canRun = true, live = null, owner = null, askInputs = null } = {}) {
   const doc = fakeDoc({ nodes, edges, vars })
   doc.meta.owner = owner
   const history = useWorkflowHistory(doc)
@@ -34,7 +34,7 @@ function mountModal({ nodeId = 'think', nodes = baseNodes, edges = baseEdges, va
   const open = ref(true)
   const Host = defineComponent({
     setup: () => () => h(WfNodeModal, {
-      open: open.value, 'onUpdate:open': (v) => { open.value = v }, nodeId, doc, history, run, catalog, validation, readOnly, canRun,
+      open: open.value, 'onUpdate:open': (v) => { open.value = v }, nodeId, doc, history, run, catalog, validation, readOnly, canRun, askInputs,
     }),
   })
   wrapper = mount(Host, { attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' } } } })
@@ -82,6 +82,22 @@ describe('WfNodeModal', () => {
     button('Test this step').click()
     await tick()
     expect(run.start).toHaveBeenCalledWith({ dryRun: true, untilNode: 'think', payload: { city: 'Oslo' } })
+  })
+
+  it('with an image input, "Test this step" opens the Run dialog instead of sending defaults (ADM-1351)', async () => {
+    const askInputs = vi.fn()
+    const nodes = [{ ...baseNodes[0], data: { inputs: [{ key: 'city', default: 'Oslo' }, { key: 'photo', type: 'image' }] } }, ...baseNodes.slice(1)]
+    const { run } = mountModal({ nodes, askInputs })
+    await tick()
+    expect(document.body.textContent).toContain("The test asks for the trigger's inputs first, including a photo.")
+    button('Test this step').click()
+    await tick()
+    expect(askInputs).toHaveBeenCalledWith({ dryRun: true, untilNode: 'think' })
+    expect(run.start).not.toHaveBeenCalled()
+    button('Run upstream (test)').click()
+    await tick()
+    expect(askInputs).toHaveBeenLastCalledWith({ dryRun: true, untilNode: 'fetch' })
+    expect(run.start).not.toHaveBeenCalled()
   })
 
   it('offers "Run upstream (test)" when nothing has run, up to the PARENT node', async () => {

@@ -12,14 +12,17 @@
 //
 // KEYBOARD PICK (WCAG 2.5.7). The text field focused last registers itself here; Enter on a key in the Input pane
 // inserts that key's token into it at the caret it had.
-import { computed, inject, provide, ref, shallowRef } from 'vue'
+import { computed, inject, provide, ref, shallowRef, watch } from 'vue'
 import { checkTemplateTokens } from '@/utils/wfVarExpr'
 import { wfDef } from '@/config/wfNodeDefinitions'
 import { buildSources, mergeNodeStates, pickerItems, secretVarNames, tokenResolves } from '../wfNodeModalModel'
+import { loadVisionModels, visionModelsState } from './visionModels'
 
 const NODE_EDITOR = Symbol('wfNodeEditor')
 
-export function createNodeEditor({ nodeId, doc, history, run, catalog = null, validation = () => null, readOnly = () => false, canRun = () => true }) {
+// `askInputs(opts)` (the page's Run dialog) is called instead of starting a test when the manual trigger declares an
+// image input: a photo cannot have a default, so the person chooses one (ADM-1351).
+export function createNodeEditor({ nodeId, doc, history, run, catalog = null, validation = () => null, readOnly = () => false, canRun = () => true, askInputs = null }) {
   const isReadOnly = computed(() => !!readOnly())
   const mayRun = computed(() => !!canRun())
   const node = computed(() => doc.nodes.value.find((n) => n.id === nodeId.value) || null)
@@ -114,6 +117,19 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   })
   const issuesAt = (path) => issues.value.filter((i) => i.path === path)
 
+  // ── lists the editor loads from the server: the vision models of this workflow (only once it is saved) ──
+  const usesList = (key) => (def.value?.fields || []).some((f) => f.optionsKey === key)
+  const visionState = computed(() => (doc.meta.id != null ? visionModelsState(doc.meta.id) : null))
+  watch(() => [doc.meta.id, type.value], () => {
+    if (doc.meta.id != null && usesList('visionModels')) loadVisionModels(doc.meta.id)
+  }, { immediate: true })
+  const listStates = computed(() => {
+    const v = visionState.value
+    if (!usesList('visionModels')) return {}
+    if (!v) return { visionModels: { loading: false, error: 'Save the workflow to choose a model.', retry: () => {} } }
+    return { visionModels: { loading: v.loading, error: v.error, retry: () => loadVisionModels(doc.meta.id, { force: true }) } }
+  })
+
   const lists = computed(() => ({
     graphs: (doc.allGraphs.value || [])
       .filter((g) => String(g.id) !== String(doc.meta.id) && String(g.public_id) !== String(doc.meta.publicId))
@@ -122,6 +138,7 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
     agents: doc.agents.value || [],
     secretVars: secretVarNames(doc.vars.value),
     tools: catalog?.toolNames?.value || [],
+    visionModels: (visionState.value?.models || []).map((m) => [m.value, m.label || String(m.value)]),
   }))
 
   // ── tests run the DRAFT as a dry run up to a node (D4); the draft is saved first by useWorkflowRun ──
@@ -131,14 +148,20 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   })
   /** Each manual input's declared default, the payload a test from the node window uses. */
   function testPayload() { return Object.fromEntries(manualInputs.value.map((i) => [i.key, i.default ?? ''])) }
+  const needsPhoto = computed(() => manualInputs.value.some((i) => i.type === 'image'))
   function testUpTo(untilNode) {
     end()
     if (!mayRun.value) return Promise.resolve({ ok: false, reason: 'not_allowed' })
+    // An image input has no default: the Run dialog asks for the photo, then starts the same test.
+    if (needsPhoto.value && askInputs) {
+      askInputs({ dryRun: true, untilNode })
+      return Promise.resolve({ ok: false, reason: 'asking_inputs' })
+    }
     return run.start({ dryRun: true, untilNode, payload: testPayload() })
   }
 
   return {
-    node, data, type, def, manualInputs, testUpTo, readOnly: isReadOnly, canRun: mayRun, states, sources, varKeys, checkContext, checkText, tokenState,
+    node, data, type, def, manualInputs, needsPhoto, testUpTo, listStates, readOnly: isReadOnly, canRun: mayRun, states, sources, varKeys, checkContext, checkText, tokenState,
     set, patch, begin, end, bindText, bindCustom,
     activeField, registerField, unregisterField, insertIntoActive, announce, announcement,
     issues, issuesAt, lists, doc, history, run, catalog,

@@ -12,6 +12,10 @@
   - A number is saved as a number and min/max are enforced with an inline error (F5, NumberField).
   - Changing `operation` clears a media-route field in the same change (F4: the route list itself never clears it).
   - `derive(key, value, data)` returns companion keys to write with a change (graph_id → graph_name).
+  - `showIf` is data from the server's registry (ADM-1351): { field: value | [values] }; see wfFieldShown.
+  - A kv column with `options` is a select (a manual input's type: Text or Image); a new row takes its first option.
+  - An enum whose options come from a list the editor loads (`optionsKey`, e.g. visionModels) says while it loads and
+    shows a failed load with a Retry; the saved value is kept.
   Slots: `field-<key>` ({ field, id }) replaces a field's control, keeping its label and help.
 -->
 <template>
@@ -19,7 +23,7 @@
     <template v-for="grp in groups" :key="grp.name">
       <h4 v-if="grp.name" class="sf-group-h">{{ grp.name }}</h4>
       <template v-for="(f, fi) in grp.fields" :key="f.key || ('note' + fi)">
-        <template v-if="!f.showIf || f.showIf(data)">
+        <template v-if="wfFieldShown(f, data)">
           <p v-if="f.type === 'note'" class="sf-note">{{ f.text }}</p>
 
           <div v-else class="sf-field">
@@ -72,20 +76,34 @@
                 :aria-describedby="f.help ? helpId(f) : undefined"
                 @change="pickEnum(f, $event.target.value)"
               >
-                <option v-if="enumIndex(f) === ''" value="" disabled>{{ f.placeholder || 'Choose…' }}</option>
+                <option v-if="enumIndex(f) === ''" value="" disabled>{{ listState(f)?.loading ? 'Loading…' : (f.placeholder || 'Choose…') }}</option>
                 <option v-if="enumIndex(f) === 'saved'" value="saved">Saved: {{ data[f.key] }} (no longer in the list)</option>
                 <option v-for="(o, oi) in enumOptions(f)" :key="oi" :value="String(oi)">{{ o.label }}</option>
               </select>
+              <p v-if="f.type === 'enum' && listState(f)?.error" class="sf-list-error" role="alert">
+                <Icon icon="lucide:circle-alert" aria-hidden="true" /><span>{{ listState(f).error }}</span>
+                <button type="button" class="sf-add" @click="listState(f).retry()">
+                  <Icon icon="lucide:refresh-cw" aria-hidden="true" />Retry
+                </button>
+              </p>
 
               <div v-else-if="f.type === 'kv'" class="sf-kv" role="group" :aria-label="f.title">
                 <div v-for="(row, ri) in kvRows(f)" :key="ri" class="sf-kv-row">
-                  <input
-                    v-for="c in f.cols" :key="c.key" class="sf-in" :class="{ mono: c.mono }" type="text"
-                    :placeholder="c.ph" :aria-label="`${f.title} ${ri + 1}: ${c.ph}`" :value="row[c.key] ?? ''"
-                    autocomplete="off" spellcheck="false"
-                    @focus="editor.begin(f.title || f.key)" @blur="editor.end()"
-                    @input="kvSet(f, ri, c.key, $event.target.value)"
-                  >
+                  <template v-for="c in f.cols" :key="c.key">
+                    <select
+                      v-if="Array.isArray(c.options)" class="sf-in sf-kv-select" :aria-label="`${f.title} ${ri + 1}: ${c.ph}`"
+                      :value="kvOption(c, row[c.key])" @change="kvSet(f, ri, c.key, $event.target.value)"
+                    >
+                      <option v-for="o in colOptions(c)" :key="o.value" :value="o.value">{{ o.label }}</option>
+                    </select>
+                    <input
+                      v-else class="sf-in" :class="{ mono: c.mono }" type="text"
+                      :placeholder="c.ph" :aria-label="`${f.title} ${ri + 1}: ${c.ph}`" :value="row[c.key] ?? ''"
+                      autocomplete="off" spellcheck="false"
+                      @focus="editor.begin(f.title || f.key)" @blur="editor.end()"
+                      @input="kvSet(f, ri, c.key, $event.target.value)"
+                    >
+                  </template>
                   <button type="button" class="sf-icon-btn" :aria-label="`Remove ${f.title} ${ri + 1}`" @click="kvDel(f, ri)">
                     <Icon icon="lucide:x" aria-hidden="true" />
                   </button>
@@ -124,6 +142,7 @@ import WfVarField from './WfVarField.vue'
 import MediaRouteSelect from './MediaRouteSelect.vue'
 import NumberField from './settings/NumberField.vue'
 import { useNodeEditor } from './settings/nodeEditor'
+import { wfFieldShown } from '@/config/wfNodeDefinitions'
 
 const props = defineProps({
   fields: { type: Array, default: () => [] },
@@ -136,6 +155,8 @@ const editor = useNodeEditor()
 const uid = `sf-${useId()}`
 const data = computed(() => editor.data.value)
 const allLists = computed(() => ({ ...editor.lists.value, ...props.lists }))
+// The load state of a list the editor fetches ({ loading, error, retry }), or null for a list that is simply there.
+const listState = (f) => (f.optionsKey ? editor.listStates?.value?.[f.optionsKey] || null : null)
 const fieldId = (f) => `${uid}-${f.key}`
 const helpId = (f) => `${uid}-${f.key}-help`
 const addLabel = (f) => String(f.addLabel || 'Add').replace(/^\+\s*/, '')
@@ -184,8 +205,11 @@ function pickEnum(field, index) {
 
 // ── key/value rows: the whole list is written each time ──
 const kvRows = (field) => (Array.isArray(data.value[field.key]) ? data.value[field.key] : [])
+const colOptions = (c) => c.options.map((o) => (Array.isArray(o) ? { value: o[0], label: o[1] } : { value: o, label: String(o) }))
+// A row saved before the column existed (no type) shows the first option, which is what the engine reads it as.
+const kvOption = (c, v) => (v === undefined || v === null || v === '' ? colOptions(c)[0]?.value ?? '' : v)
 function kvAdd(field) {
-  const row = Object.fromEntries((field.cols || []).map((c) => [c.key, '']))
+  const row = Object.fromEntries((field.cols || []).map((c) => [c.key, Array.isArray(c.options) ? (colOptions(c)[0]?.value ?? '') : '']))
   write(field, [...kvRows(field), row])
 }
 function kvSet(field, ri, col, value) {
@@ -212,6 +236,9 @@ function kvDel(field, ri) { write(field, kvRows(field).filter((_, i) => i !== ri
 .sf-kv { display: grid; gap: 6px; }
 .sf-kv-row { display: flex; gap: 6px; align-items: center; }
 .sf-kv-row .sf-in { flex: 1; min-width: 0; }
+.sf-kv-row .sf-kv-select { flex: 0 0 auto; width: auto; min-width: 84px; }
+.sf-list-error { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 12px; line-height: 1.45; color: var(--vm-red-ink); }
+.sf-list-error > :deep(svg) { width: 14px; height: 14px; flex-shrink: 0; }
 .sf-icon-btn {
   display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid transparent; border-radius: 6px;
   background: none; color: var(--vm-ink-faint); cursor: pointer;
