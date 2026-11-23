@@ -1348,21 +1348,11 @@ export default {
   deleteContextFile: (conversationPk, fileId) => api.delete(`/conversations/${conversationPk}/files/${fileId}/`),
   deleteGenericFile: (fileId) => api.delete(`/context_files/${fileId}/`),
 
-  // Agent Workflows — saved prompt templates / "macros" scoped to one agent profile.
-  // Backend: agent/view_handlers/workflow_views.py (POST requires profile_id + name).
-  getWorkflows: (profileId) => api.get('/workflows/', { params: profileId ? { profile_id: profileId } : {} }),
-  createWorkflow: (payload) => api.post('/workflows/', payload),
-  updateWorkflow: (id, payload) => api.put(`/workflows/${id}/`, payload),
-  deleteWorkflow: (id) => api.delete(`/workflows/${id}/`),
-  runWorkflow: (id) => api.post(`/workflows/${id}/run/`),
-
-  // Workflow Builder — node-canvas graphs (NEW, separate system: /api/workflow-graphs/).
+  // Workflow Builder — node-canvas graphs (/api/workflow-graphs/).
   // With `{ limit, offset }` one page ({count, next, previous, results}); without, every workflow (the
   // Workflow Builder's sub-workflow picker needs them all).
   getWorkflowGraphs: (params, config = {}) => api.get('/workflow-graphs/', { ...config, params }),
 
-  // Schedules (used by the Budgets page to scope a budget to a schedule).
-  getSchedules: () => api.get('/schedules/'),
   // Standalone Schedules page (/dashboard/schedules).
   // List is cross-agent (AgentSchedule rows come back as `as_<id>` with agent_name).
   // Create is agent-scoped (an AgentSchedule always belongs to one agent).
