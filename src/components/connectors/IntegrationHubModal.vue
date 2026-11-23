@@ -435,6 +435,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'

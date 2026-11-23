@@ -363,6 +363,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { usePoller } from '@/composables/usePoller'
 import api from '../../services/api'

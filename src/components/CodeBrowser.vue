@@ -446,6 +446,7 @@
 
 <script setup>
 import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h, inject, markRaw } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //

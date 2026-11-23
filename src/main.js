@@ -13,26 +13,16 @@ import 'vue-toastification/dist/index.css'
 import api from './services/api'
 import axios from 'axios'
 import { trackPageview } from './composables/useAnalytics'
-import { addIcon } from '@iconify/vue'
 import 'virtual:icon-subset'
+import { useAadmlIconApi } from './services/iconifyProvider'
 import { startNavProgress, doneNavProgress } from './components/app-shell/NavProgress.vue'
 import { prefetchRoute } from './utils/prefetchRoute'
 import { installChunkReload } from './services/chunkReload'
 import { prerenderedRoutes, redirectsSignedIn, SIGNED_IN_HINT_KEY, takeOverPrerendered } from './prerenderedPages'
 import reveal, { keepOnScreenShown } from './directives/reveal'
 
-// Brand logo for the Kurumera connector — registered as a local Iconify icon so `icon="kurumera:logo"`
-// renders it everywhere (catalog cards, detail header) exactly like any other `logos:*` mark, with no
-// per-render <img> special-casing. Colored (explicit fills), so it keeps its brand green + amber.
-addIcon('kurumera:logo', {
-  width: 48,
-  height: 48,
-  body:
-    '<rect width="48" height="48" rx="11" fill="#0F4C3A"/>' +
-    '<g fill="none" stroke="#3AA980" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M16.5 13.5V34.5"/><path d="M16.5 24L31 13.5"/><path d="M16.5 24L31 34.5"/></g>' +
-    '<path d="M27 19.5L31.5 28H22.5Z" fill="#F2A01E"/>',
-})
+// The Kurumera connector's own mark (`kurumera:logo`) is served by /api/iconify from the backend's
+// icon_store.LOCAL_ICONS, like any other runtime icon, so its markup lives in one place.
 
 // Set global axios defaults
 axios.defaults.withCredentials = true
@@ -60,7 +50,6 @@ const LearningPathDetail = () => import('./views/LearningPathDetail.vue')
 const HelpTopics = () => import('./views/HelpTopics.vue')
 const GuidedToursLibrary = () => import('./views/GuidedToursLibrary.vue')
 const GuidedTourDetail = () => import('./views/GuidedTourDetail.vue')
-const GuidedToursPage = () => import('./views/GuidedToursPage.vue')
 const SupportCenter = () => import('./views/SupportCenter.vue')
 const ApiReference = () => import('./views/ApiReference.vue')
 const GettingStarted = () => import('./views/GettingStarted.vue')
@@ -110,9 +99,11 @@ const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 
 // Iconify: only the icons this app names in src/ (lucide, logos, simple-icons) are bundled and registered
 // offline by `virtual:icon-subset` (imported at the top) and `virtual:icon-subset-logos` (after mount), both
-// built by scripts/vite-icon-subset.js. Not the full collections (~7.9 MB), and not fetched from
-// api.iconify.design at runtime. An icon name that only arrives at runtime (never written in src/) still
-// falls back to the Iconify API.
+// built by scripts/vite-icon-subset.js. Not the full collections (~7.9 MB). An icon name that only arrives at
+// runtime (never written in src/, e.g. a connector's logo) is fetched from AADML's own /api/iconify, which serves
+// the icons the backend stored when it handed the name out (ADM-1342): no browser ever asks api.iconify.design.
+// A file that names a bundled logo imports the logos chunk itself (services/iconifyProvider.js).
+useAadmlIconApi()
 
 // Create router
 const router = createRouter({
@@ -662,8 +653,8 @@ if (prerendered) {
 
 // The brand logos (`logos:*`, ~55 kB gzipped, the largest file of a first load) are their own chunk, registered
 // once the browser is idle after the first render, so they do not compete with the first page's own code on a slow
-// link. A logo drawn before it lands falls back to the Iconify API once.
-const _loadLogos = () => import('virtual:icon-subset-logos').catch(() => { /* the API fallback still draws them */ })
+// link. A file that names a bundled logo imports this chunk itself, so it never waits for the idle load.
+const _loadLogos = () => import('virtual:icon-subset-logos').catch(() => { /* a stored logo still draws from /api/iconify */ })
 if (typeof requestIdleCallback === 'function') requestIdleCallback(_loadLogos, { timeout: 3000 })
 else setTimeout(_loadLogos, 1000)
 

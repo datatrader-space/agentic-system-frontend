@@ -241,6 +241,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'

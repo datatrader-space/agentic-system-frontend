@@ -7,7 +7,8 @@
 // registers ONLY those icons with addCollection(). Nothing is generated into the repo.
 //
 // An icon name that only arrives at runtime (e.g. from an API response) and was never written in src/
-// is not in the subset; @iconify/vue then still fetches it from the Iconify API as before (fallback).
+// is not in the subset; @iconify/vue then fetches it from AADML's own /api/iconify, which serves the icons the
+// backend stored (ADM-1342, src/services/iconifyProvider.js), never from api.iconify.design.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -81,7 +82,12 @@ export default function iconSubset({ srcDir }) {
     resolveId(id) { return VIRTUAL_MODULES[id] ? '\0' + id : null },
     load(id) {
       const prefixes = id.startsWith('\0') ? VIRTUAL_MODULES[id.slice(1)] : null
-      return prefixes ? buildSubsetModule(srcDir, prefixes) : null
+      if (!prefixes) return null
+      // A component test gets an empty module. The components that name a bundled logo import the logos subset
+      // themselves (ADM-1342); building it means scanning src/ and the whole logos set, seconds per test file,
+      // and component tests never had the subsets registered before (only main.js imported them).
+      if (process.env.VITEST) return 'export {}'
+      return buildSubsetModule(srcDir, prefixes)
     },
   }
 }

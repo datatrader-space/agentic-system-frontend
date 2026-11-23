@@ -71,6 +71,7 @@
 
 <script setup>
 import { computed, reactive, onMounted, onUnmounted } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { useChatStore } from '../../stores/useChatStore'

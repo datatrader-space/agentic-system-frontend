@@ -129,6 +129,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { Icon } from '@iconify/vue'
 import {
   MoreVertical, Info, Power, Trash2,
