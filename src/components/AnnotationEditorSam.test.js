@@ -139,3 +139,44 @@ test('the found card shows no note when the model left nothing out', async()=>{
   await w.get('form.find-ask').trigger('submit');await flushPromises();
   expect(w.find('.find-card .find-note').exists()).toBe(false);
 });
+
+// Hover to mask (the owner, 2026-11-23; SMART_SELECT_HOVER_PLAN.md): in Smart Select the object under the resting mouse
+// is drawn faintly before any click; the photo is paid for once (``charged``), then hovering and clicking are free.
+const moveTo=(w,x,y)=>w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointermove',{clientX:x,clientY:y,buttons:0,bubbles:true}));
+test('in Smart Select the object under the resting mouse is drawn faintly, and the one-time charge is said', async()=>{
+  vi.useFakeTimers();
+  api.segmentPoint.mockResolvedValue({state:'ready',hover:true,charged:true,shapes:[],other:[{kind:'product logo',points:[[500,300],[700,300],[700,500]]}]});
+  const w=render();await flushPromises();
+  await w.get('[aria-label="Smart Select (S)"]').trigger('click');
+  moveTo(w,100,50);moveTo(w,300,150);                         // the mouse moves on, then rests
+  expect(api.segmentPoint).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(150);await flushPromises();
+  expect(api.segmentPoint).toHaveBeenCalledTimes(1);           // only where it rested
+  expect(api.segmentPoint).toHaveBeenCalledWith('~901','image-1','product logo',{coords:[[600,400]],labels:[1]},null,true);
+  expect(w.findAll('polygon.sam-hover')).toHaveLength(1);
+  expect(w.text()).toContain('This photo is ready for Smart Select: hovering and clicking on it are free for a while.');
+  w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerleave',{bubbles:true}));await flushPromises();
+  expect(w.findAll('polygon.sam-hover')).toHaveLength(0);       // leaving the photo clears it
+  vi.useRealTimers();
+});
+
+test('once the person clicks, the hover stops and never covers the selection', async()=>{
+  vi.useFakeTimers();
+  const w=render();await flushPromises();
+  await w.get('[aria-label="Smart Select (S)"]').trigger('click');
+  w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
+  api.segmentPoint.mockClear();
+  moveTo(w,200,100);await vi.advanceTimersByTimeAsync(300);await flushPromises();
+  expect(api.segmentPoint).not.toHaveBeenCalled();             // refining a selection: no hover asked
+  expect(w.findAll('polygon.sam-hover')).toHaveLength(0);
+  vi.useRealTimers();
+});
+
+test('no hover is asked in other tools', async()=>{
+  vi.useFakeTimers();
+  const w=render();await flushPromises();
+  await w.get('[aria-label="Polygon (P)"]').trigger('click');
+  moveTo(w,300,150);await vi.advanceTimersByTimeAsync(300);await flushPromises();
+  expect(api.segmentPoint).not.toHaveBeenCalled();
+  vi.useRealTimers();
+});

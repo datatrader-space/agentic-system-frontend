@@ -158,7 +158,7 @@ test('Smart Select and Box to outline: add, remove, keep, drop; the box goes in 
   assert.match(editor, /if\(key==='Enter'&&\(tool\.value==='smart'\|\|tool\.value==='outline'\)&&samKept\.value\.length\)\{event\.preventDefault\(\);applySam\(\);return;\}/);
   assert.match(editor, /if\(tool\.value==='outline'\)\{sam\.outline\(\[c\[0\]\[0\],c\[0\]\[1\],c\[2\]\[0\],c\[2\]\[1\]\]\);return;\}/);
   assert.match(sam, /request\(captured\.project, captured\.photo, captured\.name, selected, pixelBox\)/);
-  assert.match(api, /segmentPoint: \(ref, photo, name, points, box = null\) =>/);
+  assert.match(api, /segmentPoint: \(ref, photo, name, points, box = null, hover = false\) =>/);
 });
 
 test('Label Assist: tabs from the source\'s own tab, the classes as chips, the same detect path, and Undo in one step', () => {

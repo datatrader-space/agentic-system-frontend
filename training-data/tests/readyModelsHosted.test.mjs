@@ -82,8 +82,9 @@ test('the API sends no place: detect, detect-preference and segment-point take n
   assert.match(annotate, /body: \{ source, \.\.\.\(find \? \{ find \} : classes \? \{ classes \} : \{\}\) \}/);
   assert.match(annotate, /detectPreference: \(ref, detect\) => json\(`\$\{base\(ref\)\}\/detect-preference\/`, 'POST', \{ detect \}\)/);
   // Smart Select and Box to outline (contract C4): the class, the points and, for Box to outline, the box; no place.
-  assert.match(annotate, /segmentPoint: \(ref, photo, name, points, box = null\) =>/);
-  assert.match(annotate, /body: \{ class: name, points, \.\.\.\(box \? \{ box: box\.map\(v => Math\.round\(v \* 10\) \/ 10\) \} : \{\}\) \}/);
+  assert.match(annotate, /segmentPoint: \(ref, photo, name, points, box = null, hover = false\) =>/);
+  // ``hover`` (SMART_SELECT_HOVER_PLAN.md): the object under the mouse, shown only; still no place.
+  assert.match(annotate, /body: \{ class: name, points, \.\.\.\(box \? \{ box: box\.map\(v => Math\.round\(v \* 10\) \/ 10\) \} : \{\}\), \.\.\.\(hover \? \{ hover: true \} : \{\}\) \}/);
   assert.doesNotMatch(annotate, /\bwhere\b:|where = ''|\{ where \}|acceptSamLicence|sam-licence/);
   assert.match(unassigned, /async function autoLabel\(source\)\{[^}]*api\.detectPreference\(props\.state\.ref,source\);/);
 });

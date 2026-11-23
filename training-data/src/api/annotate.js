@@ -234,8 +234,10 @@ export const api = {
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
   // Smart Select and Box to outline (contract C4): SAM 3 is hosted by AADML, so no place is sent (a call naming one is
   // refused). ``points``: {coords, labels} in photo pixels; ``box``: [x1, y1, x2, y2] in photo pixels, for Box to outline.
-  segmentPoint: (ref, photo, name, points, box = null) => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
-    { method: 'POST', body: { class: name, points, ...(box ? { box: box.map(v => Math.round(v * 10) / 10) } : {}) }, timeoutMs: DETECT_MS }),
+  // ``hover``: the object under the mouse, shown only (SMART_SELECT_HOVER_PLAN.md): one point, free once the photo is
+  // prepared (its first call of a session is charged once, ``charged`` in the answer).
+  segmentPoint: (ref, photo, name, points, box = null, hover = false) => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
+    { method: 'POST', body: { class: name, points, ...(box ? { box: box.map(v => Math.round(v * 10) / 10) } : {}), ...(hover ? { hover: true } : {}) }, timeoutMs: DETECT_MS }),
   updateClass: (ref, name, body) => json(`${base(ref)}/classes/${enc(name)}/`, 'PATCH', body),
   removeClass: (ref, name) => json(`${base(ref)}/classes/${enc(name)}/`, 'DELETE'),
   saveLabel: (ref, photo, body) => json(`${base(ref)}/photos/${enc(photo)}/label/`, 'POST', body),
