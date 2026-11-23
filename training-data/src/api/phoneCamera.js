@@ -22,8 +22,10 @@ export async function hasMicrophone(devices = globalThis.navigator?.mediaDevices
   catch { return false; }
 }
 
-// What the phone's microphone is asked for: sound alone, cleaned as a call is (echo, noise), one channel.
-export const SOUND_CONSTRAINTS = { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 }, video: false };
+// What the phone's microphone is asked for: sound alone, RAW, one channel. A call's filters (echo cancellation, noise
+// suppression, automatic gain) remove exactly what is listened for: a siren, an alarm, breaking glass (live, 2026-11-23:
+// 61 windows of a phone's sound with them on, and nothing heard).
+export const SOUND_CONSTRAINTS = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 }, video: false };
 
 // Open the phone's other camera. A phone opens one camera at a time: asking for the front one while the back one is
 // still open fails with NotReadableError ("the camera is in use by another app"), live on a phone, 2026-11-18. So the

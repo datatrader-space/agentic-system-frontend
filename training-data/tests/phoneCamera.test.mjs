@@ -265,7 +265,9 @@ test('the page knows whether the phone has a microphone without asking, and asks
   assert.equal(await hasMicrophone({}), false);
   assert.equal(await hasMicrophone(undefined), false);
   assert.equal(SOUND_CONSTRAINTS.video, false);
-  assert.equal(SOUND_CONSTRAINTS.audio.echoCancellation, true);
+  // Raw sound: a call's filters remove sirens, alarms and breaking glass.
+  assert.deepEqual([SOUND_CONSTRAINTS.audio.echoCancellation, SOUND_CONSTRAINTS.audio.noiseSuppression,
+    SOUND_CONSTRAINTS.audio.autoGainControl], [false, false, false]);
 });
 
 test("the phone's sound goes only to its camera's own sound path, never to the video's, and alone", async () => {
