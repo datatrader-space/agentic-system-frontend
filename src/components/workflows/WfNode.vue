@@ -9,7 +9,7 @@
 <template>
   <div
     class="wf-node"
-    :class="[`is-${view.state}`, { 'is-selected': selected, 'is-ghost': view.ghost, 'is-trigger': isTrigger, [`mark-${view.mark}`]: !!view.mark }]"
+    :class="[`is-${view.state}`, { 'is-selected': selected, 'is-ghost': view.ghost, 'is-trigger': isTrigger, 'is-off': off, [`mark-${view.mark}`]: !!view.mark }]"
     :style="{ '--wf-node-cat': `var(${category.token})`, '--wf-node-cat-soft': `var(${category.token}-soft)` }"
     @mouseenter="setHover(true)"
     @mouseleave="setHover(false)"
@@ -21,7 +21,8 @@
     <span class="wf-node__tile" aria-hidden="true"><Icon :icon="icon" /></span>
     <span class="wf-node__body">
       <span class="wf-node__title" :title="title">{{ title }}</span>
-      <span class="wf-node__badge" :class="{ 'is-setup': badge.needsSetup }" :title="badge.text">
+      <span class="wf-node__badge" :class="{ 'is-setup': badge.needsSetup }" :title="off ? offTitle : badge.text">
+        <span v-if="off" class="wf-node__off"><Icon icon="lucide:circle-slash" aria-hidden="true" />Off</span>
         <Icon v-if="badge.needsSetup" icon="lucide:circle-dashed" aria-hidden="true" />{{ badge.text }}
       </span>
     </span>
@@ -81,6 +82,10 @@
         <button v-if="view.canRun !== false" type="button" class="wf-tb-btn nodrag nopan" :disabled="view.running" :aria-label="`Test up to ${title}`" title="Test up to here" @click.stop="ctx.testUntil(id)"><Icon icon="lucide:flask-conical" aria-hidden="true" /></button>
         <template v-if="!view.readOnly">
           <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Rename ${title}`" title="Rename (F2)" @click.stop="ctx.rename(id)"><Icon icon="lucide:pencil" aria-hidden="true" /></button>
+          <button
+            v-if="canOff" type="button" class="wf-tb-btn nodrag nopan" :class="{ 'is-on': off }"
+            :aria-label="`${off ? 'Turn step on' : 'Turn step off'}: ${title}`" :title="offButtonTitle" @click.stop="ctx.toggleOff(id)"
+          ><Icon :icon="off ? 'lucide:circle-play' : 'lucide:circle-slash'" aria-hidden="true" /></button>
           <button type="button" class="wf-tb-btn nodrag nopan" :aria-label="`Duplicate ${title}`" title="Duplicate" @click.stop="ctx.duplicate(id)"><Icon icon="lucide:copy-plus" aria-hidden="true" /></button>
           <button type="button" class="wf-tb-btn is-danger nodrag nopan" :aria-label="`Delete ${title}`" title="Delete" @click.stop="ctx.remove({ nodeIds: [id] })"><Icon icon="lucide:trash-2" aria-hidden="true" /></button>
         </template>
@@ -96,7 +101,7 @@ import { Handle, Position } from '@vue-flow/core'
 import { NodeToolbar } from '@vue-flow/node-toolbar'
 import { WF_CATEGORIES, wfCategory, wfIcon } from '@/config/wfNodeDefinitions'
 import { NODE_STATUS_LABELS, NODE_STATUS_ICONS } from '@/utils/wfNodeView'
-import { nodeBadge, nodeTitle, hasReliability } from './wfNodeData'
+import { nodeBadge, nodeTitle, hasReliability, nodeIsOff, canTurnOff, offButtonTitle as offTitleFor, OFF_EXPLAINED } from './wfNodeData'
 import { WF_CANVAS } from './wfCanvasContext'
 
 defineOptions({ inheritAttrs: false })
@@ -119,6 +124,11 @@ const title = computed(() => nodeTitle(props.type, props.data))
 const badge = computed(() => nodeBadge(props.type, props.data))
 const isTrigger = computed(() => props.type.startsWith('trigger.'))
 const hasErrorOutput = computed(() => hasReliability(props.type))
+// Turned off (ADM-1343): the run skips the step and passes on its input. Shown by a word and an icon, not by fading alone.
+const off = computed(() => nodeIsOff(props.data))
+const canOff = computed(() => canTurnOff(props.type))
+const offTitle = computed(() => `Turned off. ${OFF_EXPLAINED[props.type] || OFF_EXPLAINED.default}`)
+const offButtonTitle = computed(() => offTitleFor(props.type, off.value))
 const canAdd = computed(() => !view.value.ghost && !view.value.readOnly)
 const statusLabel = computed(() => NODE_STATUS_LABELS[view.value.state] || view.value.state)
 const statusIcon = computed(() => NODE_STATUS_ICONS[view.value.state] || 'lucide:circle')

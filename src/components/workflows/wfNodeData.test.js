@@ -1,6 +1,7 @@
 // A node's stored data <-> the edited shape, and the card's badge line (ADM-1333).
 import { describe, it, expect } from 'vitest'
-import { hydrateNode, serializeNode, nodeBadge, nodeTitle, hasReliability, WF_RELIABILITY_TYPES, secretKeys } from './wfNodeData'
+import { hydrateNode, serializeNode, nodeBadge, nodeTitle, hasReliability, WF_RELIABILITY_TYPES, secretKeys, nodeIsOff, canTurnOff, toggleOffOps, offButtonTitle } from './wfNodeData'
+import { applyWorkflowOps } from '@/composables/useWorkflowDoc'
 import { WorkflowInputError } from '@/utils/workflowInput'
 
 describe('hydrateNode / serializeNode', () => {
@@ -62,5 +63,42 @@ describe('reliability types', () => {
   it('knows the password fields', () => {
     expect(secretKeys('action.channel')).toEqual(['bot_token'])
     expect(secretKeys('logic.delay')).toEqual([])
+  })
+})
+
+describe('turning a step off (ADM-1343)', () => {
+  const nodes = [
+    { id: 't', type: 'trigger.manual', position: { x: 0, y: 0 }, data: {} },
+    { id: 'a', type: 'action.http', position: { x: 1, y: 0 }, data: { url: 'x' } },
+    { id: 'b', type: 'logic.approval', position: { x: 2, y: 0 }, data: { message: 'ok?', disabled: true } },
+  ]
+  it('reads only exactly true as off, and never offers it on a trigger', () => {
+    expect(nodeIsOff({ disabled: true })).toBe(true)
+    expect(nodeIsOff({ disabled: 'true' })).toBe(false)
+    expect(nodeIsOff(undefined)).toBe(false)
+    expect(canTurnOff('trigger.webhook')).toBe(false)
+    expect(canTurnOff('logic.approval')).toBe(true)
+  })
+  it('turns one step off and back on, the key removed so the data is as before', () => {
+    const offOps = toggleOffOps([nodes[1]])
+    expect(offOps).toEqual({ off: true, ops: [{ op: 'update_node', id: 'a', data: { disabled: true } }] })
+    const { state, inverse } = applyWorkflowOps({ name: 'w', nodes, edges: [], vars: {} }, offOps.ops)
+    expect(state.nodes[1].data).toEqual({ url: 'x', disabled: true })
+    const onOps = toggleOffOps([state.nodes[1]])
+    expect(onOps.off).toBe(false)
+    expect(applyWorkflowOps(state, onOps.ops).state.nodes[1].data).toEqual({ url: 'x' })
+    // Undo (the inverse) gives back the step as it was.
+    expect(applyWorkflowOps(state, inverse).state.nodes[1].data).toEqual({ url: 'x' })
+  })
+  it('a mixed selection is all turned off; the trigger is left out', () => {
+    const { ops, off } = toggleOffOps(nodes)
+    expect(off).toBe(true)
+    expect(ops).toEqual([{ op: 'update_node', id: 'a', data: { disabled: true } }])
+    expect(toggleOffOps([nodes[0]]).ops).toEqual([])
+  })
+  it('the control says what it does, and an approval step says nobody is asked', () => {
+    expect(offButtonTitle('action.http', false)).toBe('Turn step off (D)')
+    expect(offButtonTitle('action.http', true)).toBe('Turn step on (D)')
+    expect(offButtonTitle('logic.approval', false)).toMatch(/without asking for approval/)
   })
 })

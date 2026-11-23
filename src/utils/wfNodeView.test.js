@@ -55,6 +55,10 @@ describe('node visual state', () => {
     expect(nodeAriaLabel('agent.run', { label: 'Summarise' }, 'succeeded')).toBe('AI step, Summarise, succeeded')
     expect(nodeAriaLabel('trigger.manual', {}, 'idle')).toBe('Trigger step, Manual trigger, needs setup')
   })
+  it('a turned-off step says so (ADM-1343); only exactly true is off', () => {
+    expect(nodeAriaLabel('agent.run', { label: 'Summarise', disabled: true }, 'configured')).toBe('AI step, Summarise, ready, turned off')
+    expect(nodeAriaLabel('agent.run', { label: 'Summarise', disabled: 'yes' }, 'configured')).toBe('AI step, Summarise, ready')
+  })
   it('the approval preview is its message', () => {
     expect(nodeConfigPreview('logic.approval', { message: 'Ship it?' })).toBe('Ship it?')
     expect(nodeIsConfigured('logic.approval', { message: '' })).toBe(false)

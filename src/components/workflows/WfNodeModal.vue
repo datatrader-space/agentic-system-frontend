@@ -48,6 +48,7 @@
           <SplitterResizeHandle id="wfm-handle-1" class="wfm-handle" aria-label="Resize the Input and Settings panes" />
           <SplitterPanel id="wfm-settings" :order="2" :default-size="46" :min-size="28" class="wfm-pane wfm-pane--settings">
             <h3 class="wfm-pane-title"><Icon :icon="icon" class="wfm-type-ic" :style="{ color: accent }" aria-hidden="true" />Settings</h3>
+            <p v-if="off" class="wfm-off" role="status"><Icon icon="lucide:circle-slash" aria-hidden="true" /><span><strong>This step is turned off.</strong> {{ offText }}</span></p>
             <ul v-if="topIssues.length" class="wfm-issues">
               <li v-for="i in topIssues" :key="i.message" :class="`wfm-issue--${i.level}`" :role="i.level === 'error' ? 'alert' : undefined">
                 <Icon :icon="i.level === 'error' ? 'lucide:circle-alert' : 'lucide:triangle-alert'" aria-hidden="true" />{{ i.message }}
@@ -64,6 +65,7 @@
         <div v-else class="wfm-single">
           <WfNodeInputPane v-if="pane === 'input'" :last-run-error="lastRunError" @reload-last-run="loadLastRun" />
           <template v-else-if="pane === 'settings'">
+            <p v-if="off" class="wfm-off" role="status"><Icon icon="lucide:circle-slash" aria-hidden="true" /><span><strong>This step is turned off.</strong> {{ offText }}</span></p>
             <ul v-if="topIssues.length" class="wfm-issues">
               <li v-for="i in topIssues" :key="i.message" :class="`wfm-issue--${i.level}`">{{ i.message }}</li>
             </ul>
@@ -78,6 +80,12 @@
 
     <template #footer>
       <p class="wfm-run" role="status">{{ runStatus }}</p>
+      <button
+        v-if="editor.node.value && !readOnly && canOff" type="button" class="wfm-btn"
+        :title="offButtonTitle(editor.type.value, off)" @click="toggleOff"
+      >
+        <Icon :icon="off ? 'lucide:circle-play' : 'lucide:circle-slash'" aria-hidden="true" />{{ off ? 'Turn step on' : 'Turn step off' }}
+      </button>
       <button
         v-if="editor.node.value && canRun" type="button" class="wfm-btn wfm-btn--primary"
         :disabled="run.running.value || run.starting.value" @click="testThisStep"
@@ -100,6 +108,7 @@ import WfNodeInputPane from './WfNodeInputPane.vue'
 import WfNodeOutputPane from './WfNodeOutputPane.vue'
 import NodeSettings from './settings/NodeSettings.vue'
 import { createNodeEditor, provideNodeEditor } from './settings/nodeEditor'
+import { nodeIsOff, canTurnOff, offButtonTitle, toggleOffOps, OFF_EXPLAINED } from './wfNodeData'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -133,6 +142,17 @@ const accent = computed(() => `var(${WF_CATEGORIES[wfCategory(editor.type.value)
 // The channel secret's and the approvers' findings are shown beside their own fields instead.
 const topIssues = computed(() => editor.issues.value.filter((i) => i.path !== 'data.secret_var'
   && i.code !== 'config.secret_missing' && i.code !== 'config.secret_var_unknown' && !String(i.code || '').startsWith('approvers.')))
+
+// ── turned off (ADM-1343): said at the top of the settings, and switched from the footer like the card's toolbar ──
+const off = computed(() => nodeIsOff(editor.data.value))
+const canOff = computed(() => canTurnOff(editor.type.value))
+const offText = computed(() => OFF_EXPLAINED[editor.type.value] || OFF_EXPLAINED.default)
+function toggleOff() {
+  const node = editor.node.value
+  if (!node || props.readOnly) return
+  const { ops, off: next } = toggleOffOps([node])
+  if (ops.length) props.history.run(next ? 'Turn step off' : 'Turn step on', ops)
+}
 
 function setOpen(value) {
   if (!value) editor.end()
@@ -218,6 +238,8 @@ const runStatus = computed(() => {
 .wfm-issue--error { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .wfm-issue--warning { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .wfm-gone { margin: 0; color: var(--vm-red-ink); }
+.wfm-off { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 12px; padding: 7px 9px; border: 1px dashed var(--vm-line-2); border-radius: 6px; background: var(--vm-surface-soft); color: var(--vm-ink); font-size: 12px; line-height: 1.45; }
+.wfm-off :deep(svg) { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--vm-ink-soft); }
 .wfm-run { flex: 1; min-width: 0; margin: 0; align-self: center; font-size: 12px; color: var(--vm-ink-soft); }
 .wfm-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 12px; border: 1px solid var(--vm-line-2);

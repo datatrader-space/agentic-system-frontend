@@ -32,7 +32,7 @@ import { Icon } from '@iconify/vue'
 import AppSheet from '@/components/common/AppSheet.vue'
 import { WF_CATEGORIES, wfCategory, wfIcon, wfDef } from '@/config/wfNodeDefinitions'
 import { NODE_STATUS_LABELS, nodeAriaLabel, nodeStatusState } from '@/utils/wfNodeView'
-import { nodeTitle } from './wfNodeData'
+import { nodeTitle, nodeIsOff } from './wfNodeData'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -77,7 +77,7 @@ const rows = computed(() => {
     const cat = WF_CATEGORIES[wfCategory(n.type)]
     return {
       id: n.id, title: nodeTitle(n.type, n.data), icon: wfIcon(n.type), token: cat.token,
-      kind: wfDef(n.type)?.label || n.type, stateLabel: NODE_STATUS_LABELS[state] || state, issue: issues[n.id] || '', next,
+      kind: wfDef(n.type)?.label || n.type, stateLabel: `${NODE_STATUS_LABELS[state] || state}${nodeIsOff(n.data) ? ' · turned off' : ''}`, issue: issues[n.id] || '', next,
       aria: `${nodeAriaLabel(n.type, n.data, state)}${next.length ? `, leads to ${next.join(', ')}` : ''}${issues[n.id] ? `, ${issues[n.id]}` : ''}`,
     }
   })

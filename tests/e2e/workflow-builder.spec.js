@@ -331,6 +331,55 @@ test('double-click and Enter open the step window', async ({ page }) => {
   await expect(node(page, 'log')).toBeFocused()
 })
 
+test('a step turns off and on (ADM-1343): toolbar and D, Undo, the saved graph, the step window and the server message', async ({ page }) => {
+  const offMsg = "Step 'Record result' reads the output of 'Receive request', which is turned off. Turn 'Receive request' on, or change 'Record result'."
+  const { state, errors } = await prepare(page, { validation: { ok: false, errors: [{ node_id: 'log', path: 'data', code: 'node.disabled_output_referenced', message: offMsg }], warnings: [] } })
+  const card = node(page, 'log').locator('.wf-node')
+  await node(page, 'log').hover()
+  await page.getByRole('button', { name: 'Turn step off: Record result' }).click()
+  await expect(card).toHaveClass(/is-off/)
+  await expect(card.locator('.wf-node__off')).toHaveText('Off')
+  await expect(node(page, 'log')).toHaveAttribute('aria-label', /turned off$/)
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'step-off.png') })
+  await page.keyboard.press('Control+z')
+  await expect(card).not.toHaveClass(/is-off/)
+  // D on the focused step turns it off and on again.
+  await node(page, 'log').focus()
+  await page.keyboard.press('d')
+  await expect(card).toHaveClass(/is-off/)
+  await page.keyboard.press('d')
+  await expect(card).not.toHaveClass(/is-off/)
+  await page.keyboard.press('d')
+  await expect(card).toHaveClass(/is-off/)
+  // A trigger cannot be off: D does nothing on it, and its toolbar has no such button.
+  await node(page, 'start').focus()
+  await page.keyboard.press('d')
+  await expect(node(page, 'start').locator('.wf-node')).not.toHaveClass(/is-off/)
+  await node(page, 'start').hover()
+  await expect(page.getByRole('button', { name: /^Turn step/ })).toHaveCount(0)
+  // The step window says it is off and turns it on.
+  await node(page, 'log').dblclick()
+  const win = page.getByRole('dialog')
+  await expect(win).toContainText('This step is turned off.')
+  await win.getByRole('button', { name: 'Turn step on' }).click()
+  await expect(win).not.toContainText('This step is turned off.')
+  await win.getByRole('button', { name: 'Turn step off' }).click()
+  await closeLayers(page)
+  // Saved as `data.disabled: true` on the step.
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBeGreaterThan(0)
+  const saved = mutations(state, '/86/').at(-1).body.graph.nodes.find((n) => n.id === 'log')
+  expect(saved.data.disabled).toBe(true)
+  expect(mutations(state, '/86/').at(-1).body.graph.nodes.find((n) => n.id === 'start').data.disabled).toBeUndefined()
+  // The server's validation message is shown as every other one is.
+  await menu(page, 'Validate')
+  const dlg = page.getByRole('dialog', { name: 'Validate' })
+  await expect(dlg).toContainText(`log: ${offMsg}`)
+  await dlg.getByRole('button', { name: 'Close' }).first().click()
+  await expect(card).toHaveClass(/is-invalid/)
+  expect(errors).toEqual([])
+})
+
 test('a run waiting on a sub-workflow links to it and asks for no approval', async ({ page }) => {
   const graph = clone(baseGraph)
   graph.last_run = { id: 900, status: 'waiting' }
@@ -621,7 +670,10 @@ test('a viewer sees the workflow read-only: no edit, add, Save, Publish, Test or
   // The canvas: no hover toolbar, no + to add, keyboard edits do nothing.
   await node(page, 'log').hover()
   await expect(page.getByRole('button', { name: 'Test up to Record result' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Turn step/ })).toHaveCount(0)
   await node(page, 'log').click()
+  await page.keyboard.press('d')
+  await expect(node(page, 'log').locator('.wf-node')).not.toHaveClass(/is-off/)
   await page.keyboard.press('Delete')
   await page.keyboard.press('Control+k')
   await page.keyboard.press('Control+Enter')

@@ -194,6 +194,14 @@
 .wf-node.is-ghost{border:2px dashed var(--wf-success-ink);background:color-mix(in srgb,var(--wf-success-soft) 60%,var(--wf-surface))}
 .wf-node.mark-change{border:2px solid var(--wf-warn-ink)}
 .wf-node.mark-remove{border:2px dashed var(--wf-danger-ink);opacity:.75}
+/* Turned off (ADM-1343): a dashed outline, a soft background and a faded grey tile. The "Off" word carries the meaning
+   (never the fade alone), and the title and badge keep their contrast. */
+.wf-node.is-off{border-style:dashed;background:var(--wf-surface-soft)}
+.wf-node.is-off .wf-node__tile{filter:grayscale(1);opacity:.55}
+.wf-node.is-off .wf-node__title{color:var(--wf-ink-soft)}
+.wf-node__off{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;padding:0 6px;border:1px solid var(--wf-line-2);border-radius:999px;background:var(--wf-surface);color:var(--wf-ink);font-weight:600;line-height:16px}
+.wf-node__off svg{width:11px;height:11px}
+.wf-tb-btn.is-on{color:var(--wf-accent-ink)}
 @media (prefers-reduced-motion:no-preference){
   .wf-node.is-running::before{animation:wf-pulse 1.4s ease-in-out infinite}
 }

@@ -104,3 +104,40 @@ export function nodeTitle(type, data) {
 export function secretKeys(type) {
   return (wfDef(type)?.fields || []).filter((f) => f.type === 'password').map((f) => f.key)
 }
+
+// ── turning a step off (ADM-1343) ──
+// A turned-off step carries `data.disabled: true`. The engine skips it ("turned off") and the steps after it run as
+// if it had passed on what the one step before it produced. The server's validation decides what may be off (a
+// trigger, a branching step, a step with two inputs or a step whose output another step reads may not); the page
+// only leaves the control off a trigger, which can never be off.
+
+/** True when the person turned this step off. Exactly `true`: the engine reads nothing else as off. */
+export function nodeIsOff(data) { return data?.disabled === true }
+
+/** Whether the off/on control is offered for a step of this type: a trigger starts the run, so it cannot be off. */
+export function canTurnOff(type) { return !String(type || '').startsWith('trigger.') }
+
+/** What an off step does, as the card's tooltip says it. An approval step says that nobody is asked. */
+export const OFF_EXPLAINED = Object.freeze({
+  default: 'Runs skip this step and pass on what the step before it produced.',
+  'logic.approval': 'Runs go on without asking anyone for approval.',
+})
+
+/** The off/on control's tooltip, with its shortcut. */
+export function offButtonTitle(type, off) {
+  if (off) return 'Turn step on (D)'
+  return type === 'logic.approval' ? 'Turn step off (D): runs go on without asking for approval' : 'Turn step off (D)'
+}
+
+/**
+ * The operations that turn `nodes` off, or on: when any of them is on, all are turned off; when all are off, all are
+ * turned on. Turning on removes the key, so the step's data is as it was before. Triggers are left out.
+ * Returns { ops, off } where `off` says which way it went; `ops` is empty when nothing can change.
+ */
+export function toggleOffOps(nodes) {
+  const list = (nodes || []).filter((n) => n && canTurnOff(n.type))
+  const off = list.some((n) => !nodeIsOff(n.data))
+  const ops = list.filter((n) => nodeIsOff(n.data) !== off)
+    .map((n) => ({ op: 'update_node', id: n.id, data: { disabled: off ? true : undefined } }))
+  return { ops, off }
+}
