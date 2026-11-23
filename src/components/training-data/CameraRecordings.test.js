@@ -138,8 +138,17 @@ describe('the Recordings tab', () => {
     expect(preview.element.play).toHaveBeenCalled();                            // started once loaded
     await card.get('button.recs-thumb').trigger('mouseleave');
     expect(card.find('[data-test="rec-preview"]').exists()).toBe(false);
+    // A picture that did not load is asked for twice more (a connection reset, live 2026-11-23), then the icon.
+    vi.useFakeTimers();
+    for (const wait of [1000, 2000]) {
+      await card.get('[data-test="rec-picture"]').trigger('error');
+      expect(card.find('[data-test="rec-picture"]').exists()).toBe(true);
+      vi.advanceTimersByTime(wait);
+      await flushPromises();
+    }
     await card.get('[data-test="rec-picture"]').trigger('error');               // a picture that cannot be shown
     expect(card.find('[data-test="rec-picture"]').exists()).toBe(false);
+    vi.useRealTimers();
     await card.get('button.recs-thumb').trigger('click');                       // the picture plays it above
     await flushPromises();
     expect(w.get('.recs-player video').attributes('src')).toContain('rec-3.mp4');

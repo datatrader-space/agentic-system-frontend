@@ -14,6 +14,16 @@ const props = defineProps({
 });
 const emit = defineEmits(['play']);
 const previewing = ref(false); const noPicture = ref(false);
+// A picture that did not load is asked for again, twice, a moment apart, before the card shows its icon: live,
+// 2026-11-23, a connection to the bucket was reset (net::ERR_CONNECTION_RESET) for one card in five, which then kept
+// its icon although its picture was there.
+const PICTURE_TRIES = 2;
+const tries = ref(0);
+function pictureFailed() {
+  if (tries.value >= PICTURE_TRIES) { noPicture.value = true; return; }
+  const wait = 1000 * (tries.value + 1);
+  setTimeout(() => { tries.value += 1; }, wait);
+}
 
 // "5:00", "1:02:03": a recording's length as a video card says it.
 function lengthText(seconds) {
@@ -31,7 +41,7 @@ function playPreview(event) { const v = event.target; v.muted = true; v.play?.()
 <template>
   <button type="button" class="recs-thumb" :disabled="!recording.play_url" :aria-label="label"
           @click="emit('play')" @mouseenter="startPreview" @mouseleave="endPreview" @focus="startPreview" @blur="endPreview">
-    <img v-if="recording.thumbnail_url && !noPicture" :src="recording.thumbnail_url" alt="" loading="lazy" data-test="rec-picture" @error="noPicture = true">
+    <img v-if="recording.thumbnail_url && !noPicture" :key="tries" :src="recording.thumbnail_url" alt="" loading="lazy" data-test="rec-picture" @error="pictureFailed">
     <span v-else class="recs-nopic" aria-hidden="true"><Cctv :size="28"/></span>
     <video v-if="previewing" :src="recording.play_url" muted autoplay loop playsinline preload="metadata"
            class="recs-preview" aria-hidden="true" data-test="rec-preview" @loadeddata="playPreview"></video>
