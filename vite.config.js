@@ -79,7 +79,13 @@ export default defineConfig(({ mode, isSsrBuild }) => {
             // so the chat route stops paying for a syntax highlighter it never runs.
             if (id.includes('highlight.js')) return 'highlight'
             if (id.includes('marked')) return 'markdown'
-            if (id.includes('@iconify') || id.includes('lucide-vue-next')) return 'icons'
+            if (id.includes('@iconify')) return 'icons'
+            // Lucide icons go where Rollup puts them, never in one chunk of their own: pinned to `icons` (preloaded on
+            // EVERY page) every icon of every page was first-load JS (208 of them), so a page adding one icon pushed
+            // the first-load budget (200 kB) over (2026-11-23, 200.19 kB). An icon only lazy pages use now loads with
+            // them; the ones the first page shows stay in its own chunks. Not the `vendor` catch-all either, for the
+            // same reason.
+            if (id.includes('lucide-vue-next')) return
             // Own chunks for libraries only some pages use, so `vendor` (preloaded on EVERY page) does not
             // carry them: charts (dashboards), the QR encoder (2FA setup) and web-vitals (loaded after mount).
             if (id.includes('chart.js') || id.includes('vue-chartjs')) return 'charts'
