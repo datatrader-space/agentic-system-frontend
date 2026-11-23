@@ -130,6 +130,9 @@ describe('the Recordings tab', () => {
     const preview = card.get('[data-test="rec-preview"]');
     expect(preview.attributes('src')).toContain('rec-3.mp4');
     expect(preview.element.muted).toBe(true);                                   // a preview is silent
+    preview.element.play = vi.fn(async () => {});
+    await preview.trigger('loadeddata');
+    expect(preview.element.play).toHaveBeenCalled();                            // started once loaded
     await card.get('button.recs-thumb').trigger('mouseleave');
     expect(card.find('[data-test="rec-preview"]').exists()).toBe(false);
     await card.get('[data-test="rec-picture"]').trigger('error');               // a picture that cannot be shown

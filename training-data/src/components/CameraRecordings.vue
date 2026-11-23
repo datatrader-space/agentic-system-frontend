@@ -68,6 +68,9 @@ function lengthText(seconds) {
 }
 function startPreview(row) { if (row.play_url && linksFresh(loadedAt)) previewing.value = row.id; }
 function endPreview(row) { if (previewing.value === row.id) previewing.value = null; }
+// Started once it has loaded: a video added on hover is not always started by `autoplay` (live, 2026-11-23: loaded,
+// not playing). Muted first, so the browser allows it without a tap.
+function playPreview(event) { const v = event.target; v.muted = true; v.play?.()?.catch?.(() => {}); }
 function pictureFailed(row) { noPicture.value = new Set([...noPicture.value, row.id]); }
 function cannotPlay() {
   playError.value = 'This recording could not be played in this browser. Download it to watch it, or try again.';
@@ -143,7 +146,7 @@ async function restore(row) {
           <img v-if="r.thumbnail_url && !noPicture.has(r.id)" :src="r.thumbnail_url" alt="" loading="lazy" data-test="rec-picture" @error="pictureFailed(r)">
           <span v-else class="recs-nopic" aria-hidden="true"><Cctv :size="28"/></span>
           <video v-if="previewing === r.id" :src="r.play_url" muted autoplay loop playsinline preload="metadata"
-                 class="recs-preview" aria-hidden="true" data-test="rec-preview"></video>
+                 class="recs-preview" aria-hidden="true" data-test="rec-preview" @loadeddata="playPreview"></video>
           <span class="recs-length" data-test="rec-length">{{ lengthText(r.seconds) }}</span>
           <span class="recs-playmark" aria-hidden="true"><Play :size="18"/></span>
         </button>
@@ -200,7 +203,7 @@ async function restore(row) {
 .recs-thumb:focus-visible{outline:2px solid var(--aadml-primary);outline-offset:-2px}
 @media (prefers-reduced-motion: reduce){.recs-playmark{transition:none}}
 .recs-what{display:flex;flex-direction:column;gap:2px;min-width:0}
-.recs-what strong{display:flex;align-items:center;gap:8px;font-size:14px;color:#162139;overflow-wrap:anywhere}
+.recs-what strong{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:14px;color:#162139}
 .recs-what span{font-size:14px;color:#33415a}
 .recs-what small{font-size:12px;color:#4c5d74}
 .recs-acts{display:flex;flex-wrap:wrap;gap:6px}
