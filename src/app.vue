@@ -6,7 +6,7 @@
 
     <!-- Public webchat (/a/:token, /embed/:token): bare full-bleed, no app header/shell -->
     <router-view v-if="isBareChat" v-slot="{ Component }">
-      <Suspense>
+      <Suspense v-if="Component">
         <component :is="Component" :key="route.fullPath" />
         <template #fallback>
           <div class="global-route-loading">
@@ -55,7 +55,7 @@
       <!-- Main Content -->
       <main v-if="!isAppShell" :class="mainContentClass">
         <router-view v-slot="{ Component }">
-          <Suspense>
+          <Suspense v-if="Component">
             <component :is="Component" :key="route.fullPath" />
             <template #fallback>
               <div class="global-route-loading">
@@ -87,7 +87,7 @@
       </main>
       <!-- v2 app shell: full-bleed, owns its own layout -->
       <router-view v-else v-slot="{ Component }">
-        <Suspense>
+        <Suspense v-if="Component">
           <component :is="Component" :key="route.matched[0]?.path || route.fullPath" />
           <template #fallback>
             <div class="global-route-loading shell">

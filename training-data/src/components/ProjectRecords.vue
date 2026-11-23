@@ -10,7 +10,7 @@ import { Database, Download, FileText, Search, Trash2, X, RefreshCw, Check } fro
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { RECORD_FILTERS, MOST_AT_ONCE, recordStatus, recordsApi, exportUrl, searchRefusal, filtered, payloadPreview, pretty, sizeText, deletedWords, refusalRows, tooMany, toggled } from '../api/records.js';
+import { RECORD_FILTERS, recordStatus, recordsApi, exportUrl, searchRefusal, filtered, payloadPreview, pretty, sizeText, deletedWords, refusalRows, tooMany, toggled } from '../api/records.js';
 import { KIND_LABEL, STATE_LABEL, SPLIT_LABEL } from '../api/llm.js';
 
 const props = defineProps({ project: { type: Object, required: true } });

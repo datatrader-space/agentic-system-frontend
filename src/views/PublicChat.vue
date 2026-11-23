@@ -89,7 +89,6 @@ import { enhanceChatMedia } from '../utils/chatMedia'
 import { chatAuthProtocols } from '../utils/wsAuth'
 
 const route = useRoute()
-const embed = computed(() => String(route.path || '').startsWith('/embed'))
 const routeToken = computed(() => route.params.token)
 
 const cfg = ref({})

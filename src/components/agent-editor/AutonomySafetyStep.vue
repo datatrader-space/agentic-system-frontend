@@ -506,7 +506,8 @@ import { notify } from '@/composables/useNotify'
 import { useEditorShell } from '../../composables/editorShell'
 import { normalizeRunMode, isAutonomous } from '../../composables/agentModes'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 const router = useRouter()
 const go = (to) => router.push(to)
 const shell = useEditorShell()
@@ -528,7 +529,7 @@ const pagedRules = computed(() => allRules.value.slice((rulesPage.value - 1) * R
 function openRulesModal() {
   rulesPage.value = 1
   rulesModalOpen.value = true
-  if (!allRules.value.length && props.agent.id) {
+  if (!allRules.value.length && agent.value.id) {
     rulesLoading.value = true
     loadGuardrails().finally(() => { rulesLoading.value = false })
   }
@@ -552,17 +553,17 @@ const policy = computed({
   // to assign `agent.agent_policy = {}` on read, so merely rendering this step made the draft differ
   // from the server copy. Every writer below goes through the setter with a whole new object.
   get() {
-    const p = props.agent.agent_policy
+    const p = agent.value.agent_policy
     return (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}
   },
   set(value) {
-    props.agent.agent_policy = value
+    agent.value.agent_policy = value
   },
 })
 
 const runMode = computed({
-  get: () => normalizeRunMode(props.agent.agent_run_mode),
-  set: (value) => { props.agent.agent_run_mode = normalizeRunMode(value) },
+  get: () => normalizeRunMode(agent.value.agent_run_mode),
+  set: (value) => { agent.value.agent_run_mode = normalizeRunMode(value) },
 })
 const riskCeiling = computed({
   get: () => policy.value.risk_ceiling || 'high',
@@ -593,17 +594,6 @@ const previewStats = computed(() => {
 const orgToolPerms = ref({})   // { TOOL: allow|ask|deny } — the org floor (loaded from the endpoint)
 const _PERM_RANK = { allow: 0, ask: 1, deny: 2 }
 const agentToolPerms = computed(() => policy.value.tool_permissions || {})
-const permToolRows = computed(() => {
-  const names = new Set([...Object.keys(orgToolPerms.value || {}), ...Object.keys(agentToolPerms.value || {})])
-  return [...names].sort().map(tool => {
-    const org = String(orgToolPerms.value[tool] || '').toLowerCase()     // '', allow, ask, deny
-    const agent = String(agentToolPerms.value[tool] || '').toLowerCase() // '', ask, deny (inherit = '')
-    const o = _PERM_RANK[org] ?? 0
-    const a = _PERM_RANK[agent] ?? 0
-    const eff = a >= o ? (agent || 'allow') : (org || 'allow')           // stricter wins
-    return { tool, org, agent, locked: org === 'deny', effective: eff }
-  })
-})
 function setAgentToolPerm(tool, value) {
   const org = String(orgToolPerms.value[tool] || '').toLowerCase()
   if (org === 'deny') return                                    // org floor locks it — cannot change
@@ -613,15 +603,6 @@ function setAgentToolPerm(tool, value) {
   if (v === 'ask' || v === 'deny') cur[tool] = v
   else delete cur[tool]                                         // inherit
   policy.value = { ...policy.value, tool_permissions: cur }
-}
-const newPermTool = ref('')
-const newPermValue = ref('ask')
-const showAddPerm = ref(false)
-function addAgentPerm() {
-  const t = newPermTool.value.trim().toUpperCase()
-  newPermTool.value = ''
-  if (!t) return
-  setAgentToolPerm(t, newPermValue.value)
 }
 
 // ── Resolve the tools the user selected in Step 4 (agent.tool_ids) so Card 1 lists THOSE tools ──
@@ -633,14 +614,14 @@ function addAgentPerm() {
 const toolDefsById = ref({})
 const recordToolsById = computed(() => {
   const map = {}
-  for (const t of (Array.isArray(props.agent.tools) ? props.agent.tools : [])) if (t && t.id != null && t.name) map[t.id] = t
+  for (const t of (Array.isArray(agent.value.tools) ? agent.value.tools : [])) if (t && t.id != null && t.name) map[t.id] = t
   return map
 })
 const toolById = (id) => recordToolsById.value[id] || toolDefsById.value[id]
 let catalogRequested = false
 function ensureToolDefs() {
   if (catalogRequested) return
-  const missing = (props.agent.tool_ids || []).some(id => !toolById(id))
+  const missing = (agent.value.tool_ids || []).some(id => !toolById(id))
   if (!missing) return
   catalogRequested = true
   loadToolDefs()
@@ -661,7 +642,7 @@ async function loadToolDefs() {
     toolDefsById.value = map
   } catch (e) { toolDefsById.value = {}; catalogRequested = false }
 }
-const selectedTools = computed(() => (props.agent.tool_ids || []).map(id => toolById(id)).filter(Boolean))
+const selectedTools = computed(() => (agent.value.tool_ids || []).map(id => toolById(id)).filter(Boolean))
 function _permRow(name, label) {
   const key = String(name).toUpperCase()
   return {
@@ -679,19 +660,6 @@ const toolTotalPages = computed(() => Math.max(1, Math.ceil(selectedToolRows.val
 const pagedSelectedRows = computed(() => {
   const start = (toolPage.value - 1) * TOOL_PAGE_SIZE
   return selectedToolRows.value.slice(start, start + TOOL_PAGE_SIZE)
-})
-// Any tool rules set on tools NOT in the selected set (don't hide existing rules).
-const extraPermRows = computed(() => {
-  const sel = new Set(selectedTools.value.map(t => String(t.name).toUpperCase()))
-  return Object.keys(agentToolPerms.value || {}).filter(k => !sel.has(k)).map(k => _permRow(k, k))
-})
-const maxCostPerRun = computed({
-  get: () => formatMoneyInput(props.agent.max_cost_per_run_usd ?? '500.00'),
-  set: (value) => { props.agent.max_cost_per_run_usd = parseMoney(value) },
-})
-const dailyBudget = computed({
-  get: () => formatMoneyInput(props.agent.daily_budget_usd ?? '2000.00'),
-  set: (value) => { props.agent.daily_budget_usd = parseMoney(value) },
 })
 // Platform ceiling for "max actions per run" (= max steps / tool iterations). Model B: the agent may only
 // TIGHTEN below the platform ceiling; when the platform admin set nothing, that ceiling IS the absolute
@@ -725,25 +693,25 @@ const planningMinSteps = computed({
 })
 // Advanced execution controls (mapped from the legacy "Code Mode" / "Builder Mode" fields).
 // The shared Let's Code Coding Agent (built-in key `lets-code`) works only in a project's sandbox.
-const isCodingAgent = computed(() => !!props.agent.is_builtin_agent && props.agent.builtin_key === 'lets-code')
+const isCodingAgent = computed(() => !!agent.value.is_builtin_agent && agent.value.builtin_key === 'lets-code')
 const codeModeEnabled = computed({
-  get: () => !!props.agent.code_mode_enabled,
-  set: (value) => { props.agent.code_mode_enabled = value },
+  get: () => !!agent.value.code_mode_enabled,
+  set: (value) => { agent.value.code_mode_enabled = value },
 })
 // In-chat account connection (CONNECT_SERVICE). ON by default, matching every agent before the switch existed.
 const connectInChatEnabled = computed({
-  get: () => props.agent.connect_service_enabled !== false,
-  set: (value) => { props.agent.connect_service_enabled = value },
+  get: () => agent.value.connect_service_enabled !== false,
+  set: (value) => { agent.value.connect_service_enabled = value },
 })
 const serviceSetupEnabled = computed({
-  get: () => !!props.agent.builder_mode_enabled,
-  set: (value) => { props.agent.builder_mode_enabled = value },
+  get: () => !!agent.value.builder_mode_enabled,
+  set: (value) => { agent.value.builder_mode_enabled = value },
 })
 // Canvas Mode — always run in Canvas mode (design/preview tools), even when the agent is driven headlessly
 // over WebSocket by another application (no chat composer to toggle Canvas per message). Default off.
 const canvasModeEnabled = computed({
-  get: () => !!props.agent.canvas_mode,
-  set: (value) => { props.agent.canvas_mode = value },
+  get: () => !!agent.value.canvas_mode,
+  set: (value) => { agent.value.canvas_mode = value },
 })
 const activeGuardrailCount = computed(() => Math.max(agentGuardrailsList.value.length, effectiveGuardrails.value.length))
 const summaryMode = computed(() => {
@@ -754,21 +722,10 @@ const summaryMode = computed(() => {
 function selectMode(value) {
   runMode.value = value
 }
-function parseMoney(value) {
-  const n = Number(String(value).replace(/[$,]/g, ''))
-  return Number.isFinite(n) ? n.toFixed(2) : null
-}
-function formatMoneyInput(value) {
-  if (value === null || value === undefined || value === '') return ''
-  return String(value).startsWith('$') ? String(value) : `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-function moneyLabel(value) {
-  return value || '$0.00'
-}
 async function loadGuardrails() {
-  if (!props.agent.id) return
+  if (!agent.value.id) return
   try {
-    const res = await api.getAgentGuardrails(props.agent.id)
+    const res = await api.getAgentGuardrails(agent.value.id)
     effectiveGuardrails.value = res.data?.guardrails || []
     allRules.value = res.data?.rules || []
     orgToolPerms.value = res.data?.org_tool_permissions || {}
@@ -790,11 +747,11 @@ function _money(v) {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 async function loadAgentBudget() {
-  if (!props.agent.id) return
+  if (!agent.value.id) return
   try {
     const r = await api.getBudgets()
     const list = Array.isArray(r.data) ? r.data : (r.data?.results || r.data?.budgets || [])
-    const b = (list || []).find(x => x.scope_type === 'agent' && String(x.scope_id) === String(props.agent.id))
+    const b = (list || []).find(x => x.scope_type === 'agent' && String(x.scope_id) === String(agent.value.id))
     if (b) {
       budgetId.value = b.id
       budgetPerDay.value = b.daily_limit_usd != null ? String(b.daily_limit_usd) : ''
@@ -804,12 +761,12 @@ async function loadAgentBudget() {
   } catch (e) { /* budgets optional — never block the step */ }
 }
 async function saveAgentBudget() {
-  if (!props.agent.id || budgetSaving.value) { if (!props.agent.id) notify.info('Save the agent first, then set its spending limit.'); return }
+  if (!agent.value.id || budgetSaving.value) { if (!agent.value.id) notify.info('Save the agent first, then set its spending limit.'); return }
   budgetSaving.value = true
   try {
     // POST upserts the single enabled budget for (org, scope_type=agent, scope_id=agent.id).
     const r = await api.createBudget({
-      scope_type: 'agent', scope_id: props.agent.id, name: `${props.agent.name || 'Agent'} spend limit`,
+      scope_type: 'agent', scope_id: agent.value.id, name: `${agent.value.name || 'Agent'} spend limit`,
       daily_limit_usd: _money(budgetPerDay.value),
     })
     if (r.data?.id) budgetId.value = r.data.id
@@ -827,10 +784,10 @@ const USAGE_PAGE_SIZE = 10
 const usagePage = ref(1)
 const usageTotalPages = computed(() => Math.max(1, Math.ceil((usage.value?.recent_total || 0) / USAGE_PAGE_SIZE)))
 async function loadUsage(page = 1) {
-  if (!props.agent.id) { usage.value = null; return }
+  if (!agent.value.id) { usage.value = null; return }
   usageLoading.value = true
   try {
-    const r = await api.getAgentActionUsage(props.agent.id, { limit: USAGE_PAGE_SIZE, offset: (page - 1) * USAGE_PAGE_SIZE })
+    const r = await api.getAgentActionUsage(agent.value.id, { limit: USAGE_PAGE_SIZE, offset: (page - 1) * USAGE_PAGE_SIZE })
     usage.value = r.data; usagePage.value = page
   } catch (e) { usage.value = null }
   finally { usageLoading.value = false }
@@ -842,10 +799,10 @@ function fmtWhen(iso) {
 }
 function fmtDur(ms) { if (!ms) return '—'; return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms' }
 
-watch(() => props.agent.id, () => { loadGuardrails(); loadAgentBudget() })
+watch(() => agent.value.id, () => { loadGuardrails(); loadAgentBudget() })
 // The catalog only when the record does not name a selected tool (see ensureToolDefs) — checked again
 // when the selection or the record changes, and fetched at most once.
-watch(() => [props.agent.tool_ids, props.agent.tools], ensureToolDefs, { deep: true })
+watch(() => [agent.value.tool_ids, agent.value.tools], ensureToolDefs, { deep: true })
 onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 </script>
 

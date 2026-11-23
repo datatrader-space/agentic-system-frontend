@@ -150,14 +150,12 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { useEditorShell } from '../../composables/editorShell'
-import { RouterLink } from 'vue-router'
 import { Globe, Lock, Save } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
-const props = defineProps({ agent: { type: Object, required: true } })
-const shell = useEditorShell()
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 
 const TOGGLES = [
   { field: 'citations_required', label: 'Require citations',
@@ -216,11 +214,11 @@ function payload() {
 function clearModel() { modelKey.value = ''; probeResult.value = null }
 
 async function load() {
-  if (!props.agent.id) { loading.value = false; return }
+  if (!agent.value.id) { loading.value = false; return }
   loading.value = true
   try {
     const [cfgRes, modelsRes] = await Promise.all([
-      api.getAgentWebIntelligence(props.agent.id),
+      api.getAgentWebIntelligence(agent.value.id),
       api.getWebSearchModels().catch(() => ({ data: { models: [] } })),
     ])
     models.value = modelsRes.data?.models || []
@@ -242,11 +240,11 @@ async function load() {
 }
 
 async function save() {
-  if (!props.agent.id || saving.value || !editable.value) return
+  if (!agent.value.id || saving.value || !editable.value) return
   saving.value = true
   try {
-    const { data } = await api.updateAgentWebIntelligence(props.agent.id, payload())
-    props.agent.web_intelligence = data?.config || {}
+    const { data } = await api.updateAgentWebIntelligence(agent.value.id, payload())
+    agent.value.web_intelligence = data?.config || {}
     saved.value = snapshot()
     notify.success('Web search settings saved')
   } catch (e) {
@@ -279,7 +277,7 @@ async function probe() {
   }
 }
 
-watch(() => props.agent.id, load)
+watch(() => agent.value.id, load)
 onMounted(load)
 </script>
 

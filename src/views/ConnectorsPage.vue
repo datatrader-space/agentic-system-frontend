@@ -737,7 +737,6 @@ function closeMcpDetail() {
 
 const connected = computed(() => connectors.value.filter((c) => c.connected))
 const notConnected = computed(() => connectors.value.filter((c) => !c.connected))
-const totalTools = computed(() => connectors.value.reduce((n, c) => n + (c.tool_count_total || 0), 0))
 const mcpCount = computed(() => connectors.value.filter((c) => c.kind === 'mcp').length)
 const customCount = computed(() => connectors.value.filter((c) => c.kind === 'service').length)
 const isActive = (c) => !!selected.value && selected.value.kind === c.kind && selected.value.id === c.id
@@ -1014,13 +1013,6 @@ function iconFor(c) {
   if (c.icon && /\p{Extended_Pictographic}/u.test(c.icon)) return c.icon
   if (c.icon && c.icon.length <= 2) return c.icon
   return (c.name || '?').trim().charAt(0).toUpperCase()
-}
-function rowClass(c) {
-  const active = selected.value && selected.value.kind === c.kind && selected.value.id === c.id
-  return [
-    'w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl transition-colors',
-    active ? 'bg-violet-50 ring-1 ring-violet-200' : 'hover:bg-slate-50',
-  ]
 }
 function iconTint(c) {
   return c.kind === 'mcp' ? 'tint-mcp' : 'tint-service'

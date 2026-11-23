@@ -209,7 +209,7 @@
           </div>
           <a v-if="h.url" :href="safeHref(h.url)" target="_blank" class="hit-url">{{ h.url }}</a>
           <p class="hit-snip">{{ h.snippet }}</p>
-          <button class="btn tiny" @click="prefillCorrection(h.title)">Mark wrong → add correction</button>
+          <button class="btn tiny" @click="prefillCorrection()">Mark wrong → add correction</button>
         </div>
         <p v-if="!st.hits?.length" class="muted admin-muted">No chunks retrieved for that query.</p>
       </div>
@@ -435,7 +435,7 @@ async function archiveChunk (id) {
   try { await api.kbArchiveChunk(id, { status: 'archived' }); notify.success('Chunk marked outdated'); runSearch() }
   catch (e) { notify.error('Failed') }
 }
-function prefillCorrection (title) {
+function prefillCorrection () {
   newCorr.question = stQuery.value
   tab.value = 'corrections'
   loadCorrections()

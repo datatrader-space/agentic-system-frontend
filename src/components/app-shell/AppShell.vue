@@ -93,10 +93,9 @@
 import { ref, shallowRef, computed, provide, watch, onMounted, onUnmounted } from 'vue'
 import { useHelpAssistant } from '../../composables/useHelpAssistant'
 import { lazyComponent } from '../../utils/lazyComponent'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
-import { useChatStore } from '../../stores/useChatStore'
 import LeftSidebar from './LeftSidebar.vue'
 import MobileSidebarDrawer from './MobileSidebarDrawer.vue'
 import MeshBackground from './MeshBackground.vue'
@@ -107,9 +106,7 @@ import GlobalHelpAssistant from '../help/GlobalHelpAssistant.vue'
 import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
 const layout = useLayoutStore()
-const chat = useChatStore()
 const route = useRoute()
-const router = useRouter()
 
 // Command palette (Cmd/Ctrl+K) — power-up #2
 const paletteOpen = ref(false)

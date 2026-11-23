@@ -353,7 +353,6 @@ const serverTotal = ref(0)
 // No fabricated fallbacks — an empty account must read as real zeros, not fake demo data.
 const fallbackUsage = []
 const fallbackRequests = []
-const fallbackStats = {}
 const fallbackAudit = []
 
 const normalizedUsage = computed(() => usageRows.value.length ? usageRows.value : fallbackUsage)
@@ -434,29 +433,6 @@ const agentCostRows = computed(() => {
   const max = Math.max(...rows.map((row) => row.cost), 1)
   return rows.slice(0, 8).map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
 })
-
-// Cost by User — a real breakdown. There is no cost by provider: people never see which provider AADML runs a
-// model on (owner, 2026-10-29), and the usage API no longer sends one to them.
-const userCostRows = computed(() => {
-  const rows = (usageData.value.cost_by_user || []).map((r) => ({
-    name: r.user_email || 'Unknown', cost: Number(r.cost || 0), requests: r.requests || 0,
-  }))
-  const max = Math.max(...rows.map((row) => row.cost), 1)
-  return rows.slice(0, 8).map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
-})
-
-const costDrivers = computed(() => {
-  const out = []
-  if (totalCost.value > 0) {
-    out.push(`Chat/Completion usage ${_pct(completionCost.value)}% of total cost`)
-    if (modelRows.value.length) out.push(`Top model: ${topModel.value} ${topModelShare.value}% of total cost`)
-    const topAgent = agentCostRows.value[0]
-    if (topAgent) out.push(`Highest agent: ${topAgent.name} ${_pct(topAgent.cost)}% of total cost`)
-  }
-  return out.length ? out : ['No usage recorded in the selected window']
-})
-
-const reductionTips = ['Use GPT-4 Turbo for routine tasks', 'Limit context and system prompts', 'Leverage caching and reuse results', 'Monitor low-value or test traffic']
 
 const tableRequests = computed(() => {
   const source = requestRows.value.length ? requestRows.value : fallbackRequests

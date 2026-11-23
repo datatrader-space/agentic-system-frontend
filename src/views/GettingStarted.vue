@@ -171,7 +171,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 

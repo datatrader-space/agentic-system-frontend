@@ -135,14 +135,15 @@ import { Users, Search, Sparkles, Bot } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 const shell = useEditorShell()
 // `saved` carries exactly what this step's own PATCH changed, so the editor records it as confirmed
 // server state instead of seeing a pending edit on its next save.
 const emit = defineEmits(['saved'])
 
-const agentId = computed(() => props.agent.id)
-const isSuper = computed(() => !!props.agent.is_platform_super_agent)
+const agentId = computed(() => agent.value.id)
+const isSuper = computed(() => !!agent.value.is_platform_super_agent)
 
 // Candidates: for a normal agent, the built-in agent types and the user's OTHER agents (owner-scoped;
 // other builtins + ephemeral already excluded server-side). For the SUPER agent, the platform's BUILT-IN agents — its team serves every user,
@@ -161,13 +162,13 @@ function pickArray(d) { return Array.isArray(d) ? d : (d?.results ?? []) }
 
 // sub_agent_ids is write-only (absent from GET) — derive it from the sub_agents read summary, like tool_ids.
 function ensureIds() {
-  if (!Array.isArray(props.agent.sub_agent_ids)) {
-    props.agent.sub_agent_ids = Array.isArray(props.agent.sub_agents)
-      ? props.agent.sub_agents.map(s => s.id)
+  if (!Array.isArray(agent.value.sub_agent_ids)) {
+    agent.value.sub_agent_ids = Array.isArray(agent.value.sub_agents)
+      ? agent.value.sub_agents.map(s => s.id)
       : []
   }
 }
-const selectedIds = computed(() => (Array.isArray(props.agent.sub_agent_ids) ? props.agent.sub_agent_ids : []))
+const selectedIds = computed(() => (Array.isArray(agent.value.sub_agent_ids) ? agent.value.sub_agent_ids : []))
 function isSelected(id) { return selectedIds.value.includes(id) }
 
 const filtered = computed(() => {
@@ -205,14 +206,14 @@ async function loadAgents() {
 
 async function saveIds(next) {
   await api.patch(`/agents/${agentId.value}/`, { sub_agent_ids: next })
-  props.agent.sub_agent_ids = next
+  agent.value.sub_agent_ids = next
   // Keep the read summary in sync so the count/state is correct without a reload.
   const byId = new Map(candidates.value.map(a => [a.id, a]))
-  props.agent.sub_agents = next.map(id => {
+  agent.value.sub_agents = next.map(id => {
     const a = byId.get(id)
     return { id, name: a ? a.name : '', is_paused: a ? !!a.is_paused : false }
   })
-  emit('saved', { sub_agent_ids: props.agent.sub_agent_ids, sub_agents: props.agent.sub_agents })
+  emit('saved', { sub_agent_ids: agent.value.sub_agent_ids, sub_agents: agent.value.sub_agents })
 }
 
 async function toggle(a) {

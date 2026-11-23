@@ -246,26 +246,6 @@ const chat = useChatStore()
 // Create-Image mode lives in the chat store (single source of truth, read at send time to set the
 // `image_mode` WS flag). Sticky across turns until turned off. The composer only lets it turn on when the
 // agent has an image model (hasImageModel prop) — the backend also blocks it, this is the UX guard.
-// Per-turn REASONING EFFORT. '' means 'no choice' — the agent's own setting is left alone; that is why
-// the first pill is Auto and not Off. 'off' is a real instruction that switches reasoning off even on an
-// agent configured to use it, which is the whole point of having it in the composer. Sticky across turns.
-const effortOptions = [
-  { value: '',        label: 'Auto',    hint: "Use this agent's own setting" },
-  { value: 'off',     label: 'Off',     hint: 'No reasoning — fastest and cheapest' },
-  { value: 'minimal', label: 'Minimal', hint: 'The least the model will do' },
-  { value: 'low',     label: 'Low',     hint: 'A little thinking' },
-  { value: 'medium',  label: 'Medium',  hint: 'Balanced' },
-  { value: 'high',    label: 'High',    hint: 'Think hard — slower and more expensive' },
-]
-const reasoningEffort = computed(() => chat.reasoningEffort)
-const setEffort = (value) => {
-  chat.reasoningEffort = value
-  const opt = effortOptions.find(o => o.value === value)
-  notify.info(value
-    ? `Thinking effort: ${opt.label} — ${opt.hint.toLowerCase()}.`
-    : "Thinking effort: Auto — using this agent's own setting.")
-}
-
 const imageMode = computed(() => chat.imageMode)
 const toggleImageMode = () => {
   if (!props.hasImageModel && !chat.imageMode) {

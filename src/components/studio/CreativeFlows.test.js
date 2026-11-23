@@ -227,7 +227,7 @@ describe('Manual Storyboard, Marketing and Explainer keep their chat', () => {
     vi.clearAllMocks(); delete routeQuery.project_id
     api.getCinemaControls.mockResolvedValue({ data: { controls: [] } })
     api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 'r', name: 'Speech', ready: true }] } })
-    api.get.mockImplementation(async (path, opts) => ({ data: path === '/video/projects/' ? { projects: [] } : path === '/video/routes/' ? { routes: [{ route_id: 89, name: 'Kling', ready: true }] } : path === '/video/ads/options/' ? { platforms: [{ id: 'social', label: 'Social' }], goals: ['awareness'] } : path === '/video/brands/' ? { brands: [{ brand_id: 'b', name: 'Brand' }] } : path === '/video/ingredients/' ? { ingredients: [] } : path === '/video/explainers/p/' ? { scenes: [] } : {} }))
+    api.get.mockImplementation(async (path) => ({ data: path === '/video/projects/' ? { projects: [] } : path === '/video/routes/' ? { routes: [{ route_id: 89, name: 'Kling', ready: true }] } : path === '/video/ads/options/' ? { platforms: [{ id: 'social', label: 'Social' }], goals: ['awareness'] } : path === '/video/brands/' ? { brands: [{ brand_id: 'b', name: 'Brand' }] } : path === '/video/ingredients/' ? { ingredients: [] } : path === '/video/explainers/p/' ? { scenes: [] } : {} }))
   })
   afterEach(() => { routeQuery.project_id = 'p' })
   it('sends the preset chosen on the page with the request', async () => {

@@ -195,7 +195,7 @@ describe('Round 2 generator flow', () => {
   it('writes an editable prompt through the existing chat path without generating, preserving references', async () => {
     await render('image'); pickRequired(); await flushPromises()
     state.chat.pendingAttachments = []; state.chat.addExistingMedia = vi.fn()
-    state.chat.sendMessage.mockImplementation(async text => { state.chat.messages.push({ role: 'assistant', content: JSON.stringify({ prompt: 'Soft **side light** on the supplied product.', question: null }) }); return true })
+    state.chat.sendMessage.mockImplementation(async () => { state.chat.messages.push({ role: 'assistant', content: JSON.stringify({ prompt: 'Soft **side light** on the supplied product.', question: null }) }); return true })
     await wrapper.get('[data-test="studio-write-prompt"]').trigger('click'); await flushPromises()
     expect(wrapper.get('.sg-manual textarea').element.value).toBe('Soft side light on the supplied product.')
     expect(state.chat.sendMessage.mock.calls[0][0]).toContain('Do not generate media')
@@ -391,7 +391,7 @@ describe('Image and Video pages: the live price', () => {
   it('image: the quote asks for the same request the job sends (ADM-1170)', async () => {
     await render('image'); pickRequired(); await flushPromises(); await settle()
     const sent = api.getStudioQuote.mock.calls.at(-1)[0]
-    const { kind, conversation_id, ...asked } = sent
+    const { kind, conversation_id: _conversation, ...asked } = sent
     expect(kind).toBe('media')
     expect(asked).toEqual(video.imageJob(sent.request.prompt, video.refs))
   })

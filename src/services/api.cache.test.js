@@ -14,7 +14,7 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('axios', () => {
-  h.rawGet = vi.fn((url, config) => { h.calls.get += 1; return Promise.resolve({ data: { ok: true } }) })
+  h.rawGet = vi.fn(() => { h.calls.get += 1; return Promise.resolve({ data: { ok: true } }) })
   h.instance = {
     get: h.rawGet,
     post: vi.fn(() => Promise.resolve({ data: {} })),

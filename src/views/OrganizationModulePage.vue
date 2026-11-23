@@ -365,8 +365,6 @@ const modules = [
 
 const activeStatic = computed(() => modules.find((module) => module.key === route.params.module) || modules[0])
 
-const orgName = computed(() => orgStore.org?.name || 'Organization')
-
 // ── Live data ───────────────────────────────────────────────────────────────
 const DOT = ['blue-dot', 'green-dot', 'orange-dot', 'violet-dot', 'red-dot', 'slate-dot']
 const usd = (v) => (v == null ? '—' : `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
@@ -663,8 +661,9 @@ async function loadModule() {
       serviceCosts.value = provEntries.slice(0, 6).map((e, i) => ({
         name: e.name, value: `${Math.round((e.cost / provTotal) * 100)}%`, tone: DOT[i % DOT.length],
       }))
-      opportunities.value = Object.entries(byAgent).map(([id, v]) => ({ name: `Agent ${id}`, value: usd(v.cost) }))
-        .sort((a, b) => 0).slice(0, 5)
+      // The five agents that cost the most, most first.
+      opportunities.value = Object.entries(byAgent).sort(([, a], [, b]) => Number(b.cost || 0) - Number(a.cost || 0))
+        .slice(0, 5).map(([id, v]) => ({ name: `Agent ${id}`, value: usd(v.cost) }))
       if (key === 'budgets-finance') {
         liveMetrics.value = [
           { label: 'Current Spend', value: usd(m.current_spend), change: '', tone: '' },

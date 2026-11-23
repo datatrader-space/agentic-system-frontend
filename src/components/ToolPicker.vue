@@ -296,9 +296,6 @@ function colorForKey(key) {
   for (let i = 0; i < (key || '').length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
   return palette[h % palette.length]
 }
-function colorFor(t) {
-  return colorForKey(groupKey(t))
-}
 
 function openModal() {
   showModal.value = true

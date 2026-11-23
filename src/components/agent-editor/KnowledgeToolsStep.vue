@@ -192,7 +192,7 @@
     <!-- ============ Web Intelligence (WEB_SEARCH routing) ============
          Saves through its own validated endpoint, so it sits outside the step's Save flow. -->
     <div class="mt-4">
-      <WebIntelligenceCard :agent="agent" />
+      <WebIntelligenceCard v-model:agent="agent" />
     </div>
 
     <Teleport to="body">
@@ -460,7 +460,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { FileText, FileType, Link2, Globe, Database, BarChart3, Plus, X, ChevronRight, Folder, Search, Sparkles, Terminal, Star, Shield, Braces, RefreshCw, Ban, Zap, Cloud, Bug, Network, Wrench } from 'lucide-vue-next'
+import { FileText, FileType, Link2, Globe, Database, Plus, X, ChevronRight, Folder, Search, Sparkles, Terminal, Star, Shield, Braces, RefreshCw, Ban, Zap, Cloud, Bug, Network, Wrench } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -474,14 +474,15 @@ import IntegrationHubModal from '../connectors/IntegrationHubModal.vue'
 import WebIntelligenceCard from './WebIntelligenceCard.vue'
 import ToolIcon from '../knowledge/ToolIcon.js'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 // `saved` carries exactly what this step's own PATCH changed (the knowledge attach), so the editor
 // records it as confirmed server state instead of seeing a pending edit on its next save.
 const emit = defineEmits(['saved'])
 const router = useRouter()
 const go = (to) => router.push(to)
 const shell = useEditorShell()
-const agentId = computed(() => props.agent.id)
+const agentId = computed(() => agent.value.id)
 
 // View-all modal open state (card visuals stay untouched; rich detail lives in these overlays)
 const filesModalOpen = ref(false)
@@ -698,10 +699,6 @@ const attachedSharedSources = computed(() => sharedSources.value
   .map(s => ({ kind: 'shared', id: s.id, name: s.name, chunk_count: s.chunk_count,
     owner_agent: s.scope === 'system' ? 'Shared' : (s.scope === 'admin' ? 'Admin' : 'You') })))
 const allAttachedSources = computed(() => [...attachedSharedSources.value, ...attachedSources.value])
-const memorySources = computed(() => allAttachedSources.value.map(s => ({
-  id: `${s.kind}:${s.id}`, name: s.name,
-  meta: `${s.owner_agent ? s.owner_agent + ' · ' : ''}${s.chunk_count || 0} chunks`,
-})))
 async function loadAttachedSources() {
   if (!agentId.value) { attachedSources.value = []; return }
   try { const r = await api.getAgentKnowledgeAttachments(agentId.value); attachedSources.value = r.data?.attached || [] } catch (e) { attachedSources.value = [] }
@@ -794,12 +791,12 @@ async function loadSharedSources() {
   catch (e) { sharedSources.value = [] }
 }
 function ensureKsIds() {
-  if (!Array.isArray(props.agent.knowledge_source_ids)) {
-    props.agent.knowledge_source_ids = Array.isArray(props.agent.knowledge_sources)
-      ? props.agent.knowledge_sources.map(s => s.id) : []
+  if (!Array.isArray(agent.value.knowledge_source_ids)) {
+    agent.value.knowledge_source_ids = Array.isArray(agent.value.knowledge_sources)
+      ? agent.value.knowledge_sources.map(s => s.id) : []
   }
 }
-const attachedKsIds = computed(() => Array.isArray(props.agent.knowledge_source_ids) ? props.agent.knowledge_source_ids : [])
+const attachedKsIds = computed(() => Array.isArray(agent.value.knowledge_source_ids) ? agent.value.knowledge_source_ids : [])
 // The shared sources as picker rows (marked attached from the agent's M2M).
 const sharedLibraryItems = computed(() => sharedSources.value.map(s => ({
   kind: 'shared', id: s.id, name: s.name, chunk_count: s.chunk_count,
@@ -809,7 +806,7 @@ const sharedLibraryItems = computed(() => sharedSources.value.map(s => ({
 // Persist the agent's knowledge_source_ids (partial PATCH) after a shared attach/detach.
 async function saveKsIds(next) {
   await api.patch(`/agents/${agentId.value}/`, { knowledge_source_ids: next })
-  props.agent.knowledge_source_ids = next
+  agent.value.knowledge_source_ids = next
   emit('saved', { knowledge_source_ids: next })
 }
 
@@ -958,7 +955,6 @@ const allConnectors = ref([])        // full list (connected + available) for th
 const showHub = ref(false)           // IntegrationHubModal open state
 const connectorsLoading = ref(false)
 const connectorsError = ref('')
-const showAllConnectors = ref(false)
 const CONN_PAGE_SIZE = 5
 const connPage = ref(1)
 const connTotalPages = computed(() => Math.max(1, Math.ceil(connectors.value.length / CONN_PAGE_SIZE)))
@@ -969,7 +965,7 @@ async function loadConnectors() {
   connectorsLoading.value = true
   connectorsError.value = ''
   try {
-    const scope = props.agent?.id ? `agent:${props.agent.id}` : 'global'
+    const scope = agent.value?.id ? `agent:${agent.value.id}` : 'global'
     const { data } = await api.getConnectors(scope)
     const list = Array.isArray(data?.connectors) ? data.connectors : []
     allConnectors.value = list
@@ -1010,7 +1006,7 @@ function connectorTools(c) {
 }
 function connectorAssigned(c) {
   const ts = connectorTools(c)
-  return ts.length > 0 && ts.every(t => Array.isArray(props.agent.tool_ids) && props.agent.tool_ids.includes(t.id))
+  return ts.length > 0 && ts.every(t => Array.isArray(agent.value.tool_ids) && agent.value.tool_ids.includes(t.id))
 }
 function toggleConnector(c) {
   const ts = connectorTools(c)
@@ -1021,14 +1017,14 @@ function toggleConnector(c) {
     return
   }
   ensureToolIds()
-  const cur = Array.isArray(props.agent.tool_ids) ? props.agent.tool_ids : []
+  const cur = Array.isArray(agent.value.tool_ids) ? agent.value.tool_ids : []
   if (connectorAssigned(c)) {
     const remove = new Set(ts.map(t => t.id))
-    props.agent.tool_ids = cur.filter(id => !remove.has(id))          // unassign ALL its tools
+    agent.value.tool_ids = cur.filter(id => !remove.has(id))          // unassign ALL its tools
     notify.info(`Unassigned ${ts.length} tool(s) from ${c.name}`)
   } else {
     const have = new Set(cur)
-    props.agent.tool_ids = [...cur, ...ts.map(t => t.id).filter(id => !have.has(id))]  // assign ALL its tools
+    agent.value.tool_ids = [...cur, ...ts.map(t => t.id).filter(id => !have.has(id))]  // assign ALL its tools
     notify.success(`Assigned ${ts.length} tool(s) from ${c.name}`)
   }
 }
@@ -1099,7 +1095,6 @@ const filteredModalTools = computed(() => {
   if (q) tools = tools.filter(t => toolText(t).includes(q))
   return tools
 })
-const selectedCount = computed(() => filteredModalTools.value.filter(toolOn).length)
 const selectedModalTools = computed(() => toolDefs.value.filter(toolOn))
 function shortDesc(t) {
   const d = t.description || ''
@@ -1113,14 +1108,14 @@ function toolTags(tool) {
   const nameBits = String(tool.display_name || tool.name || '').split(/[\s_/-]+/).filter(Boolean)
   return [...new Set([...source, ...nameBits])].map(t => String(t).toLowerCase()).filter(Boolean).slice(0, 3)
 }
-function ensureToolIds() { if (!Array.isArray(props.agent.tool_ids)) props.agent.tool_ids = [] }
-const toolOn = (tool) => Array.isArray(props.agent.tool_ids) && props.agent.tool_ids.includes(tool.id)
-const catOn = (grp) => grp.tools.length > 0 && grp.tools.every(t => Array.isArray(props.agent.tool_ids) && props.agent.tool_ids.includes(t.id))
+function ensureToolIds() { if (!Array.isArray(agent.value.tool_ids)) agent.value.tool_ids = [] }
+const toolOn = (tool) => Array.isArray(agent.value.tool_ids) && agent.value.tool_ids.includes(tool.id)
+const catOn = (grp) => grp.tools.length > 0 && grp.tools.every(t => Array.isArray(agent.value.tool_ids) && agent.value.tool_ids.includes(t.id))
 function toggleCategory(grp) {
   ensureToolIds()
-  const ids = props.agent.tool_ids
+  const ids = agent.value.tool_ids
   if (catOn(grp)) {
-    props.agent.tool_ids = ids.filter(id => !grp.tools.some(t => t.id === id))
+    agent.value.tool_ids = ids.filter(id => !grp.tools.some(t => t.id === id))
   } else {
     for (const t of grp.tools) if (!ids.includes(t.id)) ids.push(t.id)
   }
@@ -1128,9 +1123,9 @@ function toggleCategory(grp) {
 function toggleTool(tool) {
   ensureToolIds()
   if (toolOn(tool)) {
-    props.agent.tool_ids = props.agent.tool_ids.filter(id => id !== tool.id)
+    agent.value.tool_ids = agent.value.tool_ids.filter(id => id !== tool.id)
   } else {
-    props.agent.tool_ids.push(tool.id)
+    agent.value.tool_ids.push(tool.id)
   }
 }
 function openToolsModal(group) {
@@ -1144,17 +1139,6 @@ function openToolsModal(group) {
 function closeToolsModal() {
   toolsModalOpen.value = false
 }
-function enableAllModalTools() {
-  ensureToolIds()
-  for (const tool of filteredModalTools.value) {
-    if (!props.agent.tool_ids.includes(tool.id)) props.agent.tool_ids.push(tool.id)
-  }
-}
-function disableAllModalTools() {
-  ensureToolIds()
-  const remove = new Set(filteredModalTools.value.map(t => t.id))
-  props.agent.tool_ids = props.agent.tool_ids.filter(id => !remove.has(id))
-}
 
 onMounted(() => { loadFiles(); loadUrls(); loadTools(); loadKbCost(); loadAttachedSources(); loadSharedSources(); loadUserKb(); ensureKsIds(); connectKbWs(); loadConnectors() })
 // The agent prop can populate AFTER mount (parent fetches it async) — (re)connect the WS + reload the
@@ -1163,7 +1147,7 @@ watch(agentId, (id, prev) => {
   if (id && id !== prev) { connectKbWs(); loadFiles(); loadUrls(); loadKbCost(); loadAttachedSources(); loadSharedSources(); ensureKsIds(); loadConnectors() }
 })
 // When the agent object hydrates late, derive the attached shared-source ids so toggles show as ON.
-watch(() => props.agent.knowledge_sources, () => ensureKsIds())
+watch(() => agent.value.knowledge_sources, () => ensureKsIds())
 onBeforeUnmount(() => { stopFilePollers(); kbWs.close() })
 </script>
 

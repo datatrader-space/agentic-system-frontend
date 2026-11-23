@@ -122,11 +122,12 @@ import { BookOpen, Search, Plus } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 // `saved` carries exactly what this step's own PATCH changed, so the editor records it as confirmed
 // server state instead of seeing a pending edit on its next save.
 const emit = defineEmits(['saved'])
-const agentId = computed(() => props.agent.id)
+const agentId = computed(() => agent.value.id)
 
 const skills = ref([])
 const loading = ref(false)
@@ -144,11 +145,11 @@ const skillMd = ref('')
 function pickArray(d) { return Array.isArray(d) ? d : (d?.results ?? []) }
 
 function ensureIds() {
-  if (!Array.isArray(props.agent.skill_ids)) {
-    props.agent.skill_ids = Array.isArray(props.agent.skills) ? props.agent.skills.map(s => s.id) : []
+  if (!Array.isArray(agent.value.skill_ids)) {
+    agent.value.skill_ids = Array.isArray(agent.value.skills) ? agent.value.skills.map(s => s.id) : []
   }
 }
-const selectedIds = computed(() => (Array.isArray(props.agent.skill_ids) ? props.agent.skill_ids : []))
+const selectedIds = computed(() => (Array.isArray(agent.value.skill_ids) ? agent.value.skill_ids : []))
 function isSelected(id) { return selectedIds.value.includes(id) }
 
 const filtered = computed(() => {
@@ -187,13 +188,13 @@ async function loadSkills() {
 async function saveIds(next) {
   if (!agentId.value) { notify.info('Save your agent first, then assign skills.'); return false }
   await api.patch(`/agents/${agentId.value}/`, { skill_ids: next })
-  props.agent.skill_ids = next
+  agent.value.skill_ids = next
   const byId = new Map(skills.value.map(s => [s.id, s]))
-  props.agent.skills = next.map(id => {
+  agent.value.skills = next.map(id => {
     const s = byId.get(id)
     return { id, name: s ? s.name : '', slug: s ? s.slug : '', description: s ? s.description : '' }
   })
-  emit('saved', { skill_ids: props.agent.skill_ids, skills: props.agent.skills })
+  emit('saved', { skill_ids: agent.value.skill_ids, skills: agent.value.skills })
   return true
 }
 

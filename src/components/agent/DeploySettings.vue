@@ -123,7 +123,7 @@
                     <Icon :icon="showAdvanced ? 'lucide:chevron-up' : 'lucide:chevron-down'" :width="16" class="di-acc-caret" />
                   </button>
                   <div v-if="!showAdvanced" class="di-acc-hint">Concurrency · stats · HMAC · Redis · test · log · dead letters</div>
-                  <div v-if="showAdvanced" class="di-acc-body"><SignalPanel :agent="agent" mode="monitoring" /></div>
+                  <div v-if="showAdvanced" class="di-acc-body"><SignalPanel v-model:agent="agent" mode="monitoring" /></div>
                 </div>
 
                 <GuideLink v-if="!inline" tab="webhook" />
@@ -234,13 +234,14 @@ import SignalPanel from '../SignalPanel.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  agent: { type: Object, default: null },
   // inline: rendered as part of a page (the Integrations & Deploy page), not as a drawer.
   inline: { type: Boolean, default: false },
   // section: show one channel only ('websocket' | 'webhook' | 'widget'); '' shows all three.
   section: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
+// The agent this panel edits, its parent's own object (v-model:agent); null until the parent has loaded it.
+const agent = defineModel('agent', { type: Object, default: null })
 const close = () => emit('update:modelValue', false)
 
 const loading = ref(false)
@@ -263,9 +264,9 @@ const allowedSitesText = ref('')
 const allowedSitesList = () => allowedSitesText.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
 const settingsPayload = () => ({ ...s, allowed_sites: allowedSitesList() })
 
-const agentId = computed(() => props.agent && props.agent.id)
-const wsOn = computed(() => props.agent && props.agent.ws_chat_enabled !== false)
-const webhookOn = computed(() => !!(props.agent && props.agent.signal_enabled))
+const agentId = computed(() => agent.value && agent.value.id)
+const wsOn = computed(() => agent.value && agent.value.ws_chat_enabled !== false)
+const webhookOn = computed(() => !!(agent.value && agent.value.signal_enabled))
 const anyLive = computed(() => wsOn.value || webhookOn.value || share.value.is_public)
 
 const publicOrigin = window.location.origin
@@ -324,8 +325,8 @@ async function toggleWs() {
   busy.value = true
   try {
     await api.updateAgent(agentId.value, { ws_chat_enabled: next })
-    props.agent.ws_chat_enabled = next
-    if (next && !props.agent.signal_api_key) notify.info('WebSocket chat on — generate an access key to let external apps connect')
+    agent.value.ws_chat_enabled = next
+    if (next && !agent.value.signal_api_key) notify.info('WebSocket chat on — generate an access key to let external apps connect')
     else notify.success(next ? 'WebSocket chat enabled' : 'WebSocket chat disabled')
   } catch (e) { notify.error('Failed: ' + (e.response?.data?.error || e.message)) }
   finally { busy.value = false }
@@ -336,18 +337,18 @@ async function toggleWebhook() {
   busy.value = true
   try {
     await api.updateAgent(agentId.value, { signal_enabled: next })
-    props.agent.signal_enabled = next
+    agent.value.signal_enabled = next
     notify.success(next ? 'Webhook enabled' : 'Webhook disabled')
   } catch (e) { notify.error('Failed: ' + (e.response?.data?.error || e.message)) }
   finally { busy.value = false }
 }
 
 async function rotateApiKey() {
-  if (props.agent.signal_api_key && !(await confirm('Generate a new key? The old one stops working immediately.'))) return
+  if (agent.value.signal_api_key && !(await confirm('Generate a new key? The old one stops working immediately.'))) return
   rotatingKey.value = true
   try {
     const res = await api.rotateSignalApiKey(agentId.value)
-    props.agent.signal_api_key = res.data.api_key
+    agent.value.signal_api_key = res.data.api_key
     showApiKey.value = true
   } catch (e) { notify.error('Failed to generate key: ' + (e.response?.data?.error || e.message)) }
   finally { rotatingKey.value = false }
@@ -371,10 +372,10 @@ async function toggleShare() {
     else { share.value = res.data; applySettings(share.value.share_settings); notify.success('Share link enabled') }
     // Written onto the agent like the WebSocket and Webhook switches, so a page that shows this agent (the
     // Integrations & Deploy guide below the settings) follows without a refresh.
-    if (props.agent) {
-      props.agent.is_public = !!share.value.is_public
-      if (share.value.public_share_token) props.agent.public_share_token = share.value.public_share_token
-      if (share.value.public_slug) props.agent.public_slug = share.value.public_slug
+    if (agent.value) {
+      agent.value.is_public = !!share.value.is_public
+      if (share.value.public_share_token) agent.value.public_share_token = share.value.public_share_token
+      if (share.value.public_slug) agent.value.public_slug = share.value.public_slug
     }
   } catch (e) { notify.error('Failed: ' + (e.response?.data?.error || e.message)) }
   finally { busy.value = false }

@@ -53,15 +53,7 @@ export function installNavigationHistory(router) {
  * Composable for components to use back navigation.
  */
 export function useNavigationHistory() {
-    const canGoBack = ref(false)
-
-    // Check if there's history to go back to
-    const updateCanGoBack = () => {
-        canGoBack.value = history.value.length > 0
-    }
-
-    // Reactive — watch for changes
-    // (We use a simple getter since the history ref is reactive)
+    // canGoBack is a getter: the history ref is reactive.
     return {
         /** Whether there's a previous page to go back to */
         get canGoBack() {
@@ -80,7 +72,7 @@ export function useNavigationHistory() {
          */
         goBack(router, fallbackPath = '/agents') {
             if (history.value.length > 0) {
-                const prev = history.value.pop()
+                history.value.pop()
                 // Use router.back() if the browser history matches (most common case)
                 // This gives the proper "back" animation and preserves scroll position
                 router.back()

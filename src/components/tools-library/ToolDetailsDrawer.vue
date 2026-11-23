@@ -110,7 +110,7 @@ const props = defineProps({
   usage: { type: Object, default: null },          // /tools/<name>/agents/ payload
   usageLoading: { type: Boolean, default: false },
 })
-const emit = defineEmits(['close', 'toggle'])
+defineEmits(['close', 'toggle'])
 const router = useRouter()
 
 const name = computed(() => props.tool?.display_name || props.tool?.name || props.detail?.name || '')

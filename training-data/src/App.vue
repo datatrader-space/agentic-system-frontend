@@ -16,7 +16,7 @@ import LlmAnalytics from './components/LlmAnalytics.vue';
 import LlmDeploy from './components/LlmDeploy.vue';
 import ProjectRecords from './components/ProjectRecords.vue';
 import { NOT_FOR_LLM, LATER_FOR_LLM } from './api/llm.js';
-import { Aperture, FolderOpen, Box, Layers, ArrowUpRight, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2, ClipboardList, Database } from 'lucide-vue-next';
+import { Aperture, FolderOpen, Box, Layers, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2, ClipboardList, Database } from 'lucide-vue-next';
 import SidebarUtilities from './components/SidebarUtilities.vue';
 import UiButton from './components/UiButton.vue';
 import UiDialog from './components/UiDialog.vue';
@@ -67,7 +67,7 @@ const loadingProjects=ref(true);
 // Workspace settings: Team Members, Trash and the Audit log are pages here; Billing and Usage are AADML's own
 // pages (SETTINGS_PAGES); API Keys and Datasources say where those things are.
 // Project settings: a new name shows everywhere; a deleted project leaves the list.
-async function projectRenamed(name){ const ref=selected.value?.ref; await loadProjects(); selected.value=projects.value.find(p=>p.ref===ref)||selected.value; }
+async function projectRenamed(){ const ref=selected.value?.ref; await loadProjects(); selected.value=projects.value.find(p=>p.ref===ref)||selected.value; }
 // A project moved to the Trash leaves the list; its Owner restores it from Workspace Settings → Trash within 30 days.
 async function projectTrashed(name){ selected.value=null; navigate('projects'); await loadProjects(); notice.value=`“${name}” is in the Trash. Restore it from Workspace Settings → Trash within 30 days.`; }
 async function trash(project){ try { await trashProject(project.ref); await projectTrashed(project.name); } catch (error) { notice.value=error.message; } }
@@ -182,7 +182,7 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
         <WorkspaceWorkflows v-else-if="page==='workflows'" />
         <WorkspaceEvents v-else-if="page==='events'" />
         <WorkspaceAudit v-else-if="page==='audit'" />
-        <WorkspaceAssets v-else-if="page==='assets'" @navigate="navigate" />
+        <WorkspaceAssets v-else-if="page==='assets'" />
         <section v-else-if="page==='discover'" class="panel screen-placeholder"><span class="placeholder-icon"><Orbit :size="32" /></span><UiBadge tone="purple">Coming soon</UiBadge><h2>Universe</h2><p>Public datasets you could add to your projects. Each dataset's licence has to be checked before its photos can train a model, so this is not available yet.</p></section>
         <WorkspaceDeployments v-else-if="page==='deployments'" @navigate="id => { selected = null; navigate(id); }" @create="dialog = true" />
         <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" @navigate="navigate" />

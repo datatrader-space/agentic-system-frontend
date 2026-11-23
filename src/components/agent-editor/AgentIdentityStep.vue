@@ -92,19 +92,20 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useEditorShell } from '../../composables/editorShell'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Check, ChevronDown, Database, FileText, Lightbulb, MessageCircle, Plus, Search, Sparkles, Users } from 'lucide-vue-next'
+import { ArrowRight, Check, Database, FileText, Lightbulb, MessageCircle, Plus, Search, Sparkles, Users } from 'lucide-vue-next'
 import api from '../../services/api'
 import tenancyApi from '../../services/tenancyApi'
 
 const router = useRouter()
 const shell = useEditorShell()
-const props = defineProps({
-  agent: { type: Object, required: true },
+defineProps({
   isNew: { type: Boolean, default: false },
 })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 
 const workspaces = ref([])
-const selectedWorkspace = ref(props.agent.workspace ?? null)
+const selectedWorkspace = ref(agent.value.workspace ?? null)
 const selectedTemplate = ref('blank')
 const showMoreTemplates = ref(false)
 
@@ -143,9 +144,9 @@ const copyOf = (v) => (Array.isArray(v) ? [...v] : v)
 function restoreBeforeTemplate() {
   if (!beforeTemplate) return
   for (const k of TEMPLATE_FIELDS) {
-    if (k === 'description' && props.agent.description !== templateDescription) continue
-    if (k in beforeTemplate) props.agent[k] = copyOf(beforeTemplate[k])
-    else delete props.agent[k]
+    if (k === 'description' && agent.value.description !== templateDescription) continue
+    if (k in beforeTemplate) agent.value[k] = copyOf(beforeTemplate[k])
+    else delete agent.value[k]
   }
   templateDescription = null
 }
@@ -158,19 +159,19 @@ function selectTemplate(template) {
   if (!t) return // "Start from blank" — restore only, apply nothing
   if (!beforeTemplate) {
     beforeTemplate = {}
-    for (const k of TEMPLATE_FIELDS) if (k in props.agent) beforeTemplate[k] = copyOf(props.agent[k])
+    for (const k of TEMPLATE_FIELDS) if (k in agent.value) beforeTemplate[k] = copyOf(agent.value[k])
   }
-  if (t.system_prompt_template) props.agent.system_prompt_template = t.system_prompt_template
-  if (!props.agent.description) {
+  if (t.system_prompt_template) agent.value.system_prompt_template = t.system_prompt_template
+  if (!agent.value.description) {
     templateDescription = t.template_description || t.description || ''
-    props.agent.description = templateDescription
+    agent.value.description = templateDescription
   }
-  if (t.prompt_mode) props.agent.prompt_mode = t.prompt_mode
-  if (Array.isArray(t.agent_rules)) props.agent.agent_rules = [...t.agent_rules]
-  if (Array.isArray(t.tools)) props.agent.tool_ids = t.tools.map(x => x.id)
+  if (t.prompt_mode) agent.value.prompt_mode = t.prompt_mode
+  if (Array.isArray(t.agent_rules)) agent.value.agent_rules = [...t.agent_rules]
+  if (Array.isArray(t.tools)) agent.value.tool_ids = t.tools.map(x => x.id)
 }
 
-watch(selectedWorkspace, (id) => { props.agent.workspace = id })
+watch(selectedWorkspace, (id) => { agent.value.workspace = id })
 
 onMounted(async () => {
   try {

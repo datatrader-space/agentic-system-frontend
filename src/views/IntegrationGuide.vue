@@ -25,7 +25,7 @@
     <div class="max-w-4xl mx-auto px-6 py-8 space-y-10">
 
       <!-- The channel's switch and settings, on the page (they were a drawer behind a "Deploy settings" button). -->
-      <DeploySettings v-if="canManage" inline :section="tab" :agent="agent" />
+      <DeploySettings v-if="canManage" inline :section="tab" v-model:agent="agent" />
       <!-- Where the guide starts: the "Guide" link on Integrations opens the page here. -->
       <div id="guide" class="scroll-mt-32"></div>
 

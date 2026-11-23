@@ -115,7 +115,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud, Plug } from 'lucide-vue-next'
+import { ChevronRight, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, Plug } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { changedFields, snapshot, withoutReadOnly, idListsFrom } from '../composables/agentDiff'
@@ -216,7 +216,8 @@ const STEP_COMPONENTS = {
 }
 const stepComponent = computed(() => STEP_COMPONENTS[step.value] || null)
 const stepProps = computed(() => {
-  const props = { agent: agent.value }
+  // The step edits the draft (its defineModel('agent')); a step that replaces it hands the new one back.
+  const props = { agent: agent.value, 'onUpdate:agent': (value) => { agent.value = value } }
   switch (step.value) {
     case 'identity': return { ...props, isNew: isNew.value }
     case 'tools': case 'team': case 'skills': return { ...props, onSaved: mergeAgent }

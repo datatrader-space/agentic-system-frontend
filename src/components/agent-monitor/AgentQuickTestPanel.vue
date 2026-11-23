@@ -154,7 +154,7 @@ function onEvent(msg) {
       finishTurn()
       break
     case 'stop_acknowledged':
-      finishTurn(true)
+      finishTurn()
       break
     case 'error':
       messages.value.push({ role: 'assistant', content: msg.error || msg.message || 'Something went wrong.', error: true })
@@ -165,7 +165,7 @@ function onEvent(msg) {
   }
 }
 
-function finishTurn(stopped = false) {
+function finishTurn() {
   if (!streaming.value) return
   // If chunks streamed but no explicit complete delivered the text, flush the buffer.
   if (streamBuf.value && !messages.value.some((m) => m.role === 'assistant' && m.content === streamBuf.value)) {
@@ -207,7 +207,7 @@ function send() {
 
 function stop() {
   try { conn?.stop() } catch (e) { /* noop */ }
-  finishTurn(true)
+  finishTurn()
 }
 
 function clearChat() {

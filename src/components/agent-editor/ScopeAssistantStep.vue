@@ -82,7 +82,8 @@ import { useRouter } from 'vue-router'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 const router = useRouter()
 const busy = ref(false)
 
@@ -100,13 +101,13 @@ const SCOPES = [
 ]
 
 // Scope radio: 'personal' = normal agent; anything else = a system built-in with that visibility.
-const scope = ref(props.agent.is_builtin_agent ? (props.agent.builtin_visibility || 'admin') : 'personal')
+const scope = ref(agent.value.is_builtin_agent ? (agent.value.builtin_visibility || 'admin') : 'personal')
 
 // Scope/assistant are an explicit action (not auto-saved) — converting is deliberate. answer_policy
 // binds directly to the agent so the top-bar Save persists it too.
 const form = reactive({
-  builtin_key: props.agent.builtin_key || '',
-  builtin_enabled: props.agent.builtin_enabled ?? true,
+  builtin_key: agent.value.builtin_key || '',
+  builtin_enabled: agent.value.builtin_enabled ?? true,
   set_as_assistant: false,
 })
 const isBuiltinScope = computed(() => scope.value !== 'personal')
@@ -119,7 +120,7 @@ watch(canBeAssistant, (ok) => { if (!ok) form.set_as_assistant = false })
 async function saveAnswerPolicy() {
   busy.value = true
   try {
-    await api.patch(`/agents/${props.agent.id}/`, { answer_policy: props.agent.answer_policy || 'open' })
+    await api.patch(`/agents/${agent.value.id}/`, { answer_policy: agent.value.answer_policy || 'open' })
     notify.success('Grounding policy saved')
   } catch (e) { notify.error(e?.response?.data?.detail || 'Could not save') }
   busy.value = false
@@ -127,7 +128,7 @@ async function saveAnswerPolicy() {
 
 async function apply() {
   busy.value = true
-  const payload = { answer_policy: props.agent.answer_policy || 'open' }
+  const payload = { answer_policy: agent.value.answer_policy || 'open' }
   if (isBuiltinScope.value) {
     Object.assign(payload, {
       make_builtin: true,
@@ -138,7 +139,7 @@ async function apply() {
     })
   }
   try {
-    await api.patch(`/agents/${props.agent.id}/`, payload)
+    await api.patch(`/agents/${agent.value.id}/`, payload)
     if (isBuiltinScope.value) {
       notify.success('Converted to a system built-in — opening the admin console')
       router.push({ name: 'admin-builtin-agents' })

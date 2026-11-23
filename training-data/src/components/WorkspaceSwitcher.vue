@@ -9,7 +9,7 @@ import UiButton from './UiButton.vue';
 import UiDialog from './UiDialog.vue';
 import { workspaces as api, chooseWorkspace } from '../api/workspaces.js';
 
-const props = defineProps({ session: Object });
+defineProps({ session: Object });
 const open = ref(false); const body = ref(null); const error = ref(''); const root = ref(null);
 const creating = ref(false); const newName = ref(''); const newOrg = ref(''); const busy = ref(false); const createError = ref('');
 const groups = computed(() => {

@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 
 // Theme state - shared across all components
 const currentTheme = ref('light')

@@ -13,7 +13,6 @@ import { listProjects } from '../api/training.js';
 import { FRAME_EVERY } from '../api/phone.js';
 import { projectLink } from '../api/workspace.js';
 
-const emit = defineEmits(['navigate']);
 const TYPES = [['image', 'Photos'], ['video', 'Videos'], ['all', 'Everything']];
 const type = ref('image'); const q = ref('');
 const items = ref(null); const page = ref(1); const more = ref(false); const busy = ref(false); const error = ref('');

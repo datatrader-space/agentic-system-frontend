@@ -625,11 +625,6 @@ const filteredSchedules = computed(() => {
 })
 
 // ---- payload build --------------------------------------------------------
-function numOrNull(v) {
-  if (v === '' || v == null) return null
-  const n = Number(v)
-  return isNaN(n) ? null : n
-}
 
 // Extract the IANA name (e.g. "Asia/Karachi") from the dropdown label for the backend.
 function extractTz(label) {

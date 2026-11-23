@@ -378,15 +378,14 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
-  agent: { type: Object, required: true },
   // 'full' (default) = standalone panel with its own enable toggle + URLs + API key.
   // 'monitoring' = embedded in the unified Deploy panel's Webhook card: the enable toggle,
   // endpoint URLs and API key live in that card, so we render only the operational sections
   // (concurrency, stats, advanced settings, Redis bridge, test, log, flows, dead letters).
   mode: { type: String, default: 'full' },
 })
-
-const emit = defineEmits(['update:agent'])
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 
 // UI state
 const showWebhookConfig = ref(props.mode === 'monitoring')
@@ -394,7 +393,6 @@ const showBridgeConfig = ref(false)
 const showTestPanel = ref(false)
 const showApiKey = ref(false)
 const rotatingKey = ref(false)
-const redisUrlDirty = ref(false)  // Track if user edited the Redis URL
 
 // Stats
 const stats = ref(null)
@@ -420,7 +418,7 @@ const testResultError = ref(false)
 // VITE_PUBLIC_API_BASE=http://192.168.18.10:8000
 const apiBase = (import.meta.env.VITE_PUBLIC_API_BASE || window.location.origin).replace(/\/+$/, '')
 
-const webhookUrl = computed(() => `${apiBase}/api/agents/${props.agent.id}/webhook/`)
+const webhookUrl = computed(() => `${apiBase}/api/agents/${agent.value.id}/webhook/`)
 
 // WebSocket chat endpoint (repo_id 0 = standalone "Free Agent" mode).
 // Authenticated by the agent's signal_api_key via ?token= or Bearer header.
@@ -440,20 +438,20 @@ const wsChatUrl = computed(() => {
 import { computed } from 'vue'
 
 function toggleSignals() {
-  props.agent.signal_enabled = !props.agent.signal_enabled
-  if (props.agent.signal_enabled) {
+  agent.value.signal_enabled = !agent.value.signal_enabled
+  if (agent.value.signal_enabled) {
     loadAll()
   }
 }
 
 async function loadAll() {
-  if (!props.agent.id || !props.agent.signal_enabled) return
+  if (!agent.value.id || !agent.value.signal_enabled) return
   try {
     const [statsRes, signalsRes, flowsRes, deadRes] = await Promise.all([
-      api.getSignalStats(props.agent.id),
-      api.getSignals(props.agent.id, { status: logStatusFilter.value || undefined, limit: 50 }),
-      api.getSignalFlows(props.agent.id),
-      api.getDeadLetters(props.agent.id),
+      api.getSignalStats(agent.value.id),
+      api.getSignals(agent.value.id, { status: logStatusFilter.value || undefined, limit: 50 }),
+      api.getSignalFlows(agent.value.id),
+      api.getDeadLetters(agent.value.id),
     ])
     stats.value = statsRes.data
     signals.value = signalsRes.data.signals || []
@@ -467,7 +465,7 @@ async function loadAll() {
 async function loadSignals() {
   loadingSignals.value = true
   try {
-    const res = await api.getSignals(props.agent.id, { status: logStatusFilter.value || undefined, limit: 50 })
+    const res = await api.getSignals(agent.value.id, { status: logStatusFilter.value || undefined, limit: 50 })
     signals.value = res.data.signals || []
   } catch (e) {
     console.warn('Failed to load signals:', e)
@@ -480,8 +478,8 @@ async function rotateApiKey() {
   if (!(await confirm('Generate a new API key? The old one will be invalidated.'))) return
   rotatingKey.value = true
   try {
-    const res = await api.rotateSignalApiKey(props.agent.id)
-    props.agent.signal_api_key = res.data.api_key
+    const res = await api.rotateSignalApiKey(agent.value.id)
+    agent.value.signal_api_key = res.data.api_key
     showApiKey.value = true
   } catch (e) {
     notify.error('Failed to generate API key: ' + (e.response?.data?.error || e.message))
@@ -496,7 +494,7 @@ async function sendTest() {
   try {
     let payload = {}
     try { payload = JSON.parse(testPayload.value) } catch { payload = { raw: testPayload.value } }
-    const res = await api.sendTestSignal(props.agent.id, {
+    const res = await api.sendTestSignal(agent.value.id, {
       signal_type: testSignalType.value || 'test.ping',
       payload,
       flow_key: testFlowKey.value || undefined,
@@ -514,7 +512,7 @@ async function sendTest() {
 
 async function retrySignal(signalId) {
   try {
-    await api.retrySignal(props.agent.id, signalId)
+    await api.retrySignal(agent.value.id, signalId)
     loadAll()
   } catch (e) {
     notify.error('Retry failed: ' + (e.response?.data?.error || e.message))
@@ -523,7 +521,7 @@ async function retrySignal(signalId) {
 
 async function cancelSignal(signalId) {
   try {
-    await api.cancelSignal(props.agent.id, signalId)
+    await api.cancelSignal(agent.value.id, signalId)
     loadAll()
   } catch (e) {
     notify.error('Cancel failed: ' + (e.response?.data?.error || e.message))
@@ -558,10 +556,10 @@ function formatTime(iso) {
 }
 
 onMounted(() => {
-  if (props.agent.signal_enabled) loadAll()
+  if (agent.value.signal_enabled) loadAll()
 })
 
-watch(() => props.agent.id, () => {
-  if (props.agent.signal_enabled) loadAll()
+watch(() => agent.value.id, () => {
+  if (agent.value.signal_enabled) loadAll()
 })
 </script>

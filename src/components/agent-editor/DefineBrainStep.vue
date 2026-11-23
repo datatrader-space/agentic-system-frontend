@@ -335,7 +335,8 @@ import { Activity, ArrowRight, CheckCircle2, ChevronDown, Cpu, Database, Externa
 import api from '../../services/api'
 import ModelPicker from '../common/ModelPicker.vue'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+// The agent draft this step edits, the parent's own object (v-model:agent): the step changes its fields.
+const agent = defineModel('agent', { type: Object, required: true })
 const shell = useEditorShell()
 
 const editing = reactive({ model: false, prompt: false, rules: false, memory: false, style: false })
@@ -354,16 +355,16 @@ const masterOff = computed(() => account.value && account.value.memory_enabled =
 // included (project memory has no switch of its own). It drives the detailed backend fields (read/write)
 // together, so the user never sees them. The fine-grained
 // controls live in Settings → Memory. "Use my global memory" is independent (account-wide memories).
-const allowRemember = computed(() => !!props.agent.structured_memory_enabled)
+const allowRemember = computed(() => !!agent.value.structured_memory_enabled)
 
 function toggleAllowRemember() {
   if (masterOff.value) return
   const on = !allowRemember.value
-  props.agent.structured_memory_enabled = on
-  props.agent.memory_read_enabled = on
-  props.agent.memory_write_enabled = on
+  agent.value.structured_memory_enabled = on
+  agent.value.memory_read_enabled = on
+  agent.value.memory_write_enabled = on
   // Turning the master off also stops end-of-run learning; turning it on enables it by default.
-  props.agent.end_of_run_learning_enabled = on
+  agent.value.end_of_run_learning_enabled = on
 }
 
 // What this agent remembers — its memory summary + agent-scope rows (5 per page).
@@ -379,12 +380,12 @@ const pagedAgentMem = computed(() => {
   return agentMemRows.value.slice(start, start + AGENT_PAGE_SIZE)
 })
 async function loadAgentMemory() {
-  if (!props.agent.id) return
+  if (!agent.value.id) return
   agentMemLoading.value = true
   try {
     const [sum, rows] = await Promise.all([
-      api.getAgentMemoryDigest(props.agent.id).catch(() => ({ data: null })),
-      api.getAgentMemory(props.agent.id, { scope: 'agent' }).catch(() => ({ data: { memories: [] } })),
+      api.getAgentMemoryDigest(agent.value.id).catch(() => ({ data: null })),
+      api.getAgentMemory(agent.value.id, { scope: 'agent' }).catch(() => ({ data: { memories: [] } })),
     ])
     agentSummary.value = sum.data
     agentMemRows.value = (rows.data && rows.data.memories) || []
@@ -426,7 +427,7 @@ function loadCatalog() {
     catalog = api.get('/llm/models/')
       .then((mRes) => {
         const rows = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-        models.value = uniqueModels(rows, [props.agent.default_model, ...CAPS.map((c) => props.agent[c.field])])
+        models.value = uniqueModels(rows, [agent.value.default_model, ...CAPS.map((c) => agent.value[c.field])])
       })
       .catch(() => {
         models.value = []
@@ -438,11 +439,11 @@ function loadCatalog() {
   return catalog
 }
 async function loadCurrentModel() {
-  const id = props.agent.default_model
+  const id = agent.value.default_model
   if (!id) return
   try {
     const { data } = await api.get(`/llm/models/${encodeURIComponent(id)}/`)
-    if (props.agent.default_model === id) currentModel.value = data
+    if (agent.value.default_model === id) currentModel.value = data
   } catch (e) {
     currentModel.value = null          // the label falls back to the agent's default_model_name
   }
@@ -500,11 +501,11 @@ function can(m, flag) {
 }
 function modelsFor(c) {
   if (c && c.field === 'video_model') {
-    const current = props.agent.video_model
+    const current = agent.value.video_model
     return models.value.filter(m => can(m, 'can_generate_video') || m.id === current)
   }
   if (c && c.field === 'video_input_model') {
-    const current = props.agent.video_input_model
+    const current = agent.value.video_input_model
     return models.value.filter(m => m.supports_video_input || m.id === current)
   }
   return models.value
@@ -546,13 +547,13 @@ const searchModelUnavailable = computed(() => {
 })
 
 async function loadSearchModel() {
-  if (!props.agent.id) return
+  if (!agent.value.id) return
   searchModelsLoading.value = true
   searchModelError.value = ''
   try {
     const [listRes, cfgRes] = await Promise.all([
       api.getWebSearchModels(),
-      api.getAgentWebIntelligence(props.agent.id),
+      api.getAgentWebIntelligence(agent.value.id),
     ])
     searchModels.value = (listRes.data && listRes.data.models) || []
     // The agent's OWN choice, not the effective value — showing the inherited default as if it were
@@ -568,14 +569,14 @@ async function loadSearchModel() {
 }
 
 async function setSearchModel(next) {
-  if (!props.agent.id) return
+  if (!agent.value.id) return
   const prev = searchModelValue.value
   searchModelValue.value = next
   searchModelSaving.value = true
   searchModelError.value = ''
   try {
     const [provider, model_id] = next ? splitSearchModel(next) : ['', '']
-    await api.updateAgentWebIntelligence(props.agent.id, {
+    await api.updateAgentWebIntelligence(agent.value.id, {
       search_model: next ? { provider, model_id } : null,
     })
   } catch (e) {
@@ -590,7 +591,7 @@ async function setSearchModel(next) {
 // Shown under a picker when the CHOSEN model does not declare the role's capability. A warning, not a
 // veto: it is the same signal the old filter carried, minus the hiding.
 function capabilityWarning(c) {
-  const id = props.agent[c.field]
+  const id = agent.value[c.field]
   if (!id || !c.capability) return ''
   const m = models.value.find(x => x.id === id)
   if (!m || can(m, c.capability)) return ''
@@ -598,8 +599,8 @@ function capabilityWarning(c) {
 }
 // youtube_transcript_provider is a select (not a model), so it isn't in CAPS but counts as configured when non-default.
 const capCount = computed(() =>
-  CAPS.filter(c => props.agent[c.field]).length
-  + ((props.agent.youtube_transcript_provider && props.agent.youtube_transcript_provider !== 'auto') ? 1 : 0))
+  CAPS.filter(c => agent.value[c.field]).length
+  + ((agent.value.youtube_transcript_provider && agent.value.youtube_transcript_provider !== 'auto') ? 1 : 0))
 
 // The MAIN model drives the conversation, so it must be able to chat and call tools. Video models are
 // media-only (the sync marks them supports_tools=false); offering one here would silently break the
@@ -607,7 +608,7 @@ const capCount = computed(() =>
 // agent/services/model_kind.py): chat, or unknown because its provider did not say, are main models; speech,
 // transcription, image, video and embedding models are not. The model already chosen stays listed.
 const CHAT_KINDS = ['chat', 'unknown']
-const chatModels = computed(() => models.value.filter(m => m.id === props.agent.default_model
+const chatModels = computed(() => models.value.filter(m => m.id === agent.value.default_model
   || (!(m.can_generate_video && m.supports_tools === false) && CHAT_KINDS.includes(m.kind || 'unknown'))))
 
 // The model's own name (which may name its maker), never the provider it runs on.
@@ -615,10 +616,10 @@ function modelLabel(m) {
   return m.name || m.display_name || m.model_id || `Model ${m.id}`
 }
 const currentModelLabel = computed(() => {
-  const id = props.agent.default_model
+  const id = agent.value.default_model
   const hit = models.value.find(m => m.id === id) || (currentModel.value?.id === id ? currentModel.value : null)
   if (hit) return modelLabel(hit)
-  return props.agent.default_model_name || ''
+  return agent.value.default_model_name || ''
 })
 
 // Every read this step needs starts at once (page-speed plan Phase 5 item 3). They are independent, and
@@ -634,28 +635,28 @@ onMounted(() => {
 })
 
 const showFull = ref(false)
-const isLongPrompt = computed(() => (props.agent.system_prompt_template || '').length > 240)
+const isLongPrompt = computed(() => (agent.value.system_prompt_template || '').length > 240)
 const promptPreview = computed(() => {
-  const p = props.agent.system_prompt_template || 'No system prompt set yet.'
+  const p = agent.value.system_prompt_template || 'No system prompt set yet.'
   return (!showFull.value && isLongPrompt.value) ? p.slice(0, 240) + '...' : p
 })
 
-const rules = ref(normalizeRules(props.agent.agent_rules))
+const rules = ref(normalizeRules(agent.value.agent_rules))
 function normalizeRules(v) {
   if (Array.isArray(v)) return v.map(r => (typeof r === 'string' ? r : (r && (r.text || r.rule || r.description)) || '')).filter(Boolean)
   if (typeof v === 'string' && v.trim()) return v.split('\n').map(s => s.trim()).filter(Boolean)
   return []
 }
 function removeRule(i) { rules.value.splice(i, 1) }
-watch(rules, (v) => { props.agent.agent_rules = v.filter(r => (r || '').trim()) }, { deep: true })
+watch(rules, (v) => { agent.value.agent_rules = v.filter(r => (r || '').trim()) }, { deep: true })
 
 // Response Style — bound to agent.response_style ({ tags: [...], tone: '...' }), persisted via PATCH.
 const STYLE_TAGS = ['Professional', 'Friendly', 'Clear', 'Helpful', 'Concise']
-const _initStyle = (props.agent.response_style && typeof props.agent.response_style === 'object' && !Array.isArray(props.agent.response_style)) ? props.agent.response_style : {}
+const _initStyle = (agent.value.response_style && typeof agent.value.response_style === 'object' && !Array.isArray(agent.value.response_style)) ? agent.value.response_style : {}
 const styleSet = ref(new Set(Array.isArray(_initStyle.tags) ? _initStyle.tags : []))
 const tone = ref(_initStyle.tone || '')
 function syncStyle() {
-  props.agent.response_style = { tags: [...styleSet.value], tone: (tone.value || '').trim() }
+  agent.value.response_style = { tags: [...styleSet.value], tone: (tone.value || '').trim() }
 }
 function toggleStyle(s) {
   styleSet.value.has(s) ? styleSet.value.delete(s) : styleSet.value.add(s)

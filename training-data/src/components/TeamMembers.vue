@@ -30,7 +30,6 @@ async function run(call, said) {
   catch (e) { error.value = e.message; return null; } finally { busy.value = false; }
 }
 
-const roleLabel = value => body.value?.roles.find(r => r.value === value)?.label || value;
 const linkRoles = computed(() => (body.value?.roles || []).filter(r => r.by_link));
 const several = computed(() => emailsOf(emails.value).length > 1);
 // The link that matches the chosen projects and role, while it works.

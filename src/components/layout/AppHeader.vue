@@ -288,13 +288,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandMark from '../common/BrandMark.vue'
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
 import { useWorkspace } from '../../composables/useWorkspace'
 
-const { activeOrg, activeOrgName } = useWorkspace()
+const { activeOrg } = useWorkspace()
 
 // Icon Components (inline SVG as render functions)
 const HomeIcon = {
@@ -360,12 +360,6 @@ const BenchmarkIcon = {
   ])
 }
 
-const ToolsIcon = {
-  render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-    h('path', { d: 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z' })
-  ])
-}
-
 const ServicesIcon = {
   render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
     h('circle', { cx: '12', cy: '12', r: '3' }),
@@ -409,11 +403,6 @@ const showMobileMenu = ref(false)
 const isScrolled = ref(false)
 
 // Computed
-
-// Public pages with dark theme
-const isDarkPage = computed(() => {
-  return !!route.meta.public
-})
 
 const userInitials = computed(() => {
   if (!props.currentUser?.username) return '?'

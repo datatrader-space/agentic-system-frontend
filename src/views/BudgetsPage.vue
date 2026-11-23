@@ -259,7 +259,7 @@ import BudgetEditModal from '../components/budgets/BudgetEditModal.vue'
 import BudgetRuleModal from '../components/budgets/BudgetRuleModal.vue'
 import { saveBlob } from '../utils/saveBlob'
 
-const props = defineProps({ compact: { type: Boolean, default: false } })
+defineProps({ compact: { type: Boolean, default: false } })
 const compactTab = ref('limits')
 const compactTabs = [{ key: 'limits', label: 'Limits & rules' }, { key: 'approvals', label: 'Approvals' }, { key: 'activity', label: 'Activity' }, { key: 'help', label: 'Presets & help' }]
 const store = useBudgetStore()

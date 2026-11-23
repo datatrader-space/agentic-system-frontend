@@ -174,7 +174,6 @@ import { ref, computed, onMounted } from 'vue'
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
-const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { RouterLink, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -192,14 +191,6 @@ const SERIES_TONES = ['mint', 'violet', 'blue', 'teal']
 const SERIES_ICONS = ['lucide:bot', 'lucide:link-2', 'lucide:workflow', 'lucide:shield-check']
 
 function titleCase(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '' }
-
-function progressPercent(t) {
-  if (t.progress_status === 'completed') return '100%'
-  const total = t.steps_count || 0
-  const done = (t.completed_steps || []).length
-  if (!total) return t.progress_status === 'in_progress' ? '10%' : '0%'
-  return `${Math.round((done / total) * 100)}%`
-}
 
 function openTutorial(t) {
   if (t.video_url && _isSafeUrl(t.video_url)) { window.open(t.video_url, '_blank', 'noopener'); return }

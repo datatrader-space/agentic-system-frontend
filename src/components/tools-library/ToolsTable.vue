@@ -137,7 +137,7 @@ import {
   SquareTerminal, Terminal, UserRound, Wrench,
 } from 'lucide-vue-next'
 
-const props = defineProps({
+defineProps({
   tools: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 })

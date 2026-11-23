@@ -247,7 +247,7 @@ export default {
       extraHeaders: [],
       envVars: Object.entries(s.env_config || {})
         .filter(([k]) => k.toLowerCase() !== 'authorization' && !k.toUpperCase().startsWith('HEADER_'))
-        .map(([key, value]) => ({ key, value: '' })),
+        .map(([key]) => ({ key, value: '' })),
       // Tool-discovery freshness — how the agent runtime refreshes THIS server's tools before use.
       discovery_mode: s.discovery_mode || 'hybrid',
       tools_cache_ttl_minutes: s.tools_cache_ttl_minutes || null,

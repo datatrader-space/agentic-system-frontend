@@ -599,7 +599,6 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
-import { Icon } from '@iconify/vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { usePoller } from '@/composables/usePoller'
