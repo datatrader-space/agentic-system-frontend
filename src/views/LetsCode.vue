@@ -243,7 +243,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, provide, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
+import { lazyComponent } from '@/utils/lazyComponent'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -275,7 +276,7 @@ import { useChatStore } from '@/stores/useChatStore'
 import { usePlanReviewStore } from '@/stores/usePlanReviewStore'
 import { t } from '../components/letscode/messages'
 // The phone view is its own chunk, fetched only when it is shown (ADM-1330).
-const LetsCodeLight = defineAsyncComponent(() => import('../components/letscode/LetsCodeLight.vue'))
+const LetsCodeLight = lazyComponent(() => import('../components/letscode/LetsCodeLight.vue'), { loadingLabel: 'Loading the project…' })
 
 const route = useRoute()
 const router = useRouter()

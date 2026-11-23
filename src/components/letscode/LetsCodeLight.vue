@@ -7,7 +7,7 @@
   approval card and Stop, its task list, its reply box), so an approval here is the same person-only `hitl_response`
   the editor sends, checked by the server. The list reads the person's own sessions (projectRuns.js). The editor's
   chat tabs controller is the page's (CODING_CHAT_TABS), so the chats open here are the ones the editor shows.
-  Loaded only when it is shown (LetsCode.vue's defineAsyncComponent); never in the first-load bundle.
+  Loaded only when it is shown (LetsCode.vue's lazyComponent); never in the first-load bundle.
 -->
 <template>
   <div class="lcl" :data-theme="theme" data-test="lc-light">
