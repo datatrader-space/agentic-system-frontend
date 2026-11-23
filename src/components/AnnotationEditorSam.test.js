@@ -117,3 +117,25 @@ test('the found shapes are drawn as Polygons or Masks show them, and switching n
   expect(found()).toBe('0.25');
   expect(api.detect).toHaveBeenCalledTimes(1);                             // never asked again
 });
+
+// Live, 2026-11-23 (ADM-1344): what a model found and did not draw (a class it needs is missing) is said in the card.
+test('the found card says what the model found but did not draw', async()=>{
+  api.detect.mockResolvedValue({name:'SAM 3 (Polygons)',started_model:'sam3',find:'product logo',tidy:false,
+    note:'Also found 1 window, which this run does not ask for.',
+    shapes:[{kind:'product logo',points:[[100,100],[300,100],[300,300]],score:0.9}]});
+  const w=render();await flushPromises();
+  await w.get('button.find-ai').trigger('click');await flushPromises();
+  await w.get('#find-class-name').setValue('product logo');
+  await w.get('form.find-ask').trigger('submit');await flushPromises();
+  expect(w.get('.find-card .find-note[role="status"]').text()).toBe('Also found 1 window, which this run does not ask for.');
+});
+
+test('the found card shows no note when the model left nothing out', async()=>{
+  api.detect.mockResolvedValue({name:'SAM 3 (Polygons)',started_model:'sam3',find:'product logo',tidy:false,
+    shapes:[{kind:'product logo',points:[[100,100],[300,100],[300,300]],score:0.9}]});
+  const w=render();await flushPromises();
+  await w.get('button.find-ai').trigger('click');await flushPromises();
+  await w.get('#find-class-name').setValue('product logo');
+  await w.get('form.find-ask').trigger('submit');await flushPromises();
+  expect(w.find('.find-card .find-note').exists()).toBe(false);
+});

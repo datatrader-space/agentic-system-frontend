@@ -91,6 +91,26 @@ test('failed preview is never presented as ready to label', async () => {
   expect(wrapper.get('.auto-refused[role="alert"]').text()).toBe('Synthetic model unavailable');
 });
 
+// Live, 2026-11-23 (ADM-1344): the walls models found a wall and a window, but the project's classes took none of it and
+// the preview said only "Nothing found". What a model found and did not draw is said, with how to get it.
+test('a preview says what the model found but did not draw, never only "Nothing found"', async () => {
+  api.detect.mockResolvedValue({ state: 'ready', shapes: [], note: "Found 1 window. Add a class named 'window' to get them." });
+  const wrapper = render(); await flushPromises();
+  await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(wrapper.get('.auto-note[role="status"]').text()).toBe("Found 1 window. Add a class named 'window' to get them.");
+  expect(wrapper.text()).toContain('Nothing drawn: see the note above the photo.');
+  expect(wrapper.text()).not.toContain('Nothing found on this photo.');
+  expect(wrapper.find('.auto-refused').exists()).toBe(false);          // a note, not an error
+});
+
+test('a preview with no note and nothing found still says so', async () => {
+  api.detect.mockResolvedValue({ state: 'ready', shapes: [] });
+  const wrapper = render(); await flushPromises();
+  await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(wrapper.find('.auto-note').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Nothing found on this photo.');
+});
+
 test('labeling keeps the existing explicit confirmation and source payload', async () => {
   const wrapper = render(); await flushPromises();
   await button(wrapper, 'Label Batch').trigger('click');
