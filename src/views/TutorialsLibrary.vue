@@ -171,6 +171,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).

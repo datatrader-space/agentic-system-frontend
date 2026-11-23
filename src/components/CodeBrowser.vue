@@ -439,14 +439,34 @@
           <!-- Vim keys (ADM-1322): the mode and the ":" command line of this group's editor. -->
           <div v-if="editable && editorSettings.vim" v-show="view.tab && view.tab.type === 'file' && mdViewOf(view.tab) !== 'preview' && !(view.g === 0 && chatFront)"
                :ref="(el) => setVimBar(view.g, el)" class="vim-bar" data-test="cb-vim-bar" aria-live="polite"></div>
+          <!-- Inline suggestions (ADM-1316): on, and today's spend; or stopped, why, and Resume. Under the focused editor. -->
+          <div v-if="editable && inline.state.enabled && view.g === focusedGroup && view.tab && view.tab.type === 'file' && !(view.g === 0 && chatFront)"
+               class="ic-bar" :class="{ 'ic-stopped': !!inline.state.stopped }" role="status" aria-live="polite" data-test="cb-inline-status">
+            <Icon :icon="inline.state.stopped ? 'lucide:circle-alert' : 'lucide:sparkles'" class="ic-ic" aria-hidden="true" />
+            <span v-if="inline.state.stopped" class="ic-msg" data-test="cb-inline-stopped">Inline suggestions stopped. {{ inline.state.stopped.message }}</span>
+            <span v-else-if="isProtectedPath(view.tab.path)" class="ic-msg">No inline suggestions in a protected file: nothing of it is sent.</span>
+            <span v-else class="ic-msg">Inline suggestions on: {{ inlineSpentText }} of ${{ inline.state.dailyLimitUsd }} today. Tab accepts, Esc dismisses.</span>
+            <button v-if="inline.state.stopped" type="button" class="ic-act" data-test="cb-inline-resume" @click="resumeInlineSuggestions">Resume</button>
+            <button type="button" class="ic-act" aria-label="Inline suggestion settings" @click="openSettings">Settings</button>
+          </div>
         </section>
       </div>
     </div>
+    <!-- Inline edit on a selection (ADM-1315): the prompt lives in the editor, in a Monaco overlay widget's node. -->
+    <Teleport v-if="inlineEdit" :to="inlineEdit.host">
+      <InlineEditWidget :key="inlineEdit.key" :start-line="inlineEdit.startLine" :end-line="inlineEdit.endLine"
+                        :state="inlineEdit.state" :original="inlineEdit.original" :replacement="inlineEdit.replacement"
+                        :error="inlineEdit.error" :detail="inlineEdit.detail" :usage="inlineEdit.usage"
+                        :instruction="inlineEdit.instruction"
+                        @send="sendInlineEdit" @accept="acceptInlineEdit" @reject="closeInlineEdit()"
+                        @close="closeInlineEdit()" @height="onInlineEditHeight" />
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h, inject } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount, h, inject, markRaw } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //
@@ -490,7 +510,10 @@ const MonacoDiffEditor = lazyComponent(async () => {
 import { Icon } from '@iconify/vue'
 import { codeSelection } from '@/utils/codeMentions'
 import { renderUntrustedMarkdown } from '@/utils/safeMarkdown'
+import { inlineEditRequest, requestForLines, mountInlineEdit, applyInlineEdit } from '@/utils/inlineEdit'
+import InlineEditWidget from '@/components/letscode/InlineEditWidget.vue'
 import api from '../services/api'
+import editorApi from '../services/inlineEditorApi'   // Ctrl+K and inline suggestions (ADM-1315/1316)
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { useIdeTheme } from '@/composables/useIdeTheme'
@@ -522,6 +545,9 @@ import { GROUPS, groupOf, tabsOfGroup, canMoveGroup, moveTab, stepTab, othersToC
 import { symbolsOf, symbolChainAt } from '@/utils/editorSymbols'
 import { renderMarkdownPreview, isMarkdownPath, projectLinkOf } from '@/utils/markdownPreview'
 import { startVim } from '@/utils/vimMode'
+import { createInlineCompletionProvider, isProtectedPath } from '@/utils/inlineCompletion'
+import { useInlineSuggestions, loadInlineSuggestions, stopInlineSuggestions, resumeInlineSuggestions, noteSpend,
+  suggestionsActive } from '@/composables/useInlineSuggestions'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
 const EXT_ICON = {
@@ -682,6 +708,8 @@ const editorOptions = computed(() => ({
   'semanticHighlighting.enabled': true,
   // The gutter where breakpoints are set (the debugger, ADM-1205 phase F item 17).
   glyphMargin: !!(props.editable && debuggerStore),
+  // Inline suggestions (ADM-1316): ghost text, Tab accepts and Esc dismisses; the accept / next toolbar on hover.
+  inlineSuggest: { enabled: !!props.editable, showToolbar: 'onHover' },
 }))
 
 const diffOptions = computed(() => ({
@@ -1085,13 +1113,52 @@ function onEditorMount(editor, g = 0) {
     editor.onDidDispose?.(() => {
       if (editors[g] === editor) editors[g] = null
       if (editorInst === editor) editorInst = null
+      if (inlineEditor === editor) closeInlineEdit({ focus: false })
       stopVimOn(g)
     })
   } catch { /* an editor without these events keeps working without them */ }
   startVimOn(g)
+  bindInlineSuggestions()
   if (g === focusedGroup.value) useEditor(g)
   else applyLanguage()
 }
+
+// INLINE SUGGESTIONS (ADM-1316; utils/inlineCompletion, composables/useInlineSuggestions). One provider for this
+// page's editors: it answers only for a file open in one of them, and the server checks the setting, the project, the
+// daily limit and the balance on every request. Read-only editors (no `editable`) never ask.
+const inline = useInlineSuggestions()
+let inlineProvider = null
+let inlineRegistration = null
+function inlineFileOf(model) {
+  const g = GROUPS.find((i) => editors[i] && editors[i].getModel?.() === model)
+  if (g === undefined) return null
+  const tab = groupTab(g)
+  return tab && tab.type === 'file' ? { path: tab.path, language: tab.language || '' } : null
+}
+function bindInlineSuggestions() {
+  if (!props.editable || inlineRegistration || !monacoNs?.languages?.registerInlineCompletionsProvider) return
+  loadInlineSuggestions()
+  inlineProvider = createInlineCompletionProvider({
+    request: (body, opts) => editorApi.requestInlineCompletion(props.repositoryId, body, opts),
+    fileOf: inlineFileOf,
+    active: suggestionsActive,
+    stop: stopInlineSuggestions,
+    spent: noteSpend,
+  })
+  try {
+    inlineRegistration = monacoNs.languages.registerInlineCompletionsProvider('*', inlineProvider)
+  } catch { inlineRegistration = null }
+}
+watch(() => inline.state.enabled && !inline.state.stopped, (on) => { if (!on) inlineProvider?.cancel() })
+onBeforeUnmount(() => {
+  inlineProvider?.cancel()
+  try { inlineRegistration?.dispose?.() } catch { /* the editor is already gone */ }
+  inlineRegistration = null
+})
+const inlineSpentText = computed(() => {
+  const v = Number(inline.state.spentTodayUsd) || 0
+  return v > 0 && v < 0.01 ? 'under $0.01' : `$${v.toFixed(2)}`
+})
 // The focused group's editor takes the bindings (it is the one being typed in).
 function useEditor(g) {
   diffInst = diffs[g]
@@ -1143,8 +1210,113 @@ function addAskAction(editor) {
       contextMenuOrder: 0.5,
       run: (ed) => { const s = selectionOf(ed); if (s) emit('ask-selection', s) },
     })
+    // Inline edit on the selection (ADM-1315): Ctrl+K, as Cursor's Cmd+K. It takes Ctrl+K away from Monaco's
+    // Ctrl+K chords (Ctrl+K Ctrl+C and the like); their commands stay in the editor's command list (F1).
+    if (props.editable) {
+      editor.addAction({
+        id: 'lets-code.inline-edit',
+        label: 'Edit with the Coding Agent',
+        keybindings: [monacoNs.KeyMod.CtrlCmd | monacoNs.KeyCode.KeyK],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 0.6,
+        run: (ed) => openInlineEdit(ed),
+      })
+    }
   } catch { /* an editor that cannot take actions keeps working without it */ }
 }
+
+// ── INLINE EDIT ON A SELECTION (ADM-1315; utils/inlineEdit, InlineEditWidget) ────────────────────────────────────
+// Ctrl+K (or the right-click menu) opens a small prompt over the selected lines. What the person asks for runs as ONE
+// turn of the engine on the server (a background job, like the long buttons); the change comes back in place, the old
+// lines tinted, the new ones under them, with Accept / Reject / Retry. Accept puts it in the tab and saves the file
+// through the normal Save, which sends the version the tab read: a file changed on disk meanwhile is asked about
+// (CHANGED_ON_DISK), never overwritten. Reject changes nothing. One at a time; switching the tab closes it.
+const inlineEdit = ref(null)
+let inlineHandle = null
+let inlineEditor = null
+let inlineSeq = 0
+function openInlineEdit(ed) {
+  if (!props.editable || !monacoNs || !ed?.getModel?.()) return
+  const g = editors.indexOf(ed)
+  const tab = g >= 0 ? groupTab(g) : null
+  const req = inlineEditRequest(ed.getModel(), ed.getSelection(), tab)
+  if (!req) return
+  closeInlineEdit({ focus: false })
+  const host = markRaw(document.createElement('div'))
+  host.className = 'lc-ie-host'
+  try {
+    inlineHandle = mountInlineEdit(monacoNs, ed, { startLine: req.start_line, endLine: req.end_line, host })
+  } catch {
+    inlineHandle = null
+    return
+  }
+  inlineEditor = ed
+  inlineEdit.value = { key: ++inlineSeq, g, tabId: tab.id, path: tab.path, host, req, startLine: req.start_line,
+    endLine: req.end_line, original: req.text, instruction: '', state: 'prompt', replacement: '', error: '',
+    detail: '', usage: null }
+}
+function closeInlineEdit({ focus = true } = {}) {
+  inlineSeq++                                       // an answer still on its way is not shown
+  const ed = inlineEditor
+  try { inlineHandle && inlineHandle.dispose() } catch { /* the editor went away */ }
+  inlineHandle = null
+  inlineEditor = null
+  inlineEdit.value = null
+  if (focus && ed) { try { ed.focus() } catch { /* gone */ } }
+}
+async function sendInlineEdit(instruction) {
+  const ie = inlineEdit.value
+  if (!ie || !inlineHandle || ie.state === 'running') return
+  const tab = openTabs.value.find((t) => t.id === ie.tabId)
+  const range = inlineHandle.range()
+  const model = inlineEditor?.getModel?.()
+  // The lines as they are now: the person may have typed above them, or in them, since the prompt opened (Retry).
+  const req = tab && range && model ? requestForLines(model, range.startLineNumber, range.endLineNumber, tab, instruction) : null
+  if (!req) { closeInlineEdit(); return }
+  inlineHandle.clearSuggestion()
+  Object.assign(ie, { req, startLine: req.start_line, endLine: req.end_line, original: req.text, instruction,
+    state: 'running', replacement: '', error: '', detail: '', usage: null })
+  const seq = inlineSeq
+  try {
+    const { data } = await editorApi.inlineEditSelection(props.systemId, props.repositoryId, req,
+      { isCancelled: () => seq !== inlineSeq })
+    if (seq !== inlineSeq || !inlineEdit.value) return
+    const replacement = String(data?.replacement ?? '')
+    ie.usage = data
+    if (replacement === req.text) {
+      Object.assign(ie, { state: 'error', error: 'The Coding Agent suggested no change to these lines. Retry, or say it differently.' })
+      return
+    }
+    Object.assign(ie, { state: 'ready', replacement })
+    inlineHandle?.showSuggestion(replacement)
+  } catch (e) {
+    if (seq !== inlineSeq || !inlineEdit.value || e?.name === 'AbortError') return
+    const d = e?.response?.data || {}
+    Object.assign(ie, { state: 'error', error: d.error || 'The change could not be made. Try again.',
+      detail: d.message || '', usage: d.cost_usd != null ? d : null })
+  }
+}
+async function acceptInlineEdit() {
+  const ie = inlineEdit.value
+  const ed = inlineEditor
+  if (!ie || ie.state !== 'ready' || !inlineHandle || !ed) return
+  const tab = openTabs.value.find((t) => t.id === ie.tabId)
+  if (!tab || !applyInlineEdit(monacoNs, ed, inlineHandle.range(), ie.original, ie.replacement)) {
+    Object.assign(ie, { state: 'error', error: 'The selected lines changed while the change was being made, so it '
+      + 'was not put in. Retry to make it again from the lines as they are now.' })
+    inlineHandle?.clearSuggestion()
+    return
+  }
+  tab.content = ed.getModel().getValue()
+  closeInlineEdit()
+  await saveTab(tab)                                // the normal Save: the tab's version is checked on the server
+}
+function onInlineEditHeight(px) { inlineHandle?.setPromptHeight(px) }
+// The editor shows another tab (its one model takes the other file's text), or goes away: the inline edit closes.
+watch(() => inlineEdit.value && groups[inlineEdit.value.g]?.activeId, (id) => {
+  if (inlineEdit.value && id !== inlineEdit.value.tabId) closeInlineEdit({ focus: false })
+})
+onBeforeUnmount(() => closeInlineEdit({ focus: false }))
 function onDiffMount(editor, g = 0) {
   diffs[g] = editor || null
   try {
@@ -2558,6 +2730,7 @@ const paletteCommands = computed(() => {
     file && act('go-to-symbol', 'Editor', 'Go to symbol in file', 'Ctrl+Shift+O', 'lucide:at-sign', 'editor.action.quickOutline'),
     file && act('all-editor-commands', 'Editor', "Show all of the text editor's commands", 'F1', 'lucide:command', 'editor.action.quickCommand'),
     file && act('ask-agent', 'Coding Agent', 'Ask the Coding Agent about this', 'Ctrl+L', 'lucide:sparkles', 'lets-code.ask-coding-agent'),
+    file && props.editable && act('inline-edit', 'Coding Agent', 'Edit with the Coding Agent', 'Ctrl+K', 'lucide:text-cursor-input', 'lets-code.inline-edit'),
     file && debuggerStore && act('toggle-breakpoint', 'Debug', 'Toggle breakpoint', 'F9', 'lucide:circle-dot', 'lets-code.toggle-breakpoint'),
     file && { id: 'blame', group: 'Source control', label: blameOn.value ? 'Hide who changed each line' : 'Show who changed each line',
       icon: 'lucide:user-round-search', run: toggleBlame },
@@ -3063,6 +3236,24 @@ const FileTreeNode = {
   background: var(--vm-surface-soft); color: var(--vm-ink-soft); font: 12px var(--vm-font-mono);
 }
 .vim-bar :deep(input) { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; color: var(--vm-ink); font: inherit; }
+/* Inline suggestions (ADM-1316): a status line under the focused editor. Stopped reads as a warning in words and
+   an icon, never colour alone. */
+.ic-bar {
+  flex: 0 0 auto; min-height: 24px; display: flex; align-items: center; gap: 8px; padding: 2px 10px;
+  border-top: 1px solid var(--vm-line); background: var(--vm-surface-soft); color: var(--vm-ink-soft);
+  font: 12px var(--vm-font-sans);
+}
+.ic-bar.ic-stopped { color: var(--vm-ink); background: color-mix(in srgb, var(--vm-amber) 12%, var(--vm-surface-soft)); }
+.ic-ic { width: 13px; height: 13px; flex: 0 0 auto; color: var(--vm-violet); }
+.ic-stopped .ic-ic { color: var(--vm-amber-ink); }
+.ic-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-stopped .ic-msg { white-space: normal; }
+.ic-act {
+  flex: 0 0 auto; border: 0; background: transparent; color: var(--vm-link); font: 500 12px var(--vm-font-sans);
+  padding: 2px 4px; border-radius: 4px; cursor: pointer;
+}
+.ic-act:hover { text-decoration: underline; }
+.ic-act:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 1px; }
 /* The Coding Agent's chat tabs (ADM-1221): a file tab with the agent's mark and a dot for what the chat is doing. */
 .chat-tab-icon { color: var(--vm-violet); }
 .chat-branch { display: inline-flex; align-items: center; gap: 3px; max-width: 120px; padding: 1px 6px; border-radius: 999px;
@@ -3242,6 +3433,7 @@ const FileTreeNode = {
   .text-view.mdv-split { flex-direction: column; }
   .text-view.mdv-split > .md-preview { border-left: 0; border-top: 1px solid var(--vm-line); padding: 16px; }
   .vim-bar { min-height: 32px; }
+  .ic-act { min-height: 32px; padding: 4px 8px; }
   .save-btn { min-height: 36px; }
 }
 </style>
@@ -3329,6 +3521,15 @@ const FileTreeNode = {
 .code-browser .lc-conflict-sep { background: color-mix(in srgb, #8a8a8a 30%, transparent); }
 .code-browser .lc-conflict-incoming { background: color-mix(in srgb, #40a6ff 18%, transparent); }
 .code-browser .lc-conflict-incoming-head { background: color-mix(in srgb, #40a6ff 45%, transparent); }
+/* Inline edit (ADM-1315): the selected lines while the prompt is open, then the lines the change replaces (red) and the
+   suggested ones under them (green), as VS Code's inline chat shows them. The colour is not the only sign: the widget
+   says what changes, and its screen-reader text holds the suggested code. */
+.code-browser .lc-ie-host { z-index: 10; }
+.code-browser .lc-ie-selected { background: color-mix(in srgb, var(--vm-violet) 10%, transparent); }
+.code-browser .lc-ie-removed { background: color-mix(in srgb, #f14c4c 20%, transparent); }
+.code-browser .lc-ie-removed-gutter { border-left: 3px solid #f14c4c; margin-left: 2px; }
+.code-browser .lc-ie-added { background: color-mix(in srgb, #2ea043 20%, transparent); border-left: 3px solid #2ea043; color: var(--vm-ink); }
+.code-browser .lc-ie-added-line { white-space: pre; padding-left: 4px; overflow: hidden; }
 /* Blame (ADM-1321): who changed the line, faint after its end, as GitLens shows it. */
 .code-browser .lc-blame-after { color: var(--vm-ink-faint); font-style: italic; opacity: .85; }
 </style>

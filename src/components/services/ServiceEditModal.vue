@@ -282,6 +282,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 

@@ -68,6 +68,31 @@
         <span>Vim keys</span>
         <input v-model="settings.vim" type="checkbox" data-test="es-vim" />
       </label>
+      <!-- Inline suggestions (ADM-1316): saved on the server, which checks them on every request; off by default. -->
+      <fieldset class="es-group" aria-describedby="es-ic-note" data-test="es-inline">
+        <legend class="es-legend">Inline suggestions</legend>
+        <label class="es-row es-check">
+          <span>Suggest code as I type</span>
+          <input type="checkbox" :checked="ic.enabled" :disabled="ic.saving || !ic.loaded" data-test="es-inline-enabled"
+                 @change="saveInline({ enabled: $event.target.checked })" />
+        </label>
+        <label class="es-row" for="es-ic-limit">
+          <span>Daily limit</span>
+          <span class="es-money">
+            <span aria-hidden="true">$</span>
+            <input id="es-ic-limit" v-model="limitDraft" class="es-input" type="text" inputmode="decimal" autocomplete="off"
+                   :disabled="ic.saving || !ic.loaded" data-test="es-inline-limit"
+                   @keydown.enter.prevent="saveLimit" @blur="saveLimit" />
+          </span>
+        </label>
+        <p id="es-ic-note" class="es-note">
+          Paid from your balance; each suggestion is listed in Usage.
+          <template v-if="ic.loaded">Today: {{ spentText }} of ${{ ic.dailyLimitUsd }} (resets at midnight UTC).</template>
+          <template v-if="ic.loaded && ic.modelName"> Model: {{ ic.modelName }}.</template>
+          <template v-else-if="ic.loaded"> No model is set for suggestions yet.</template>
+        </p>
+        <p v-if="ic.error" class="es-error" role="alert">{{ ic.error }}</p>
+      </fieldset>
       <div class="es-foot">
         <button type="button" class="es-reset" @click="reset">Restore the defaults</button>
       </div>
@@ -82,6 +107,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useEditorSettings, CHOICES } from '@/composables/useEditorSettings'
 import { useIdeTheme } from '@/composables/useIdeTheme'
+import { useInlineSuggestions } from '@/composables/useInlineSuggestions'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -91,6 +117,19 @@ const emit = defineEmits(['close'])
 
 const { settings, reset } = useEditorSettings()
 const { theme: ideTheme } = useIdeTheme()
+// Inline suggestions: the server's setting (read when the panel opens), not this browser's.
+const { state: ic, load: loadInline, save: saveInline } = useInlineSuggestions()
+const limitDraft = ref(ic.dailyLimitUsd)
+watch(() => ic.dailyLimitUsd, (v) => { limitDraft.value = v })
+function saveLimit() {
+  const v = String(limitDraft.value || '').trim().replace(/^[$]/, '')
+  if (!v || v === ic.dailyLimitUsd) { limitDraft.value = ic.dailyLimitUsd; return }
+  saveInline({ daily_limit_usd: v }).then((ok) => { if (!ok) limitDraft.value = ic.dailyLimitUsd })
+}
+const spentText = computed(() => {
+  const v = Number(ic.spentTodayUsd) || 0
+  return v > 0 && v < 0.01 ? 'under $0.01' : `$${v.toFixed(2)}`
+})
 const tabSize = computed({
   get: () => String(settings.tabSize),
   set: (v) => { settings.tabSize = v === 'auto' ? 'auto' : Number(v) },
@@ -100,6 +139,7 @@ const panel = ref(null)
 const pos = ref({ x: 0, y: 0 })
 watch(() => props.open, async (open) => {
   if (!open) return
+  loadInline({ force: true })
   const a = props.anchor
   pos.value = { x: a ? a.right : 0, y: a ? a.bottom + 6 : 0 }
   await nextTick()
@@ -139,6 +179,16 @@ watch(() => props.open, async (open) => {
 .es-select:focus-visible, .es-check input:focus-visible, .es-x:focus-visible, .es-reset:focus-visible {
   outline: 2px solid var(--vm-focus); outline-offset: 2px;
 }
+.es-group { margin: 8px 0 0; padding: 8px 0 0; border: 0; border-top: 1px solid var(--vm-line); }
+.es-legend { padding: 0; font-size: 12.5px; font-weight: 600; color: var(--vm-ink); }
+.es-money { display: inline-flex; align-items: center; gap: 4px; color: var(--vm-ink-soft); }
+.es-input {
+  width: 88px; padding: 4px 8px; font: 13px var(--vm-font-sans); color: var(--vm-ink);
+  background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2); border-radius: 6px;
+}
+.es-input:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.es-note { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--vm-ink-soft); }
+.es-error { margin: 4px 0 0; font-size: 12px; color: var(--vm-danger); }
 .es-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--vm-line); }
 .es-reset { border: 0; background: transparent; color: var(--vm-link); font: 500 12.5px var(--vm-font-sans); cursor: pointer; padding: 4px 0; }
 .es-reset:hover { text-decoration: underline; }

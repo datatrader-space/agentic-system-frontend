@@ -3,6 +3,7 @@
 // Ported verbatim from the legacy ToolPicker so the new agent-editor modal + cards share the exact
 // same icon library the old "Add tools" modal used.
 import { h } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { Icon } from '@iconify/vue'
 import {
   Wrench, Globe, Webhook, MessageCircle, RadioTower, Brain, Lightbulb, Bot, Database, Table2,

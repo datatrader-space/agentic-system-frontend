@@ -10,6 +10,7 @@ const REC = (id, source, removed = false, minute = 10) => ({
   started_at: `2026-11-18T14:${minute}:00+00:00`, ended_at: `2026-11-18T14:${minute + 5}:00+00:00`, seconds: 300,
   bytes: 80 * 1024 ** 2, kept_until: '2026-11-25T14:10:00+00:00',
   play_url: `https://bucket.example/rec-${id}.mp4?sig=${calls.list.length}`, download_url: `https://bucket.example/rec-${id}.mp4?dl=1`,
+  thumbnail_url: id === 3 ? 'https://bucket.example/rec-3.jpg?sig=1' : null,
 });
 const calls = { list: [], removed: [], restored: [] };
 let mayDelete = true;
@@ -116,4 +117,29 @@ describe('the Recordings tab', () => {
     await flushPromises();
     expect(other.findAll('.recs-danger')).toHaveLength(0);
   });
+
+  it('shows each recording as a video card: its picture, its length, and a silent preview while pointed at', async () => {
+    const w = mount(CameraRecordings);
+    await flushPromises();
+    const card = w.get('[data-test="rec-card-3"]');
+    expect(card.get('[data-test="rec-picture"]').attributes('src')).toBe('https://bucket.example/rec-3.jpg?sig=1');
+    expect(card.get('[data-test="rec-length"]').text()).toBe('5:00');
+    expect(w.get('[data-test="rec-card-2"]').find('[data-test="rec-picture"]').exists()).toBe(false);   // none yet: a plain card
+    expect(card.find('[data-test="rec-preview"]').exists()).toBe(false);
+    await card.get('button.recs-thumb').trigger('mouseenter');
+    const preview = card.get('[data-test="rec-preview"]');
+    expect(preview.attributes('src')).toContain('rec-3.mp4');
+    expect(preview.element.muted).toBe(true);                                   // a preview is silent
+    preview.element.play = vi.fn(async () => {});
+    await preview.trigger('loadeddata');
+    expect(preview.element.play).toHaveBeenCalled();                            // started once loaded
+    await card.get('button.recs-thumb').trigger('mouseleave');
+    expect(card.find('[data-test="rec-preview"]').exists()).toBe(false);
+    await card.get('[data-test="rec-picture"]').trigger('error');               // a picture that cannot be shown
+    expect(card.find('[data-test="rec-picture"]').exists()).toBe(false);
+    await card.get('button.recs-thumb').trigger('click');                       // the picture plays it above
+    await flushPromises();
+    expect(w.get('.recs-player video').attributes('src')).toContain('rec-3.mp4');
+  });
 });
+

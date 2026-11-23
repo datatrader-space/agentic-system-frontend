@@ -86,6 +86,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, h } from 'vue'
+import 'virtual:icon-subset-logos' // the bundled logos this file names, before its first render
 import { Icon } from '@iconify/vue'
 import {
   Wrench, Globe, Webhook, MessageCircle, RadioTower, Brain, Lightbulb, Bot, Database, Table2,
