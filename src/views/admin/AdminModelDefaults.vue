@@ -96,6 +96,7 @@ const HINTS = {
   audio_model: 'Speaks text aloud.',
   audio_transcription_model: 'Turns speech in audio and video into text.',
   fast_model: 'Small steps: summaries, notes, Explore subagents.',
+  inline_completion_model: "Code suggestions as people type in the Let's Code editor. Only models that fill in the middle.",
 }
 // The name of a job the server sends without one.
 const LABELS = { fast_model: 'Fast model' }

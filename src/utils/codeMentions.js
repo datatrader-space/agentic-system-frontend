@@ -21,6 +21,13 @@ export function mentionedPaths(text, picked) {
 // What "Ask the Coding Agent about this" sends from the editor: the selected lines, or the line the cursor is on,
 // with the file and the line numbers. Only for a file tab (a diff has no single file). Null when there is no text.
 export function codeSelection(model, sel, tab) {
+  const s = selectedLines(model, sel, tab)
+  return s && String(s.text).trim() ? s : null
+}
+
+// The whole lines a selection covers (the cursor's line when nothing is selected), with their text, for a file tab:
+// { path, start_line, end_line, text }, or null. The inline edit (Ctrl+K, utils/inlineEdit) takes an empty line too.
+export function selectedLines(model, sel, tab) {
   if (!model || !sel || !tab || tab.type !== 'file' || !tab.path) return null
   const start = sel.startLineNumber
   let end = sel.endLineNumber
@@ -29,6 +36,5 @@ export function codeSelection(model, sel, tab) {
   const text = empty
     ? model.getLineContent(start)
     : model.getValueInRange({ startLineNumber: start, startColumn: 1, endLineNumber: end, endColumn: model.getLineMaxColumn(end) })
-  if (!String(text).trim()) return null
   return { path: tab.path, start_line: start, end_line: end, text }
 }
