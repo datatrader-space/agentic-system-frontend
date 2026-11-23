@@ -65,6 +65,10 @@
             <dd data-test="rm-files">{{ m.files_ready ? 'Ready' : 'Being fetched by AADML' }}
               <template v-for="p in m.camera_model.parts" :key="p.repo"> · {{ p.repo }} @ {{ p.revision }}</template>
             </dd></div>
+          <!-- A published model AADML hosts (kind walls: Aadml-Vision-seg-A0, the FitMyWall geometry detector): its files
+               are made once by its preparation job; the server says where they stand (files_text). -->
+          <div v-else-if="m.kind === 'walls'"><dt>Files</dt>
+            <dd data-test="rm-files">{{ m.files_ready ? 'Ready' : (m.files_text || 'Not made ready yet') }}</dd></div>
           <div><dt>Where it runs</dt><dd data-test="rm-where">{{ whereWords(m) }}</dd></div>
           <div v-if="m.state !== 'off' && (m.started_by || m.started_at)">
             <dt>Started</dt><dd data-test="rm-started">{{ startedWords(m) }}</dd>
@@ -97,7 +101,7 @@
                     @click="askStop(m)">
               <Square :size="15" aria-hidden="true" />{{ busy[m.key] === 'stop' ? 'Stopping…' : 'Stop' }}
             </button>
-            <button v-if="m.camera_model && !m.files_ready" class="btn" type="button" :disabled="isBusy(m.key)"
+            <button v-if="(m.camera_model || m.kind === 'walls') && !m.files_ready" class="btn" type="button" :disabled="isBusy(m.key)"
                     data-test="rm-fetch" @click="fetchAgain(m)">
               <RefreshCw :size="15" aria-hidden="true" />Fetch its files again
             </button>

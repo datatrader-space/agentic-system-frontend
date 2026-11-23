@@ -3,6 +3,7 @@
 // ``live: true`` tells those components to read and write through the API.
 import { reactive } from 'vue';
 import { apiFetch } from './client.js';
+import { agreementOf } from '../agreementWords.js';
 
 const enc = encodeURIComponent;
 const base = ref => `/training-data/app/projects/${enc(ref)}`;
@@ -36,8 +37,12 @@ export function toPixels(points, width, height) {
 
 // A label of the backend as the editor's shapes. A wall's corner types are kept per corner (``cornerTypes``); the
 // shape shows "image edge" when any corner touches the photo's edge.
+// A mask (contract C2: ``{kind, mask: {size: [h, w], counts}}``) stays in the photo's own pixels, as it came.
 export function fromBackend(shapes, width, height) {
-  return (shapes || []).map((shape, index) => ({
+  return (shapes || []).map((shape, index) => (shape.mask ? {
+    id: `s${index}-${Date.now()}`, kind: shape.kind, mask: { size: [...shape.mask.size], counts: shape.mask.counts },
+    ...(typeof shape.score === 'number' ? { score: shape.score } : {}),
+  } : {
     id: `s${index}-${Date.now()}`, kind: shape.kind, points: toUnits(shape.points, width, height),
     corner: (shape.corner_types || []).includes('image_edge') ? 'image_edge' : 'room',
     cornerTypes: shape.corner_types ? [...shape.corner_types] : null, cornerCount: shape.points.length,
@@ -48,6 +53,7 @@ export function fromBackend(shapes, width, height) {
 // A wall is a shape whose class has geometry 'wall' in ``roles`` (``rolesOf``), never a class called "wall".
 export function toBackend(shapes, width, height, roles = {}) {
   return shapes.map(shape => {
+    if (shape.mask) return { kind: shape.kind, mask: { size: [...shape.mask.size], counts: shape.mask.counts } };
     const out = { kind: shape.kind, points: toPixels(shape.points, width, height) };
     if (geometryOf(roles, shape.kind) === 'wall' && shape.cornerTypes && shape.cornerTypes.length === shape.points.length && shape.cornerCount === shape.points.length) out.corner_types = shape.cornerTypes;
     return out;
@@ -100,6 +106,8 @@ function card(row) {
     id: `a${row.number}`, kind: 'assignment', number: row.number, code: row.code || '', name: row.name, givenName: row.given_name,
     count: row.total, done: row.done, group: row.state_label, status: row.column, assignee: row.labeller?.name || 'Unassigned',
     labeller: row.labeller, instructions: row.instructions, mine: row.mine, timeline: [], may: {},
+    // How closely two labellers agreed on the photos both labelled (agreementWords.js); null figures when not measured.
+    agreement: agreementOf(row),
   };
 }
 
@@ -166,7 +174,8 @@ export async function loadAssignment(store, batch) {
 // comes with the full refresh that follows, so until then nothing is offered (a slow refresh once left "Submit for
 // Review" on screen after the submit had been made).
 export function applyStep(batch, row) {
-  Object.assign(batch, { group: row.state_label, status: row.column, count: row.total, done: row.done, may: {} });
+  Object.assign(batch, { group: row.state_label, status: row.column, count: row.total, done: row.done, may: {},
+    ...('agreement' in row || 'agreement_mask_iou' in row ? { agreement: agreementOf(row) } : {}) });
 }
 
 // The labels waiting for approval.
@@ -223,12 +232,16 @@ export const api = {
   detectPreference: (ref, detect) => json(`${base(ref)}/detect-preference/`, 'POST', { detect }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
-  // SAM 3 click-to-label: SAM 3 is hosted by AADML, so no place is sent (a call naming one is refused).
-  segmentPoint: (ref, photo, name, points) => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
-    { method: 'POST', body: { class: name, points }, timeoutMs: DETECT_MS }),
+  // Smart Select and Box to outline (contract C4): SAM 3 is hosted by AADML, so no place is sent (a call naming one is
+  // refused). ``points``: {coords, labels} in photo pixels; ``box``: [x1, y1, x2, y2] in photo pixels, for Box to outline.
+  segmentPoint: (ref, photo, name, points, box = null) => apiFetch(`${base(ref)}/photos/${enc(photo)}/segment-point/`,
+    { method: 'POST', body: { class: name, points, ...(box ? { box: box.map(v => Math.round(v * 10) / 10) } : {}) }, timeoutMs: DETECT_MS }),
   updateClass: (ref, name, body) => json(`${base(ref)}/classes/${enc(name)}/`, 'PATCH', body),
   removeClass: (ref, name) => json(`${base(ref)}/classes/${enc(name)}/`, 'DELETE'),
   saveLabel: (ref, photo, body) => json(`${base(ref)}/photos/${enc(photo)}/label/`, 'POST', body),
+  // Send to Unannotated (contract C7b): the photo leaves its open batch and waits again with the board's unassigned
+  // photos; the person's draft label is kept. Add to Dataset is ``saveLabel`` with ``action: 'add_to_dataset'`` (C7a).
+  sendToUnannotated: (ref, photo) => json(`${base(ref)}/photos/${enc(photo)}/send-to-unannotated/`, 'POST', {}),
   sendBack: (ref, label, reason) => json(`${base(ref)}/labels/${enc(label)}/send-back/`, 'POST', { reason }),
   comments: (ref, photo) => json(`${base(ref)}/photos/${enc(photo)}/comments/`),
   comment: (ref, photo, text) => json(`${base(ref)}/photos/${enc(photo)}/comments/`, 'POST', { text }),

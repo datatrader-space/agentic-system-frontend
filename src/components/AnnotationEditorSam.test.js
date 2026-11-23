@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import AnnotationEditor from '../../training-data/src/components/AnnotationEditor.vue';
 import { api } from '../../training-data/src/api/annotate.js';
-vi.mock('../../training-data/src/api/annotate.js', async original=>({...(await original()),api:{editor:vi.fn(),comments:vi.fn(),segmentPoint:vi.fn(),saveLabel:vi.fn(),detect:vi.fn(),addClass:vi.fn()}}));
+vi.mock('../../training-data/src/api/annotate.js', async original=>({...(await original()),api:{editor:vi.fn(),comments:vi.fn(),segmentPoint:vi.fn(),saveLabel:vi.fn(),detect:vi.fn(),addClass:vi.fn(),updateClass:vi.fn(),detectPreference:vi.fn(),sendToUnannotated:vi.fn()}}));
 const wrappers=[];
 const classes=[{name:'product logo',color:'#2563eb',description:'Brand mark',geometry:''}];
 const initial=[{kind:'product logo',points:[[10,10],[80,10],[80,80]]}];
@@ -13,52 +13,57 @@ beforeEach(()=>{
   vi.spyOn(SVGElement.prototype,'getBoundingClientRect').mockReturnValue({left:0,top:0,width:600,height:300,right:600,bottom:300});
   api.editor.mockResolvedValue({photo:{width:1200,height:800},shapes:initial,classes,tags:[],readonly:'',approving:false,
     detect:{sources:[{id:'sam3',point_selection:true,name:'SAM 3',maker:'Meta',family:'SAM 3',labels:'polygons',where:[],platform:true,detail:'Synthetic fixture'}],auto:'sam3'},started_from:'from_scratch'});
-  api.comments.mockResolvedValue({comments:[]});
+  api.comments.mockResolvedValue({comments:[]});api.detectPreference.mockResolvedValue({preference:'sam3'});
   api.segmentPoint.mockResolvedValue({state:'ready',source:'sam3',saved:false,shapes:[{kind:'product logo',points:[[500,300],[700,300],[700,500]]}]});
 });
 afterEach(()=>{wrappers.splice(0).forEach(w=>w.unmount());vi.restoreAllMocks();vi.unstubAllGlobals();});
 function render(){const state={live:true,ref:'~901',canChangeClasses:true,classes:[],batches:[],images:[{id:'image-1',name:'Synthetic photo',state:'Unlabeled',tags:[],shapes:[],url:'data:image/png;base64,AA=='}]};
 const w=mount(AnnotationEditor,{props:{state},global:{stubs:{UiDialog:{props:['open'],template:'<div v-if="open"><slot/></div>'}}}});wrappers.push(w);return w;}
 const button=(w,text)=>w.findAll('button').find(b=>b.text().trim()===text);
+const layers=async w=>{await button(w,'Layers').trigger('click');return w.findAll('.layer-row');};
 test('manual editor uses server classes and opening it never invokes automatic detection',async()=>{
   const w=render();await flushPromises();
   expect(w.get('[aria-label="Selected annotation class"]').element.value).toBe('product logo');
   expect(w.findAll('[aria-label="Selected annotation class"] option').map(x=>x.text())).toEqual(['product logo']);
   expect(api.detect).not.toHaveBeenCalled();expect(api.segmentPoint).not.toHaveBeenCalled();
 });
-test('click-object candidate appends to existing manual annotations only on Apply and supports Undo',async()=>{
+test('a Smart Select candidate is added beside the manual annotations only when kept, and Undo takes it back',async()=>{
   const w=render();await flushPromises();
-  await w.get('[aria-label="SAM 3 click to label (A)"]').trigger('click');
+  await w.get('[aria-label="Smart Select (S)"]').trigger('click');
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
   expect(api.segmentPoint).toHaveBeenCalledWith('~901','image-1','product logo',{coords:[[600,400]],labels:[1]});
-  expect(w.findAll('.shape-list button')).toHaveLength(1);
+  expect(await layers(w)).toHaveLength(1);
   expect(w.findAll('.sam-candidate polygon')).toHaveLength(1);
-  await button(w,'Apply object outline').trigger('click');
-  expect(w.findAll('.shape-list button')).toHaveLength(2);
+  await button(w,'Keep outline (Enter)').trigger('click');
+  expect(w.findAll('.layer-row')).toHaveLength(2);
   expect(api.saveLabel).not.toHaveBeenCalled();
-  await w.get('[aria-label="Undo"]').trigger('click');
-  expect(w.findAll('.shape-list button')).toHaveLength(1);
+  await w.get('[aria-label="Undo (Ctrl+Z)"]').trigger('click');
+  expect(w.findAll('.layer-row')).toHaveLength(1);
 });
 test('empty project does not silently draw a wall and point selection requires its own class',async()=>{
   api.editor.mockResolvedValue({photo:{width:1200,height:800},shapes:[],classes:[],tags:[],readonly:'',detect:null});
   const w=render();await flushPromises();
   expect(w.get('[aria-label="Selected annotation class"]').element.value).toBe('');
   expect(w.text()).toContain('No classes yet');
-  await w.get('[aria-label="SAM 3 click to label (A)"]').trigger('click');
+  await w.get('[aria-label="Smart Select (S)"]').trigger('click');
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
-  expect(api.segmentPoint).not.toHaveBeenCalled();expect(w.findAll('.shape-list button')).toHaveLength(0);
+  expect(api.segmentPoint).not.toHaveBeenCalled();expect(await layers(w)).toHaveLength(0);
 });
 
-test('restored SAM disables point tool and keyboard while retaining automatic and manual tools', async()=>{
+test('without point selection Smart Select and Box to outline say why, and the keyboard cannot reach them either', async()=>{
   const body = await api.editor(); body.detect.sources[0].point_selection=false; api.editor.mockResolvedValue(body); api.editor.mockClear();
   const w=render();await flushPromises();
-  expect(w.get('[aria-label="SAM 3 click to label (A)"]').element.disabled).toBe(true);
+  // Focusable, so the hover card can say why; pressing it says so too.
+  expect(w.get('[aria-label="Smart Select (S)"]').attributes('aria-disabled')).toBe('true');
+  expect(w.get('[aria-label="Box to outline (O)"]').attributes('aria-disabled')).toBe('true');
   // Not "unavailable right now" (live, 2026-11-20: it read as an outage while SAM 3 was on): the release has no point
   // selection in its SAM 3 server (bb77016e), whether SAM 3 is on or not.
-  expect(w.text()).toContain('SAM 3 click-to-label is not available yet. Find Objects with AI, Auto Label and drawing by hand work.');
-  expect(w.text()).not.toContain('Mouse selection');
-  expect(w.get('[aria-label="Draw polygon (P)"]').element.disabled).toBe(false);
-  window.dispatchEvent(new KeyboardEvent('keydown',{key:'a',bubbles:true}));
+  await w.get('[aria-label="Smart Select (S)"]').trigger('click');
+  expect(w.text()).toContain('Smart Select is not available yet: the SAM 3 that AADML runs now takes no clicks or boxes. Label Assist, Find Objects with AI and drawing by hand work.');
+  expect(w.find('.sam-selection-panel').exists()).toBe(false);
+  expect(w.get('[aria-label="Polygon (P)"]').attributes('aria-disabled')).toBeUndefined();
+  window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',bubbles:true}));
+  window.dispatchEvent(new KeyboardEvent('keydown',{key:'o',bubbles:true}));
   w.get('svg.annotation-overlay').element.dispatchEvent(new MouseEvent('pointerdown',{button:0,clientX:300,clientY:150,bubbles:true}));await flushPromises();
   expect(api.segmentPoint).not.toHaveBeenCalled(); expect(api.detect).not.toHaveBeenCalled();
 });

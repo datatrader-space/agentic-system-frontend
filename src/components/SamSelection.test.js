@@ -24,7 +24,16 @@ test('no class, read-only or negative-first clicks never invoke a model',()=>{
   const request=vi.fn(); const missing=useSamSelection(()=>({...context(),name:''}),request); missing.add([1,2]);
   const blocked=useSamSelection(()=>({...context(),allowed:false}),request);blocked.add([1,2]);
   const normal=useSamSelection(context,request);normal.add([1,2],0);
-  expect(request).not.toHaveBeenCalled();expect(normal.message.value).toContain('include');
+  expect(request).not.toHaveBeenCalled();expect(normal.message.value).toContain('click on the object');
+});
+test('Box to outline asks with the box in photo pixels, and a later click keeps the box',async()=>{
+  const request=vi.fn().mockResolvedValue({state:'ready',shapes:[{kind:'helmet',mask:{size:[800,1200],counts:'abc'}}],other:[{kind:'helmet',points:[[1,1],[2,1],[2,2]]}]});
+  const s=useSamSelection(context,request);s.outline([450,225,150,75]);await flushPromises();
+  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[],labels:[]},[300,200,900,600]);
+  expect(s.candidate.value).toHaveLength(1);expect(s.other.value).toHaveLength(1);
+  s.add([300,150],0);await flushPromises();   // a remove click refines the boxed object
+  expect(request).toHaveBeenLastCalledWith('~project','photo-1','helmet',{coords:[[600,400]],labels:[0]},[300,200,900,600]);
+  s.clear();expect(s.box.value).toBe(null);expect(s.other.value).toEqual([]);
 });
 test('starting polls the same points, while discard cancels further polls',async()=>{
   vi.useFakeTimers();const request=vi.fn().mockResolvedValue({state:'waiting',title:'SAM 3',now:'Starting'});
