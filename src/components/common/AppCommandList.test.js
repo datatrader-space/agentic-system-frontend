@@ -104,6 +104,9 @@ describe('AppCommandList', () => {
     options.find((o) => o.textContent.includes('Wait')).click()
     await tick()
     expect(wrapper.emitted('select').map((e) => e[0].id)).toEqual(['action.http'])
+    // A disabled option says so to assistive technology (Reka marks it only with data-disabled).
+    expect(options.find((o) => o.textContent.includes('Wait')).getAttribute('aria-disabled')).toBe('true')
+    expect(options.find((o) => o.textContent.includes('HTTP request')).hasAttribute('aria-disabled')).toBe(false)
   })
 
   it('shows the empty text, and the search in it, when nothing matches', async () => {

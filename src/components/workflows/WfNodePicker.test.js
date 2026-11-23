@@ -53,6 +53,18 @@ describe('WfNodePicker', () => {
     expect(w.emitted('choose')[0][0]).toMatchObject({ item: { toolName: 'fixture_read' }, agent: { id: 1, name: 'Fixture agent' } })
   })
 
+  it('in a frame workflow, names the steps that can follow the frame and passes the frame flag to the items (ADM-1351)', async () => {
+    const { w } = picker({ frame: true })
+    await w.setProps({ open: true })
+    await flushPromises()
+    const note = w.find('.wfb-picker__note[role="note"]')
+    expect(note.text()).toContain('This workflow starts on each camera frame, so only these steps can follow it:')
+    expect(note.text()).toContain('Condition')
+    const items = w.findComponent(AppCommandListStub).props('items')
+    expect(items.find((i) => i.id === 'node:agent.run').disabled).toBe(true)
+    expect(items.find((i) => i.id === 'node:vision.model').disabled).toBeFalsy()
+  })
+
   it('has no Triggers tab when the new step is connected from an output', async () => {
     const { w } = picker({ ctx: { mode: 'from', source: { nodeId: 'a', handle: null } } })
     await w.setProps({ open: true })

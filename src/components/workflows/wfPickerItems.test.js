@@ -1,6 +1,6 @@
 // The node picker's items and what choosing one does to the document (ADM-1333 plan §3.1, F13).
 import { describe, it, expect } from 'vitest'
-import { pickerItems, pickerGroups, createNode, connectOps, placeFor, needsInput, loadRecent, pushRecent, RECENT_SIZE } from './wfPickerItems'
+import { pickerItems, pickerGroups, createNode, connectOps, placeFor, needsInput, loadRecent, pushRecent, RECENT_SIZE, FRAME_BADGE } from './wfPickerItems'
 import { applyWorkflowOps } from '@/composables/useWorkflowDoc'
 
 const tools = [{ name: 'GITHUB_LIST_REPOSITORIES', description: 'List repos', category: 'github' }, { name: 'SLACK_POST', description: 'Post', category: 'slack' }]
@@ -21,6 +21,25 @@ describe('pickerItems', () => {
     const searching = pickerItems({ tools, mcp, searching: true })
     expect(searching.filter((i) => i.kind === 'tool')).toHaveLength(2)
     expect(searching.some((i) => i.id === 'mcptool:7:fixture_read')).toBe(true)
+  })
+
+  it('in a frame workflow, lists the steps a stream cannot run on a frame as disabled, with the reason (ADM-1351)', () => {
+    const items = pickerItems({ tools, mcp, searching: true, frame: true })
+    const byType = (t) => items.find((i) => i.nodeType === t)
+    for (const t of ['vision.model', 'vision.filter', 'vision.crop', 'vision.draw', 'logic.condition', 'logic.foreach']) {
+      expect(byType(t).disabled, t).toBeFalsy()
+      expect(byType(t).badge, t).toBeUndefined()
+    }
+    expect(byType('agent.run')).toMatchObject({ disabled: true, badge: FRAME_BADGE, description: 'A stream cannot run this step on a camera frame.' })
+    expect(byType('trigger.manual')).toMatchObject({ disabled: true, description: 'This workflow already starts on each camera frame.' })
+    expect(items.filter((i) => i.kind === 'tool').every((i) => i.disabled && i.badge === FRAME_BADGE)).toBe(true)
+    expect(items.filter((i) => i.kind.startsWith('mcp')).every((i) => i.disabled)).toBe(true)
+    // Not a frame workflow: nothing is marked.
+    expect(pickerItems({ tools, mcp, searching: true }).some((i) => i.disabled)).toBe(false)
+    // The categories with frame steps come first; nothing is lost.
+    expect(pickerGroups(mcp, { frame: true }).map((g) => g.id).slice(0, 3)).toEqual(['recent', 'vision', 'logic'])
+    expect(pickerGroups(mcp, { frame: true })).toHaveLength(pickerGroups(mcp).length)
+    expect(pickerGroups(mcp)[1].id).toBe('trigger')
   })
 
   it('lists every tool, never a cut list (F11)', () => {

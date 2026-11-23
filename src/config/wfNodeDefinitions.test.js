@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import fixture from './__fixtures__/wfStepTypes.json'
 import {
   WF_NODE_DEFS, WF_TYPES, WF_PALETTE_ORDER, WF_ICONS, WF_CATEGORIES, WF_KINDS, setStepRegistry, resetStepRegistry,
-  stepRegistryReady, wfDef, wfIcon, wfFields, wfDefaultData, wfOutputSample, wfPaletteItems, wfFieldShown,
+  stepRegistryReady, wfDef, wfIcon, wfFields, wfDefaultData, wfOutputSample, wfPaletteItems, wfFieldShown, wfForeachInner, wfForeachInnerTypes,
 } from './wfNodeDefinitions'
 
 const apiMock = vi.hoisted(() => ({ getWorkflowStepTypes: vi.fn() }))
@@ -59,6 +59,32 @@ describe('the registry taken from the server', () => {
     const inputs = wfFields('trigger.manual').find((f) => f.key === 'inputs')
     expect(inputs.cols.map((c) => c.key)).toEqual(['key', 'type', 'default'])
     expect(inputs.cols[1].options).toEqual([['text', 'Text'], ['image', 'Image']])
+  })
+
+  it('maps frame_mode: the frame trigger, the vision steps, Condition and For-each may run on a camera frame (phase 2)', () => {
+    expect(wfDef('trigger.frame')).toMatchObject({ trigger: true, frameMode: true, label: 'Each camera frame', icon: 'lucide:aperture' })
+    expect(wfOutputSample('trigger.frame')).toMatchObject({ image: { kind: 'image' }, frame: 0, source: { name: 'Camera' } })
+    const frame = WF_TYPES.filter((t) => wfDef(t).frameMode).sort()
+    expect(frame).toEqual(['logic.condition', 'logic.foreach', 'trigger.frame', 'vision.crop', 'vision.draw', 'vision.filter', 'vision.model'])
+    const json = fresh()
+    delete json.steps.find((s) => s.type === 'vision.draw').frame_mode
+    setStepRegistry(json)
+    expect(wfDef('vision.draw').frameMode).toBe(false)
+  })
+
+  it('keeps the For-each inner-step rule in one place: the five actions and every vision step; a frame only its own', () => {
+    expect(wfForeachInnerTypes().map((t) => t.value).sort()).toEqual(['action.channel', 'action.http', 'action.subworkflow', 'action.tool',
+      'agent.run', 'vision.crop', 'vision.draw', 'vision.filter', 'vision.model'])
+    expect(wfForeachInnerTypes({ frame: true }).map((t) => t.value)).toEqual(['vision.model', 'vision.filter', 'vision.crop', 'vision.draw'])
+    expect(wfForeachInnerTypes()[0]).toEqual({ value: 'agent.run', label: 'Run agent' })   // the registry's order and names
+    expect(wfForeachInner('llm.call')).toBe(false)
+    expect(wfForeachInner('logic.condition', { frame: true })).toBe(false)
+    expect(wfForeachInner('no.such_step')).toBe(false)
+    // A vision step the server adds is offered with no change here.
+    const json = fresh()
+    json.steps.push({ ...json.steps.find((s) => s.type === 'vision.draw'), type: 'vision.blur', label: 'Blur objects' })
+    setStepRegistry(json)
+    expect(wfForeachInner('vision.blur', { frame: true })).toBe(true)
   })
 
   it('every step type of the server has its own Lucide icon written here, so the icon is bundled (ADM-1342)', () => {

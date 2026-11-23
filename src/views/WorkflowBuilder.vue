@@ -24,6 +24,11 @@
   RUN WITH INPUTS. A manual trigger's input of type `image` asks for a photo (JPEG, PNG or WebP up to 15 MB): each is
   uploaded for this workflow (POST /workflow-graphs/<id>/images/) and the run's payload carries the image reference
   the server returned. A run, or a test from the node window, of a workflow with an image input always asks.
+
+  A FRAME WORKFLOW (ADM-1351 phase 2) starts with "Each camera frame": a stream in Training Data runs it on each frame,
+  so the server refuses a Run of it (409 frame_trigger) and the toolbar offers none, saying where it runs. Test asks for
+  a photo that stands in for the frame (`image`, read as {{trigger.image}}). The picker marks the steps a stream cannot
+  run on a frame (components/workflows/wfFrame.js).
 -->
 <template>
   <div class="wfb-root" :class="{ 'is-compact': compact }">
@@ -67,6 +72,8 @@
         :compact="compact"
         :mod="mod"
         :role="toolbarRole"
+        :run-blocked="frameWorkflow ? FRAME_RUN_NOTE : ''"
+        :run-blocked-by="frameWorkflow ? 'wfb-frame-note' : ''"
         @back="goBack"
         @rename="renameWorkflow"
         @save="doc.save()"
@@ -91,6 +98,10 @@
         @archive="archiveWorkflow"
         @share="shareOpen = true"
       />
+
+      <p v-if="frameWorkflow && !locked && can.run" id="wfb-frame-note" class="wfb-stage__note" role="note">
+        <Icon icon="lucide:aperture" aria-hidden="true" /><span>{{ FRAME_RUN_NOTE }} Test asks for a photo.</span>
+      </p>
 
       <div v-if="steps.error" class="wfb-overlay" role="alert">
         <div class="wfb-card">
@@ -149,13 +160,13 @@
       @rerun="rerunFailed"
     />
 
-    <WfNodePicker v-if="steps.ready" v-model:open="pickerOpen" :ctx="pickerCtx" :catalog="catalog" :agents="doc.agents.value" @choose="addFromPicker" />
+    <WfNodePicker v-if="steps.ready" v-model:open="pickerOpen" :ctx="pickerCtx" :catalog="catalog" :agents="doc.agents.value" :frame="frameWorkflow" @choose="addFromPicker" />
     <WfNodeModal v-if="steps.ready" v-model:open="modalOpen" :node-id="modalNodeId" :doc="doc" :history="history" :run="run" :catalog="catalog" :validation="validation.data || null" :read-only="editLocked" :can-run="can.run" :ask-inputs="startRun" />
     <WfOutline v-if="steps.ready" v-model:open="outlineOpen" :doc="doc" :run="run" @open-node="(id) => { outlineOpen = false; openNode(id) }" @focus-node="(id) => { outlineOpen = false; focusNode(id) }" />
     <WfShortcuts v-model:open="shortcutsOpen" :mod="mod" />
     <WfShareDialog v-if="can.share" v-model:open="shareOpen" :graph-id="graphId" :name="doc.name.value" />
 
-    <AppDialog v-model:open="inputsOpen" title="Run with inputs" description="Values for this run only. The defaults come from the manual trigger." size="sm">
+    <AppDialog v-model:open="inputsOpen" :title="inputsTitle" :description="inputsDescription" size="sm">
       <form id="wfb-run-inputs" class="wfb-root wfb-layer wfb-form" novalidate @submit.prevent="submitInputs">
         <div v-for="f in inputFields" :key="f.key" class="wfb-field">
           <label class="wfb-field__label" :for="`wfb-in-${f.key}`" translate="no">{{ f.key }}<template v-if="f.type === 'image'"> (photo)</template></label>
@@ -294,6 +305,7 @@ import { WorkflowInputError } from '@/utils/workflowInput'
 import { freeWorkflowPosition } from '@/utils/workflowNodePlacement'
 import { hydrateNode, serializeNode, nodeTitle, toggleOffOps } from '@/components/workflows/wfNodeData'
 import { createNode, connectOps, placeFor, pushRecent } from '@/components/workflows/wfPickerItems'
+import { FRAME_RUN_NOTE, isFrameWorkflow, runInputs } from '@/components/workflows/wfFrame'
 import { copyText, parseClip, pasteOps } from '@/components/workflows/wfClipboard'
 import { resolveShortcut, isTypingTarget, isComboboxTarget, neighbourId, NUDGE } from '@/components/workflows/wfKeyboard'
 
@@ -613,13 +625,17 @@ const pendingRun = ref(null)
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const IMAGE_MAX_BYTES = 15 * 1024 * 1024
 const clear = (o) => { for (const k of Object.keys(o)) delete o[k] }
-function manualInputs() {
-  const t = doc.nodes.value.find((n) => n.type === 'trigger.manual')
-  return (Array.isArray(t?.data?.inputs) ? t.data.inputs : []).filter((i) => i && i.key)
-}
+// "Each camera frame" (wfFrame.js): only a stream runs it; a test takes a photo for the frame.
+const frameWorkflow = computed(() => isFrameWorkflow(doc.nodes.value))
+const inputsTitle = computed(() => (frameWorkflow.value ? 'Test on a photo' : 'Run with inputs'))
+const inputsDescription = computed(() => (frameWorkflow.value
+  ? 'The photo stands in for one camera frame, {{trigger.image}}. A test calls no model, so Find objects finds nothing; Filter, Crop and Draw run.'
+  : 'Values for this run only. The defaults come from the manual trigger.'))
 function startRun(opts) {
   if (actionsDisabled.value || run.running.value || !can.value.run) return
-  const inputs = manualInputs()
+  // The keyboard's Run (Ctrl/⌘+Enter) says why, as the disabled button does.
+  if (!opts?.dryRun && frameWorkflow.value) { announce(FRAME_RUN_NOTE); notify.info(FRAME_RUN_NOTE); return }
+  const inputs = runInputs(doc.nodes.value)
   if (inputs.length) {
     clear(inputValues)
     clear(inputFiles)

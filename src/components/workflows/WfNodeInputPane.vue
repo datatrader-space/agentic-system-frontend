@@ -117,9 +117,11 @@ const runLine = computed(() => {
   return lastRun.value.draftChangedSince ? `${base} The draft has changed since.` : base
 })
 
-// A test from here uses each manual input's declared default value; with an image input it asks for the values first.
+// A test from here uses each manual input's declared default value; with an image input, or in a frame workflow, it
+// asks for the values (the photo) first.
 const testInputsNote = computed(() => {
   if (!editor.manualInputs.value.length) return ''
+  if (editor.frameWorkflow.value) return 'The test asks for a photo first: it stands in for the camera frame, {{trigger.image}}.'
   if (editor.needsPhoto.value) return "The test asks for the trigger's inputs first, including a photo."
   return `The test uses each input's default: ${editor.manualInputs.value.map((i) => `${i.key} = ${JSON.stringify(i.default ?? '')}`).join(', ')}.`
 })

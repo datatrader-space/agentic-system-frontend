@@ -32,7 +32,8 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, RULE_KINDS, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, ruleKinds, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
+  answersFrames, DWELL_MIN, DWELL_MAX,
 } from '../api/streaming.js';
 
 const props = defineProps({
@@ -265,13 +266,17 @@ async function loadEvents(page = evPage.value) {
 }
 const rulesPage = ref(null); const rulesLoading = ref(false); const rulesError = ref(''); const rulesSaid = ref('');
 const rules = computed(() => rulesPage.value?.rules || []);
-const ruleLimits = computed(() => rulesPage.value?.limits || {});
+// The server's limits; a timed rule's (Stays, Not there, Time in a zone) are its `timed` {min, max} seconds.
+const ruleLimits = computed(() => ({ ...(rulesPage.value?.limits || {}),
+  ...(rulesPage.value?.timed ? { timed_min: rulesPage.value.timed.min, timed_max: rulesPage.value.timed.max } : {}) }));
 const mayRule = computed(() => !!rulesPage.value?.may?.change);
 const classChoices = computed(() => ruleClasses(stream.value, rulesPage.value?.classes, rulesPage.value?.detector_classes));
 // The camera's zones (CameraZones.vue): a rule may count only what is inside one.
 const ruleZones = computed(() => rulesPage.value?.zones || []);
 const ruleLines = computed(() => rulesPage.value?.lines || []);
-const kindHelp = computed(() => RULE_KINDS.find(k => k.key === draft.value.kind)?.help || '');
+// The kinds the server offers (GET rules/ `kinds`), with this page's short labels (streaming.js ruleKinds).
+const kindChoices = computed(() => ruleKinds(rulesPage.value?.kinds));
+const kindHelp = computed(() => kindChoices.value.find(k => k.key === draft.value.kind)?.help || '');
 function toggleDay(day) {
   const days = new Set(draft.value.days || []);
   if (days.has(day)) days.delete(day); else days.add(day);
@@ -325,7 +330,7 @@ async function decideActions(e, approve) {
   catch (err) { evError.value = err.message; }
   finally { verdictBusy.value = 0; }
 }
-const answers = computed(() => !!(stream.value?.model || stream.value?.detector || (stream.value?.find || []).length));
+const answers = computed(() => answersFrames(stream.value));
 const adding = ref(false); const draft = ref(ruleForm()); const draftErrors = ref({}); const ruleBusy = ref(false);
 async function loadRules() {
   rulesLoading.value = true; rulesError.value = '';
@@ -342,7 +347,8 @@ async function ruleCall(call) {
   try { const answer = await call(); rulesPage.value = answer; rulesSaid.value = answer?.said || ''; return true; }
   catch (e) {
     if (e.field && ['class_name', 'min_count', 'cooldown_seconds', 'zone', 'line', 'direction', 'schedule'].includes(e.field)) draftErrors.value = { ...draftErrors.value, [e.field]: e.message };
-    else if (e.field === 'seconds') draftErrors.value = { ...draftErrors.value, minutes: e.message };
+    // A dwell rule's time is in seconds; a Stays or Not there rule's is asked in minutes.
+    else if (e.field === 'seconds') draftErrors.value = { ...draftErrors.value, [draft.value.kind === 'dwell' ? 'seconds' : 'minutes']: e.message };
     else rulesError.value = e.message;
     return false;
   } finally { ruleBusy.value = false; }
@@ -631,7 +637,7 @@ watch(tab, now => {
             <div class="sp-rule-fields">
               <label>What
                 <select v-model="draft.kind" class="text-input">
-                  <option v-for="k in RULE_KINDS" :key="k.key" :value="k.key">{{ k.label }}</option>
+                  <option v-for="k in kindChoices" :key="k.key" :value="k.key">{{ k.label }}</option>
                 </select>
               </label>
               <label>Class
@@ -639,13 +645,17 @@ watch(tab, now => {
                 <datalist id="sp-rule-classes"><option v-for="c in classChoices" :key="c" :value="c"></option></datalist>
                 <small v-if="draftErrors.class_name" class="field-error">{{ draftErrors.class_name }}</small>
               </label>
-              <label v-if="draft.kind !== 'cross'">{{ draft.kind === 'absent' ? 'Fewer than' : 'At least' }}
+              <label v-if="draft.kind !== 'cross' && draft.kind !== 'dwell'">{{ draft.kind === 'absent' ? 'Fewer than' : 'At least' }}
                 <input v-model.number="draft.min_count" class="text-input" type="number" min="1" :max="ruleLimits.count_max || 1000" step="1" :aria-invalid="!!draftErrors.min_count">
                 <small v-if="draftErrors.min_count" class="field-error">{{ draftErrors.min_count }}</small>
               </label>
               <label v-if="draft.kind === 'stays' || draft.kind === 'absent'">For (minutes)
                 <input v-model.number="draft.minutes" class="text-input" type="number" min="0.2" max="1440" step="any" :aria-invalid="!!draftErrors.minutes">
                 <small v-if="draftErrors.minutes" class="field-error">{{ draftErrors.minutes }}</small>
+              </label>
+              <label v-if="draft.kind === 'dwell'">At least (seconds)
+                <input v-model.number="draft.seconds" class="text-input" type="number" :min="ruleLimits.timed_min || DWELL_MIN" :max="ruleLimits.timed_max || DWELL_MAX" step="1" aria-required="true" :aria-invalid="!!draftErrors.seconds">
+                <small v-if="draftErrors.seconds" class="field-error">{{ draftErrors.seconds }}</small>
               </label>
               <label v-if="draft.kind === 'cross'">Line
                 <select v-model="draft.line" class="text-input" :aria-invalid="!!draftErrors.line">
@@ -659,9 +669,10 @@ watch(tab, now => {
                   <option value="any">In or out</option><option value="in">In</option><option value="out">Out</option>
                 </select>
               </label>
-              <label v-if="draft.kind !== 'cross'">Where
-                <select v-model="draft.zone" class="text-input" :aria-invalid="!!draftErrors.zone">
-                  <option value="">The whole picture</option>
+              <label v-if="draft.kind !== 'cross'">{{ draft.kind === 'dwell' ? 'Zone' : 'Where' }}
+                <select v-model="draft.zone" class="text-input" :aria-required="draft.kind === 'dwell' ? 'true' : undefined" :aria-invalid="!!draftErrors.zone">
+                  <option v-if="draft.kind === 'dwell'" value="" disabled>{{ ruleZones.length ? 'Choose a zone' : 'No zone yet: draw one in the Zones tab' }}</option>
+                  <option v-else value="">The whole picture</option>
                   <option v-for="z in ruleZones" :key="z.id" :value="String(z.id)">In {{ z.name }}</option>
                 </select>
                 <small v-if="draftErrors.zone" class="field-error">{{ draftErrors.zone }}</small>
@@ -778,7 +789,7 @@ watch(tab, now => {
           <p class="sp-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="sp-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="stream.state === 'queued'">Waiting for a worker to read the camera</template>
-            <template v-else-if="stream.state === 'running'">{{ stream.model ? 'Placing the model and reading the first frame' : stream.detector ? 'Getting the ready detector ready and reading the first frame' : 'Reading the first frame' }}</template>
+            <template v-else-if="stream.state === 'running'">{{ stream.workflow ? 'Starting the workflow and reading the first frame' : stream.model ? 'Placing the model and reading the first frame' : stream.detector ? 'Getting the ready detector ready and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="sp-frame-error">This frame got no answer: {{ last.error }}</p>
@@ -803,7 +814,7 @@ watch(tab, now => {
               </tbody>
             </table>
           </section>
-          <div v-if="stream.model && bars.length" class="sp-strip" title="Everything found in each of the newest frames">
+          <div v-if="answers && bars.length" class="sp-strip" title="Everything found in each of the newest frames">
             <span v-for="b in bars" :key="b.frame" :class="{ failed: b.failed }" :style="{ height: `${b.h}px` }"></span>
           </div>
           <p class="sp-muted">{{ stream.frames }} frame{{ stream.frames === 1 ? '' : 's' }} read<template v-if="stream.frames_failed">, {{ stream.frames_failed }} without an answer</template><template v-if="!endless(stream)"> of at most {{ stream.max_frames }}</template>.</p>

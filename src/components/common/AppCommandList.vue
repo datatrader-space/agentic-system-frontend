@@ -44,6 +44,7 @@
             :key="item.id"
             :value="item.id"
             :disabled="!!item.disabled"
+            :aria-disabled="item.disabled ? 'true' : undefined"
             class="app-cmd__item"
             @select="onSelect($event, item)"
           >

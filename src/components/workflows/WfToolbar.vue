@@ -9,6 +9,10 @@
   `role` = the person's role on the workflow (ADM-1339, utils/workflowAccess): a control the role cannot use is not
   shown (a viewer sees no edit, Test or Run; a runner sees Test and Run; only the owner sees Share and Archive). The
   server refuses those requests anyway. A shared workflow shows the person's role beside its status.
+
+  `runBlocked` = why this workflow has no Run (a frame workflow, ADM-1351: only a stream runs it). Run then stays in its
+  place, focusable but aria-disabled and described by the page's note (`runBlockedBy`, its id); pressing it emits `run`
+  as before, and the page says the reason. Test stays.
 -->
 <template>
   <div class="wfb-toolbar" role="toolbar" aria-label="Workflow">
@@ -58,10 +62,14 @@
     </div>
 
     <div class="wfb-toolbar__right">
-      <button v-if="!compact && can.run" type="button" class="wfb-btn" :disabled="disabled || running" title="Test the draft without real side effects" @click="emit('test')">
+      <button v-if="!compact && can.run" type="button" class="wfb-btn" :disabled="disabled || running" :title="runBlocked ? 'Test on a photo that stands in for a camera frame' : 'Test the draft without real side effects'" @click="emit('test')">
         <Icon icon="lucide:flask-conical" aria-hidden="true" />Test
       </button>
-      <button v-if="can.run && !running" type="button" class="wfb-btn is-primary" :disabled="disabled" :title="`Run (${mod}+Enter)`" @click="emit('run')">
+      <button
+        v-if="can.run && !running" type="button" class="wfb-btn is-primary" :class="{ 'is-blocked': !!runBlocked }" :disabled="disabled"
+        :aria-disabled="runBlocked ? 'true' : undefined" :aria-describedby="runBlocked && runBlockedBy ? runBlockedBy : undefined"
+        :title="runBlocked || `Run (${mod}+Enter)`" @click="emit('run')"
+      >
         <Icon icon="lucide:play" aria-hidden="true" />Run
       </button>
       <button v-else-if="can.run" type="button" class="wfb-btn is-stop" :disabled="stopping" @click="emit('stop')">
@@ -139,6 +147,9 @@ const props = defineProps({
   mod: { type: String, default: 'Ctrl' },
   // The person's role on this workflow (ADM-1339): 'owner' | 'editor' | 'runner' | 'viewer'.
   role: { type: String, default: 'owner' },
+  // Why Run is not offered ('' = it is), and the id of the page's note that says so (ADM-1351, a frame workflow).
+  runBlocked: { type: String, default: '' },
+  runBlockedBy: { type: String, default: '' },
 })
 const emit = defineEmits([
   'back', 'rename', 'save', 'discard', 'add', 'undo', 'redo', 'tidy', 'fit', 'test', 'run', 'stop', 'publish',

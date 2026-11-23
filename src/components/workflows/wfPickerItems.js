@@ -12,6 +12,7 @@
 import { WF_CATEGORIES, WF_CATEGORY_ORDER, wfCategory, wfDefaultData, wfIcon, wfPaletteItems } from '@/config/wfNodeDefinitions'
 import { newEdgeId, newNodeId } from '@/utils/wfVarExpr'
 import { freeWorkflowPosition } from '@/utils/workflowNodePlacement'
+import { frameRefusal } from './wfFrame'
 
 export const RECENT_KEY = 'wfb_recent_nodes_v1'
 export const RECENT_SIZE = 6
@@ -27,37 +28,46 @@ const isTrigger = (type) => String(type || '').startsWith('trigger.')
 /** True when the step being added will get a connection INTO it, so it cannot be a trigger. */
 export function needsInput(ctx) { return ctx?.mode === 'from' || ctx?.mode === 'insert' }
 
+// In a frame workflow (ADM-1351, wfFrame.js) a step a stream cannot run on a frame stays listed, disabled, with the
+// reason as its description and this badge, so the person sees why it cannot be added.
+export const FRAME_BADGE = 'Not on a frame'
+function forFrame(item, type) {
+  const why = frameRefusal(type)
+  return why ? { ...item, disabled: true, description: why, badge: FRAME_BADGE } : item
+}
+
 /**
  * AppCommandList items. `tab` narrows to one category ('all', a category id, 'tools' or 'mcp').
  * Tools and MCP tools are listed under 'all' only while searching (`searching`), so the first screen is the step
- * types; every matching tool is listed once the person types.
+ * types; every matching tool is listed once the person types. `frame`: the workflow starts with "Each camera frame".
  */
-export function pickerItems({ tools = [], mcp = { enabled: false, servers: [] }, recent = [], ctx = null, tab = 'all', searching = false } = {}) {
+export function pickerItems({ tools = [], mcp = { enabled: false, servers: [] }, recent = [], ctx = null, tab = 'all', searching = false, frame = false } = {}) {
   const noTriggers = needsInput(ctx)
+  const mark = (item, type) => (frame ? forFrame(item, type) : item)
   const nodeItems = wfPaletteItems()
     .filter((p) => !(noTriggers && isTrigger(p.type)))
-    .map((p) => ({
+    .map((p) => mark({
       id: `node:${p.type}`, kind: 'node', nodeType: p.type, label: p.label, description: p.sub,
       group: wfCategory(p.type), icon: p.icon, keywords: [p.type, WF_CATEGORIES[wfCategory(p.type)].label],
-    }))
-  const toolItems = tools.filter((t) => t && t.name).map((t) => ({
+    }, p.type))
+  const toolItems = tools.filter((t) => t && t.name).map((t) => mark({
     id: `tool:${t.name}`, kind: 'tool', toolName: t.name, label: t.name, description: t.description || '',
     group: 'tools', icon: wfIcon('action.tool'), badge: t.category_label || t.category || '', keywords: [t.category || ''],
-  }))
+  }, 'action.tool'))
   const mcpItems = []
   if (mcp?.enabled) {
     for (const s of mcp.servers || []) {
       const group = `mcp:${s.id}`
-      mcpItems.push({
+      mcpItems.push(mark({
         id: `mcpsrv:${s.id}`, kind: 'mcp-server', serverId: s.id, serverName: s.name, label: `${s.name}: the whole server`,
         description: 'An agent decides which of its tools to call', group, icon: wfIcon('agent.run'), badge: 'Agent', keywords: [s.slug || ''],
-      })
+      }, 'agent.run'))
       for (const t of s.tools || []) {
-        mcpItems.push({
+        mcpItems.push(mark({
           id: `mcptool:${s.id}:${t.name}`, kind: 'mcp-tool', serverId: s.id, serverName: s.name, toolName: t.name,
           label: t.name, description: t.description || `A ${s.name} tool`, group, icon: wfIcon('action.mcp_tool'),
           badge: s.name, keywords: [s.name],
-        })
+        }, 'action.mcp_tool'))
       }
     }
   }
@@ -72,10 +82,16 @@ export function pickerItems({ tools = [], mcp = { enabled: false, servers: [] },
   return [...recentItems, ...nodeItems, ...(searching ? [...toolItems, ...mcpItems] : [])]
 }
 
-/** The groups for the items: the fixed ones, then one per MCP server. */
-export function pickerGroups(mcp) {
+// In a frame workflow the categories that hold the steps a frame can run come first, after Recent.
+const FRAME_FIRST = ['recent', 'vision', 'logic']
+
+/** The groups for the items: the fixed ones, then one per MCP server. `frame`: Vision and Logic first (ADM-1351). */
+export function pickerGroups(mcp, { frame = false } = {}) {
   const servers = mcp?.enabled ? (mcp.servers || []).map((s) => ({ id: `mcp:${s.id}`, label: `MCP · ${s.name}` })) : []
-  return [...PICKER_GROUPS, ...servers]
+  const fixed = frame
+    ? [...FRAME_FIRST.map((id) => PICKER_GROUPS.find((g) => g.id === id)), ...PICKER_GROUPS.filter((g) => !FRAME_FIRST.includes(g.id))]
+    : PICKER_GROUPS
+  return [...fixed, ...servers]
 }
 
 /**

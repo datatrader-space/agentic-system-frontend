@@ -36,6 +36,8 @@
 //   hint          def-level hint rendered after the schema form
 //   customTail    marker the inspector uses to append extra UI after the schema form (server `custom_tail`)
 //   outputSample  design-time sample for the Data Picker (server `output_sample`)
+//   frameMode     the step may run on a camera frame, in a workflow that starts with "Each camera frame" (server
+//                 `frame_mode`; ADM-1351 phase 2): a stream refuses a frame workflow with any other step
 
 // Each step type's icon (Lucide). A type the server adds without an entry here is drawn with its category's icon.
 export const WF_ICONS = Object.freeze({
@@ -45,6 +47,7 @@ export const WF_ICONS = Object.freeze({
   'trigger.webhook': 'lucide:webhook',
   'trigger.connector': 'lucide:plug',
   'trigger.training.stream_event': 'lucide:cctv',
+  'trigger.frame': 'lucide:aperture',
   'trigger.channel': 'lucide:message-square',
   'agent.run': 'lucide:bot',
   'llm.call': 'lucide:sparkles',
@@ -109,6 +112,7 @@ export function setStepRegistry(json) {
       trigger: !!s.trigger,
       executable: s.executable !== false,
       billable: !!s.billable,
+      frameMode: !!s.frame_mode,
       custom: !!s.custom,
       paletteHidden: s.palette === false,
       customTail: s.custom_tail || undefined,
@@ -178,4 +182,20 @@ export function wfFieldShown(field, data) {
   if (!cond || typeof cond !== 'object') return true
   const d = data || {}
   return Object.entries(cond).every(([k, want]) => (Array.isArray(want) ? want.includes(d[k]) : d[k] === want))
+}
+
+// The steps a For-each may run for each item: the engine's rule (executor `_FOREACH_INNER`): these five actions and
+// every vision step. Kept here, in one place; their order and names come from the server's registry.
+const FOREACH_INNER_ACTIONS = ['action.channel', 'action.tool', 'action.http', 'agent.run', 'action.subworkflow']
+
+/** Whether a For-each may run `type` for each item (in a frame workflow, only a step a frame can run: `frameMode`). */
+export function wfForeachInner(type, { frame = false } = {}) {
+  const def = WF_NODE_DEFS[type]
+  if (!def || !(FOREACH_INNER_ACTIONS.includes(type) || def.category === 'vision')) return false
+  return !frame || def.frameMode
+}
+
+/** The step types a For-each offers, in the registry's order: [{ value, label }]. */
+export function wfForeachInnerTypes({ frame = false } = {}) {
+  return WF_TYPES.filter((t) => wfForeachInner(t, { frame })).map((t) => ({ value: t, label: WF_NODE_DEFS[t].label }))
 }

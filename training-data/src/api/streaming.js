@@ -21,12 +21,15 @@ export const streamingApi = {
   // barcodes of each frame too, or alone when there is no `model` (null: none is sent).
   // `detector`: the key of the hosted detector chosen (a camera model AADML hosts, never on AADML's server); `find`:
   // names SAM 3 finds in each frame ("person, red helmet"); `skipStill`: a frame nearly the same as the last one
-  // answered is not sent (SMART_CAMERA_AI_PLAN.md Phase A). One of model, detector and find at most. `soundModel`: the
-  // hosted sound model it is listened with.
+  // answered is not sent (SMART_CAMERA_AI_PLAN.md Phase A). `workflow`: the id of a published frame workflow (one that
+  // starts with "Each camera frame", VISION_WORKFLOWS_PLAN.md 5.2) that answers each frame instead of a model; the
+  // project is still sent. One of model, detector, find and workflow at most. `soundModel`: the hosted sound model it
+  // is listened with.
   start: ({ project, model, fps, address, file, source, continuous, readCodes, recording, detector, find, skipStill, listen,
-    soundModel }) => {
+    soundModel, workflow }) => {
     const noModel = model === null || model === undefined || model === '';
-    const extra = { ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
+    const byWorkflow = workflow !== null && workflow !== undefined && workflow !== '';
+    const extra = { ...(byWorkflow ? { workflow: Number(workflow) } : {}), ...(readCodes ? { read_codes: true } : {}), ...(detector ? { detector } : {}),
       ...(find ? { find } : {}), ...(skipStill ? { skip_still: true } : {}),
       ...(listen ? { listen: true, listen_consent: true, ...(soundModel ? { sound_model: soundModel } : {}) } : {}) };
     const head = noModel ? { project } : { project, model };
@@ -40,6 +43,7 @@ export const streamingApi = {
     if (file) {
       const body = new FormData();
       body.append('project', project); if (!noModel) body.append('model', String(model)); body.append('fps', String(fps));
+      if (byWorkflow) body.append('workflow', String(Number(workflow)));
       if (readCodes) body.append('read_codes', 'true');
       if (detector) body.append('detector', detector);
       if (find) body.append('find', find);
@@ -410,12 +414,31 @@ export function countsSaid(last) {
 // ── barcodes (backend barcodes.py) ───────────────────────────────────────────────────────────────
 // What runs on each frame of a stream: "walls 1.0.0", "walls 1.0.0 and the barcode reader", or "Barcode reader".
 export function streamWhat(stream) {
-  const model = stream?.model ? `${stream.model.name} ${stream.model.version}`
+  const model = stream?.workflow ? `Workflow: ${stream.workflow.name} v${stream.workflow.version}`
+    : stream?.model ? `${stream.model.name} ${stream.model.version}`
     : stream?.detector ? stream.detector.name
       : Array.isArray(stream?.find) && stream.find.length ? `Finding ${stream.find.join(', ')}` : '';
   if (!stream?.read_codes) return model;
   return model ? `${model} and the barcode reader` : 'Barcode reader';
 }
+
+// Whether something answers each frame with objects (a model, the ready detector, Find by name or a workflow), so its
+// counts are shown; a stream that only reads barcodes or listens has none. A workflow's frame answer has the shape of
+// a detector's (objects with fractional boxes, classes).
+export function answersFrames(stream) {
+  return !!(stream?.model || stream?.detector || stream?.workflow || (Array.isArray(stream?.find) && stream.find.length));
+}
+
+// The workflows a stream may answer its frames with (options.workflows: the published frame workflows of the
+// workspace this person may run), as the start dialog lists them: "Desk watch v3".
+export function workflowChoices(options) {
+  const rows = Array.isArray(options?.workflows) ? options.workflows : [];
+  return rows.filter(w => w && w.id !== undefined && w.id !== null)
+    .map(w => ({ id: String(w.id), label: `${String(w.name || `Workflow ${w.id}`)} v${w.version}` }));
+}
+// Where a frame workflow is made: the Workflow Builder of AADML (another app of the same site).
+export const WORKFLOW_BUILDER_PATH = '/dashboard/workflow-builder';
+export const NO_FRAME_WORKFLOW = 'No workflow can answer frames yet. In the Workflow Builder, make one that starts with "Each camera frame", then publish it.';
 
 // The codes a stream read, newest first, as the page lists them: [{ key, type, value, frame, t }]. The server gives
 // them newest first (`codes`); a value is untrusted text, shown as text only and cut to its limit.
@@ -446,8 +469,11 @@ export function callsAFrame({ useModel = true, readCodes = false, codes = null, 
   return (useModel ? 1 : 0) + (readCodes ? readCalls(codes) : 0) + (detector ? readCalls(codes) : 0);
 }
 // What the start dialog says a continuous stream costs: per frame, and in photo calls an hour at ``fps``.
-export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1, detector = false, find = false } = {}) {
+export function chargeText({ useModel = true, readCodes = false, codes = null, fps = 1, detector = false, find = false, workflow = false } = {}) {
   const price = readPriceText(readCalls(codes));
+  if (workflow) {
+    return `Each Find objects step of the workflow is charged on each frame, as one photo call is, from your balance${readCodes ? `, and reading its barcodes costs ${price}` : ''}: at ${Number(fps) || 1} a second, ${Math.round((Number(fps) || 1) * 3600).toLocaleString('en-US')} frames an hour, fewer with Skip still frames.`;
+  }
   if (find) {
     return `Each frame is one SAM 3 image from your balance${readCodes ? `, and reading its barcodes costs ${price}` : ''}: at ${Number(fps) || 1} a second, ${Math.round((Number(fps) || 1) * 3600).toLocaleString('en-US')} images an hour, fewer with Skip still frames.`;
   }
@@ -884,6 +910,7 @@ export const RULE_CLASS_LIMIT = 64;
 export function ruleText(rule) {
   const count = Math.max(1, Math.floor(Number(rule?.min_count) || 1));
   const name = String(rule?.class_name || '').trim();
+  if (rule?.kind === 'dwell') return `each ${name} stays in a zone at least ${cooldownText(rule.seconds)}`;
   return count === 1 ? `${name} seen` : `${name} at least ${count}`;
 }
 
@@ -900,7 +927,22 @@ export const RULE_KINDS = [
   { key: 'stays', label: 'Stays', help: 'Seen without a break for a time: loitering, a bag left behind, a car parked too long.' },
   { key: 'absent', label: 'Not there', help: 'Fewer than this many for a time: an empty desk, nobody at reception.' },
   { key: 'cross', label: 'Crosses a line', help: 'An object crosses one of the camera\'s lines, in or out. Each crossing is also counted.' },
+  { key: 'dwell', label: 'Time in a zone', help: 'Each object that stays in the zone at least this long, followed from frame to frame: one event for each object (time in zone).' },
 ];
+// The kinds the editor offers: the server's list (GET rules/ `kinds`: [{key, label}]) in its order, each with the
+// short label and the help written here when this page knows the kind, else the server's label. Without a list from
+// the server, the kinds written here.
+export function ruleKinds(serverKinds) {
+  if (!Array.isArray(serverKinds) || !serverKinds.length) return RULE_KINDS;
+  return serverKinds.filter(k => k && typeof k.key === 'string' && k.key).map(k => {
+    const own = RULE_KINDS.find(r => r.key === k.key);
+    return { key: k.key, label: own?.label || String(k.label || k.key), help: own?.help || String(k.label || '') };
+  });
+}
+// How long a dwell rule's object stays in its zone, in seconds (stream_events.TIMED_MIN and TIMED_MAX).
+export const DWELL_MIN = 10;
+export const DWELL_MAX = 86400;
+export const DWELL_DEFAULT = 30;
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 // Whom a rule's events alert (camera_alerts.py, Phase C): a bell entry and an e-mail, grouped within 5 minutes.
 export const RULE_AI = [
@@ -919,7 +961,7 @@ export const myCameraAlerts = {
 };
 export function ruleForm(classes = []) {
   return { class_name: classes[0] || '', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '', kind: 'seen',
-    minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
+    minutes: 10, seconds: DWELL_DEFAULT, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
     start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
     approve_actions: false, device: '', share: false };
 }
@@ -941,6 +983,13 @@ export function ruleProblems(form, limits = {}) {
     if (!Number.isFinite(minutes) || minutes * 60 < 10 || minutes > 1440) problems.minutes = 'How long is from 10 seconds (0.2 minutes) to 1440 minutes.';
   }
   if (kind === 'cross' && !form?.line) problems.line = 'Choose the line it crosses. Draw one in the Zones tab first.';
+  if (kind === 'dwell') {
+    const low = Number(limits.timed_min) || DWELL_MIN;
+    const high = Number(limits.timed_max) || DWELL_MAX;
+    const seconds = Number(form?.seconds);
+    if (!Number.isInteger(seconds) || seconds < low || seconds > high) problems.seconds = `How long is a whole number of seconds from ${low} to ${high}.`;
+    if (!form?.zone) problems.zone = 'Choose the zone each object stays in. Draw one in the Zones tab first.';
+  }
   if (form?.scheduled) {
     if (!/^\d{1,2}:\d{2}$/.test(String(form.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(form.end || ''))) problems.schedule = 'The start and the end are times like 09:00.';
     else if (form.start === form.end) problems.schedule = 'The start and the end are different times.';
@@ -949,10 +998,14 @@ export function ruleProblems(form, limits = {}) {
   return problems;
 }
 export function ruleBody(form) {
-  const body = { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
-  if (form.zone) body.zone = Number(form.zone);
   const kind = form.kind || 'seen';
+  // A dwell rule follows each object on its own: it has no count.
+  const body = kind === 'dwell'
+    ? { class_name: String(form.class_name || '').trim(), cooldown_seconds: Number(form.cooldown_seconds) }
+    : { class_name: String(form.class_name || '').trim(), min_count: Number(form.min_count), cooldown_seconds: Number(form.cooldown_seconds) };
+  if (form.zone) body.zone = Number(form.zone);
   if (kind !== 'seen') body.kind = kind;
+  if (kind === 'dwell') body.seconds = Number(form.seconds);
   if (kind === 'stays' || kind === 'absent') body.seconds = Math.round(Number(form.minutes) * 60);
   if (kind === 'cross') { body.line = Number(form.line); body.direction = form.direction || 'any'; }
   if ((kind === 'seen' || kind === 'cross') && form.once_per_object) body.once_per_object = true;

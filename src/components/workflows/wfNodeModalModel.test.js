@@ -70,6 +70,18 @@ describe('the Input pane', () => {
     expect(items).toContain('{{trigger.city}}')
   })
 
+  it('before a run, a trigger that declares its payload shows it: the frame of "Each camera frame" (ADM-1351)', () => {
+    const frameNodes = [{ id: 'frame', type: 'trigger.frame', data: {} }, { id: 'find', type: 'vision.model', data: {} }]
+    const sources = buildSources({ nodeId: 'find', nodes: frameNodes, edges: [{ id: 'e1', source: 'frame', target: 'find' }] })
+    const trigger = sources.find((s) => s.id === 'trigger')
+    expect(trigger).toMatchObject({ real: false, value: { image: { kind: 'image' }, frame: 0, t: 0, source: { name: 'Camera' } } })
+    const items = pickerItems(sources).map((i) => i.id)
+    expect(items).toContain('{{trigger.image}}')
+    expect(items).toContain('{{trigger.source.name}}')
+    // A manual trigger declares none: its inputs alone, as before.
+    expect(buildSources({ nodeId: 'fetch', nodes, edges }).find((s) => s.id === 'trigger').value).toEqual({ city: 'Oslo' })
+  })
+
   it('offers {{item}} on a for-each step only', () => {
     expect(buildSources({ nodeId: 'loop', nodes, edges }).some((s) => s.base === 'item')).toBe(true)
     expect(buildSources({ nodeId: 'think', nodes, edges }).some((s) => s.base === 'item')).toBe(false)

@@ -5,6 +5,12 @@
   `{{nodes.<id>.output.items}}` (D3), or the list written as JSON. Since B10 the engine no longer splits text on commas,
   so the window does not offer that either. The inner step's fields can use {{item}}. The inner step is written whole
   (`do: { type, data }`) through the history, never changed in place.
+
+  ADM-1351: the steps offered are the engine's rule, kept in one place (wfNodeDefinitions.js wfForeachInnerTypes): the
+  five actions and every vision step, named and ordered by the server's registry. A vision step's settings are drawn
+  from its registry fields (ForeachInnerForm, SchemaForm) and start from its registry defaults; only the five actions
+  keep the forms below. In a frame workflow only the steps a frame can run are offered; an inner step saved before
+  that stays shown, marked, with what to choose instead.
 -->
 <template>
   <div class="fe">
@@ -23,9 +29,16 @@
 
     <div class="fe-field">
       <label class="fe-label" :for="`${uid}-type`">Step to run for each item</label>
-      <select :id="`${uid}-type`" class="fe-in" :value="inner.type" @change="changeType($event.target.value)">
-        <option v-for="t in INNER_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
+      <select
+        :id="`${uid}-type`" class="fe-in" :value="inner.type" :aria-invalid="notOffered ? 'true' : undefined"
+        :aria-describedby="notOffered ? `${uid}-type-warn` : undefined" @change="changeType($event.target.value)"
+      >
+        <option v-if="notOffered" :value="inner.type" disabled>{{ typeLabel(inner.type) }} (not on a camera frame)</option>
+        <option v-for="t in innerTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
       </select>
+      <p v-if="notOffered" :id="`${uid}-type-warn`" class="fe-warn">
+        A stream cannot run {{ typeLabel(inner.type) }} on a camera frame. Choose one of: {{ innerTypes.map((t) => t.label).join(', ') }}.
+      </p>
     </div>
 
     <div class="fe-inner" role="group" :aria-label="`Settings of the step run for each item`">
@@ -103,6 +116,14 @@
           <p class="fe-help">Each item runs the chosen workflow. <code translate="no">{{ ITEM_TOKEN }}</code> is passed in its trigger payload.</p>
         </div>
       </template>
+
+      <template v-else-if="fromRegistry">
+        <p class="fe-help">
+          <code translate="no">{{ ITEM_TOKEN }}</code> is each entry, for example each cropped image of
+          <code translate="no">{{ CROPS_EXAMPLE }}</code>.
+        </p>
+        <ForeachInnerForm :type="inner.type" :data="innerData" :write="writeInner" />
+      </template>
     </div>
   </div>
 </template>
@@ -110,19 +131,16 @@
 <script setup>
 import { computed, useId } from 'vue'
 import WfVarField from '../WfVarField.vue'
+import ForeachInnerForm from './ForeachInnerForm.vue'
 import { useNodeEditor } from './nodeEditor'
+import { wfDef, wfDefaultData, wfForeachInnerTypes } from '@/config/wfNodeDefinitions'
 
 const ITEMS_PLACEHOLDER = '{{nodes.<id>.output.items}}'
 const ITEM_TOKEN = '{{item}}'
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-const INNER_TYPES = [
-  { value: 'action.channel', label: 'Send to channel' },
-  { value: 'action.tool', label: 'Run tool' },
-  { value: 'action.http', label: 'HTTP request' },
-  { value: 'agent.run', label: 'Run agent' },
-  { value: 'action.subworkflow', label: 'Run sub-workflow' },
-]
-// The settings a new inner step starts with (the same seeds the old inspector used).
+const CROPS_EXAMPLE = '{{nodes.crop.output.images}}'
+// The settings a new inner step starts with, for the five actions drawn by the forms above (the same seeds the old
+// inspector used). Any other step starts from its registry defaults.
 const SEEDS = {
   'action.channel': { kind: 'log', message: 'item {{item}}' },
   'action.tool': { tool: '', params_json: '{}' },
@@ -145,6 +163,11 @@ const inner = computed(() => {
   return d && typeof d === 'object' ? { type: d.type || 'action.channel', data: d.data || {} } : { type: 'action.channel', data: {} }
 })
 const innerData = computed(() => inner.value.data)
+// The steps offered (the engine's rule; in a frame workflow, only those a frame can run), and whether the saved one is.
+const innerTypes = computed(() => wfForeachInnerTypes({ frame: !!editor.frameWorkflow?.value }))
+const notOffered = computed(() => !innerTypes.value.some((t) => t.value === inner.value.type))
+const fromRegistry = computed(() => !(inner.value.type in SEEDS) && !!wfDef(inner.value.type))
+const typeLabel = (type) => wfDef(type)?.label || type
 
 function writeInner(nextData, title) {
   editor.patch({ do: { type: inner.value.type, data: nextData } }, title)
@@ -155,7 +178,8 @@ function innerText(key, title) {
 }
 function changeType(type) {
   if (type === inner.value.type) return
-  editor.patch({ do: { type, data: JSON.parse(JSON.stringify(SEEDS[type] || {})) } }, 'Step to run for each item')
+  const seed = type in SEEDS ? JSON.parse(JSON.stringify(SEEDS[type])) : wfDefaultData(type)
+  editor.patch({ do: { type, data: seed } }, 'Step to run for each item')
 }
 
 const agentIndex = computed(() => {
@@ -182,6 +206,7 @@ function pickGraph(index) {
 .fe-field { display: grid; gap: 5px; min-width: 0; }
 .fe-label { font-size: 12px; font-weight: 600; color: var(--vm-ink-soft); }
 .fe-help { margin: 0; font-size: 12px; line-height: 1.5; color: var(--vm-ink-faint); }
+.fe-warn { margin: 0; font-size: 12px; line-height: 1.5; color: var(--vm-amber-ink); }
 .fe-help code { font-family: var(--vm-font-mono, ui-monospace, monospace); color: var(--vm-ink-soft); overflow-wrap: anywhere; }
 .fe-in {
   width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--vm-line-2); border-radius: 6px;

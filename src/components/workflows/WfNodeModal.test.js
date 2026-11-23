@@ -100,6 +100,21 @@ describe('WfNodeModal', () => {
     expect(run.start).not.toHaveBeenCalled()
   })
 
+  it('in a frame workflow, "Test this step" asks for the photo that stands in for the frame (ADM-1351 phase 2)', async () => {
+    const askInputs = vi.fn()
+    const nodes = [
+      { id: 'frame', type: 'trigger.frame', data: {} },
+      { id: 'check', type: 'logic.condition', data: { expression: '{{trigger.frame}} > 0' } },
+    ]
+    const { run } = mountModal({ nodeId: 'check', nodes, edges: [{ id: 'e1', source: 'frame', target: 'check' }], askInputs })
+    await tick()
+    expect(document.body.textContent).toContain('The test asks for a photo first: it stands in for the camera frame, {{trigger.image}}.')
+    button('Test this step').click()
+    await tick()
+    expect(askInputs).toHaveBeenCalledWith({ dryRun: true, untilNode: 'check' })
+    expect(run.start).not.toHaveBeenCalled()
+  })
+
   it('offers "Run upstream (test)" when nothing has run, up to the PARENT node', async () => {
     const { run } = mountModal()
     await tick()

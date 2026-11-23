@@ -8,9 +8,12 @@
 // "Read barcodes" (backend barcodes.py) reads the barcodes and QR codes of each frame, alone or after the model; each
 // frame read costs a share of a photo call (a tenth unless the platform changes it: options.codes.photo_calls_a_read),
 // and the codes read show newest first.
+// "A workflow" (VISION_WORKFLOWS_PLAN.md 5.2): a published workflow that starts with "Each camera frame" answers each
+// frame instead of a model (options.workflows lists the ones this person may run); its answer has the shape of a
+// detector's, so the counts, the zones, the lines and the rules read it the same way.
 import { computed, onUnmounted, provide, ref, watch } from 'vue';
 import {
-  Bell, Cctv, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
+  Bell, Cctv, Check, Download, ExternalLink, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
 } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
@@ -27,6 +30,7 @@ import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
   sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText, termsRequired,
+  answersFrames, workflowChoices, WORKFLOW_BUILDER_PATH, NO_FRAME_WORKFLOW,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -159,8 +163,8 @@ const notifying = ref(false);
 // ── "New stream" ─────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false);
 const form = ref({ project: '', model: '', source: 'file', address: '', fps: 1, saved: '', continuous: false, useModel: true, readCodes: false, recording: null,
-  useDetector: false, detector: '', useFind: false, find: '', skipStill: false, listen: false, listenConsent: false,
-  soundModel: '' });
+  useDetector: false, detector: '', useFind: false, find: '', useWorkflow: false, workflow: '', skipStill: false, listen: false,
+  listenConsent: false, soundModel: '' });
 const listenOption = computed(() => options.value.listen || null);
 // The hosted sound models that run now (backend camera_models.py), each with its price.
 const soundChoices = computed(() => listenOption.value?.choices || []);
@@ -175,16 +179,20 @@ const noSoundWhy = computed(() => (cameraSound.value === false
 const detectorsOption = computed(() => options.value.detectors || null);
 const detectorChoices = computed(() => detectorsOption.value?.choices || []);
 const findOption = computed(() => options.value.find || null);
-watch(() => form.value.useModel, on => { if (on) { form.value.useDetector = false; form.value.useFind = false; } });
-watch(() => form.value.useDetector, on => { if (on) { form.value.useModel = false; form.value.useFind = false; } });
-watch(() => form.value.useFind, on => { if (on) { form.value.useModel = false; form.value.useDetector = false; } });
+// A published frame workflow of the workspace (options.workflows), in place of the three: one of the four at most.
+const workflows = computed(() => workflowChoices(options.value));
+const ANSWERERS = ['useModel', 'useDetector', 'useFind', 'useWorkflow'];
+for (const key of ANSWERERS) {
+  watch(() => form.value[key], on => { if (on) for (const other of ANSWERERS) if (other !== key) form.value[other] = false; });
+}
+const answering = computed(() => ANSWERERS.some(key => form.value[key]));
 const chosenSource = computed(() => savedSources.value.find(s => String(s.id) === String(form.value.saved)) || null);
 // A continuous stream answers a frame or two every second until it is stopped: say what an hour of it is. A frame both
 // answered and read for barcodes is charged for each.
 const codesOption = computed(() => options.value.codes || null);
 const readPrice = computed(() => readPriceText(readCalls(codesOption.value)));
 const continuousCharge = computed(() => chargeText({ useModel: form.value.useModel, readCodes: form.value.readCodes,
-  codes: codesOption.value, fps: form.value.fps, detector: form.value.useDetector, find: form.value.useFind }));
+  codes: codesOption.value, fps: form.value.fps, detector: form.value.useDetector, find: form.value.useFind, workflow: form.value.useWorkflow }));
 const capMinutes = computed(() => Math.round((Number(options.value.cap?.seconds) || 600) / 60));
 const file = ref(null); const fileInput = ref(null);
 const fieldErrors = ref({}); const formError = ref(''); const addressTouched = ref(false);
@@ -204,7 +212,9 @@ const sourceProblem = computed(() => {
 });
 const startWhy = computed(() => {
   if (!may.value.start) return may.value.reason || (options.value.projects.length ? 'You may not start a stream.' : 'You need the Train right in a photo project to start a stream.');
-  if (!form.value.useModel && !form.value.useDetector && !form.value.useFind && !form.value.readCodes && !form.value.listen) return 'Choose what runs on each frame: the model, the ready detector, Find by name, Read barcodes, or Listen for sounds.';
+  if (!answering.value && !form.value.readCodes && !form.value.listen) return 'Choose what runs on each frame: the model, the ready detector, Find by name, a workflow, Read barcodes, or Listen for sounds.';
+  if (form.value.useWorkflow && !workflows.value.length) return NO_FRAME_WORKFLOW;
+  if (form.value.useWorkflow && !form.value.workflow) return 'Choose the workflow that answers each frame.';
   if (form.value.listen && !form.value.listenConsent) return 'Confirm that the people near this camera are told its sound is analysed.';
   if (form.value.useModel && !models.value.length) return 'Choose a project with a trained model, or the ready detector.';
   if (form.value.useDetector && detectorsOption.value && detectorsOption.value.available === false) return 'No ready detector runs now: AADML starts them. Try again later.';
@@ -231,7 +241,8 @@ function openCreate(saved = null, recording = null) {
     saved: saved ? String(saved.id) : '', continuous: false, recording: recording?.id ? recording : null,
     useModel: !!first?.models?.length, readCodes: false,
     useDetector: !first?.models?.length && detectorsOption.value?.available !== false,
-    detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '', skipStill: false,
+    detector: detectorsOption.value?.default || detectorChoices.value[0]?.key || '', useFind: false, find: '',
+    useWorkflow: false, workflow: workflows.value[0]?.id || '', skipStill: false,
     listen: false, listenConsent: false, soundModel: listenOption.value?.default || soundChoices.value[0]?.key || '',
   };
   file.value = null; fieldErrors.value = {}; formError.value = ''; addressTouched.value = false; said.value = '';
@@ -258,7 +269,8 @@ async function startStream() {
       project: form.value.project, model: form.value.useModel ? Number(form.value.model) : null, fps: Number(form.value.fps),
       readCodes: form.value.readCodes,
       detector: form.value.useDetector ? form.value.detector : '', find: form.value.useFind ? form.value.find.trim() : '',
-      skipStill: form.value.skipStill && (form.value.useModel || form.value.useDetector || form.value.useFind),
+      workflow: form.value.useWorkflow ? form.value.workflow : '',
+      skipStill: form.value.skipStill && answering.value,
       listen: form.value.listen && form.value.listenConsent, soundModel: form.value.soundModel,
       ...(form.value.source === 'file' ? { file: file.value }
         : form.value.source === 'saved' ? { source: chosenSource.value.id, continuous: form.value.continuous }
@@ -275,7 +287,7 @@ async function startStream() {
   } catch (e) {
     if (termsRequired(e)) { creating.value = false; termsNeeded(); return; }
     const field = e.field === 'source' ? ({ file: 'file', saved: 'saved' }[form.value.source] || 'address') : e.field;
-    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'listen', 'sound_model'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
+    if (field && ['project', 'model', 'fps', 'address', 'file', 'saved', 'read_codes', 'detector', 'find', 'workflow', 'listen', 'sound_model'].includes(field)) fieldErrors.value = { ...fieldErrors.value, [field]: e.message };
     else formError.value = e.message;
     if (e.code === 'timeout' || e.code === 'network') load();
   } finally { starting.value = false; }
@@ -359,7 +371,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </header>
 
       <div class="st-readout">
-        <div v-if="viewing.model" class="st-counts" :class="{ waiting: !answered }">
+        <div v-if="answersFrames(viewing)" class="st-counts" :class="{ waiting: !answered }">
           <div v-for="name in names" :key="name" class="st-count"><span class="st-num">{{ answered ? countOf(last, name) : '–' }}</span><span class="st-what">{{ name }}</span></div>
           <div v-if="!names.length" class="st-count"><span class="st-num">{{ answered ? 0 : '–' }}</span><span class="st-what">found</span></div>
         </div>
@@ -367,7 +379,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <p class="st-frame">
             <template v-if="last">Frame {{ last.frame + 1 }} <span class="st-at">at {{ clockText(last.t) }}</span></template>
             <template v-else-if="viewing.state === 'queued'">Waiting for a worker to read the video</template>
-            <template v-else-if="viewing.state === 'running'">{{ viewing.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
+            <template v-else-if="viewing.state === 'running'">{{ viewing.workflow ? 'Starting the workflow and reading the first frame' : viewing.model ? 'Placing the model and reading the first frame' : 'Reading the first frame' }}</template>
             <template v-else>No frame was answered</template>
           </p>
           <p v-if="last && last.error" class="st-frame-error">This frame got no answer: {{ last.error }}</p>
@@ -387,7 +399,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <li v-for="c in codes" :key="c.key"><span class="st-code-type">{{ c.type }}</span><span class="st-code-value">{{ c.value }}</span><span class="st-code-at">frame {{ c.frame + 1 }}, {{ clockText(c.t) }}</span></li>
         </ol>
       </section>
-      <div v-if="viewing.model && bars.length" class="st-strip" aria-hidden="true" title="Everything found in each of the newest frames">
+      <div v-if="answersFrames(viewing) && bars.length" class="st-strip" aria-hidden="true" title="Everything found in each of the newest frames">
         <span v-for="b in bars" :key="b.frame" :class="{ failed: b.failed }" :style="{ height: `${b.h}px` }"></span>
       </div>
       <p v-if="!live && endedText(viewing)" class="st-ended" :class="{ failed: viewing.state === 'failed' }">{{ endedText(viewing) }}</p>
@@ -426,7 +438,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <small v-if="!isActive(s) && endedText(s)" :class="{ 'failed-why': s.state === 'failed' }">{{ endedText(s) }}</small>
             </td>
             <td data-label="Frames">{{ s.frames }} <small v-if="endless(s)">runs until stopped, {{ clockText(s.video_seconds) }} of video</small><small v-else>of at most {{ s.max_frames }}, {{ clockText(s.video_seconds) }} of video</small>
-              <small v-if="s.last && !s.last.error && s.model" class="st-found">Newest: {{ classesText(s.last) }}</small>
+              <small v-if="s.last && !s.last.error && answersFrames(s)" class="st-found">Newest: {{ classesText(s.last) }}</small>
               <small v-if="s.last && !s.last.error && s.read_codes" class="st-found">Barcodes: {{ frameCodesText(s.last) }}</small></td>
             <td data-label="Started">{{ started(s) }}</td>
             <td class="row-actions"><div class="st-acts">
@@ -481,9 +493,13 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <input v-model="form.useFind" type="checkbox" :disabled="findOption.available === false" aria-describedby="st-find-help">
               <span><strong>Find by name</strong><small id="st-find-help">{{ findOption.available === false ? findOption.note : `${findOption.what} ${findOption.note}` }}</small></span>
             </label>
+            <label class="st-card" :class="{ chosen: form.useWorkflow }">
+              <input v-model="form.useWorkflow" type="checkbox" :disabled="!workflows.length" aria-describedby="st-workflow-help" data-test="st-use-workflow">
+              <span><strong>A workflow</strong><small id="st-workflow-help">{{ workflows.length ? 'A published workflow that starts with "Each camera frame" answers each frame: the objects of its last Find or Filter step are the answer.' : NO_FRAME_WORKFLOW }}</small></span>
+            </label>
             <label class="st-card" :class="{ chosen: form.readCodes }">
               <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">
-              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ form.useModel || form.useDetector || form.useFind ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
+              <span><strong>Read barcodes</strong><small id="st-codes-help">Finds the barcodes and QR codes in each frame{{ answering ? ', after the model' : ', on its own' }}. Each frame read costs {{ readPrice }}.</small></span>
             </label>
           </div>
           <div v-if="form.useDetector && detectorChoices.length" class="st-field">
@@ -492,11 +508,22 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
               <option v-for="d in detectorChoices" :key="d.key" :value="d.key">{{ d.name }}{{ d.price ? ` · ${d.price}` : '' }}</option>
             </select>
           </div>
+          <div v-if="form.useWorkflow && workflows.length" class="st-field">
+            <label for="st-workflow">Workflow</label>
+            <select id="st-workflow" v-model="form.workflow" class="text-input" :aria-invalid="!!fieldErrors.workflow" aria-describedby="st-workflow-error" data-test="st-workflow">
+              <option value="" disabled>Choose a workflow</option>
+              <option v-for="w in workflows" :key="w.id" :value="w.id">{{ w.label }}</option>
+            </select>
+            <p id="st-workflow-error" class="field-error" aria-live="polite">{{ fieldErrors.workflow }}</p>
+          </div>
+          <p v-if="!workflows.length" class="st-help" data-test="st-no-workflow">
+            <a :href="WORKFLOW_BUILDER_PATH" target="_blank" rel="noopener noreferrer" class="st-link">Open the Workflow Builder<span class="sr-only"> (opens in a new tab)</span><ExternalLink :size="13" aria-hidden="true"/></a>
+          </p>
           <div v-if="form.useFind" class="st-field">
             <label for="st-find">What to find</label>
             <input id="st-find" v-model="form.find" class="text-input" maxlength="400" placeholder="person, forklift, red helmet" :aria-invalid="!!fieldErrors.find">
           </div>
-          <label v-if="form.useModel || form.useDetector || form.useFind" class="st-check">
+          <label v-if="answering" class="st-check">
             <input v-model="form.skipStill" type="checkbox"> <span>{{ options.skip_still_note || 'Skip still frames: a frame nearly the same as the last one answered is not sent, and is not charged.' }}</span>
           </label>
           <label v-if="listenOption" class="st-check">
@@ -714,6 +741,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-card strong{font-size:14px;color:#162139}
 .st-card small{font-size:12px;line-height:1.5;color:#4c5d74}
 .st-continuous{margin-top:12px}
+.st-link{display:inline-flex;align-items:center;gap:6px;min-height:32px;color:var(--aadml-primary);font-weight:600;text-decoration:underline}
+.st-link:hover{color:var(--aadml-primary-dark)}
 .st-found{color:#33415a!important;overflow-wrap:anywhere}
 .st-frame-codes{margin:4px 0 0!important;font-size:12px!important;color:#33415a!important;overflow-wrap:anywhere}
 .st-check{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13px;color:#33415a}

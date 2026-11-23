@@ -659,7 +659,7 @@ test('a rule reads as its class and count, and its cooldown in words', () => {
 
 test('a new rule is a class, a count of at least 1 and a cooldown of at least ten seconds', () => {
   assert.deepEqual(ruleForm(['person', 'car']), { class_name: 'person', min_count: 1, cooldown_seconds: COOLDOWN_DEFAULT, zone: '',
-    kind: 'seen', minutes: 10, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
+    kind: 'seen', minutes: 10, seconds: 30, line: '', direction: 'any', once_per_object: false, scheduled: false, days: [0, 1, 2, 3, 4],
     start: '09:00', end: '18:00', alert: 'managers', critical: false, ai: '', ai_question: '', ai_model: '',
     approve_actions: false, device: '', share: false });   // zone, kind, timer, line, schedule, alert, AI, approval, device, share (A to I)
   assert.equal(COOLDOWN_MIN, 10);
@@ -820,4 +820,84 @@ test('a recording scheduled for deletion says when and why (the 14-day recovery 
   assert.equal(deletionWhy({ reason: 'camera_removed' }), 'Scheduled for deletion: its camera was removed. Free until then, and it can be restored.');
   assert.equal(deletionWhy({ reason: 'other' }), 'Scheduled for deletion: deleted by a person. Free until then, and it can be restored.');
   assert.deepEqual(RECORDING_STATES.map(([v]) => v), ['', 'kept', 'scheduled']);
+});
+
+// ── a workflow answers the frames, and time in a zone (VISION_WORKFLOWS_PLAN.md 5.2, ADM-1351 phase 2) ─────────────
+import {
+  answersFrames, workflowChoices, WORKFLOW_BUILDER_PATH, NO_FRAME_WORKFLOW, ruleKinds, RULE_KINDS, DWELL_MIN, DWELL_MAX,
+} from '../src/api/streaming.js';
+
+test('a stream answered by a workflow posts the workflow and the project, never a model, detector or find', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response('{"ok":true}', { status: 201, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, source: 4, continuous: true, workflow: '12', detector: '', find: '' });
+    await streamingApi.start({ project: 'leads', model: null, fps: 1, address: 'rtsp://cam.example.com/live', workflow: 12, readCodes: true });
+    await streamingApi.start({ project: 'leads', model: null, fps: 2, file: new File(['x'], 'walk.mp4', { type: 'video/mp4' }), workflow: '12' });
+    await streamingApi.start({ project: 'leads', model: 1, fps: 1, source: 4, workflow: '' });
+  } finally { globalThis.fetch = realFetch; }
+  assert.deepEqual(JSON.parse(calls[0].init.body), { project: 'leads', fps: 1, source: 4, continuous: true, workflow: 12 });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { project: 'leads', fps: 1, address: 'rtsp://cam.example.com/live', workflow: 12, read_codes: true });
+  const form = calls[2].init.body;
+  assert.ok(form instanceof FormData);
+  assert.equal(form.get('workflow'), '12');
+  assert.equal(form.get('model'), null);
+  assert.equal(form.get('project'), 'leads');
+  // No workflow chosen: none is sent.
+  assert.deepEqual(JSON.parse(calls[3].init.body), { project: 'leads', model: 1, fps: 1, source: 4, continuous: false });
+});
+
+test('a workflow stream says its workflow and version where the model name is shown, and its counts are shown', () => {
+  const stream = { model: null, detector: null, find: [], workflow: { id: 12, name: 'Desk watch', version: 3 }, read_codes: false };
+  assert.equal(streamWhat(stream), 'Workflow: Desk watch v3');
+  assert.equal(streamWhat({ ...stream, read_codes: true }), 'Workflow: Desk watch v3 and the barcode reader');
+  assert.equal(answersFrames(stream), true);
+  assert.equal(answersFrames({ model: null, detector: { key: 'd', name: 'People' }, find: [] }), true);
+  assert.equal(answersFrames({ model: null, detector: null, find: ['person'] }), true);
+  assert.equal(answersFrames({ model: { number: 1 } }), true);
+  assert.equal(answersFrames({ model: null, detector: null, find: [], workflow: null, read_codes: true }), false);
+  assert.equal(answersFrames(null), false);
+  // Its frame answer has a detector's shape: objects with fractional boxes and classes, read as counts.
+  const last = { frame: 4, t: 4, objects: [{ class: 'person', score: 0.9, box: [0.1, 0.2, 0.3, 0.4] }], classes: { person: 1 } };
+  assert.equal(classesText(last), 'person 1');
+});
+
+test('the dialog lists the published frame workflows as the server gives them, and says how to make one', () => {
+  assert.deepEqual(workflowChoices({ workflows: [{ id: 12, name: 'Desk watch', version: 3 }, null, { id: 13, name: '', version: 1 }] }),
+    [{ id: '12', label: 'Desk watch v3' }, { id: '13', label: 'Workflow 13 v1' }]);
+  assert.deepEqual(workflowChoices({}), []);
+  assert.deepEqual(workflowChoices(null), []);
+  assert.equal(WORKFLOW_BUILDER_PATH, '/dashboard/workflow-builder');
+  assert.match(NO_FRAME_WORKFLOW, /starts with "Each camera frame", then publish it/);
+  assert.match(chargeText({ workflow: true, fps: 2 }), /^Each Find objects step of the workflow is charged on each frame.*7,200 frames an hour/);
+});
+
+test('a time-in-zone rule needs its zone and 10 to 86400 seconds, and sends no count', () => {
+  const kinds = ruleKinds([{ key: 'seen', label: 'Seen' }, { key: 'dwell', label: 'Each one stays in a zone (time in zone, one event per object)' }, { key: 'new', label: 'Something new' }]);
+  assert.deepEqual(kinds.map(k => [k.key, k.label]), [['seen', 'Seen'], ['dwell', 'Time in a zone'], ['new', 'Something new']]);
+  assert.equal(kinds[2].help, 'Something new');
+  assert.equal(ruleKinds(undefined), RULE_KINDS);
+  assert.ok(RULE_KINDS.some(k => k.key === 'dwell'));
+  assert.equal(DWELL_MIN, 10);
+  assert.equal(DWELL_MAX, 86400);
+  const form = { ...ruleForm(['person']), kind: 'dwell', zone: '', seconds: 5 };
+  assert.deepEqual(Object.keys(ruleProblems(form)).sort(), ['seconds', 'zone']);
+  assert.ok(ruleProblems({ ...form, zone: '3', seconds: 86401 }).seconds);
+  assert.ok(ruleProblems({ ...form, zone: '3', seconds: 30.5 }).seconds);
+  assert.ok(ruleProblems({ ...form, zone: '3', seconds: 20 }, { timed_min: 30 }).seconds);
+  assert.deepEqual(ruleProblems({ ...form, zone: '3', seconds: 30 }), {});
+  assert.deepEqual(ruleBody({ ...form, zone: '3', seconds: 30, cooldown_seconds: 60 }),
+    { class_name: 'person', cooldown_seconds: 60, zone: 3, kind: 'dwell', seconds: 30, alert: 'managers' });
+  // The other kinds are as they were: a count, and a Stays rule's minutes in seconds.
+  assert.deepEqual(ruleBody({ ...ruleForm(['person']), kind: 'stays', minutes: 2 }),
+    { class_name: 'person', min_count: 1, cooldown_seconds: 60, kind: 'stays', seconds: 120, alert: 'managers' });
+  assert.equal(ruleText({ class_name: 'person', kind: 'dwell', seconds: 30 }), 'each person stays in a zone at least 30 seconds');
+});
+
+test('the rules page posts a dwell rule to the camera rules as the contract has it', async () => {
+  const seen = await asked(() => streamRules.add(4, ruleBody({ ...ruleForm(['person']), kind: 'dwell', zone: '9', seconds: 45 })));
+  assert.equal(seen.url, '/api/training-data/app/workspace/video-sources/4/rules/');
+  assert.equal(seen.init.method, 'POST');
+  assert.deepEqual(JSON.parse(seen.init.body), { class_name: 'person', cooldown_seconds: 60, zone: 9, kind: 'dwell', seconds: 45, alert: 'managers' });
 });

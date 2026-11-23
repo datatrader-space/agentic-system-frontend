@@ -71,3 +71,28 @@ describe('WfToolbar roles', () => {
     expect(items).not.toContain('Add a step')
   })
 })
+
+describe('WfToolbar in a frame workflow (ADM-1351)', () => {
+  it('keeps Run in place but aria-disabled and described by the page note; Test stays; pressing Run still asks the page', async () => {
+    const note = 'Runs on each frame of a stream: start a stream with it in Training Data.'
+    await mountBar({ role: 'owner', runBlocked: note, runBlockedBy: 'wfb-frame-note' })
+    const run = [...document.body.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Run')
+    expect(run.getAttribute('aria-disabled')).toBe('true')
+    expect(run.getAttribute('aria-describedby')).toBe('wfb-frame-note')
+    expect(run.getAttribute('title')).toBe(note)
+    expect(run.classList.contains('is-blocked')).toBe(true)
+    expect(run.disabled).toBe(false)
+    const test = [...document.body.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Test')
+    expect(test.disabled).toBe(false)
+    expect(test.getAttribute('title')).toBe('Test on a photo that stands in for a camera frame')
+    run.click()
+    expect(wrapper.emitted('run')).toHaveLength(1)
+  })
+
+  it('an ordinary workflow has a plain Run', async () => {
+    await mountBar({ role: 'owner' })
+    const run = [...document.body.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Run')
+    expect(run.hasAttribute('aria-disabled')).toBe(false)
+    expect(run.hasAttribute('aria-describedby')).toBe(false)
+  })
+})

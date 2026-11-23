@@ -610,6 +610,61 @@ test('a photo input: Run asks for a photo, uploads it and runs with its referenc
   expect(errors).toEqual([])
 })
 
+test('a frame workflow: no Run (a stream runs it), Test asks for a photo as the frame, the picker marks what a frame cannot run (ADM-1351 phase 2)', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.graph.nodes = [
+    { id: 'frame', type: 'trigger.frame', position: { x: 80, y: 160 }, data: {} },
+    { id: 'find', type: 'vision.model', position: { x: 410, y: 160 }, data: { image: '{{trigger.image}}', model: 'sam3', classes: 'person', threshold: null } },
+  ]
+  graph.graph.edges = [{ id: 'e_frame_find', source: 'frame', target: 'find' }]
+  const { state, errors } = await prepare(page, { graph })
+  await expect(node(page, 'frame')).toContainText('Each camera frame')
+
+  // Run stays in its place, aria-disabled and described by the note; pressing it (or Ctrl+Enter) starts nothing.
+  const note = page.locator('#wfb-frame-note')
+  await expect(note).toContainText('Runs on each frame of a stream: start a stream with it in Training Data.')
+  const run = page.getByRole('button', { name: 'Run', exact: true })
+  await expect(run).toHaveAttribute('aria-disabled', 'true')
+  await expect(run).toHaveAttribute('aria-describedby', 'wfb-frame-note')
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'frame-workflow.png') })
+  // At phone width the note stays on screen, under the toolbar, with no page scroll.
+  const wide = page.viewportSize()
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(note).toBeInViewport()
+  expect(await pageScrolls(page)).toEqual({ x: false, y: false, main: false })
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'frame-workflow-375.png') })
+  await page.setViewportSize(wide)
+  await run.click({ force: true })   // aria-disabled, so Playwright would not press it on its own
+  await page.keyboard.press('Control+Enter')
+  expect(mutations(state, '/run/')).toHaveLength(0)
+
+  // Test asks for one photo, `image`, uploads it and sends its reference as the trigger payload.
+  await page.getByRole('button', { name: 'Test', exact: true }).click()
+  const dlg = page.getByRole('dialog', { name: 'Test on a photo' })
+  await expect(dlg).toBeVisible()
+  const photo = dlg.getByLabel('image (photo)')
+  await photo.setInputFiles({ name: 'desk.png', mimeType: 'image/png', buffer: PNG })
+  await dlg.getByRole('button', { name: 'Start test' }).click()
+  await expect.poll(() => mutations(state, '/run/').length).toBe(1)
+  expect(state.uploads).toBe(1)
+  expect(mutations(state, '/run/')[0].body).toMatchObject({ dry_run: true, payload: { image: { kind: 'image', id: 'img-1' } } })
+  await expect(dlg).toHaveCount(0)
+
+  // The picker lists what a stream cannot run on a frame as disabled, with the reason, and names what can follow.
+  await page.getByRole('button', { name: 'Add a step', exact: true }).click()
+  const pick = picker(page)
+  await expect(pick).toBeVisible()
+  await expect(pick.getByRole('note')).toContainText('This workflow starts on each camera frame, so only these steps can follow it:')
+  const agent = pick.getByRole('option', { name: /Run agent/ })
+  await expect(agent).toHaveAttribute('aria-disabled', 'true')
+  await expect(agent).toContainText('A stream cannot run this step on a camera frame.')
+  await expect(agent).toContainText('Not on a frame')
+  await expect(pick.getByRole('option', { name: /Filter objects/ })).not.toHaveAttribute('aria-disabled', 'true')
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'frame-workflow-picker.png') })
+  await closeLayers(page)
+  expect(errors).toEqual([])
+})
+
 test('leaving with unsaved changes asks first', async ({ page }) => {
   await prepare(page)
   await page.getByRole('button', { name: 'Tidy up' }).click()

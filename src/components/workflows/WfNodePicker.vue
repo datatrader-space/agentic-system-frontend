@@ -5,6 +5,9 @@
   tried again (F11); every matching tool is listed.
 
   Choosing an MCP tool asks for the agent it runs with first: the call uses that agent's credentials and permissions.
+
+  `frame` (ADM-1351): the workflow starts with "Each camera frame". The steps a stream cannot run on a frame are listed
+  disabled with the reason (wfPickerItems.js), and a note names the steps that can follow the frame.
 -->
 <template>
   <AppDialog :open="open" :title="title" :description="description" size="md" @update:open="emit('update:open', $event)">
@@ -43,6 +46,9 @@
           <div class="wfb-picker__tabs" role="group" aria-label="Show">
             <button v-for="t in tabs" :key="t.id" type="button" class="wfb-tab" :aria-pressed="tab === t.id" @click="setTab(t.id)">{{ t.label }}</button>
           </div>
+          <p v-if="frame" class="wfb-picker__note" role="note">
+            This workflow starts on each camera frame, so only these steps can follow it: {{ frameSteps }}.
+          </p>
           <p v-if="catalog.error.value" class="wfb-picker__error" role="alert">
             {{ catalog.error.value }}
             <button type="button" class="wfb-link-btn" :disabled="catalog.loading.value" @click="catalog.load()">Try again</button>
@@ -64,12 +70,15 @@ import AppDialog from '@/components/common/AppDialog.vue'
 import AppCommandList from '@/components/common/AppCommandList.vue'
 import { WF_CATEGORIES, WF_CATEGORY_ORDER } from '@/config/wfNodeDefinitions'
 import { pickerItems, pickerGroups, loadRecent, needsInput } from './wfPickerItems'
+import { frameStepLabels } from './wfFrame'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   ctx: { type: Object, default: null },
   catalog: { type: Object, required: true },
   agents: { type: Array, default: () => [] },
+  // The workflow starts with "Each camera frame" (wfFrame.js).
+  frame: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:open', 'choose'])
 
@@ -99,9 +108,10 @@ const description = computed(() => (mcpPick.value ? 'Choose the agent this MCP t
 
 const items = computed(() => pickerItems({
   tools: props.catalog.tools.value, mcp: props.catalog.mcp.value, recent: recent.value,
-  ctx: props.ctx, tab: tab.value, searching: !!search.value.trim(),
+  ctx: props.ctx, tab: tab.value, searching: !!search.value.trim(), frame: props.frame,
 }))
-const groups = computed(() => pickerGroups(props.catalog.mcp.value))
+const frameSteps = computed(() => frameStepLabels().join(', '))
+const groups = computed(() => pickerGroups(props.catalog.mcp.value, { frame: props.frame }))
 const emptyText = computed(() => (tab.value === 'tools' && props.catalog.loading.value ? 'Loading tools…' : 'Nothing to show here.'))
 
 watch(() => props.open, (now) => {

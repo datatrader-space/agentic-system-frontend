@@ -17,11 +17,13 @@ import { checkTemplateTokens } from '@/utils/wfVarExpr'
 import { wfDef } from '@/config/wfNodeDefinitions'
 import { buildSources, mergeNodeStates, pickerItems, secretVarNames, tokenResolves } from '../wfNodeModalModel'
 import { loadVisionModels, visionModelsState } from './visionModels'
+import { isFrameWorkflow, runInputs } from '../wfFrame'
 
 const NODE_EDITOR = Symbol('wfNodeEditor')
 
 // `askInputs(opts)` (the page's Run dialog) is called instead of starting a test when the manual trigger declares an
-// image input: a photo cannot have a default, so the person chooses one (ADM-1351).
+// image input, or the workflow starts with "Each camera frame" (its test takes a photo for {{trigger.image}}): a photo
+// cannot have a default, so the person chooses one (ADM-1351).
 export function createNodeEditor({ nodeId, doc, history, run, catalog = null, validation = () => null, readOnly = () => false, canRun = () => true, askInputs = null }) {
   const isReadOnly = computed(() => !!readOnly())
   const mayRun = computed(() => !!canRun())
@@ -118,17 +120,23 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   const issuesAt = (path) => issues.value.filter((i) => i.path === path)
 
   // ── lists the editor loads from the server: the vision models of this workflow (only once it is saved) ──
-  const usesList = (key) => (def.value?.fields || []).some((f) => f.optionsKey === key)
+  // `fields` is a step's settings fields: the node's own, or a for-each's inner step's (scoped below).
+  const usesVisionModels = (fields) => (fields || []).some((f) => f.optionsKey === 'visionModels')
   const visionState = computed(() => (doc.meta.id != null ? visionModelsState(doc.meta.id) : null))
-  watch(() => [doc.meta.id, type.value], () => {
-    if (doc.meta.id != null && usesList('visionModels')) loadVisionModels(doc.meta.id)
-  }, { immediate: true })
-  const listStates = computed(() => {
+  /** Load the workflow's vision models when `fields()` needs them (the node's step or a for-each's inner step). */
+  function watchVisionModels(fields) {
+    watch(() => [doc.meta.id, fields()], () => {
+      if (doc.meta.id != null && usesVisionModels(fields())) loadVisionModels(doc.meta.id)
+    }, { immediate: true })
+  }
+  function listStatesFor(fields) {
     const v = visionState.value
-    if (!usesList('visionModels')) return {}
+    if (!usesVisionModels(fields)) return {}
     if (!v) return { visionModels: { loading: false, error: 'Save the workflow to choose a model.', retry: () => {} } }
     return { visionModels: { loading: v.loading, error: v.error, retry: () => loadVisionModels(doc.meta.id, { force: true }) } }
-  })
+  }
+  watchVisionModels(() => def.value?.fields)
+  const listStates = computed(() => listStatesFor(def.value?.fields))
 
   const lists = computed(() => ({
     graphs: (doc.allGraphs.value || [])
@@ -142,10 +150,9 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
   }))
 
   // ── tests run the DRAFT as a dry run up to a node (D4); the draft is saved first by useWorkflowRun ──
-  const manualInputs = computed(() => {
-    const m = doc.nodes.value.find((n) => n.type === 'trigger.manual')
-    return (Array.isArray(m?.data?.inputs) ? m.data.inputs : []).filter((i) => i && i.key)
-  })
+  // The manual trigger's inputs, or the photo a frame workflow's test stands in for the camera frame with (wfFrame.js).
+  const manualInputs = computed(() => runInputs(doc.nodes.value))
+  const frameWorkflow = computed(() => isFrameWorkflow(doc.nodes.value))
   /** Each manual input's declared default, the payload a test from the node window uses. */
   function testPayload() { return Object.fromEntries(manualInputs.value.map((i) => [i.key, i.default ?? ''])) }
   const needsPhoto = computed(() => manualInputs.value.some((i) => i.type === 'image'))
@@ -160,12 +167,35 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
     return run.start({ dryRun: true, untilNode, payload: testPayload() })
   }
 
-  return {
-    node, data, type, def, manualInputs, needsPhoto, testUpTo, listStates, readOnly: isReadOnly, canRun: mayRun, states, sources, varKeys, checkContext, checkText, tokenState,
+  const api = {
+    node, data, type, def, manualInputs, needsPhoto, frameWorkflow, testUpTo, listStates, readOnly: isReadOnly, canRun: mayRun, states, sources, varKeys, checkContext, checkText, tokenState,
     set, patch, begin, end, bindText, bindCustom,
     activeField, registerField, unregisterField, insertIntoActive, announce, announcement,
     issues, issuesAt, lists, doc, history, run, catalog,
   }
+
+  /**
+   * An editor for a step NESTED in this node (a for-each's inner step, ADM-1351): the same editor, whose `data` is the
+   * nested step's and whose writes go through `write(nextData, title)`, which writes the parent's key whole (one history
+   * entry; never in place). SchemaForm and WfVarField read it like the node's own editor, so the nested step's settings
+   * are drawn from the registry. Call it in a component's setup (it watches the vision models the nested step needs).
+   */
+  api.scoped = function scoped({ type: nestedType, data: nestedData, write }) {
+    const fields = () => wfDef(nestedType.value)?.fields || []
+    watchVisionModels(fields)
+    const put = (values, title) => { if (!isReadOnly.value) write({ ...nestedData.value, ...values }, title) }
+    return {
+      ...api,
+      type: nestedType,
+      def: computed(() => wfDef(nestedType.value)),
+      data: nestedData,
+      listStates: computed(() => listStatesFor(fields())),
+      patch: put,
+      set: (key, value, title = key) => put({ [key]: value }, title),
+      bindText: (key, title) => bindCustom(title, () => nestedData.value[key], (v) => put({ [key]: v }, title)),
+    }
+  }
+  return api
 }
 
 export function provideNodeEditor(editor) { provide(NODE_EDITOR, editor) }

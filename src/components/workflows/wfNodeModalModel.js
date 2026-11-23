@@ -252,7 +252,13 @@ export function buildSources({ nodeId, nodes = [], edges = [], vars = {}, states
   if (fired) {
     out.push({ id: 'trigger', label: 'Trigger', base: 'trigger', value: fired.output.trigger, real: true })
   } else if (triggerNodes.length || TRIGGER_TYPES(self?.type)) {
+    // A trigger that declares its payload (a camera event, "Each camera frame": the server's output_sample) shows that
+    // shape; a manual trigger's inputs are added to it.
     const sample = {}
+    for (const n of TRIGGER_TYPES(self?.type) ? [...triggerNodes, self] : triggerNodes) {
+      const declared = wfOutputSample(n.type)
+      if (declared && typeof declared === 'object' && !Array.isArray(declared)) Object.assign(sample, declared)
+    }
     // An image input (ADM-1351) arrives as an image reference; '(image)' marks the sample, which is never fetched.
     for (const i of inputs) sample[i.key] = i.type === 'image' ? { kind: 'image', id: '(image)' } : (i.default ?? '')
     out.push({ id: 'trigger', label: 'Trigger', base: 'trigger', value: sample, real: false })

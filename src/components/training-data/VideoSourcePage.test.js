@@ -5,15 +5,24 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
 const calls = [];
+// What the page reads when it reads its stream again (a test may set its own).
+const read = { stream: null };
 vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
   const actual = await real();
   return {
     ...actual,
-    streamingApi: { ...actual.streamingApi, get: vi.fn(async id => ({ stream: { ...RUNNING, id } })) },
+    streamingApi: { ...actual.streamingApi, get: vi.fn(async id => ({ stream: { ...(read.stream || RUNNING), id } })) },
     videoSources: {
       ...actual.videoSources,
       recording: vi.fn(async (id, body) => { calls.push(['recording', id, body]); return { said: 'ok' }; }),
       rotateKey: vi.fn(async id => { calls.push(['rotate', id]); return { said: 'Drone has a new stream key.', source: { id, push: { ...PUSH, stream_key: NEW_KEY, url: `${PUSH.server}${NEW_KEY}` } } }; }),
+    },
+    // The camera's rules (ADM-1351 phase 2: the "time in a zone" kind).
+    streamRules: {
+      ...actual.streamRules,
+      list: vi.fn(async () => RULES_PAGE),
+      presets: vi.fn(async () => ({ presets: [] })),
+      add: vi.fn(async (id, body) => { calls.push(['addRule', id, body]); return { ...RULES_PAGE, said: 'Rule added.' }; }),
     },
     recordingsApi: {
       list: vi.fn(async query => { calls.push(['list', query]); return { recordings: [REC], may: { delete: true } }; }),
@@ -28,6 +37,10 @@ const REC = { id: 5, source: { id: 1, name: 'Gate' }, started_at: '2026-11-17T10
   seconds: 300, motion: true, thumbnail_url: 'https://bucket.example/r.jpg?sig=3' };
 const RECORDING_OFF = { on: false, days: 30, max_days: 30, unpaid: false, stored_bytes: 0, day_price_usd: '0',
   per_gb_month_usd: '0.0312', consent_text: 'I may record this camera.', rtsp_only: true };
+const RULES_PAGE = { rules: [], classes: ['person'], detector_classes: [], zones: [{ id: 4, name: 'Desk 1' }], lines: [],
+  kinds: [{ key: 'seen', label: 'Seen' }, { key: 'dwell', label: 'Each one stays in a zone (time in zone, one event per object)' }],
+  timed: { min: 10, max: 86400 }, alerts: [], vision_models: [], devices: [],
+  limits: { rules: 20, cooldown_min: 10, cooldown_default: 60, cooldown_max: 86400, count_max: 1000 }, may: { change: true } };
 import VideoSourcePage from '../../../training-data/src/components/VideoSourcePage.vue';
 
 const HLS = { id: 1, name: 'Test stream (Mux)', kind: 'url', state: 'online', shown_address: 'https://test-streams.mux.dev',
@@ -158,6 +171,48 @@ describe('a video source page', () => {
     expect(w.findAll('button').some(b => b.text().includes('Run a model'))).toBe(false);
     w.unmount();
   });
+  it('shows a stream a workflow answers: "Workflow: <name> v<version>" and its counts, as for a detector (ADM-1351)', async () => {
+    const byWorkflow = { ...RUNNING, model: null, workflow: { id: 12, name: 'Desk watch', version: 3 },
+      last: { frame: 11, t: 11, objects: [{ class: 'person', score: 0.9, box: [0.1, 0.2, 0.3, 0.4] }], classes: { person: 2 } } };
+    read.stream = byWorkflow;
+    const w = page({ streams: [byWorkflow] });
+    await flushPromises();
+    read.stream = null;
+    expect(w.find('.sp-model-name').text()).toBe('Workflow: Desk watch v3');
+    const counts = Object.fromEntries(w.findAll('.sp-count').map(c => [c.find('.sp-what').text(), c.find('.sp-num').text()]));
+    expect(counts).toMatchObject({ person: '2' });
+    w.unmount();
+  });
+
+  it('adds a "time in a zone" rule: seconds and a zone, no count; the zone is asked for first (ADM-1351)', async () => {
+    calls.length = 0;
+    const w = page();
+    await w.findAll('[role="tab"]').find(t => t.text() === 'Rules').trigger('click');
+    await flushPromises();
+    await w.findAll('button').find(b => b.text().includes('Add a rule')).trigger('click');
+    const form = w.find('form.sp-rule-form');
+    const kind = form.find('select');
+    expect(kind.findAll('option').map(o => o.text())).toEqual(['Seen', 'Time in a zone']);
+    await kind.setValue('dwell');
+    const labels = form.findAll('.sp-rule-fields label').map(l => l.text());
+    expect(labels.some(t => t.startsWith('At least (seconds)'))).toBe(true);
+    // No count: a dwell rule follows each object on its own.
+    expect(form.find('input[type="number"][min="1"]').exists()).toBe(false);
+    const zone = form.findAll('select').find(sel => sel.findAll('option').some(o => o.text() === 'In Desk 1'));
+    expect(zone.findAll('option').map(o => o.text())).toEqual(['Choose a zone', 'In Desk 1']);
+    expect(zone.attributes('aria-required')).toBe('true');
+    await form.trigger('submit');
+    await flushPromises();
+    expect(form.text()).toContain('Choose the zone each object stays in.');
+    expect(calls.filter(c => c[0] === 'addRule')).toHaveLength(0);
+    await zone.setValue('4');
+    await form.find('input[type="number"][max="86400"]').setValue('45');
+    await form.trigger('submit');
+    await flushPromises();
+    expect(calls.find(c => c[0] === 'addRule')).toEqual(['addRule', 1, { class_name: 'person', cooldown_seconds: 60, zone: 4, kind: 'dwell', seconds: 45, alert: 'managers' }]);
+    w.unmount();
+  });
+
   it('shows where an RTMP stream sends, never its key, and rotates the key only after asking', async () => {
     const source = { id: 3, name: 'Drone', kind: 'rtmp', state: 'offline', shown_address: 'rtmps://ingest.aadml.com:1936',
       push: PUSH, may: { change: true, rotate: true }, recording: RECORDING_OFF };

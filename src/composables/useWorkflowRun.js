@@ -40,6 +40,8 @@ const START_ERROR_TEXT = {
   already_running: 'This run is still going. Wait for it to finish or stop it first.',
   concurrency_limit: 'Too many runs of this workflow are going at once. Try again when one finishes.',
   queue_unavailable: 'The job queue is not available; the run did not start.',
+  // ADM-1351: a workflow that starts with "Each camera frame" runs only on a stream's frames (409).
+  frame_trigger: 'This workflow starts on each camera frame: start a stream with it in Training Data.',
 }
 
 export function parseStartError(e) {

@@ -91,6 +91,10 @@
 @keyframes wf-spin{to{transform:rotate(360deg)}}
 .wfb-stage{position:relative;flex:1;min-height:0;min-width:0}
 .wfb-stage__toolbar{position:absolute;top:12px;left:12px;right:12px;z-index:20}
+/* A frame workflow (ADM-1351): why it has no Run, under the toolbar */
+.wfb-stage__note{position:absolute;top:72px;left:50%;z-index:19;display:flex;align-items:center;gap:8px;width:max-content;max-width:calc(100% - 24px);margin:0;padding:6px 12px;border:1px solid var(--wf-accent-line);border-radius:12px;background:var(--wf-accent-soft);color:var(--wf-accent-ink);font-size:12px;font-weight:550;line-height:1.5;box-shadow:0 4px 14px var(--wf-shadow-tint);transform:translateX(-50%);pointer-events:none}
+.wfb-btn.is-primary.is-blocked{opacity:.5;cursor:not-allowed}
+.wfb-root .wfb-btn.is-primary.is-blocked:hover{background:var(--wf-accent);border-color:var(--wf-accent)}
 .wfb-overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:72px 16px 16px;background:color-mix(in srgb,var(--wf-canvas) 70%,transparent)}
 .wfb-overlay.is-passive{background:none;pointer-events:none}
 .wfb-overlay.is-passive .wfb-card{pointer-events:auto}
@@ -299,6 +303,12 @@
 .wfb-picker__note{margin:0 0 6px;font-size:12px;line-height:1.5;color:var(--wf-muted)}
 .wfb-picker__error{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 6px;padding:8px 10px;border:1px solid var(--wf-danger-line);border-radius:8px;background:var(--wf-danger-soft);color:var(--wf-danger-ink);font-size:12px}
 .wfb-picker__foot{display:flex;justify-content:flex-end;gap:8px;margin-top:auto}
+/* A step a frame workflow cannot use (ADM-1351): its reason stays readable; the badge and the dimmed icon mark it */
+.wfb-root.wfb-picker .app-cmd__item[data-disabled]{opacity:1}
+.wfb-root.wfb-picker .app-cmd__item[data-disabled] .app-cmd__item-ic{opacity:.5}
+.wfb-root.wfb-picker .app-cmd__item[data-disabled] .app-cmd__item-label{color:var(--wf-ink-soft)}
+.wfb-root.wfb-picker .app-cmd__item[data-disabled] .app-cmd__item-desc{color:var(--wf-ink-soft)}
+.wfb-root.wfb-picker .app-cmd__item[data-disabled] .app-cmd__item-badge{background:var(--wf-warn-soft);color:var(--wf-warn-ink)}
 
 /* ── console ──────────────────────────────────────────────────────────────────────────────────────────────────── */
 .wfb-console{position:relative;z-index:21;display:flex;flex-direction:column;flex:none;min-height:36px;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--wf-line);background:var(--wf-surface)}
@@ -394,6 +404,7 @@
   .wfb-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 .wfb-root.is-compact .wfb-stage__toolbar{top:8px;left:8px;right:8px}
+.wfb-root.is-compact .wfb-stage__note{top:64px;max-width:calc(100% - 16px)}
 .wfb-root.is-compact .wfb-pill:not(.is-role){display:none}
 .wfb-root.is-compact .wfb-save-state__text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .wfb-root.is-compact .wfb-name{max-width:none;flex:1 1 auto}

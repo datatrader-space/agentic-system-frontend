@@ -52,6 +52,9 @@ describe('helpers', () => {
       .toMatchObject({ code: 'queue_unavailable', status: 503, message: 'The job queue is not available; the run did not start.' })
     expect(parseStartError(e(400, { error: 'unknown_until_node' })).message).toMatch(/not in the workflow/)
     expect(parseStartError(e(409, { error: 'already_running', detail: 'Run 3 is live.' })).message).toBe('Run 3 is live.')
+    // ADM-1351: a frame workflow's Run is refused; the server's sentence first, ours when it sends none.
+    expect(parseStartError(e(409, { error: 'frame_trigger', detail: 'Choose it when you start a stream.' }))).toMatchObject({ code: 'frame_trigger', status: 409, message: 'Choose it when you start a stream.' })
+    expect(parseStartError(e(409, { error: 'frame_trigger' })).message).toBe('This workflow starts on each camera frame: start a stream with it in Training Data.')
     expect(parseStartError(e(400, { error: 'Invalid', errors: [{ node_id: 'a', message: 'x' }] }))).toMatchObject({ code: 'invalid_graph', errors: [{ node_id: 'a', message: 'x' }] })
     expect(parseStartError(new Error('net')).message).toMatch(/did not start/)
   })
