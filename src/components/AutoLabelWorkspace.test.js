@@ -45,6 +45,7 @@ test('back to batch returns to its choices, while Annotate exits the batch', asy
 });
 
 test('opening Auto Label never generates paid previews automatically', async () => {
+  api.detect.mockResolvedValue({ shapes: [{ kind: 'helmet', points: [[1, 1], [5, 1], [5, 5]] }] });   // something drawn
   const wrapper = render(); await flushPromises();
   expect(api.detect).not.toHaveBeenCalled();
   expect(wrapper.get('.auto-progress [aria-current="step"]').text()).toContain('Configure');
@@ -101,6 +102,25 @@ test('a preview says what the model found but did not draw, never only "Nothing 
   expect(wrapper.text()).toContain('Nothing drawn: see the note above the photo.');
   expect(wrapper.text()).not.toContain('Nothing found on this photo.');
   expect(wrapper.find('.auto-refused').exists()).toBe(false);          // a note, not an error
+  // The bar never says "Ready to label" when nothing is drawn (live, 2026-11-23): it says why, from the note.
+  expect(wrapper.get('.auto-bar-state').text()).toContain('Nothing to label');
+  expect(wrapper.get('.auto-bar-state').text()).toContain("Add a class named 'window'");
+  expect(wrapper.get('.auto-bar-state').text()).not.toContain('Ready to label');
+});
+
+test('the note and the error sit below the floating Show Labels bar, never under it', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync('training-data/src/components/AutoLabel.vue', 'utf8');
+  expect(source).toMatch(/\.auto-tools\{position:absolute;top:12px;/);
+  expect(source).toMatch(/\.auto-note\{margin:38px 0 10px;/);
+  expect(source).toMatch(/\.auto-refused\{margin:38px 0 10px;/);
+});
+
+test('a preview with something drawn still says Ready to label', async () => {
+  api.detect.mockResolvedValue({ state: 'ready', shapes: [{ kind: 'helmet', points: [[1, 1], [5, 1], [5, 5]] }], note: '' });
+  const wrapper = render(); await flushPromises();
+  await button(wrapper, 'Generate Preview').trigger('click'); await flushPromises();
+  expect(wrapper.get('.auto-bar-state').text()).toContain('Ready to label');
 });
 
 test('a preview with no note and nothing found still says so', async () => {
