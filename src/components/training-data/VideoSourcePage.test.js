@@ -96,6 +96,32 @@ describe('a video source page', () => {
     expect(hls.findAll('button').find(b => b.text().includes('Record to the cloud')).attributes('disabled')).toBeDefined();
   });
 
+  it('records only when there is motion, with its sensitivity and quiet seconds (ADM-1350)', async () => {
+    const MOTION = { mode: 'always', modes: [{ value: 'always', label: 'All the time' }, { value: 'motion', label: 'Only when there is motion' }],
+      sensitivity: 'medium', sensitivities: [{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }],
+      quiet_seconds: 30, quiet_min: 10, quiet_max: 300, pre_roll: 5, moving: false };
+    const rtsp = { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, motion: MOTION }, may: { record: true } };
+    const w = page({ source: rtsp });
+    await w.findAll('button').find(b => b.text().includes('Record to the cloud')).trigger('click');
+    expect(w.find('[data-test="sp-rec-sens"]').exists()).toBe(false);        // all the time: nothing of motion
+    await w.find('[data-test="sp-rec-mode-motion"]').setValue(true);
+    expect(w.find('.sp-rec-form').text()).toContain('5 seconds before it starts');
+    await w.find('[data-test="sp-rec-sens"]').setValue('high');
+    await w.find('[data-test="sp-rec-quiet"]').setValue(60);
+    await w.find('.sp-rec-consent input').setValue(true);
+    await w.find('.sp-rec-form').trigger('submit');
+    await flushPromises();
+    expect(calls.at(-1)).toEqual(['recording', 1, { on: true, days: 30, consent: true, mode: 'motion', sensitivity: 'high', quiet_seconds: 60 }]);
+    const on = page({ source: { ...rtsp, recording: { ...RECORDING_OFF, on: true, motion: { ...MOTION, mode: 'motion', moving: true } } } });
+    expect(on.find('.sp-rec-line').text()).toMatch(/^Recording to the cloud when there is motion \(motion now\)\./);
+    await on.findAll('button').find(b => b.text() === 'Recording settings').trigger('click');
+    await on.find('[data-test="sp-rec-mode-always"]').setValue(true);
+    await on.find('.sp-rec-form').trigger('submit');
+    await flushPromises();
+    expect(calls.at(-1)).toEqual(['recording', 1, { days: 30, mode: 'always' }]);
+    w.unmount(); on.unmount();
+  });
+
   it('lists a day of recordings, plays one and deletes one', async () => {
     const fresh = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true, days: 1 } } });
     expect(fresh.find('.sp-rec-line').text()).toMatch(/^Recording to the cloud\. Kept 1 day, nothing kept yet/);   // was "0.1 MB kept"

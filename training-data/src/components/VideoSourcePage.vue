@@ -109,7 +109,20 @@ const mayRecord = computed(() => !!rec.value && props.may.record !== false && pr
 const recordable = computed(() => watchable.value);                    // rtsp:// cameras only, as live view
 const asking = ref(false); const recDays = ref(30); const recConsent = ref(false);
 const recBusy = ref(false); const recError = ref(''); const recSaid = ref('');
-function askRecording() { recDays.value = rec.value?.days || 30; recConsent.value = false; recError.value = ''; asking.value = true; }
+// Record all the time or only when there is motion (ADM-1350): its sensitivity and how long a still camera ends a
+// recording. ``rec.motion`` is absent from a server older than the choice; the form then sends none of it.
+const motion = computed(() => rec.value?.motion || null);
+const recMode = ref('always'); const recSens = ref('medium'); const recQuiet = ref(30);
+function askRecording() {
+  recDays.value = rec.value?.days || 30; recConsent.value = false; recError.value = '';
+  recMode.value = motion.value?.mode || 'always'; recSens.value = motion.value?.sensitivity || 'medium';
+  recQuiet.value = motion.value?.quiet_seconds || 30;
+  asking.value = true;
+}
+function recordingBody() {
+  const how = motion.value ? { mode: recMode.value, ...(recMode.value === 'motion' ? { sensitivity: recSens.value, quiet_seconds: Number(recQuiet.value) } : {}) } : {};
+  return rec.value.on ? { days: recDays.value, ...how } : { on: true, days: recDays.value, consent: recConsent.value, ...how };
+}
 async function setRecording(body) {
   recBusy.value = true; recError.value = '';
   try {
@@ -123,6 +136,7 @@ const recLine = computed(() => {
   const r = rec.value;
   if (!r) return '';
   if (r.on && r.unpaid) return 'Recording stopped: a day of keeping it could not be paid. Top up and it goes on within the hour.';
+  if (r.on && r.motion?.mode === 'motion') return `Recording to the cloud when there is motion${r.motion.moving ? ' (motion now)' : ''}. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: each burst of motion appears a minute or two after it ends'}.`;
   if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
@@ -435,11 +449,24 @@ watch(tab, now => {
             <template v-if="mayRecord && !asking">
               <UiButton v-if="!rec.on" class="small" :disabled="!recordable || recBusy" :title="recordable ? undefined : 'Only rtsp:// and rtsps:// cameras can be recorded.'" @click="askRecording"><Disc :size="14" aria-hidden="true"/> Record to the cloud</UiButton>
               <span v-else class="sp-rec-acts">
-                <UiButton class="small" :disabled="recBusy" @click="askRecording">Days kept</UiButton>
+                <UiButton class="small" :disabled="recBusy" @click="askRecording">{{ motion ? 'Recording settings' : 'Days kept' }}</UiButton>
                 <UiButton class="small" :disabled="recBusy" @click="setRecording({ on: false })"><Square :size="12" aria-hidden="true"/> Stop recording</UiButton>
               </span>
             </template>
-            <form v-if="asking" class="sp-rec-form" @submit.prevent="setRecording(rec.on ? { days: recDays } : { on: true, days: recDays, consent: recConsent })">
+            <form v-if="asking" class="sp-rec-form" @submit.prevent="setRecording(recordingBody())">
+              <fieldset v-if="motion" class="sp-rec-mode">
+                <legend>Record</legend>
+                <label v-for="m in motion.modes" :key="m.value"><input v-model="recMode" type="radio" name="sp-rec-mode" :value="m.value" :data-test="`sp-rec-mode-${m.value}`"> {{ m.label }}</label>
+              </fieldset>
+              <template v-if="motion && recMode === 'motion'">
+                <label class="sp-rec-days">Sensitivity
+                  <select v-model="recSens" class="text-input" data-test="sp-rec-sens"><option v-for="s in motion.sensitivities" :key="s.value" :value="s.value">{{ s.label }}</option></select>
+                </label>
+                <label class="sp-rec-days">Stop after
+                  <input v-model.number="recQuiet" type="number" class="text-input sp-rec-quiet" :min="motion.quiet_min" :max="motion.quiet_max" step="5" data-test="sp-rec-quiet"> seconds without motion
+                </label>
+                <p class="sp-muted">Each burst of motion is kept as one recording, from {{ motion.pre_roll }} seconds before it starts. A "motion seen" rule is added in Rules (no alert) so each motion is also an event; change its alerts there. Motion under a privacy mask never counts.</p>
+              </template>
               <label class="sp-rec-days">Keep recordings
                 <select v-model.number="recDays" class="text-input"><option v-for="d in [1, 3, 7, 14, 30]" :key="d" :value="d">{{ d }} day{{ d === 1 ? '' : 's' }}</option></select>
               </label>
@@ -723,11 +750,11 @@ watch(tab, now => {
           <div v-else-if="!recRows.length" class="sp-results-empty" role="status">
             <span class="sp-empty-icon"><Disc :size="20" aria-hidden="true"/></span>
             <h4>No recordings on this day</h4>
-            <p>{{ rec && rec.on ? 'Recordings appear here in 5-minute pieces, a few minutes after they are made.' : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
+            <p>{{ rec && rec.on ? (motion && motion.mode === 'motion' ? 'Each burst of motion appears here as a recording, a minute or two after it ends.' : 'Recordings appear here in 5-minute pieces, a few minutes after they are made.') : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
           </div>
           <ul v-else class="sp-rec-list">
             <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
-              <span><strong>{{ windowText(r) }} <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
+              <span><strong>{{ windowText(r) }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
               <span class="sp-rec-acts">
                 <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
                 <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
@@ -867,6 +894,10 @@ watch(tab, now => {
 .sp-rec-form{display:grid;gap:8px}
 .sp-rec-days{display:flex;align-items:center;gap:8px;font-size:13px;color:#33415a}
 .sp-rec-days select{width:auto;min-height:36px}
+.sp-rec-mode{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:0;border:0;font-size:13px;color:#33415a}
+.sp-rec-mode legend{padding:0;margin-bottom:4px;font-weight:600}
+.sp-rec-mode label{display:flex;align-items:center;gap:6px}
+.sp-rec-quiet{width:84px;min-height:36px}
 .sp-rec-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:#33415a}
 .sp-rec-consent input{margin-top:3px}
 .sp-rec-phone{display:grid;gap:8px;padding-top:8px;border-top:1px solid #f0d5d2}
