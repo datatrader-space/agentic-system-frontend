@@ -526,6 +526,7 @@
    "custom_tail": "",
    "defaults": {
     "prompt": "",
+    "images": "",
     "system": "",
     "model_id": null,
     "output_mode": "text",
@@ -539,6 +540,15 @@
      "insertable": true,
      "title": "Prompt",
      "placeholder": "Extract the decisions from {{nodes.fetch.output.text}}"
+    },
+    {
+     "key": "images",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Images (optional)",
+     "placeholder": "{{trigger.photo}}",
+     "help": "Images the model looks at with the prompt: {{trigger.photo}}, {{nodes.<id>.output.image}} or {{nodes.<id>.output.images}}; several separated by commas. At most 10 images, 20 MB in all. The model must accept images."
     },
     {
      "key": "system",
@@ -597,12 +607,21 @@
      "kind": "text",
      "description": "the model's name"
     },
+    "images": {
+     "kind": "number",
+     "description": "how many images the model was shown"
+    },
     "<field>": {
      "kind": "any",
      "description": "each field of the declared output schema, when data.output_mode is json or schema"
     }
    },
-   "inputs": {}
+   "inputs": {
+    "images": [
+     "image",
+     "images"
+    ]
+   }
   },
   {
    "type": "vision.model",

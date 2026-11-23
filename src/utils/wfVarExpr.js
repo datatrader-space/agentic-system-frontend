@@ -9,6 +9,21 @@ export function insertAt(text, start, end, insert) {
   return s.slice(0, a) + insert + s.slice(b)
 }
 
+// The same into a field that holds a LIST of references separated by `sep` (a "Model call" step's Images,
+// ADM-1351 phase 3): the separator is added before the token when something stands before it, and after it when
+// something follows, so a second reference never runs into the first. Returns { text, caret } (caret after the token).
+export function insertListItem(text, start, end, token, sep = ', ') {
+  const s = (typeof text === 'string' ? text : '')
+  const a = start == null ? s.length : start
+  const b = end == null ? a : end
+  const mark = sep.trim()
+  let before = s.slice(0, a)
+  let after = s.slice(b)
+  if (before.trim() && !before.trimEnd().endsWith(mark)) before = `${before.trimEnd()}${sep}`
+  if (after.trim() && !after.trimStart().startsWith(mark)) after = `${sep}${after.trimStart()}`
+  return { text: before + token + after, caret: before.length + token.length }
+}
+
 // ── Template tokens (plan D3: one syntax, the engine's) ─────────────────────────────────────────────
 //
 // The same pattern as the engine's `_TPL` (agent/services/workflow_graph/executor.py) and the same roots as its

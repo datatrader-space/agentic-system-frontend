@@ -22,6 +22,7 @@ import CameraEvents from './CameraEvents.vue';
 import WorkplaceTab from './WorkplaceTab.vue';
 import CameraRecordings from './CameraRecordings.vue';
 import StreamingTermsDialog from './StreamingTermsDialog.vue';
+import AnnotatedVideo from './AnnotatedVideo.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -30,7 +31,7 @@ import {
   streamingApi, downloadResults, POLL_MS, addressProblem, addressShown, fileProblem, megabytes, streamState, isActive,
   anyActive, clockText, progressOf, capText, countsSaid, endedText, recentBars, classNames, countOf, classesText,
   sourceShown, streamWhat, codesRead, frameCodesText, windowText, readCalls, readPriceText, chargeText, termsRequired,
-  answersFrames, workflowChoices, WORKFLOW_BUILDER_PATH, NO_FRAME_WORKFLOW,
+  answersFrames, workflowChoices, WORKFLOW_BUILDER_PATH, NO_FRAME_WORKFLOW, annotatedVideo,
 } from '../api/streaming.js';
 
 // ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -403,6 +404,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
         <span v-for="b in bars" :key="b.frame" :class="{ failed: b.failed }" :style="{ height: `${b.h}px` }"></span>
       </div>
       <p v-if="!live && endedText(viewing)" class="st-ended" :class="{ failed: viewing.state === 'failed' }">{{ endedText(viewing) }}</p>
+      <AnnotatedVideo :stream="viewing"/>
       <p v-if="viewError" class="field-error" role="alert">{{ viewError }}</p>
       <p class="sr-only" aria-live="polite" aria-atomic="true">{{ spoken }}</p>
 
@@ -436,6 +438,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             <td data-label="State">
               <UiBadge :tone="streamState(s)[0]"><LoaderCircle v-if="isActive(s)" class="spin" :size="12" aria-hidden="true"/>{{ streamState(s)[1] }}</UiBadge>
               <small v-if="!isActive(s) && endedText(s)" :class="{ 'failed-why': s.state === 'failed' }">{{ endedText(s) }}</small>
+              <small v-if="annotatedVideo(s)" :class="{ 'failed-why': annotatedVideo(s).state === 'failed' }" data-test="st-row-video">{{ annotatedVideo(s).text }}</small>
             </td>
             <td data-label="Frames">{{ s.frames }} <small v-if="endless(s)">runs until stopped, {{ clockText(s.video_seconds) }} of video</small><small v-else>of at most {{ s.max_frames }}, {{ clockText(s.video_seconds) }} of video</small>
               <small v-if="s.last && !s.last.error && answersFrames(s)" class="st-found">Newest: {{ classesText(s.last) }}</small>
@@ -495,7 +498,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
             </label>
             <label class="st-card" :class="{ chosen: form.useWorkflow }">
               <input v-model="form.useWorkflow" type="checkbox" :disabled="!workflows.length" aria-describedby="st-workflow-help" data-test="st-use-workflow">
-              <span><strong>A workflow</strong><small id="st-workflow-help">{{ workflows.length ? 'A published workflow that starts with "Each camera frame" answers each frame: the objects of its last Find or Filter step are the answer.' : NO_FRAME_WORKFLOW }}</small></span>
+              <span><strong>A workflow</strong><small id="st-workflow-help">{{ workflows.length ? 'A published workflow that starts with "Each camera frame" answers each frame: the objects of its last Find or Filter step are the answer. On an uploaded video or a recording, a Draw objects step in it also makes an annotated video to watch and download.' : NO_FRAME_WORKFLOW }}</small></span>
             </label>
             <label class="st-card" :class="{ chosen: form.readCodes }">
               <input v-model="form.readCodes" type="checkbox" :disabled="!!codesOption && codesOption.available === false" aria-describedby="st-codes-help">

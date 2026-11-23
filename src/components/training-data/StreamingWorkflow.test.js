@@ -101,6 +101,19 @@ describe('a stream answered by a workflow', () => {
     w.unmount();
   });
 
+  it('a row says what is of its annotated video, and the open stream shows it (ADM-1351 phase 3)', async () => {
+    const saved = ROW.annotated_video;
+    ROW.annotated_video = { state: 'making', frames: 0, error: '' };
+    const w = mount(StreamingTab, { attachTo: document.body, global: { stubs: STUBS } });
+    await flushPromises();
+    expect(w.find('[data-test="st-row-video"]').text()).toBe('Making the annotated video…');
+    await w.findAll('button').find(b => b.text() === 'Open').trigger('click');
+    await flushPromises();
+    expect(w.find('#st-view [data-test="annotated-video"]').text()).toContain('Making the annotated video…');
+    ROW.annotated_video = saved;
+    w.unmount();
+  });
+
   it('with no frame workflow, the card cannot be chosen and says how to make one, with a link to the builder', async () => {
     const w = await openDialog();
     expect(card(w).attributes('disabled')).toBeDefined();

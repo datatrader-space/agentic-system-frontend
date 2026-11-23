@@ -25,6 +25,7 @@ import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
 import RecordingThumb from './RecordingThumb.vue';
+import AnnotatedVideo from './AnnotatedVideo.vue';
 import { timeAgo } from '../api/workspace.js';
 import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
@@ -521,6 +522,7 @@ watch(tab, now => {
               <ul v-if="others.length" class="sp-others" aria-label="Earlier streams on this camera">
                 <li v-for="s in others" :key="s.id"><span>{{ streamWhat(s) }}, {{ started(s) }}</span><UiBadge :tone="streamState(s)[0]">{{ streamState(s)[1] }}</UiBadge></li>
               </ul>
+              <AnnotatedVideo :stream="stream"/>
             </template>
             <p v-else class="sp-empty-text">Choose a model to run on this camera, or read its barcodes. What it finds appears alongside as it works.</p>
           </div>

@@ -901,3 +901,30 @@ test('the rules page posts a dwell rule to the camera rules as the contract has 
   assert.equal(seen.init.method, 'POST');
   assert.deepEqual(JSON.parse(seen.init.body), { class_name: 'person', cooldown_seconds: 60, zone: 9, kind: 'dwell', seconds: 45, alert: 'managers' });
 });
+
+// ── the annotated video (VISION_WORKFLOWS_PLAN.md 5.3, ADM-1351 phase 3) ─────────────────────────────────────────
+import { annotatedVideo, videoLinkFresh, videoLinkFrom, VIDEO_MAKING, VIDEO_LINK_MARGIN_MS } from '../src/api/streaming.js';
+
+test('a stream row says what is of its annotated video, in words', () => {
+  assert.equal(annotatedVideo({ annotated_video: null }), null);
+  assert.equal(annotatedVideo({}), null);
+  assert.deepEqual(annotatedVideo({ annotated_video: { state: 'making', frames: 0, error: '' } }), { state: 'making', frames: 0, text: VIDEO_MAKING });
+  assert.equal(VIDEO_MAKING, 'Making the annotated video…');
+  assert.deepEqual(annotatedVideo({ annotated_video: { state: 'ready', frames: 1200, error: '' } }), { state: 'ready', frames: 1200, text: 'Annotated video ready, 1,200 frames.' });
+  assert.equal(annotatedVideo({ annotated_video: { state: 'ready', frames: 1 } }).text, 'Annotated video ready, 1 frame.');
+  assert.equal(annotatedVideo({ annotated_video: { state: 'failed', frames: 0, error: 'The video could not be encoded.' } }).text, 'The annotated video could not be made: The video could not be encoded.');
+  assert.equal(annotatedVideo({ annotated_video: { state: 'failed', frames: 0, error: '' } }).text, 'The annotated video could not be made.');
+});
+
+test('a video link is kept until a minute before it is over, and only a web address is taken', () => {
+  const link = videoLinkFrom({ url: 'https://aadml.example/v.mp4?sig=1', expires_in: 900 }, 1000);
+  assert.deepEqual(link, { url: 'https://aadml.example/v.mp4?sig=1', expiresIn: 900, at: 1000 });
+  assert.equal(videoLinkFresh(link, 1000), true);
+  assert.equal(videoLinkFresh(link, 1000 + 900 * 1000 - VIDEO_LINK_MARGIN_MS - 1), true);
+  assert.equal(videoLinkFresh(link, 1000 + 900 * 1000 - VIDEO_LINK_MARGIN_MS), false);
+  assert.equal(videoLinkFresh(null), false);
+  assert.equal(videoLinkFrom({ url: '/media/v.mp4' }, 0).expiresIn, 900);
+  for (const url of ['javascript:alert(1)', '//evil.example/v.mp4', '', undefined]) {
+    assert.throws(() => videoLinkFrom({ url, expires_in: 900 }), /did not send a link/);
+  }
+});

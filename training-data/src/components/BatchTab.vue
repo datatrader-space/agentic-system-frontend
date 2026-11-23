@@ -4,8 +4,10 @@
 // Backend: training_models_data/batch_api.py (workspace/batches/, .../<id>/cancel/, .../<id>/results/).
 // The list is read when the tab opens, and again every 3 seconds while a batch is queued or running.
 // A project's Deploy page shows it with ``projectRef``: that project's batches, and a start for that project only.
+// "A workflow" (VISION_WORKFLOWS_PLAN.md 5.3): a published workflow that starts with "Each camera frame" answers each
+// photo instead of a model (options.workflows lists the ones this person may run); it is sent without a model.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Activity, Ban, Check, Download, Images, Info, Layers, LoaderCircle, Plus, RefreshCw } from 'lucide-vue-next';
+import { Activity, Ban, Check, Download, ExternalLink, Images, Info, Layers, LoaderCircle, Plus, RefreshCw } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
@@ -16,7 +18,9 @@ import { timeAgo } from '../api/workspace.js';
 import {
   batchApi, DEFAULT_LIMIT, photoChoices, sourceOf, photosText, limitProblem, startProblem, modelLabel, batchSummary,
   batchState, isActive, anyActive, progressParts, progressText, changeNotes, POLL_MS, batchesOfProject, batchProjectProblem,
+  batchWorkflows, batchWhat, NO_BATCH_WORKFLOW,
 } from '../api/batch.js';
+import { WORKFLOW_BUILDER_PATH } from '../api/streaming.js';
 
 // projectRef: the project whose Deploy page this is ('' on the workspace Deployments page).
 const props = defineProps({ projectRef: { type: String, default: '' } });
@@ -26,7 +30,7 @@ const said = ref(''); const announce = ref('');
 const batches = computed(() => batchesOfProject(page.value?.batches, props.projectRef));
 const listQuery = ref(''); const listStatus = ref('');
 const listStates = computed(() => [...new Map(batches.value.map(b => [b.state, { value: b.state, label: batchState(b)[1] }])).values()]);
-const visibleBatches = computed(() => batches.value.filter(b => (!listStatus.value || b.state === listStatus.value) && [b.project.name, modelLabel(b.model)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
+const visibleBatches = computed(() => batches.value.filter(b => (!listStatus.value || b.state === listStatus.value) && [b.project.name, batchWhat(b)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
 const batchMetrics = computed(() => [
   { label: 'Active batches', value: batches.value.filter(isActive).length, hint: 'Queued or processing', icon: Activity },
   { label: 'Completed batches', value: batches.value.filter(b => b.state === 'done').length, hint: 'Processing finished', icon: Check },
@@ -36,6 +40,7 @@ const projects = computed(() => page.value?.options?.projects || []);
 const limit = computed(() => Number(page.value?.limit) || DEFAULT_LIMIT);
 const limitNote = computed(() => page.value?.limit_note || `A batch takes at most ${DEFAULT_LIMIT} photos for now.`);
 const may = computed(() => page.value?.may || {});
+const workflows = computed(() => batchWorkflows(page.value?.options));
 
 let timer = null; let gone = false;
 function stopPolling() { clearTimeout(timer); timer = null; }
@@ -61,15 +66,19 @@ onUnmounted(() => { gone = true; stopPolling(); });
 
 // ── "New batch" ────────────────────────────────────────────────────────────────────────────────────
 const creating = ref(false); const starting = ref(false); const formError = ref(''); const fieldErrors = ref({});
-const form = ref({ project: '', model: '', photos: 'all' });
+const form = ref({ project: '', by: 'model', model: '', workflow: '', photos: 'all' });
+const byWorkflow = computed(() => form.value.by === 'workflow');
+const chosenWorkflow = computed(() => workflows.value.find(w => w.id === String(form.value.workflow)) || null);
 const chosenProject = computed(() => projects.value.find(p => p.ref === form.value.project) || null);
 const models = computed(() => chosenProject.value?.models || []);
 const chosenModel = computed(() => models.value.find(m => String(m.number) === String(form.value.model)) || null);
 const choices = computed(() => photoChoices(chosenProject.value));
 const chosenPhotos = computed(() => choices.value.find(c => c.value === form.value.photos) || null);
 const projectProblem = computed(() => batchProjectProblem(page.value?.options, props.projectRef));
-const why = computed(() => projectProblem.value || startProblem({ may: may.value, project: chosenProject.value, model: chosenModel.value, choice: chosenPhotos.value, limit: limit.value }));
-const summary = computed(() => (why.value ? '' : batchSummary(chosenProject.value, chosenModel.value, chosenPhotos.value)));
+const why = computed(() => projectProblem.value || startProblem({ may: may.value, project: chosenProject.value, by: form.value.by, model: chosenModel.value,
+  workflow: chosenWorkflow.value, workflows: workflows.value, choice: chosenPhotos.value, limit: limit.value }));
+const summary = computed(() => (why.value ? '' : batchSummary(chosenProject.value, byWorkflow.value ? chosenWorkflow.value : chosenModel.value,
+  chosenPhotos.value, { byWorkflow: byWorkflow.value })));
 
 // A changed project keeps the model and the photos only while they are still its own.
 watch(() => form.value.project, () => {
@@ -81,20 +90,23 @@ watch(() => form.value.project, () => {
 function openCreate() {
   const first = props.projectRef ? projects.value.find(p => p.ref === props.projectRef)
     : projects.value.find(p => !p.running && (p.models || []).length) || projects.value[0];
-  form.value = { project: first?.ref || '', model: first?.models?.[0] ? String(first.models[0].number) : '', photos: 'all' };
+  // A project without a trained model starts on "A workflow" when there is one to choose.
+  const by = !first?.models?.length && workflows.value.length ? 'workflow' : 'model';
+  form.value = { project: first?.ref || '', by, model: first?.models?.[0] ? String(first.models[0].number) : '', workflow: workflows.value[0]?.id || '', photos: 'all' };
   const fits = photoChoices(first).find(c => !limitProblem(c.photos, limit.value));
   if (fits) form.value.photos = fits.value;
   formError.value = ''; fieldErrors.value = {}; said.value = '';
   creating.value = true;
 }
-const FIELDS = { project: 'project', model: 'model', source: 'photos', version: 'photos' };
+const FIELDS = { project: 'project', model: 'model', workflow: 'workflow', source: 'photos', version: 'photos' };
 async function startBatch() {
   formError.value = ''; fieldErrors.value = {};
   if (why.value || starting.value) return;
   starting.value = true;
   try {
     const { source, version } = sourceOf(form.value.photos);
-    const body = await batchApi.start({ project: form.value.project, model: Number(form.value.model), source, version });
+    const body = await batchApi.start({ project: form.value.project, source, version,
+      ...(byWorkflow.value ? { workflow: form.value.workflow } : { model: Number(form.value.model) }) });
     take(body);
     said.value = body?.said || 'The batch has started.';
     announce.value = said.value;
@@ -142,7 +154,7 @@ function whenText(b) {
 
 <template>
   <section class="batch" role="tabpanel" aria-labelledby="batch-heading" :aria-busy="loading">
-    <DeploymentHeader title="Batch Processing" heading-id="batch-heading" eyebrow="MANY PHOTOS. ONE WORKFLOW." :icon="Layers" description="Run a model across your project photos. Follow progress and download the predictions.">
+    <DeploymentHeader title="Batch Processing" heading-id="batch-heading" eyebrow="MANY PHOTOS. ONE WORKFLOW." :icon="Layers" description="Run a model or a workflow across your project photos. Follow progress and download the predictions.">
       <UiButton variant="primary" :disabled="!page || may.start === false" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New batch</UiButton>
     </DeploymentHeader>
     <DeploymentMetrics :items="batchMetrics" :loaded="!!page"/>
@@ -160,14 +172,14 @@ function whenText(b) {
     <div v-else-if="page && !batches.length" class="bt-empty">
       <span class="bt-empty-icon"><Layers :size="22" aria-hidden="true"/></span>
       <h3>No batch yet</h3>
-      <p>Choose a model and a set of photos. The model looks at each photo and you get one file with every answer.</p>
+      <p>Choose a model or a workflow and a set of photos. It looks at each photo and you get one file with every answer.</p>
       <UiButton variant="primary" :disabled="may.start === false" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New batch</UiButton>
     </div>
     <ul v-else-if="page && visibleBatches.length" class="bt-list" aria-label="Batches">
       <li v-for="b in visibleBatches" :key="b.id" class="bt-row" :class="b.state">
         <div class="bt-what">
           <strong>{{ b.project.name }}</strong>
-          <span>{{ modelLabel(b.model) }}</span>
+          <span>{{ batchWhat(b) }}</span>
           <small><Images :size="13" aria-hidden="true"/> {{ sourceLabel(b) }}</small>
           <small>{{ whenText(b) }}<template v-if="b.by">, by {{ b.by }}</template></small>
         </div>
@@ -200,7 +212,24 @@ function whenText(b) {
 
     <UiDialog class="bt-dialog" :open="creating" title="New batch" @close="creating=false">
       <form class="bt-form" novalidate @submit.prevent="startBatch">
-        <p class="dialog-description">Choose a model and the photos it should look at. Nothing starts until you press Start batch.</p>
+        <p class="dialog-description">Choose what answers each photo and the photos it should look at. Nothing starts until you press Start batch.</p>
+
+        <fieldset class="bt-field">
+          <legend>Answer each photo with</legend>
+          <div class="bt-choices">
+            <label class="bt-choice" :class="{ chosen: form.by === 'model' }">
+              <input v-model="form.by" type="radio" name="bt-by" value="model" aria-describedby="bt-by-model-help" data-test="bt-by-model">
+              <span><strong>A model of the project</strong><small id="bt-by-model-help">One of its trained models looks at each photo.</small></span>
+            </label>
+            <label class="bt-choice" :class="{ chosen: form.by === 'workflow', off: !workflows.length }">
+              <input v-model="form.by" type="radio" name="bt-by" value="workflow" :disabled="!workflows.length" aria-describedby="bt-by-workflow-help" data-test="bt-by-workflow">
+              <span><strong>A workflow</strong><small id="bt-by-workflow-help">{{ workflows.length ? 'A published workflow that starts with "Each camera frame" answers each photo: the objects of its last Find or Filter step.' : NO_BATCH_WORKFLOW }}</small></span>
+            </label>
+          </div>
+          <p v-if="!workflows.length" class="bt-help" data-test="bt-no-workflow">
+            <a :href="WORKFLOW_BUILDER_PATH" target="_blank" rel="noopener noreferrer" class="bt-link">Open the Workflow Builder<span class="bt-sr"> (opens in a new tab)</span><ExternalLink :size="13" aria-hidden="true"/></a>
+          </p>
+        </fieldset>
 
         <div class="bt-row2">
           <div v-if="projectRef" class="bt-field">
@@ -216,7 +245,15 @@ function whenText(b) {
             </select>
             <p id="bt-project-error" class="field-error" aria-live="polite">{{ fieldErrors.project }}</p>
           </div>
-          <div class="bt-field">
+          <div v-if="byWorkflow" class="bt-field">
+            <label for="bt-workflow">Workflow</label>
+            <select id="bt-workflow" v-model="form.workflow" class="text-input" :aria-invalid="!!fieldErrors.workflow" aria-describedby="bt-workflow-error" data-test="bt-workflow">
+              <option value="" disabled>Choose a workflow</option>
+              <option v-for="w in workflows" :key="w.id" :value="w.id">{{ w.label }}</option>
+            </select>
+            <p id="bt-workflow-error" class="field-error" aria-live="polite">{{ fieldErrors.workflow }}</p>
+          </div>
+          <div v-else class="bt-field">
             <label for="bt-model">Model</label>
             <select id="bt-model" v-model="form.model" class="text-input" :disabled="!models.length" :aria-invalid="!!fieldErrors.model" aria-describedby="bt-model-error">
               <option v-if="!models.length" value="">No trained model</option>
@@ -241,7 +278,7 @@ function whenText(b) {
           <p v-if="fieldErrors.photos" class="field-error" role="alert">{{ fieldErrors.photos }}</p>
         </fieldset>
 
-        <p v-if="summary" class="bt-summary" aria-live="polite">{{ summary }} If another model of this project is open on its Try page, it stops there.</p>
+        <p v-if="summary" class="bt-summary" aria-live="polite">{{ summary }}<template v-if="!byWorkflow"> If another model of this project is open on its Try page, it stops there.</template></p>
         <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
         <div class="bt-actions">
           <p v-if="why" id="bt-why" class="bt-whynot">{{ why }}</p>
@@ -328,6 +365,10 @@ function whenText(b) {
 .bt-choice strong{font-size:14px;color:var(--bt-ink);overflow-wrap:anywhere}
 .bt-choice small{font-size:12px;line-height:1.5;color:var(--bt-muted);font-variant-numeric:tabular-nums}
 .bt-choice .bt-over{color:#a12c3c}
+.bt-choice.off{cursor:not-allowed;background:#f8f9fb}
+.bt-choice.off:hover{border-color:#dce0e8}
+.bt-link{display:inline-flex;align-items:center;gap:6px;min-height:32px;color:var(--aadml-primary);font-weight:600;text-decoration:underline}
+.bt-link:hover{color:var(--aadml-primary-dark)}
 .bt-help{margin:8px 0 0!important;font-size:12px!important;line-height:1.5!important;color:#5f6d82!important}
 .bt-summary{margin:20px 0 0!important;padding:10px 14px;border-radius:9px;background:#f4f6fa;color:#22304a!important;font-size:13px;line-height:1.55}
 .bt-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap}

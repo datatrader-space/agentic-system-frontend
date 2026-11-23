@@ -14,6 +14,8 @@
     - press Enter on a key in the Input pane: it goes into the field focused last (WCAG 2.5.7, via the node editor).
 
   Props `keys` and `check` default to the node window's editor, so the field works inside the window with no wiring.
+  `separator` (e.g. ', '): the field holds a list of references; an inserted token is set apart from its neighbours
+  with it (insertListItem), so "{{a}}" plus a second pick reads "{{a}}, {{b}}".
   Emits: update:modelValue (the whole new text), focus, blur.
 -->
 <template>
@@ -91,7 +93,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, useId } from 'vue'
 import { Icon } from '@iconify/vue'
 import AppCommandList from '@/components/common/AppCommandList.vue'
-import { checkTemplateTokens, insertAt } from '@/utils/wfVarExpr'
+import { checkTemplateTokens, insertAt, insertListItem } from '@/utils/wfVarExpr'
 import { useOptionalNodeEditor } from './settings/nodeEditor'
 import { WF_VAR_MIME } from './wfNodeModalModel'
 
@@ -110,6 +112,7 @@ const props = defineProps({
   groups: { type: Array, default: null },
   // (text) => tokens with { start, end, raw, problem, message, state }; default: the node window's check.
   check: { type: Function, default: null },
+  separator: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue', 'focus', 'blur'])
 
@@ -188,8 +191,9 @@ function syncScroll() {
 
 // ── inserting ──
 function write(start, end, token) {
-  const next = insertAt(text.value, start, end, token)
-  const caret = (start ?? text.value.length) + token.length
+  const { text: next, caret } = props.separator
+    ? insertListItem(text.value, start, end, token, props.separator)
+    : { text: insertAt(text.value, start, end, token), caret: (start ?? text.value.length) + token.length }
   lastCaret = { start: caret, end: caret }
   previousLength = next.length
   emit('update:modelValue', next)

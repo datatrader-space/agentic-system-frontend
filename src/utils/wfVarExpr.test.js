@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseTemplateTokens, ancestorIds, checkTemplateTokens, TEMPLATE_ROOTS,
-  NODE_ID_RE, isValidNodeId, newNodeId, newEdgeId, insertAt,
+  NODE_ID_RE, isValidNodeId, newNodeId, newEdgeId, insertAt, insertListItem,
 } from './wfVarExpr'
 
 describe('parseTemplateTokens', () => {
@@ -92,5 +92,23 @@ describe('node and edge ids', () => {
     expect(newEdgeId('a', 'b')).toBe('e_a_b')
     expect(newEdgeId('cond', 'b', [], 'true')).toBe('e_cond_true_b')
     expect(newEdgeId('a', 'b', ['e_a_b'])).toBe('e_a_b_2')
+  })
+})
+
+describe('insertListItem (a list of references, ADM-1351 phase 3)', () => {
+  it('sets a token apart from the one before it and the one after it, and keeps the caret after the token', () => {
+    expect(insertListItem('', 0, 0, '{{trigger.photo}}')).toEqual({ text: '{{trigger.photo}}', caret: 17 })
+    expect(insertListItem('{{trigger.photo}}', null, null, '{{nodes.crop.output.images}}'))
+      .toEqual({ text: '{{trigger.photo}}, {{nodes.crop.output.images}}', caret: 47 })
+    expect(insertListItem('{{a}}  ', 7, 7, '{{b}}').text).toBe('{{a}}, {{b}}')
+    expect(insertListItem('{{a}}{{c}}', 5, 5, '{{b}}')).toEqual({ text: '{{a}}, {{b}}, {{c}}', caret: 12 })
+  })
+  it('adds no second separator where one is already typed', () => {
+    expect(insertListItem('{{a}}, ', 7, 7, '{{b}}').text).toBe('{{a}}, {{b}}')
+    expect(insertListItem('{{a}},', 6, 6, '{{b}}').text).toBe('{{a}},{{b}}')
+    expect(insertListItem(', {{c}}', 0, 0, '{{b}}').text).toBe('{{b}}, {{c}}')
+  })
+  it('replaces a selection the same way', () => {
+    expect(insertListItem('{{a}}, {{old}}', 7, 14, '{{b}}').text).toBe('{{a}}, {{b}}')
   })
 })

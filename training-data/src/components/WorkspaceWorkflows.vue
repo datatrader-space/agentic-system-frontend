@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import { GitBranch, Plus, RefreshCw } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import WorkflowApps from './WorkflowApps.vue';
 import { workspaceApi, workflowLink, WORKFLOW_BUILDER, WORKFLOW_RUNS, timeAgo } from '../api/workspace.js';
 
 const rows = ref(null); const error = ref(''); const busy = ref(false);
@@ -53,6 +54,7 @@ const RUN = { completed: 'green', succeeded: 'green', success: 'green', failed: 
       </table>
     </div>
     <p class="muted note"><UiBadge tone="purple">Coming soon</UiBadge> A workflow that starts by itself when a Training model answers or goes live.</p>
+    <WorkflowApps/>
   </div>
 </template>
 

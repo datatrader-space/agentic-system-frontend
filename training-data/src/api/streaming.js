@@ -58,7 +58,37 @@ export const streamingApi = {
     return apiFetch(`${APP}/workspace/streams/`, { method: 'POST', body: { ...head, fps, address, ...extra }, timeoutMs: SLOW });
   },
   stop: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/stop/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // The annotated video of a stream whose workflow draws its objects (VISION_WORKFLOWS_PLAN.md 5.3): {url, expires_in},
+  // a link made only when asked, after the right to the stream is checked (404 while there is none).
+  video: id => apiFetch(`${APP}/workspace/streams/${enc(id)}/video/`),
 };
+
+// ── the annotated video (a capped stream on an uploaded video or a kept recording, answered by a workflow with a
+// Draw objects step; backend streaming.annotated_video) ──────────────────────────────────────────────────────────
+// What the stream row says of it: null (it makes none), or { state: making | ready | failed, text }.
+export const VIDEO_MAKING = 'Making the annotated video…';
+export function annotatedVideo(stream) {
+  const video = stream?.annotated_video;
+  if (!video || typeof video !== 'object') return null;
+  const frames = Math.max(0, Math.floor(Number(video.frames) || 0));
+  if (video.state === 'ready') return { state: 'ready', frames, text: `Annotated video ready, ${frames.toLocaleString('en-US')} frame${frames === 1 ? '' : 's'}.` };
+  if (video.state === 'making') return { state: 'making', frames, text: VIDEO_MAKING };
+  const why = String(video.error || '').trim().slice(0, 300);
+  return { state: 'failed', frames, text: `The annotated video could not be made${why ? `: ${why}` : '.'}` };
+}
+// A video link is asked for again a minute before the server's expires_in is over (15 minutes).
+export const VIDEO_LINK_MARGIN_MS = 60 * 1000;
+export function videoLinkFresh(link, now = Date.now()) {
+  if (!link || !link.url || !Number.isFinite(link.at)) return false;
+  const lasts = Math.max(0, (Number(link.expiresIn) || 0) * 1000 - VIDEO_LINK_MARGIN_MS);
+  return now - link.at < lasts;
+}
+// The server's answer, kept with when it was read: { url, expiresIn, at }. Only an http(s) address is played.
+export function videoLinkFrom(body, now = Date.now()) {
+  const url = typeof body?.url === 'string' ? body.url : '';
+  if (!/^(https?:\/\/|\/(?!\/))/i.test(url)) throw new ApiError(0, 'format', 'AADML did not send a link to the video. Try again.');
+  return { url, expiresIn: Number(body.expires_in) || 900, at: now };
+}
 
 // The workspace's saved cameras. Seeing them needs Overview in the workspace; adding, changing, checking and removing
 // need Manage. The server seals the address and the credentials; an answer carries only the address's scheme and host.

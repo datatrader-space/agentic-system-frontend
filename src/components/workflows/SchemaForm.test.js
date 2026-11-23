@@ -159,3 +159,32 @@ describe('SchemaForm', () => {
     expect(apiMock.getWorkflowVisionModels).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('SchemaForm: a Model call with images (ADM-1351 phase 3)', () => {
+  it('shows the Images field with its server help, and a second variable put in it is set apart with a comma', async () => {
+    const ctx = mountForm({ id: 'think', type: 'llm.call', data: { prompt: 'Describe', images: '{{trigger.photo}}', output_mode: 'text' } })
+    const images = wrapper.find('input[id$="-images"]')
+    expect(images.exists()).toBe(true)
+    expect(wrapper.text()).toContain('Images (optional)')
+    expect(wrapper.text()).toContain('several separated by commas')
+    images.element.focus()
+    await images.trigger('focus')
+    images.element.setSelectionRange(17, 17)
+    await images.trigger('blur')
+    expect(ctx.editor.insertIntoActive('{{nodes.crop.output.images}}')).toBe(true)
+    await flushPromises()
+    expect(data(ctx).images).toBe('{{trigger.photo}}, {{nodes.crop.output.images}}')
+  })
+
+  it('the Prompt is not a list: a variable goes in as it is', async () => {
+    const ctx = mountForm({ id: 'think', type: 'llm.call', data: { prompt: 'Describe', images: '', output_mode: 'text' } })
+    const ta = wrapper.find('textarea[id$="-prompt"]')
+    ta.element.focus()
+    await ta.trigger('focus')
+    ta.element.setSelectionRange(8, 8)
+    await ta.trigger('blur')
+    expect(ctx.editor.insertIntoActive('{{trigger.text}}')).toBe(true)
+    await flushPromises()
+    expect(data(ctx).prompt).toBe('Describe{{trigger.text}}')
+  })
+})

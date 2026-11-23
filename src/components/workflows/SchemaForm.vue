@@ -16,6 +16,8 @@
   - A kv column with `options` is a select (a manual input's type: Text or Image); a new row takes its first option.
   - An enum whose options come from a list the editor loads (`optionsKey`, e.g. visionModels) says while it loads and
     shows a failed load with a Retry; the saved value is kept.
+  - A text field whose typed input (the registry's `inputs`) takes the `images` kind is a LIST of references (a Model
+    call's Images): an inserted variable is set apart with ", " (WfVarField `separator`).
   Slots: `field-<key>` ({ field, id }) replaces a field's control, keeping its label and help.
 -->
 <template>
@@ -40,6 +42,7 @@
                 :mono="!!f.mono"
                 :placeholder="f.placeholder || ''"
                 :describedby="f.help ? helpId(f) : ''"
+                :separator="listField(f) ? ', ' : ''"
                 v-bind="editor.bindText(f.key, f.title || f.key)"
               />
 
@@ -160,6 +163,11 @@ const listState = (f) => (f.optionsKey ? editor.listStates?.value?.[f.optionsKey
 const fieldId = (f) => `${uid}-${f.key}`
 const helpId = (f) => `${uid}-${f.key}-help`
 const addLabel = (f) => String(f.addLabel || 'Add').replace(/^\+\s*/, '')
+// A field that takes a list of images (its typed input accepts the `images` kind) holds several references.
+const listField = (f) => {
+  const kinds = editor.def?.value?.inputs?.[f.key]
+  return Array.isArray(kinds) && kinds.includes('images')
+}
 
 // Group and order fields (ungrouped fields keep the registry order in one '' group).
 const groups = computed(() => {

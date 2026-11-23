@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   photoChoices, sourceOf, photosText, limitProblem, startProblem, batchSummary, batchState, isActive, anyActive,
   progressParts, progressText, changeNotes, fileNameFrom, resultsPath, downloadResults, modelLabel, DEFAULT_LIMIT, POLL_MS,
+  startBody, batchWhat, batchWorkflows, NO_BATCH_WORKFLOW,
 } from '../src/api/batch.js';
 
 const project = {
@@ -43,7 +44,7 @@ test('why Start is off is said in the order a person fixes it', () => {
   assert.equal(startProblem({ may: { start: false } , project, model, choice: choices[1] }), 'Batches cannot start here right now.');
   assert.equal(startProblem({ may: { start: true }, project: null }), 'Choose a project.');
   assert.match(startProblem({ may: {}, project: { ...project, running: true }, model, choice: choices[1] }), /Leads already has a batch running/);
-  assert.equal(startProblem({ may: {}, project: { ...project, models: [] } }), 'Leads has no trained model yet.');
+  assert.equal(startProblem({ may: {}, project: { ...project, models: [] } }), 'Leads has no trained model yet. Choose a workflow instead, or train a model first.');
   assert.equal(startProblem({ may: {}, project, model: null }), 'Choose a model.');
   assert.equal(startProblem({ may: {}, project, model, choice: null }), 'Choose the photos.');
   assert.match(startProblem({ may: {}, project, model, choice: choices[0] }), /has 640 photos/);
@@ -127,4 +128,37 @@ test('a refused download shows only the server\'s short message', async () => {
   await assert.rejects(downloadResults(7, { fetchImpl: broken, store: null }), { message: 'The results could not be downloaded.' });
   const offline = async () => { throw new TypeError('failed'); };
   await assert.rejects(downloadResults(7, { fetchImpl: offline, store: null }), { code: 'network' });
+});
+
+// ── a batch answered by a workflow (VISION_WORKFLOWS_PLAN.md 5.3, ADM-1351 phase 3) ──────────────────────────────
+test('a workflow batch is sent with the workflow id and no model; a model batch as before', () => {
+  assert.deepEqual(startBody({ project: 'leads', workflow: '12', model: 2, source: 'all', version: '' }), { project: 'leads', workflow: 12, source: 'all' });
+  assert.deepEqual(startBody({ project: 'leads', workflow: 12, source: 'version', version: 'test-v1' }), { project: 'leads', workflow: 12, source: 'version', version: 'test-v1' });
+  assert.deepEqual(startBody({ project: 'leads', model: 2, workflow: '', source: 'all' }), { project: 'leads', model: 2, source: 'all' });
+});
+
+test('the workflows a batch may use are listed as "name vN"', () => {
+  assert.deepEqual(batchWorkflows({ workflows: [{ id: 12, name: 'Desk check', version: 3 }, null] }), [{ id: '12', label: 'Desk check v3' }]);
+  assert.deepEqual(batchWorkflows({}), []);
+  assert.deepEqual(batchWorkflows(undefined), []);
+});
+
+test('why Start is off for a workflow batch: no workflow at all, none chosen, then the photos', () => {
+  const choices = photoChoices(project);
+  const workflows = [{ id: '12', label: 'Desk check v3' }];
+  const noModels = { ...project, models: [] };
+  assert.equal(startProblem({ may: {}, project: noModels, by: 'workflow', workflows: [], choice: choices[1] }), NO_BATCH_WORKFLOW);
+  assert.equal(startProblem({ may: {}, project: noModels, by: 'workflow', workflows, workflow: null, choice: choices[1] }), 'Choose the workflow that answers each photo.');
+  assert.equal(startProblem({ may: {}, project: noModels, by: 'workflow', workflows, workflow: workflows[0], choice: choices[1] }), '');
+  assert.match(startProblem({ may: {}, project: noModels, by: 'workflow', workflows, workflow: workflows[0], choice: choices[0] }), /has 640 photos/);
+  assert.match(startProblem({ may: {}, project: { ...noModels, running: true }, by: 'workflow', workflows, workflow: workflows[0], choice: choices[1] }), /already has a batch running/);
+});
+
+test('a row and the summary name the workflow and its version', () => {
+  assert.equal(batchWhat({ model: null, workflow: { id: 12, name: 'Desk check', version: 3 } }), 'Workflow: Desk check v3');
+  assert.equal(batchWhat({ model: project.models[0], workflow: null }), 'walls 2.0.0');
+  assert.equal(batchWhat({ model: null, workflow: null }), '');
+  const choices = photoChoices(project);
+  assert.equal(batchSummary(project, { id: '12', label: 'Desk check v3' }, choices[1], { byWorkflow: true }),
+    'The workflow Desk check v3 will look at the 120 photos of test-v1, one at a time, and save the objects it finds in each. Each of its Find objects steps is charged on each photo, as one photo call is, from your balance.');
 });

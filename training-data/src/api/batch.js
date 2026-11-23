@@ -1,7 +1,9 @@
-// Batch Processing on the workspace Deployments page: one model of a project run over that project's own photos,
-// followed while it runs, and its results downloaded as one JSON Lines file.
+// Batch Processing on the workspace Deployments page: one model of a project, or a published workflow that starts with
+// "Each camera frame" (VISION_WORKFLOWS_PLAN.md 5.3), run over that project's own photos, followed while it runs, and
+// its results downloaded as one JSON Lines file.
 // Backend: training_models_data/batch_api.py (workspace/batches/, .../<id>/cancel/, .../<id>/results/).
 import { apiFetch, activeWorkspace, ApiError } from './client.js';
+import { workflowChoices } from './streaming.js';
 
 const APP = '/training-data/app';
 const enc = encodeURIComponent;
@@ -10,12 +12,19 @@ const SLOW = 30000;
 
 export const batchApi = {
   list: () => apiFetch(`${APP}/workspace/batches/`),
-  start: ({ project, model, source, version }) => apiFetch(`${APP}/workspace/batches/`, {
-    method: 'POST', body: { project, model, source, ...(source === 'version' ? { version } : {}) }, timeoutMs: SLOW,
+  // One of `model` (its number) and `workflow` (its id): a workflow batch is sent without a model.
+  start: ({ project, model, workflow, source, version }) => apiFetch(`${APP}/workspace/batches/`, {
+    method: 'POST', body: startBody({ project, model, workflow, source, version }), timeoutMs: SLOW,
   }),
   cancel: id => apiFetch(`${APP}/workspace/batches/${enc(id)}/cancel/`, { method: 'POST', body: {} }),
   download: id => downloadResults(id),
 };
+
+export function startBody({ project, model, workflow, source, version }) {
+  const byWorkflow = workflow !== null && workflow !== undefined && workflow !== '';
+  const head = byWorkflow ? { project, workflow: Number(workflow) } : { project, model };
+  return { ...head, source, ...(source === 'version' ? { version } : {}) };
+}
 
 // The results are a file, not JSON: asked for with the person's own session and the selected workspace, as every
 // other call, then handed to the browser to save.
@@ -87,13 +96,23 @@ export function limitProblem(count, limit = DEFAULT_LIMIT) {
   return '';
 }
 
-// Why the start button is off, in the order a person fixes it; '' when it can start.
-export function startProblem({ may, project, model, choice, limit = DEFAULT_LIMIT }) {
+// The workflows a batch may answer its photos with (options.workflows: the published "Each camera frame" workflows of
+// the workspace this person may run), as the start dialog lists them: [{ id, label }].
+export const batchWorkflows = options => workflowChoices(options);
+export const NO_BATCH_WORKFLOW = 'No workflow can answer photos yet. In the Workflow Builder, make one that starts with "Each camera frame", then publish it.';
+
+// Why the start button is off, in the order a person fixes it; '' when it can start. `by`: 'model' or 'workflow'.
+export function startProblem({ may, project, by = 'model', model, workflow, workflows = [], choice, limit = DEFAULT_LIMIT }) {
   if (may && may.start === false) return may.reason || 'Batches cannot start here right now.';
   if (!project) return 'Choose a project.';
   if (project.running) return `${project.name} already has a batch running. Wait for it to end, or cancel it.`;
-  if (!(project.models || []).length) return `${project.name} has no trained model yet.`;
-  if (!model) return 'Choose a model.';
+  if (by === 'workflow') {
+    if (!(workflows || []).length) return NO_BATCH_WORKFLOW;
+    if (!workflow) return 'Choose the workflow that answers each photo.';
+  } else {
+    if (!(project.models || []).length) return `${project.name} has no trained model yet. Choose a workflow instead, or train a model first.`;
+    if (!model) return 'Choose a model.';
+  }
   if (!choice) return 'Choose the photos.';
   return limitProblem(choice.photos, limit);
 }
@@ -109,12 +128,21 @@ export function batchProjectProblem(options, ref) {
 }
 
 export const modelLabel = m => (m ? `${m.name} ${m.version}${m.smoke ? ' (smoke test)' : ''}` : '');
+// What answers a batch's photos, as its row says it: "walls 2.0.0" or "Workflow: Desk check v3".
+export function batchWhat(b) {
+  if (b?.workflow) return `Workflow: ${b.workflow.name || `Workflow ${b.workflow.id}`} v${b.workflow.version}`;
+  return modelLabel(b?.model);
+}
 
-// The line shown above Start: what will happen, in one sentence.
-export function batchSummary(project, model, choice) {
-  if (!project || !model || !choice) return '';
+// The line shown above Start: what will happen, in one sentence. `answerer` is the model, or a workflow choice
+// ({ id, label }) with `byWorkflow`.
+export function batchSummary(project, answerer, choice, { byWorkflow = false } = {}) {
+  if (!project || !answerer || !choice) return '';
   const which = choice.value === 'all' ? `all ${photosText(choice.photos)} of ${project.name}` : `the ${photosText(choice.photos)} of ${choice.version}`;
-  return `${modelLabel(model)} will look at ${which}, one at a time, and save what it finds in each.`;
+  if (byWorkflow) {
+    return `The workflow ${answerer.label} will look at ${which}, one at a time, and save the objects it finds in each. Each of its Find objects steps is charged on each photo, as one photo call is, from your balance.`;
+  }
+  return `${modelLabel(answerer)} will look at ${which}, one at a time, and save what it finds in each.`;
 }
 
 // A batch's state chip: [tone, label].
