@@ -84,6 +84,7 @@ describe("a person's own consent page", () => {
     expect(w.text()).toContain('Hello Ali Khan');
     const agree = () => w.findAll('button').find(b => b.text().includes('Agree'));
     expect(agree().attributes('disabled')).toBeDefined();                       // no photo, not ticked
+    expect(w.find('input[type="file"]').attributes('capture')).toBeUndefined();   // choosing is choosing; the selfie is its own
     const input = w.find('input[type="file"]');
     Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'me.jpg', { type: 'image/jpeg' })] });
     await input.trigger('change');
@@ -119,4 +120,53 @@ describe('the addresses asked', () => {
     expect(workplaceApi.attendanceCsvUrl({ since: '2026-11-14', until: '2026-11-20' }))
       .toBe('/api/training-data/app/workspace/workplace/attendance/?since=2026-11-14&until=2026-11-20&download=csv');
   });
+
+  it('takes a selfie with the front camera on the page, lets it be retaken, and lets the camera go', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ name: 'Ali Khan', workplace: 'Office',
+      state: 'invited', faces_on: true, points: [], notice: '', attendance: [], consent_at: null, link_ends: null }) }));
+    globalThis.URL.createObjectURL = () => 'blob:selfie';
+    globalThis.URL.revokeObjectURL = () => {};
+    const stopped = [];
+    const track = { stop: () => stopped.push('camera') };
+    const getUserMedia = vi.fn(async () => ({ getTracks: () => [track] }));
+    Object.defineProperty(globalThis.navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+    window.HTMLMediaElement.prototype.play = vi.fn(async () => {});
+    Object.defineProperty(window.HTMLVideoElement.prototype, 'videoWidth', { configurable: true, get: () => 640 });
+    Object.defineProperty(window.HTMLVideoElement.prototype, 'videoHeight', { configurable: true, get: () => 480 });
+    window.HTMLCanvasElement.prototype.getContext = () => ({ drawImage: () => {} });
+    window.HTMLCanvasElement.prototype.toBlob = function (done) { done(new Blob(['jpeg'], { type: 'image/jpeg' })); };
+    const w = mount(WorkplaceConsent, { props: { secret: SECRET } });
+    await flushPromises();
+    await w.get('[data-test="wc-selfie"]').trigger('click');
+    await flushPromises();
+    expect(getUserMedia.mock.calls[0][0].video.facingMode).toEqual({ ideal: 'user' });   // the front camera
+    expect(getUserMedia.mock.calls[0][0].audio).toBe(false);
+    expect(w.find('[data-test="wc-camera"] video').exists()).toBe(true);
+    await w.get('[data-test="wc-snap"]').trigger('click');
+    await flushPromises();
+    expect(stopped).toEqual(['camera']);                                        // let go at once
+    expect(w.find('img.wc-preview').attributes('src')).toBe('blob:selfie');
+    expect(w.find('[data-test="wc-camera"]').exists()).toBe(false);
+    await w.get('[data-test="wc-retake"]').trigger('click');
+    await flushPromises();
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(w.find('img.wc-preview').exists()).toBe(false);
+    w.unmount();
+    expect(stopped).toEqual(['camera', 'camera']);                              // and when the page goes
+  });
+
+  it('says plainly when the camera is not allowed, and choosing a photo still works', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ name: 'Ali Khan', workplace: 'Office',
+      state: 'invited', faces_on: true, points: [], notice: '', attendance: [], consent_at: null, link_ends: null }) }));
+    const refused = Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' });
+    Object.defineProperty(globalThis.navigator, 'mediaDevices', { value: { getUserMedia: vi.fn(async () => { throw refused; }) }, configurable: true });
+    const w = mount(WorkplaceConsent, { props: { secret: SECRET } });
+    await flushPromises();
+    await w.get('[data-test="wc-selfie"]').trigger('click');
+    await flushPromises();
+    expect(w.get('[data-test="wc-camera-error"]').text()).toContain('not allowed to use the camera');
+    expect(w.find('[data-test="wc-file"]').exists()).toBe(true);
+    w.unmount();
+  });
 });
+

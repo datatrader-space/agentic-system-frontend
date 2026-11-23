@@ -4,8 +4,11 @@
 // cameras do there and why, and lets the person consent by taking or choosing a photo of their own face (the only way
 // they can be recognised), see their own attendance, withdraw (their face data is deleted at once) and erase their
 // records. Their photo goes to AADML only when they press Agree; nothing is sent before.
-import { computed, onMounted, ref } from 'vue';
-import { Check, CircleAlert, ShieldCheck, Trash2, UserX } from 'lucide-vue-next';
+// A SELFIE is taken on the page itself (the owner, 2026-11-23: a phone offered only "upload", the file input's capture
+// hint being ignored by its browser): Take a selfie opens the FRONT camera in the page, Take photo keeps one picture
+// (as the camera sees it, not mirrored), Retake opens it again, and the camera is let go at once. Choose a photo stays.
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { Camera, Check, CircleAlert, ImageUp, RotateCcw, ShieldCheck, Trash2, UserX } from 'lucide-vue-next';
 import { workplaceMeApi } from '../api/phone.js';
 
 const props = defineProps({ secret: { type: String, required: true } });
@@ -16,11 +19,51 @@ const confirmErase = ref(false);
 onMounted(async () => {
   try { me.value = await workplaceMeApi.get(props.secret); } catch (e) { error.value = e.message; }
 });
-function pick(event) {
-  photo.value = event.target.files?.[0] || null;
+function take(file) {
+  photo.value = file || null;
   if (preview.value) URL.revokeObjectURL(preview.value);
   preview.value = photo.value ? URL.createObjectURL(photo.value) : '';
 }
+function pick(event) { closeCamera(); take(event.target.files?.[0] || null); }
+
+// ── the selfie, taken here with the front camera ──
+const video = ref(null); const camera = ref('closed'); const cameraError = ref('');   // closed | opening | open
+let stream = null;
+const canSelfie = !!globalThis.navigator?.mediaDevices?.getUserMedia;
+function closeCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (video.value) video.value.srcObject = null;
+  camera.value = 'closed';
+}
+async function openCamera() {
+  cameraError.value = ''; camera.value = 'opening';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
+    camera.value = 'open';
+    await nextTick();
+    if (video.value) { video.value.srcObject = stream; await video.value.play().catch(() => {}); }
+  } catch (e) {
+    closeCamera();
+    cameraError.value = e?.name === 'NotAllowedError'
+      ? 'The browser was not allowed to use the camera. Allow it in the browser, or choose a photo instead.'
+      : 'The camera could not be opened. Choose a photo instead.';
+  }
+}
+async function snap() {
+  const v = video.value;
+  if (!v || !v.videoWidth || !v.videoHeight) { cameraError.value = 'The camera is not ready yet. Try again in a moment.'; return; }
+  const canvas = document.createElement('canvas');
+  canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+  const context = canvas.getContext('2d');
+  if (!context) { cameraError.value = 'This browser cannot take the photo. Choose a photo instead.'; return; }
+  context.drawImage(v, 0, 0);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  if (!blob) { cameraError.value = 'The photo could not be taken. Try again.'; return; }
+  take(new File([blob], 'selfie.jpg', { type: 'image/jpeg' }));
+  closeCamera();
+}
+async function retake() { take(null); await openCamera(); }
+onUnmounted(() => { closeCamera(); if (preview.value) URL.revokeObjectURL(preview.value); });
 async function act(work) {
   busy.value = true; error.value = '';
   try { const answer = await work(); me.value = answer; said.value = answer?.said || ''; }
@@ -50,8 +93,22 @@ const consented = computed(() => me.value?.state === 'consented');
         <p v-if="!me.faces_on" class="wc-muted">Face recognition is not switched on at your workplace yet, so you cannot agree now.</p>
         <template v-else>
           <p class="wc-muted">Take or choose one clear photo of your face, facing the camera, in good light. It is turned into face data that only your workplace's cameras use to recognise you. You can withdraw at any time.</p>
-          <label class="wc-file">Your photo <input type="file" accept="image/*" capture="user" @change="pick"></label>
-          <img v-if="preview" :src="preview" alt="Your photo" class="wc-preview">
+          <div class="wc-ways">
+            <button v-if="canSelfie && camera === 'closed' && !photo" type="button" class="wc-button primary" data-test="wc-selfie" @click="openCamera"><Camera :size="16" aria-hidden="true"/> Take a selfie</button>
+            <label class="wc-button wc-pick"><ImageUp :size="16" aria-hidden="true"/> Choose a photo<input type="file" accept="image/*" class="wc-hidden" data-test="wc-file" @change="pick"></label>
+          </div>
+          <div v-if="camera !== 'closed'" class="wc-camera" data-test="wc-camera">
+            <video ref="video" muted playsinline autoplay aria-label="Your camera" class="wc-video"></video>
+            <div class="wc-ways">
+              <button type="button" class="wc-button primary" :disabled="camera !== 'open'" data-test="wc-snap" @click="snap"><Camera :size="16" aria-hidden="true"/> Take photo</button>
+              <button type="button" class="wc-button" @click="closeCamera">Cancel</button>
+            </div>
+          </div>
+          <p v-if="cameraError" class="wc-error" role="alert" data-test="wc-camera-error"><CircleAlert :size="16" aria-hidden="true"/> {{ cameraError }}</p>
+          <template v-if="preview">
+            <img :src="preview" alt="Your photo" class="wc-preview">
+            <button v-if="canSelfie" type="button" class="wc-button" data-test="wc-retake" @click="retake"><RotateCcw :size="16" aria-hidden="true"/> Retake</button>
+          </template>
           <label class="wc-check"><input v-model="agree" type="checkbox"> I agree that my workplace's cameras recognise my face for attendance, desks and entrances, as described above.</label>
           <button type="button" class="wc-button primary" :disabled="busy || !agree || !photo" @click="consent"><Check :size="16" aria-hidden="true"/> Agree</button>
         </template>
@@ -89,7 +146,11 @@ const consented = computed(() => me.value?.state === 'consented');
 .wc-card ul{margin:0 0 8px;padding-left:20px}
 .wc-notice{white-space:pre-line;font-size:14px;color:#334155}
 .wc-muted{color:#64748b;font-size:14px;margin:8px 0}
-.wc-file{display:grid;gap:6px;font-weight:600;margin:8px 0}
+.wc-ways{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.wc-pick{position:relative}
+.wc-hidden{position:absolute;inset:0;opacity:0;cursor:pointer}
+.wc-camera{margin:8px 0}
+.wc-video{display:block;width:100%;max-width:420px;border-radius:12px;background:#111;transform:scaleX(-1)}
 .wc-preview{max-width:180px;border-radius:10px;display:block;margin:8px 0}
 .wc-check{display:flex;gap:8px;align-items:flex-start;margin:10px 0}
 .wc-button{display:inline-flex;gap:6px;align-items:center;min-height:44px;padding:0 16px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font:inherit;font-weight:600;cursor:pointer}
