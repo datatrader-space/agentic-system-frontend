@@ -1447,7 +1447,7 @@ function isUnsavedPath(path) { return openTabs.value.some(t => t.type === 'file'
 function sendReview({ conversationId, text }) {
   return new Promise((resolve) => emit('send-review', { conversationId, text, done: (ok) => resolve(!!ok) }))
 }
-defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openReview })
+defineExpose({ refresh, showSourceControl, onFilesChanged, unsavedCount, openReview, openAt })
 
 // PICTURES SHOW AS PICTURES (owner, 2026-11-10: "image still not preview"). The server sends the file's exact
 // bytes (files/image/); the tab shows them from a blob: URL, which is freed when the tab closes. An SVG opens as a

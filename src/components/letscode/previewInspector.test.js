@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   readInspectorMessage, postToPage, deviceSize, fitScale, DEVICES, elementMessage, pngFile, FROM_PAGE, TO_PAGE,
+  cleanLocations, locationLabel,
 } from './previewInspector'
 
 const ORIGIN = 'https://47100-k3j9x2signedtoken.proxy.sandbox.aadml.com'
@@ -85,6 +86,27 @@ describe('commands and helpers', () => {
     const bare = elementMessage({ element: { ...ELEMENT, source: null }, port: 3000, screenshot: 'not attached, because x' })
     expect(bare).toContain('does not expose where this element comes from')
     expect(bare.endsWith('where is it in the code?')).toBe(true)
+  })
+
+  it('places found in the files go in the message, best first, phrased so the agent edits that file', () => {
+    const locations = cleanLocations([
+      { path: 'src/components/Hero.tsx', line: 4, column: 7, why: 'This line has the classes "btn primary".' },
+      { path: 'src/components/Hero.test.tsx', line: 1, column: 1, why: 'This line has the text "Buy now".' },
+      { path: '', line: 2 }, { path: 'x.html', line: 'one' }, 'nope', null,
+    ])
+    expect(locations.map(locationLabel)).toEqual(['src/components/Hero.tsx:4', 'src/components/Hero.test.tsx:1'])
+    const text = elementMessage({ element: { ...ELEMENT, source: null }, port: 3000, locations })
+    expect(text).toContain('- Source: src/components/Hero.tsx:4, found in the project\'s files (This line has the classes "btn primary".). Make the change in that file, at that line.')
+    expect(text).toContain('  - src/components/Hero.test.tsx:1: This line has the text "Buy now".')
+    expect(text).not.toContain('does not expose')
+    const none = elementMessage({ element: { ...ELEMENT, source: null }, port: 3000, locateNote: 'No file in the project has it.' })
+    expect(none).toContain("- Looked for in the project's files: No file in the project has it.")
+  })
+
+  it("the framework's own location is preferred over places found in the files", () => {
+    const text = elementMessage({ element: ELEMENT, port: 5173, locations: [{ path: 'src/Other.vue', line: 3, why: '' }] })
+    expect(text).toContain('Source: /home/northrays/workspace/repo/src/Buy.vue:12:5 (from Vue). Edit that file.')
+    expect(text).not.toContain('src/Other.vue')
   })
 
   it('a PNG data address becomes a picture file', async () => {

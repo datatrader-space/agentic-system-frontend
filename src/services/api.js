@@ -1065,6 +1065,9 @@ export default {
   // report console, network and the selected element to THIS page's origin only (AADML checks it is one it runs on).
   getProjectPreview: (repoId, port, { inspect = false } = {}) => api.get(`/lets-code/projects/${repoId}/preview/`, {
     params: inspect ? { port, inspect: 1, origin: window.location.origin } : { port }, noCache: true }),   // { url, inspector } signed now
+  // Where an element picked in the Preview tab is written in the project (ADM-1318), for a page that does not say so:
+  // element = { tag, id, classes, text, html, page } -> { locations: [{ path, line, column, why }] best first, searched, reason? }
+  locatePreviewElement: (repoId, element) => api.post(`/lets-code/projects/${repoId}/preview/locate/`, element),
   // The project's app ports for the IDE's Preview tab (ADM-1205 phase D): { ports: [{ port, listening, started_by: 'agent' | 'you', command }] }
   // Opening a project, measured (ADM-1326): the click's record, the browser's steps, and the hover's early wake.
   startProjectOpen: (repoId) => api.post(`/lets-code/projects/${repoId}/open/`),   // { open_id, sandbox, prefetched }

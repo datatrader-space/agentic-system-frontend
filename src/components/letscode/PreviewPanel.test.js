@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
-vi.mock('@/services/api', () => ({ default: { getProjectPorts: vi.fn(), getProjectPreview: vi.fn() } }))
+vi.mock('@/services/api', () => ({ default: { getProjectPorts: vi.fn(), getProjectPreview: vi.fn(), locatePreviewElement: vi.fn() } }))
 
 import api from '@/services/api'
 import PreviewPanel from './PreviewPanel.vue'
@@ -28,6 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.getProjectPorts.mockResolvedValue({ data: { ports: PORTS } })
   api.getProjectPreview.mockResolvedValue({ data: { url: SIGNED, expires_in: 3600 } })
+  api.locatePreviewElement.mockResolvedValue({ data: { locations: [], searched: [], reason: 'No file matched.' } })
 })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
@@ -148,6 +149,9 @@ describe('the bottom panel', () => {
     const ask = { text: 'About this element', files: [], done: () => {} }
     w.findComponent(PreviewPanel).vm.$emit('ask-agent', ask)
     expect(w.emitted('ask-agent')).toEqual([[ask]])
+    const loc = { path: 'index.html', line: 5, column: 7 }
+    w.findComponent(PreviewPanel).vm.$emit('open-file', loc)
+    expect(w.emitted('open-file')).toEqual([[loc]])
   })
 })
 
@@ -285,6 +289,97 @@ describe('the preview tools', () => {
     await say({ kind: 'text-edit', ok: true })
     await say({ kind: 'text-edited', before: 'Buy now', after: 'Buy today' })
     expect(w.find('.pe-edit').text()).toContain('“Buy now” → “Buy today”')
+  })
+
+  // ADM-1318 follow-up (live check 2026-11-20): a page that does not say where an element comes from (plain HTML, React 19)
+  it('an element with no source is looked for in the files; the card shows the places and the message carries them', async () => {
+    const found = [
+      { path: 'index.html', line: 5, column: 7, why: 'This line has id="hero" and the text "Welcome".' },
+      { path: 'about.html', line: 3, column: 3, why: 'This line has the text "Welcome".' },
+    ]
+    api.locatePreviewElement.mockResolvedValue({ data: { searched: ['id="hero"'], locations: found } })
+    await openInspected()
+    const posted = vi.spyOn(frameWin(), 'postMessage')
+    const plain = { ...ELEMENT, tag: 'h1', id: 'hero', classes: ['title'], text: 'Welcome', html: '<h1 id="hero" class="title">', source: null, page: '/' }
+    await say({ kind: 'select', element: plain })
+    expect(api.locatePreviewElement).toHaveBeenCalledWith(14, { tag: 'h1', id: 'hero', classes: ['title'], text: 'Welcome',
+      html: '<h1 id="hero" class="title">', page: '/' })
+    const best = w.find('.pe-loc.best')
+    expect(best.text()).toBe('index.html:5')
+    expect(w.find('.pe-why').text()).toContain('id="hero"')
+    expect(w.find('.pe-more summary').text()).toBe('1 other place matches')
+    await best.trigger('click')
+    expect(w.emitted('open-file')).toEqual([[found[0]]])
+    await w.find('.pe-btn.primary').trigger('click')
+    const { requestId } = posted.mock.calls.at(-1)[0]
+    await say({ kind: 'screenshot', requestId, dataUrl: 'data:image/png;base64,aGk=' })
+    const [[{ text }]] = w.emitted('ask-agent')
+    expect(text).toContain("- Source: index.html:5, found in the project's files")
+    expect(text).toContain('Make the change in that file, at that line.')
+    expect(text).toContain('  - about.html:3: This line has the text "Welcome".')
+  })
+
+  it("a framework's own location is preferred: nothing is looked for", async () => {
+    await openInspected()
+    await say({ kind: 'select', element: ELEMENT })
+    expect(api.locatePreviewElement).not.toHaveBeenCalled()
+    expect(w.find('.pe-src').text()).toBe('src/Buy.vue:12:5')
+    expect(w.find('.pe-loc').exists()).toBe(false)
+  })
+
+  it('no place found says why, in the card and in the message', async () => {
+    api.locatePreviewElement.mockResolvedValue({ data: { locations: [], searched: [], reason: 'No file in the project has this element.' } })
+    await openInspected()
+    const posted = vi.spyOn(frameWin(), 'postMessage')
+    await say({ kind: 'select', element: { ...ELEMENT, source: null } })
+    expect(w.find('.pe-none').text()).toBe('No file in the project has this element.')
+    await w.find('.pe-btn.primary').trigger('click')
+    await say({ kind: 'screenshot', requestId: posted.mock.calls.at(-1)[0].requestId, error: 'x' })
+    const [[{ text }]] = w.emitted('ask-agent')
+    expect(text).toContain("Looked for in the project's files: No file in the project has this element.")
+  })
+
+  it('the page keeps its share when the tools open: a split with a divider, never 0 px', async () => {
+    await openInspected()
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    const work = w.find('.pv-work')
+    expect(work.classes()).toContain('split')
+    expect(work.attributes('style')).toContain('--pv-stage: 60%')
+    expect(work.attributes('style')).toContain('--pv-stage-min: 55%')
+    expect(w.find('.pv-below .pv-devtools').exists()).toBe(true)
+    const divider = w.find('.pv-split[role="separator"]')
+    expect(divider.attributes('aria-valuenow')).toBe('60')
+    await divider.trigger('keydown', { key: 'ArrowDown' })
+    expect(divider.attributes('aria-valuenow')).toBe('65')
+    await divider.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
+    expect(divider.attributes('aria-valuenow')).toBe('55')
+    await divider.trigger('keydown', { key: 'ArrowUp' })
+    expect(divider.attributes('aria-valuenow')).toBe('55')        // never below the page's minimum share
+    await divider.trigger('keydown', { key: 'End' })
+    expect(work.attributes('style')).toContain('--pv-stage: 85%')
+    // The element card alone: no split, the page keeps at least its minimum share and the card scrolls.
+    await w.find('[aria-label="Hide the console and network"]').trigger('click')
+    await say({ kind: 'select', element: ELEMENT })
+    expect(w.find('.pv-work').classes()).toContain('below')
+    expect(w.find('.pv-split').exists()).toBe(false)
+    expect(w.find('.pv-below .pe').exists()).toBe(true)
+  })
+
+  it('a panel too short for the page and the tools is maximized when the tools open', async () => {
+    await openInspected()
+    const height = (v) => Object.defineProperty(w.find('.pv-work').element, 'clientHeight', { configurable: true, value: v })
+    height(177)
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    expect(w.emitted('maximize')).toHaveLength(1)
+    await w.find('[aria-label="Hide the console and network"]').trigger('click')
+    await w.setProps({ maximized: true })
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    expect(w.emitted('maximize')).toHaveLength(1)                  // already maximized: left as it is
+    await w.find('[aria-label="Hide the console and network"]').trigger('click')
+    await w.setProps({ maximized: false })
+    height(400)
+    await w.find('[aria-label="Show the console and network"]').trigger('click')
+    expect(w.emitted('maximize')).toHaveLength(1)                  // room for both: not maximized
   })
 
   it('when the tools cannot run it says why, and the plain preview is one click away', async () => {

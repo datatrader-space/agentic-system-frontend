@@ -102,7 +102,10 @@
         </div>
       </div>
 
-      <div v-else class="pv-work">
+      <!-- The page keeps at least STAGE_MIN of the height whatever is open under it: the element card and the console
+           and network share the rest, with their own scroll; the divider moves the split (ADM-1318 follow-up). -->
+      <div v-else ref="work" class="pv-work" :class="{ split: splitOpen, below: belowOpen && !splitOpen, dragging }"
+           :style="{ '--pv-stage': `${stagePct}%`, '--pv-stage-min': `${STAGE_MIN}%` }">
         <div ref="stage" class="pv-stage" :class="{ sized: !!size }">
           <div class="pv-device" :style="deviceBox">
             <!-- Another origin (the sandbox's), so it cannot read AADML's page or cookies, and AADML never reads its page:
@@ -113,11 +116,18 @@
           </div>
         </div>
         <p v-if="selecting" class="pv-hint" role="status">Click an element in the preview to select it. Esc stops.</p>
-        <PreviewElementCard v-if="element" ref="card" :element="element" :edit="textEdit" :editing="editing" :busy="asking"
-                            :note="askNote" :note-error="askNoteError"
-                            @ask="askAgent" @edit-text="editText" @clear="clearElement" />
-        <div v-if="inspector && toolsOpen" class="pv-devtools">
-          <PreviewDevtools v-model:tab="toolsTab" :console="consoleEntries" :network="networkEntries" @clear="clearEntries" />
+        <div v-if="splitOpen" class="pv-split" :class="{ active: dragging }" role="separator" aria-orientation="horizontal"
+             aria-label="Resize the preview and the tools" tabindex="0" :aria-valuenow="stagePct" :aria-valuemin="STAGE_MIN"
+             :aria-valuemax="STAGE_MAX" :aria-valuetext="`The page has ${stagePct}% of the height`"
+             @pointerdown="startSplit" @keydown="onSplitKey" @dblclick="stagePct = STAGE_DEFAULT"></div>
+        <div v-if="belowOpen" class="pv-below vm-scroll">
+          <PreviewElementCard v-if="element" ref="card" :element="element" :edit="textEdit" :editing="editing" :busy="asking"
+                              :note="askNote" :note-error="askNoteError" :locations="locations" :locating="locating"
+                              :locate-note="locateNote"
+                              @ask="askAgent" @edit-text="editText" @clear="clearElement" @open="(loc) => emit('open-file', loc)" />
+          <div v-if="toolsShown" class="pv-devtools">
+            <PreviewDevtools v-model:tab="toolsTab" :console="consoleEntries" :network="networkEntries" @clear="clearEntries" />
+          </div>
         </div>
       </div>
     </div>
@@ -135,7 +145,7 @@ import { fetchPreviewLink } from '@/utils/previewLink'
 import PreviewDevtools from './PreviewDevtools.vue'
 import PreviewElementCard from './PreviewElementCard.vue'
 import {
-  DEVICES, deviceSize, fitScale, readInspectorMessage, postToPage, pngFile, elementMessage, formatPercent,
+  DEVICES, deviceSize, fitScale, readInspectorMessage, postToPage, pngFile, elementMessage, formatPercent, cleanLocations,
 } from './previewInspector'
 
 const props = defineProps({
@@ -144,7 +154,8 @@ const props = defineProps({
   maximized: { type: Boolean, default: false },
 })
 // `ask-agent` { text, files, done(ok) }: ONE message to the Coding Agent's chat (LetsCode.vue -> UnifiedAgentChat.sendReview).
-const emit = defineEmits(['maximize', 'ask-agent'])
+// `open-file` { path, line, column }: open a place the element was found at, in the editor (LetsCode.vue -> CodeBrowser.openAt).
+const emit = defineEmits(['maximize', 'ask-agent', 'open-file'])
 
 const ports = ref([])
 const loadingPorts = ref(false)
@@ -193,6 +204,27 @@ const networkEntries = shallowRef([])
 const errorCount = computed(() => consoleEntries.value.reduce((n, e) => n + (e.level === 'error' ? 1 : 0), 0))
 let entryId = 0
 const shots = new Map()
+// Where the selected element is written, for a page that does not say so (plain HTML, React 19): AADML looks for it in
+// the project's files (POST …/preview/locate/). The framework's own location, when there is one, is used instead.
+const locations = ref([])
+const locating = ref(false)
+const locateNote = ref('')
+let locateSeq = 0
+let locateDone = Promise.resolve()
+
+// The split (ADM-1318 follow-up): the page keeps at least STAGE_MIN % of the height when the card or the tools are open
+// under it, so it is never 0 px; the divider moves it between STAGE_MIN and STAGE_MAX. A panel too short for both
+// (SHORT_PX) is maximized when the person opens the tools.
+const STAGE_MIN = 55
+const STAGE_MAX = 85
+const STAGE_DEFAULT = 60
+const SHORT_PX = 300
+const work = ref(null)
+const stagePct = ref(STAGE_DEFAULT)
+const dragging = ref(false)
+const toolsShown = computed(() => inspector.value && toolsOpen.value)
+const belowOpen = computed(() => !!element.value || toolsShown.value)
+const splitOpen = toolsShown
 const SHOT_WAIT_MS = 15000
 
 async function loadPorts() {
@@ -286,6 +318,7 @@ function onMessage(event) {
       textEdit.value = null
       editing.value = false
       askNote.value = ''
+      locateElement(msg.element)
       break
     case 'text-edit':
       editing.value = msg.ok
@@ -302,6 +335,38 @@ function onMessage(event) {
     }
   }
 }
+function clearLocations() {
+  locateSeq += 1                        // an answer still on its way is dropped
+  locations.value = []
+  locating.value = false
+  locateNote.value = ''
+  locateDone = Promise.resolve()
+}
+function locateElement(el) {
+  clearLocations()
+  if (!el || el.source) return          // the framework said where: that is preferred
+  const mine = locateSeq
+  locating.value = true
+  const { tag, id, classes, text, html, page } = el
+  locateDone = (async () => {
+    try {
+      const { data } = await api.locatePreviewElement(props.repoId, { tag, id, classes, text, html, page })
+      if (mine !== locateSeq) return
+      locations.value = cleanLocations(data?.locations)
+      if (!locations.value.length) {
+        locateNote.value = typeof data?.reason === 'string' && data.reason ? data.reason : 'No file in the project matched this element.'
+      }
+    } catch (e) {
+      if (mine !== locateSeq) return
+      const body = e?.response?.data || {}
+      locateNote.value = body.code === 'RUNNER_STARTING'
+        ? "The project's sandbox is waking, so its files were not searched. Select the element again in a moment."
+        : (typeof body.error === 'string' && body.error) || "The project's files could not be searched for this element."
+    } finally {
+      if (mine === locateSeq) locating.value = false
+    }
+  })()
+}
 function toPage(kind, data) { return postToPage(frameEl.value?.contentWindow, frameOrigin.value, kind, data) }
 function toggleSelect() {
   const on = !selecting.value
@@ -310,6 +375,7 @@ function toggleSelect() {
 function resetSelection() {
   selecting.value = false
   element.value = null
+  clearLocations()
   textEdit.value = null
   editing.value = false
   askNote.value = ''
@@ -341,10 +407,11 @@ async function askAgent(request) {
   askNote.value = ''
   askNoteError.value = false
   const el = element.value
-  const shot = await takeScreenshot()
+  const [shot] = await Promise.all([takeScreenshot(), locateDone])   // the places in the files go in the same message
   const files = shot.dataUrl ? [pngFile(shot.dataUrl, `preview-port-${selected.value}.png`)] : []
   const text = elementMessage({ element: el, request, port: selected.value, edit: textEdit.value,
-    screenshot: shot.dataUrl ? 'attached (what the preview showed)' : `not attached, because ${shot.error}` })
+    screenshot: shot.dataUrl ? 'attached (what the preview showed)' : `not attached, because ${shot.error}`,
+    locations: locations.value, locateNote: locateNote.value })
   const ok = await new Promise((resolve) => emit('ask-agent', { text, files, done: (v) => resolve(!!v) }))
   asking.value = false
   if (ok) {
@@ -355,6 +422,39 @@ async function askAgent(request) {
     askNoteError.value = true
   }
 }
+
+function clampStage(pct) { return Math.min(STAGE_MAX, Math.max(STAGE_MIN, Math.round(pct))) }
+function startSplit(e) {
+  const box = work.value?.getBoundingClientRect()
+  if (!box || !(box.height > 0)) return
+  e.preventDefault()
+  dragging.value = true
+  const handle = e.currentTarget
+  try { handle.setPointerCapture?.(e.pointerId) } catch { /* not every pointer can be captured */ }
+  const move = (ev) => { stagePct.value = clampStage(((ev.clientY - box.top) / box.height) * 100) }
+  const up = () => {
+    dragging.value = false
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', up)
+    handle.removeEventListener('pointercancel', up)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', up)
+  handle.addEventListener('pointercancel', up)
+}
+function onSplitKey(e) {
+  const step = e.shiftKey ? 10 : 5
+  const to = { ArrowUp: stagePct.value - step, ArrowDown: stagePct.value + step, Home: STAGE_MIN, End: STAGE_MAX }[e.key]
+  if (to === undefined) return
+  e.preventDefault()
+  stagePct.value = clampStage(to)
+}
+// Opening the tools in a panel too short for the page and the tools both: the panel is maximized (Restore gives it back).
+function roomForTools() {
+  const h = work.value?.clientHeight || 0
+  if (toolsShown.value && !props.maximized && h > 0 && h < SHORT_PX) emit('maximize')
+}
+watch(toolsShown, (open) => { if (open) roomForTools() })
 
 let stageObserver = null
 function measureStage() {
@@ -473,8 +573,25 @@ defineExpose({ openPort, loadPorts })
 .pv-device { flex: 1 1 auto; display: flex; min-width: 0; min-height: 0; }
 .pv-stage.sized .pv-device { flex: 0 0 auto; overflow: hidden; border-radius: 6px; box-shadow: 0 0 0 1px var(--vm-line-2); }
 .pv-stage.sized .pv-frame { flex: 0 0 auto; }
-.pv-hint { margin: 0; padding: 4px 10px; font-size: 12px; color: var(--vm-ink-soft); border-top: 1px solid var(--vm-line); }
-.pv-devtools { flex: 0 0 42%; min-height: 140px; border-top: 1px solid var(--vm-line); display: flex; flex-direction: column; }
+.pv-hint { margin: 0; padding: 4px 10px; font-size: 12px; color: var(--vm-ink-soft); border-top: 1px solid var(--vm-line); flex: 0 0 auto; }
+/* What is open under the page: the element card alone takes what it needs, up to the page's minimum share; with the
+   tools open the divider sets the split. Either way it scrolls on its own and the page is never squeezed to 0 px. */
+.pv-work.below .pv-stage { flex: 1 1 auto; min-height: var(--pv-stage-min); }
+.pv-work.below .pv-below { flex: 0 1 auto; }
+.pv-work.split .pv-stage { flex: 0 0 var(--pv-stage); }
+.pv-work.split .pv-below { flex: 1 1 0; }
+.pv-below { min-height: 0; overflow: auto; display: flex; flex-direction: column; border-top: 1px solid var(--vm-line); }
+.pv-devtools { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; }
+.pv-below > .pv-devtools:not(:first-child) { border-top: 1px solid var(--vm-line); }
+.pv-split {
+  position: relative; flex: 0 0 auto; height: 5px; margin: -2px 0; z-index: 1; cursor: row-resize; touch-action: none;
+  background: transparent; transition: background-color .15s;
+}
+.pv-split::before { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }   /* an easier target */
+.pv-split:hover, .pv-split.active, .pv-split:focus-visible { background: color-mix(in srgb, var(--vm-violet) 55%, transparent); }
+.pv-split:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 0; }
+.pv-work.dragging .pv-frame { pointer-events: none; }   /* the page never takes the drag */
+@media (prefers-reduced-motion: reduce) { .pv-split { transition: none; } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (max-width: 640px) {
   .pv-bar { flex-wrap: wrap; }
@@ -482,5 +599,6 @@ defineExpose({ openPort, loadPorts })
   .pv-tool { width: 44px; height: 44px; }
   .pv-open { min-height: 44px; flex-wrap: wrap; }
   .pv-note { display: none; }
+  .pv-split::before { top: -20px; bottom: -20px; }   /* a 44 px target on a touch screen */
 }
 </style>

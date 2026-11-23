@@ -134,16 +134,41 @@ export function sourceLabel(source) {
   return source.file + (source.line != null ? `:${source.line}` : '') + (source.line != null && source.column != null ? `:${source.column}` : '')
 }
 
-// The one chat message "Ask the agent" sends.
-export function elementMessage({ element, request = '', port = 0, edit = null, screenshot = '' }) {
+// A place AADML found in the project's files (POST …/preview/locate/), as `path:line`.
+export function locationLabel(loc) {
+  if (!loc) return ''
+  return loc.path + (loc.line != null ? `:${loc.line}` : '')
+}
+
+// The places the locate endpoint answered, checked and copied: { path, line, column, why } each, best first.
+export function cleanLocations(list) {
+  if (!Array.isArray(list)) return []
+  return list.filter((l) => isObj(l) && isText(l.path) && l.path && num(l.line) != null).map((l) => ({
+    path: l.path, line: l.line, column: num(l.column), why: isText(l.why) ? l.why : '',
+  }))
+}
+
+// The one chat message "Ask the agent" sends. `locations`: where AADML found the element in the project's files, best
+// first, for a page that does not say where it comes from; `locateNote`: why none was found.
+export function elementMessage({ element, request = '', port = 0, edit = null, screenshot = '', locations = [], locateNote = '' }) {
   const lines = [`About this element in the preview (port ${port}${element.page ? `, page ${element.page}` : ''}):`]
   lines.push(`- Element: ${element.html || `<${element.tag}>`}`)
   if (element.text) lines.push(`- Text: "${element.text}"`)
   lines.push(`- CSS selector: ${element.selector}`)
   lines.push(`- Size and place: ${element.box.width}×${element.box.height} at (${element.box.x}, ${element.box.y})`)
-  lines.push(element.source
-    ? `- Source: ${sourceLabel(element.source)}${element.source.framework ? ` (from ${element.source.framework})` : ''}`
-    : '- Source: the app does not expose where this element comes from; find it from the selector and text.')
+  if (element.source) {
+    lines.push(`- Source: ${sourceLabel(element.source)}${element.source.framework ? ` (from ${element.source.framework})` : ''}. Edit that file.`)
+  } else if (locations.length) {
+    const [best, ...rest] = locations
+    lines.push(`- Source: ${locationLabel(best)}, found in the project's files (${best.why || 'the best match'}). Make the change in that file, at that line.`)
+    if (rest.length) {
+      lines.push(`- Other places that match (check them if the first one is not it):`)
+      for (const loc of rest) lines.push(`  - ${locationLabel(loc)}${loc.why ? `: ${loc.why}` : ''}`)
+    }
+  } else {
+    lines.push('- Source: the app does not expose where this element comes from; find it from the selector and text.')
+    if (locateNote) lines.push(`- Looked for in the project's files: ${locateNote}`)
+  }
   if (edit && edit.after !== edit.before) {
     lines.push(`- I changed its text in the preview only, from "${edit.before}" to "${edit.after}". Make this change in the source.`)
   }

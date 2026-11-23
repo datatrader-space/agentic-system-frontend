@@ -220,7 +220,7 @@
                  role="separator" aria-orientation="horizontal" aria-label="Resize the bottom panel" tabindex="0"
                  :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
                  @dblclick="setBottomHeight(BP_DEFAULT)"></div>
-            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" />
+            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" @open-file="onOpenFromPreview" />
           </div>
         </div>
       </div>
@@ -297,6 +297,8 @@ async function onAskFromPreview({ text, files, done }) {
   try { ok = !!(await agentChat.value?.sendReview({ text, files })) } catch { ok = false }
   if (typeof done === 'function') done(ok)
 }
+// A place the Preview tab found the selected element at (ADM-1318): that file, at that line, in the editor.
+function onOpenFromPreview(loc) { codeBrowser.value?.openAt?.(loc) }
 // The chat's "Open preview" (ADM-1205 phase D): the bottom panel's Preview tab, on that port.
 function onOpenPreview(port) {
   if (bottomPanel.value) bottomPanel.value.openPreview(port)
