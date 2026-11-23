@@ -11,6 +11,7 @@ const REC = (id, source, removed = false, minute = 10) => ({
   bytes: 80 * 1024 ** 2, kept_until: '2026-11-25T14:10:00+00:00',
   play_url: `https://bucket.example/rec-${id}.mp4?sig=${calls.list.length}`, download_url: `https://bucket.example/rec-${id}.mp4?dl=1`,
   thumbnail_url: id === 3 ? 'https://bucket.example/rec-3.jpg?sig=1' : null,
+  motion: id === 2,                                         // a burst of motion (ADM-1350), not a 5-minute window
 });
 const calls = { list: [], removed: [], restored: [] };
 let mayDelete = true;
@@ -49,6 +50,8 @@ describe('the Recordings tab', () => {
     expect(items[1].text()).toContain('Gate');
     expect(items[1].text()).toContain('Removed');
     expect(items[0].text()).not.toContain('Removed');
+    expect(items[1].text()).toContain('Motion');                // a recording on motion says so
+    expect(items[0].text()).not.toContain('Motion');
     expect(items[0].text()).toContain('18 Nov 2026, 14:20 to 14:25 UTC');
     expect(items[0].text()).toContain('Kept until 25 Nov 2026');
     expect(w.text()).toContain('240.0 MB of 50.0 GB kept');

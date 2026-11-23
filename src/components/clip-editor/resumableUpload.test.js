@@ -49,8 +49,11 @@ describe('uploadFile', () => {
       let settled = false
       const done = uploadFile(fileOf(20), { projectId: 'p1' }).finally(() => { settled = true })
       // Reading the part and its SHA-1 (crypto.subtle) finish on real time, not the fake clock: on a slow runner the
-      // 1 s retry wait is set only after a single advance, and never fires. Move the clock until the upload is done.
-      for (let i = 0; i < 200 && !settled; i++) {
+      // 1 s retry wait is set only after a single advance, and never fires. Move the clock until the upload is done,
+      // bounded by REAL time (Date is not faked here): a count of loops ran out in microseconds, before the hash finished,
+      // and then nothing moved the clock again (CI, 2026-11-23).
+      const until = Date.now() + 12000
+      while (!settled && Date.now() < until) {
         await vi.advanceTimersByTimeAsync(500)
         await new Promise(resolve => setImmediate(resolve))
       }
@@ -61,7 +64,7 @@ describe('uploadFile', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
+  }, 15000)
 
   it('choosing the same file again after a reload continues the same upload', async () => {
     api.patch.mockRejectedValueOnce({ response: { status: 413, data: { error: { message: 'too big' } } } })

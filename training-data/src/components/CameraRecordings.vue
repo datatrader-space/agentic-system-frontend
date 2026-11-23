@@ -151,7 +151,7 @@ async function restore(row) {
           <span class="recs-playmark" aria-hidden="true"><Play :size="18"/></span>
         </button>
         <span class="recs-what">
-          <strong>{{ r.source.name }} <UiBadge v-if="r.source.removed">Removed</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong>
+          <strong>{{ r.source.name }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.source.removed">Removed</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong>
           <span>{{ recordingWhen(r) }}</span>
           <small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template><template v-else-if="keptUntilText(r.kept_until)"> · {{ keptUntilText(r.kept_until) }}</template></small>
         </span>
