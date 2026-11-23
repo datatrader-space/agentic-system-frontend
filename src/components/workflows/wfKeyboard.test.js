@@ -16,6 +16,16 @@ describe('resolveShortcut', () => {
     expect(act(key('a', { metaKey: true }))).toBe('select-all')
   })
 
+  it('turns the selected steps off or on with D (ADM-1343); mod+D stays Duplicate, and typing D types', () => {
+    expect(act(key('d'))).toBe('toggle-off')
+    expect(act(key('D', { shiftKey: true }))).toBe('toggle-off')
+    expect(act(key('d', { ctrlKey: true }))).toBe('duplicate')
+    expect(act(key('d'), { typing: true })).toBeNull()
+    expect(act(key('d'), { layerOpen: true })).toBeNull()
+    expect(act(key('d', { altKey: true }))).toBeNull()
+    expect(shortcutGroups('Ctrl').flatMap((g) => g.rows).some(([keys, what]) => keys.join('+') === 'D' && /off or on/.test(what))).toBe(true)
+  })
+
   it('undoes with mod+Z and redoes with mod+Shift+Z or mod+Y', () => {
     expect(act(key('z', { ctrlKey: true }))).toBe('undo')
     expect(act(key('Z', { ctrlKey: true, shiftKey: true }))).toBe('redo')

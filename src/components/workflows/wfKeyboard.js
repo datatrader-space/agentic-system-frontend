@@ -35,7 +35,7 @@ const ARROWS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight
  *   ctx.onEdge     the focus is on a connection of the canvas
  *   ctx.onCanvas   the focus is on the canvas (the pane, a node or a connection)
  * Returns { action, dir? } where action is one of: save, add, run, escape-field, escape, undo, redo, copy, cut,
- * paste, duplicate, delete, select-all, tidy, fit, reset-zoom, zoom-in, zoom-out, console, open, rename,
+ * paste, duplicate, toggle-off, delete, select-all, tidy, fit, reset-zoom, zoom-in, zoom-out, console, open, rename,
  * neighbour (dir), nudge (dir), shortcuts.
  */
 export function resolveShortcut(e, ctx = {}) {
@@ -75,6 +75,7 @@ export function resolveShortcut(e, ctx = {}) {
   // Tab adds a step only from the empty canvas itself; everywhere else it keeps moving the focus.
   if (key === 'Tab' && !e.shiftKey && ctx.onCanvas && !ctx.onNode && !ctx.onEdge) return { action: 'add' }
   if (k === 'n') return { action: 'add' }
+  if (k === 'd') return { action: 'toggle-off' }
   if (k === 'l') return { action: 'console' }
   if (key === '1') return { action: 'fit' }
   if (key === '0') return { action: 'reset-zoom' }
@@ -126,6 +127,7 @@ export function shortcutGroups(mod = 'Ctrl') {
     { title: 'Edit', rows: [
       [['F2'], 'Rename the selected step'], [[mod, 'Z'], 'Undo'], [[mod, 'Shift', 'Z'], 'Redo'],
       [[mod, 'C'], 'Copy'], [[mod, 'X'], 'Cut'], [[mod, 'V'], 'Paste'], [[mod, 'D'], 'Duplicate'],
+      [['D'], 'Turn the selected steps off or on'],
       [['Delete'], 'Delete every selected item'], [[mod, 'A'], 'Select all'],
       [['Alt', 'Arrow'], 'Move the selected steps by one grid square'],
     ] },

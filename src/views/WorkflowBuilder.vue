@@ -34,6 +34,7 @@
         @rename="renameNode"
         @duplicate="(id) => duplicate([id])"
         @remove="remove"
+        @toggle-off="toggleOff"
         @announce="announce"
       />
 
@@ -259,7 +260,7 @@ import { serverSentence, workflowAbilities } from '@/utils/workflowAccess'
 import { deleteSelection } from '@/utils/wfFlow'
 import { WorkflowInputError } from '@/utils/workflowInput'
 import { freeWorkflowPosition } from '@/utils/workflowNodePlacement'
-import { hydrateNode, serializeNode, nodeTitle } from '@/components/workflows/wfNodeData'
+import { hydrateNode, serializeNode, nodeTitle, toggleOffOps } from '@/components/workflows/wfNodeData'
 import { createNode, connectOps, placeFor, pushRecent } from '@/components/workflows/wfPickerItems'
 import { copyText, parseClip, pasteOps } from '@/components/workflows/wfClipboard'
 import { resolveShortcut, isTypingTarget, isComboboxTarget, neighbourId, NUDGE } from '@/components/workflows/wfKeyboard'
@@ -533,6 +534,14 @@ function duplicate(ids = targetIds()) {
   const { ops, nodeIds } = pasteOps(clip, { nodeIds: doc.nodes.value.map((n) => n.id), edgeIds: doc.edges.value.map((e) => e.id), offset: offsetFor(clip, 1) })
   placeClip(ops, nodeIds, 'Duplicate')
 }
+// ── turn steps off and on (ADM-1343): one undoable change; the server's validation says what may not be off ──
+function toggleOff(ids = targetIds()) {
+  if (editLocked.value || !ids.length) return
+  const { ops, off } = toggleOffOps(doc.nodes.value.filter((n) => ids.includes(n.id)))
+  if (!ops.length) { announce('A trigger cannot be turned off.'); return }
+  const what = ops.length === 1 ? titleOf(ops[0].id) : `${ops.length} steps`
+  if (apply(off ? 'Turn step off' : 'Turn step on', ops)) announce(`Turned ${what} ${off ? 'off' : 'on'}.`)
+}
 function nudge(dir) {
   const ids = targetIds()
   if (!ids.length || editLocked.value) return
@@ -727,6 +736,7 @@ function onKeydown(e) {
     case 'cut': cut(); break
     case 'paste': paste(); break
     case 'duplicate': duplicate(); break
+    case 'toggle-off': toggleOff(); break
     case 'delete': remove(where?.kind === 'node' && !canvas.value.selectedIds().nodeIds.length ? { nodeIds: [where.id] } : where?.kind === 'edge' && !canvas.value.selectedIds().edgeIds.length ? { edgeIds: [where.id] } : null); break
     case 'select-all': canvas.value?.selectAll(); break
     case 'tidy': tidy(); break

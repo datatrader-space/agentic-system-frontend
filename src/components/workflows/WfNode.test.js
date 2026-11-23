@@ -23,7 +23,7 @@ function ctxWith(view = {}, extra = {}) {
     nodeView: () => ({ state: 'configured', issue: '', error: '', mark: null, hunk: null, ghost: false, readOnly: false, running: false, connected: new Set(), ...view }),
     edgeView: () => ({}),
     singleSelected: () => false,
-    open: vi.fn(), pick: vi.fn(), testUntil: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(), accept: vi.fn(), reject: vi.fn(),
+    open: vi.fn(), pick: vi.fn(), testUntil: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(), toggleOff: vi.fn(), accept: vi.fn(), reject: vi.fn(),
     ...extra,
   }
 }
@@ -122,6 +122,30 @@ describe('WfNode', () => {
     expect(ctx.testUntil).toHaveBeenCalledWith('n1')
     expect(ctx.remove).toHaveBeenCalledWith({ nodeIds: ['n1'] })
     expect(bar.findAll('button').every((b) => b.attributes('aria-label'))).toBe(true)
+  })
+
+  it('a turned-off step (ADM-1343) shows the Off word and the off look, and the toolbar turns it on', async () => {
+    const { w, ctx } = card({ type: 'action.http', data: { label: 'Fetch', url: 'x', disabled: true } })
+    expect(w.find('.wf-node').classes()).toContain('is-off')
+    expect(w.find('.wf-node__off').text()).toBe('Off')
+    expect(w.find('.wf-node__badge').attributes('title')).toMatch(/^Turned off\. Runs skip this step/)
+    await w.find('.wf-node').trigger('mouseenter')
+    const btn = w.find('.vf-toolbar [aria-label="Turn step on: Fetch"]')
+    expect(btn.attributes('title')).toBe('Turn step on (D)')
+    await btn.trigger('click')
+    expect(ctx.toggleOff).toHaveBeenCalledWith('n1')
+  })
+
+  it('a step that is on offers "Turn step off"; an approval says nobody will be asked; a trigger has no such control', async () => {
+    const on = card({ type: 'logic.approval', data: { label: 'Sign off', message: 'ok?' } })
+    expect(on.w.find('.wf-node').classes()).not.toContain('is-off')
+    expect(on.w.find('.wf-node__off').exists()).toBe(false)
+    await on.w.find('.wf-node').trigger('mouseenter')
+    expect(on.w.find('.vf-toolbar [aria-label="Turn step off: Sign off"]').attributes('title')).toMatch(/without asking for approval/)
+    const trig = card({ type: 'trigger.manual', data: {} })
+    await trig.w.find('.wf-node').trigger('mouseenter')
+    expect(trig.w.find('.vf-toolbar').text()).not.toMatch(/Turn step/)
+    expect(trig.w.findAll('.vf-toolbar button').some((b) => /Turn step/.test(b.attributes('aria-label')))).toBe(false)
   })
 
   it('read only (ADM-1339): a runner gets Open and Test up to here, a viewer only Open; no + and no edit', async () => {

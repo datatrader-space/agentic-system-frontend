@@ -70,7 +70,9 @@ export function nodeAriaLabel(type, data, state) {
   const category = WF_CATEGORIES[wfCategory(type)]
   const kind = category ? category.label.replace(/s$/, '') : 'Workflow'
   const title = (data && data.label) || wfDef(type)?.label || type
-  return `${kind} step, ${title}, ${(NODE_STATUS_LABELS[state] || state || '').toLowerCase()}`
+  // A turned-off step (ADM-1343, `data.disabled`) says so: the card's fade and "Off" badge are not read out.
+  const off = data && data.disabled === true ? ', turned off' : ''
+  return `${kind} step, ${title}, ${(NODE_STATUS_LABELS[state] || state || '').toLowerCase()}${off}`
 }
 
 // Compact one-line config preview shown on the node (truncated by CSS).

@@ -84,7 +84,7 @@ const props = defineProps({
   // False for a viewer (ADM-1339): no "Test up to here" on a step. The server refuses a viewer's run anyway.
   canRun: { type: Boolean, default: true },
 })
-const emit = defineEmits(['open', 'pick', 'test-until', 'rename', 'duplicate', 'remove', 'announce'])
+const emit = defineEmits(['open', 'pick', 'test-until', 'rename', 'duplicate', 'remove', 'toggle-off', 'announce'])
 
 const uid = useId()
 const flowId = `wfb-${uid}`
@@ -213,6 +213,7 @@ provide(WF_CANVAS, {
   rename: (id) => emit('rename', id),
   duplicate: (id) => emit('duplicate', id),
   remove: (target) => { if (!props.readOnly) emit('remove', target) },
+  toggleOff: (id) => { if (!props.readOnly) emit('toggle-off', [id]) },
   accept: (i) => props.proposal?.accept(i),
   reject: (i) => props.proposal?.reject(i),
 })

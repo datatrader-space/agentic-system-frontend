@@ -255,6 +255,43 @@ describe('WfNodeModal', () => {
     })
   })
 
+  describe('turning the step off (ADM-1343)', () => {
+    it('the footer turns the step off and on, one undoable entry each, and the window says it is off', async () => {
+      const { doc, history } = mountModal()
+      await tick()
+      expect(q('.wfm-off')).toBeNull()
+      button('Turn step off').click()
+      await tick()
+      expect(doc.nodes.value.find((n) => n.id === 'think').data.disabled).toBe(true)
+      expect(history.past.value.map((e) => e.label)).toEqual(['Turn step off'])
+      expect(q('.wfm-off').textContent).toContain('This step is turned off.')
+      expect(q('.wfm-off').textContent).toContain('pass on what the step before it produced')
+      button('Turn step on').click()
+      await tick()
+      expect('disabled' in doc.nodes.value.find((n) => n.id === 'think').data).toBe(false)
+      history.undo()
+      await tick()
+      expect(doc.nodes.value.find((n) => n.id === 'think').data.disabled).toBe(true)
+    })
+
+    it('an approval step that is off says runs go on without asking anyone', async () => {
+      mountModal({ nodeId: 'ap', nodes: [...baseNodes, { id: 'ap', type: 'logic.approval', data: { message: 'ok?', disabled: true } }] })
+      await tick()
+      expect(q('.wfm-off').textContent).toContain('without asking anyone for approval')
+    })
+
+    it('a trigger, a viewer and a runner get no off/on control', async () => {
+      mountModal({ nodeId: 'start' })
+      await tick()
+      expect(button('Turn step')).toBeUndefined()
+      wrapper.unmount(); wrapper = null; document.body.innerHTML = ''
+      mountModal({ readOnly: true, canRun: true, nodes: baseNodes.map((n) => (n.id === 'think' ? { ...n, data: { ...n.data, disabled: true } } : n)) })
+      await tick()
+      expect(button('Turn step')).toBeUndefined()
+      expect(q('.wfm-off').textContent).toContain('This step is turned off.')
+    })
+  })
+
   describe('read only (a viewer or runner, ADM-1339)', () => {
     it('a viewer sees the settings disabled, nothing is written, and the tests are hidden', async () => {
       people.results = []
