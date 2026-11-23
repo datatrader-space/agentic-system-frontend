@@ -1200,6 +1200,8 @@ export const useChatStore = defineStore('chat', {
         ...this._canvasSendOpts(),
         // Let's Code: the files the person mentioned with @ and the code they selected (ADM-1205 phase E).
         codeContext: opts.codeContext || undefined,
+        // Let's Code "Work on a new branch" (ADM-1327): a new chat's first message only; the server ignores it later.
+        ownBranch: opts.ownBranch === true || undefined,
         // The mode is always sent: the server keeps it as the conversation's choice.
         turnMode: this.turnMode,
         imageMode: opts.imageMode || this.imageMode || undefined,

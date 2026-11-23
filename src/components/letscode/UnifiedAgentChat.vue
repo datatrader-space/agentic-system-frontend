@@ -8,16 +8,16 @@
 <template>
   <div class="uac">
     <div class="uac-head">
-      <span class="uac-title"><Icon icon="lucide:sparkles" aria-hidden="true" /> Coding agent</span>
+      <span class="uac-title"><Icon icon="lucide:sparkles" aria-hidden="true" /> {{ t('chat.title') }}</span>
       <div class="uac-head-actions">
         <div class="uac-hwrap">
-          <button type="button" class="uac-hbtn" :class="{ on: historyOpen }" title="Chat history" aria-label="Chat history" :aria-expanded="historyOpen ? 'true' : 'false'" @click="toggleHistory">
+          <button type="button" class="uac-hbtn" :class="{ on: historyOpen }" :title="t('chat.history')" :aria-label="t('chat.history')" :aria-expanded="historyOpen ? 'true' : 'false'" @click="toggleHistory">
             <Icon icon="lucide:history" />
           </button>
           <div v-if="historyOpen" class="uac-hbackdrop" @click="historyOpen = false"></div>
           <div v-if="historyOpen" class="uac-hmenu">
-            <div class="uac-hmenu-head">Chat history</div>
-            <div v-if="loadingHistory" class="uac-hmenu-empty">Loading…</div>
+            <div class="uac-hmenu-head">{{ t('chat.history') }}</div>
+            <div v-if="loadingHistory" class="uac-hmenu-empty">{{ t('chat.loading') }}</div>
             <template v-else>
               <button
                 v-for="c in conversations" :key="c.id"
@@ -25,9 +25,9 @@
                 @click="openConversation(c)"
               >
                 <span class="uac-hitem-title">{{ convTitle(c) }}</span>
-                <span class="uac-hitem-meta">{{ relTime(c.updated_at) }}, {{ c.message_count || 0 }} {{ (c.message_count || 0) === 1 ? 'message' : 'messages' }}</span>
+                <span class="uac-hitem-meta">{{ relTime(c.updated_at) }}, {{ tn('chat.messages', c.message_count || 0) }}</span>
               </button>
-              <div v-if="!conversations.length" class="uac-hmenu-empty">No previous chats yet.</div>
+              <div v-if="!conversations.length" class="uac-hmenu-empty">{{ t('chat.noHistory') }}</div>
             </template>
           </div>
         </div>
@@ -36,10 +36,10 @@
 
     <!-- The chats are EDITOR tabs (ADM-1221, owner 2026-11-12): the editor's tab bar draws them beside the files
          (CodeBrowser, through useCodingChatTabs), and this panel is the chat of the tab in front. -->
-    <div id="uac-panel" ref="scrollEl" class="uac-stream" role="log" aria-label="Coding agent conversation" aria-live="polite" aria-relevant="additions">
+    <div id="uac-panel" ref="scrollEl" class="uac-stream" role="log" :aria-label="t('chat.conversation')" aria-live="polite" aria-relevant="additions">
       <div v-if="!chat.messages.length" class="uac-empty">
         <Icon icon="lucide:sparkles" aria-hidden="true" />
-        <p>Describe a change or ask about the code. The agent reads, edits and runs it in the project's sandbox. Review its changes in Source control, then commit, push or discard them.</p>
+        <p>{{ t('chat.empty') }}</p>
       </div>
       <ChatMessageList v-else>
         <template #after-message="{ message }">
@@ -49,38 +49,38 @@
             <button
               type="button" class="uac-restore-btn" data-test="restore-message"
               :disabled="chat.isBusy || restoringId !== null"
-              :title="chat.isBusy ? 'Wait for the agent to finish, then restore' : 'Put the files back to how they were before this message'"
+              :title="chat.isBusy ? t('chat.restoreWait') : t('chat.restoreTitle')"
               @click="restoreTo(message)"
             >
               <Icon :icon="String(restoringId) === String(message.serverId) ? 'lucide:loader-2' : 'lucide:undo-2'"
                     :class="{ spin: String(restoringId) === String(message.serverId) }" aria-hidden="true" />
-              {{ String(restoringId) === String(message.serverId) ? 'Restoring' : 'Restore to before this message' }}
+              {{ String(restoringId) === String(message.serverId) ? t('chat.restoring') : t('chat.restore') }}
             </button>
             <!-- ADM-1314: the same review as the turn card's, kept after a reload (it hangs on the saved checkpoint). -->
             <button
               type="button" class="uac-restore-btn" data-test="review-message"
-              title="Go through the changes since this message, one at a time"
+              :title="t('chat.reviewTitle')"
               @click="emit('review-changes', { messageId: message.serverId, conversationId: chat.conversationId || null, count: null })"
             >
               <Icon icon="lucide:list-checks" aria-hidden="true" />
-              Review changes
+              {{ t('chat.review') }}
             </button>
           </div>
           <div v-if="message.lcCard" class="uac-cards">
             <div v-if="message.lcCard.changes" class="ai-changes">
               <Icon icon="lucide:file-diff" aria-hidden="true" />
               <span class="ai-changes-text">{{ changesText(message.lcCard.changes) }}</span>
-              <button type="button" class="ai-changes-open" @click="emit('view-changes')">View changes</button>
+              <button type="button" class="ai-changes-open" @click="emit('view-changes')">{{ t('chat.viewChanges') }}</button>
               <!-- ADM-1314: the changes since the message that started this turn, one at a time, in a Review tab. -->
               <button v-if="message.lcCard.changes.files && message.lcCard.changes.files.length" type="button"
                       class="ai-changes-open ai-changes-review" data-test="review-changes" @click="reviewChanges(message)">
-                Review changes
+                {{ t('chat.review') }}
               </button>
             </div>
             <div v-if="message.lcCard.preview" class="ai-preview">
               <Icon icon="lucide:monitor-play" aria-hidden="true" />
-              <span class="ai-preview-text">The app is running on port {{ message.lcCard.preview.port }}</span>
-              <button type="button" class="ai-preview-open" @click="openPreview(message.lcCard)">Open preview</button>
+              <span class="ai-preview-text">{{ t('chat.appRunning', { port: message.lcCard.preview.port }) }}</span>
+              <button type="button" class="ai-preview-open" @click="openPreview(message.lcCard)">{{ t('chat.openPreview') }}</button>
               <span v-if="message.lcCard.preview.error" class="ai-preview-err" role="alert">{{ message.lcCard.preview.error }}</span>
             </div>
           </div>
@@ -101,12 +101,17 @@
     <!-- The agent's task list for this chat, the same list the main chat shows (the shared store's `todos`). -->
     <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" compact /></div>
 
+    <!-- ADM-1327: the branch this chat works on (its own copy), its pull request and its Vercel preview. -->
+    <ChatBranchBar v-if="chat.conversationId && tabsStore.branches[String(chat.conversationId)]"
+                   :system-id="systemId" :repo-id="repoId" :chat-id="chat.conversationId" :refresh-key="branchRefresh"
+                   @branch="(b) => tabsStore.setBranch(b.chatId, b.branch)" />
+
     <div class="uac-composer">
       <!-- @ mentions a project file: Go to file's own search and list (useFileSearch, FileResultList). -->
       <div v-if="mention" class="uac-mention" data-test="uac-mention">
         <p class="uac-mention-status" role="status" aria-live="polite">{{ mentionStatus }}</p>
         <div v-if="mentionItems.length" ref="mentionList" class="uac-mention-list">
-          <FileResultList list-id="uac-mention-list" label="Files to mention" :items="mentionItems" :active="mentionActive"
+          <FileResultList list-id="uac-mention-list" :label="t('chat.filesToMention')" :items="mentionItems" :active="mentionActive"
                           :highlight="mentionHighlight" :recent-tag="!mention.query"
                           @hover="mentionActive = $event" @pick="pickMention" />
         </div>
@@ -119,28 +124,37 @@
         <div v-if="selection" class="uac-sel" data-test="uac-selection">
           <Icon icon="lucide:text-select" aria-hidden="true" />
           <span class="uac-sel-t" translate="no" :title="selection.path">{{ selectionLabel }}</span>
-          <button type="button" class="uac-sel-x" :aria-label="`Remove ${selectionLabel}`" title="Remove" @click="selection = null">×</button>
+          <button type="button" class="uac-sel-x" :aria-label="t('chat.removeNamed', { name: selectionLabel })" :title="t('chat.remove')" @click="selection = null">×</button>
         </div>
         <input ref="fileEl" type="file" multiple class="sr-only" tabindex="-1" aria-hidden="true" @change="onFiles" />
         <div class="uac-box-top">
-          <label class="sr-only" for="uac-input">Message the coding agent</label>
+          <label class="sr-only" for="uac-input">{{ t('chat.inputLabel') }}</label>
           <textarea
             id="uac-input" ref="inputEl" v-model="input" :disabled="!crsReady"
-            :placeholder="crsReady ? 'Describe a change or ask about the code (@ adds a file)' : 'Preparing the project'"
+            :placeholder="crsReady ? t('chat.placeholder') : t('chat.preparing')"
             rows="1" :aria-controls="mention ? 'uac-mention-list' : undefined" :aria-expanded="mention ? 'true' : 'false'"
             :aria-activedescendant="mention && mentionItems.length ? `uac-mention-list-${mentionActive}` : undefined"
             @input="onInput" @keydown="onKeydown" @paste="onPaste" @click="findMention" @focus="focused = true" @blur="onBlur"
           ></textarea>
           <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why without a transcription model. -->
           <VoiceNoteMic :agent-id="agentId || null" data-test="uac-mic"
-                        @voice-note="(n) => chat.sendMessage('', { voiceNote: n })" />
+                        @voice-note="sendVoiceNote" />
         </div>
 
         <div class="uac-box-bar">
           <div class="uac-bar-left">
-            <button type="button" class="uac-attach-btn" aria-label="Attach files or images" title="Attach files or images"
+            <button type="button" class="uac-attach-btn" :aria-label="t('chat.attach')" :title="t('chat.attach')"
                     :disabled="!crsReady || chat.isBusy" data-test="uac-attach" @click="fileEl?.click()">
               <Icon icon="lucide:paperclip" />
+            </button>
+            <!-- ADM-1327 "Work on a new branch": only while the chat is new (off by default). The chat then works on its
+                 own branch lets-code/<chat>, in its own copy of the project, and ends in a pull request. -->
+            <button v-if="!chat.conversationId" type="button" class="uac-attach-btn uac-branch-btn" :class="{ on: ownBranch }"
+                    :aria-pressed="ownBranch ? 'true' : 'false'" aria-label="Work on a new branch"
+                    :title="ownBranch ? 'This chat will work on its own new branch and end in a pull request. Press to work in the shared copy.'
+                      : 'Work on a new branch: this chat gets its own copy of the project and ends in a pull request'"
+                    :disabled="!crsReady" data-test="uac-own-branch" @click="ownBranch = !ownBranch">
+              <Icon icon="lucide:git-branch-plus" />
             </button>
             <!-- The same pick as the main chat for a shared agent: the person's own model for the Coding Agent. -->
             <AgentModelPicker v-if="agentId" :agent-id="agentId" />
@@ -150,11 +164,11 @@
           </div>
           <div class="uac-send">
           <ContextUsageRing />
-          <button v-if="chat.isBusy" type="button" class="uac-circle stop" title="Stop" aria-label="Stop" @click="chat.stop()">
+          <button v-if="chat.isBusy" type="button" class="uac-circle stop" :title="t('chat.stop')" :aria-label="t('chat.stop')" @click="chat.stop()">
             <Icon icon="lucide:square" />
           </button>
           <button
-            v-else type="button" class="uac-circle send" title="Send" aria-label="Send"
+            v-else type="button" class="uac-circle send" :title="t('chat.send')" :aria-label="t('chat.send')"
             :disabled="(!input.trim() && !chat.pendingAttachments.length) || !crsReady || !agentId" @click="send()"
           >
             <Icon icon="lucide:arrow-up" />
@@ -163,8 +177,8 @@
         </div>
       </div>
       <div class="uac-hint">
-        <span class="uac-conn" :class="{ on: !chat.connectionLost }"><span class="uac-conn-dot" aria-hidden="true"></span>{{ chat.connectionLost ? 'Reconnecting' : 'Connected' }}</span>
-        <span>Enter to send, Shift+Enter for a new line</span>
+        <span class="uac-conn" :class="{ on: !chat.connectionLost }"><span class="uac-conn-dot" aria-hidden="true"></span>{{ chat.connectionLost ? t('chat.reconnecting') : t('chat.connected') }}</span>
+        <span>{{ t('chat.keys') }}</span>
       </div>
     </div>
   </div>
@@ -189,9 +203,11 @@ import AgentModelPicker from '@/components/agent/AgentModelPicker.vue'
 import TurnModeSwitch from '@/components/chat/TurnModeSwitch.vue'
 import AttachmentStrip from '@/components/chat/AttachmentStrip.vue'
 import FileResultList from '@/components/letscode/FileResultList.vue'
+import ChatBranchBar from '@/components/letscode/ChatBranchBar.vue'
 import { useComposerAttachments } from '@/composables/useComposerAttachments'
 import { useFileSearch } from '@/composables/useFileSearch'
 import { mentionAt, mentionedPaths } from '@/utils/codeMentions'
+import { t, tn } from './messages'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -220,6 +236,10 @@ const { dragging, onFiles, onPaste, onDragEnter, onDragOver, onDragLeave, onDrop
   disabled: () => !props.crsReady || chat.isBusy,
 })
 const historyOpen = ref(false)
+// ADM-1327: "Work on a new branch" for the chat not sent yet (off by default); sent with its first message only.
+const ownBranch = ref(false)
+let pendingOwnBranch = false
+const branchRefresh = ref(0)              // bumped when this chat's turn ends, so its branch bar reads the branch again
 const loadingHistory = ref(false)
 const conversations = ref([])
 // Let's Code's card for an answer ({ task, busy, exporting, resolved, error, preview }) is kept ON that message
@@ -262,6 +282,11 @@ function onProjectFrame(d) {
     if (c) c.preview = { port: d.port, error: '' }
     scrollDown(); return true
   }
+  if (t === 'lets_code_branch') {
+    // A turn of a chat in its own copy ended (ADM-1327): its tab names the branch and its branch bar reads it again.
+    noteBranch(d)
+    return true
+  }
   if (t === 'lets_code_changes') {
     // What this turn changed: paths and status only. The person reviews, commits and pushes in Source control.
     const c = cardFor(lastAssistant())
@@ -284,7 +309,11 @@ async function send(text) {
   input.value = ''
   mention.value = null
   nextTick(autoGrow)
-  if (!(await (codeContext ? chat.sendMessage(msg, { codeContext }) : chat.sendMessage(msg)))) {
+  const startsOwnBranch = ownBranch.value && !chat.conversationId
+  const opts = { ...(codeContext ? { codeContext } : {}), ...(startsOwnBranch ? { ownBranch: true } : {}) }
+  if (startsOwnBranch) pendingOwnBranch = true
+  if (!(await (Object.keys(opts).length ? chat.sendMessage(msg, opts) : chat.sendMessage(msg)))) {
+    pendingOwnBranch = false
     input.value = msg                                        // not sent: the words stay in the box
     return
   }
@@ -292,6 +321,13 @@ async function send(text) {
   picked = []
   selection.value = null
   scrollDown()
+}
+
+// A voice note can be a new chat's first message too: it starts on its own branch when the option is on.
+function sendVoiceNote(n) {
+  const startsOwnBranch = ownBranch.value && !chat.conversationId
+  if (startsOwnBranch) pendingOwnBranch = true
+  return chat.sendMessage('', { voiceNote: n, ...(startsOwnBranch ? { ownBranch: true } : {}) })
 }
 
 // ── @ mentions and the editor's selection (ADM-1205 phase E): sent as `code_context`, read on the server ──
@@ -307,10 +343,10 @@ const {
 watch(mentionList, (el) => { mentionListEl.value = el })
 const mentionStatus = computed(() => {
   if (mentionError.value) return mentionError.value
-  if (!mentionQuery.value) return mentionItems.value.length ? 'Recently opened files' : 'Type a file name.'
-  if (mentionBusy.value && !mentionFound.value.length) return 'Searching…'
+  if (!mentionQuery.value) return mentionItems.value.length ? t('chat.recentFiles') : t('chat.typeFileName')
+  if (mentionBusy.value && !mentionFound.value.length) return t('chat.searching')
   const n = mentionItems.value.length
-  return n ? `${n} ${n === 1 ? 'file' : 'files'}` : 'No file has that name.'
+  return n ? tn('chat.files', n) : t('chat.noSuchFile')
 })
 
 function findMention() {
@@ -376,20 +412,20 @@ const restoringId = ref(null)
 async function restoreTo(message) {
   if (!message?.serverId || restoringId.value !== null || chat.isBusy) return
   const ok = await confirm({
-    title: 'Restore to before this message?',
-    message: "Restore the project's files to how they were before this message? Changes made after it are discarded. Files that git ignores are not touched.",
-    confirmText: 'Restore',
+    title: t('chat.restoreAskTitle'),
+    message: t('chat.restoreAskMessage'),
+    confirmText: t('chat.restoreConfirm'),
     danger: true,
   })
   if (!ok) return
   restoringId.value = message.serverId
   try {
     await api.restoreLetsCodeMessage(props.repoId, message.serverId)
-    notify.success('Restored')
+    notify.success(t('chat.restored'))
     emit('changes')
   } catch (e) {
     const err = e?.response?.data?.error
-    notify.error((typeof err === 'string' ? err : err?.message) || 'The files were not restored. Try again.')
+    notify.error((typeof err === 'string' ? err : err?.message) || t('chat.restoreFailed'))
   } finally {
     restoringId.value = null
   }
@@ -436,11 +472,11 @@ function labelActiveTab() {
   if (t && ask) t.label = ask
 }
 watch(firstAsk, labelActiveTab)
-function tabTitle(t) {
-  if (isActiveTab(t) && firstAsk()) return firstAsk()
-  if (t.label) return t.label
-  if (t.id && titles.value[t.id]) return titles.value[t.id]
-  return t.id ? 'Chat' : 'New chat'
+function tabTitle(tab) {
+  if (isActiveTab(tab) && firstAsk()) return firstAsk()
+  if (tab.label) return tab.label
+  if (tab.id && titles.value[tab.id]) return titles.value[tab.id]
+  return tab.id ? t('chat.tabChat') : t('chat.tabNew')
 }
 function tabState(t) {
   if (isActiveTab(t)) {
@@ -449,8 +485,8 @@ function tabState(t) {
   }
   return (t.id && (chat.parkedRuns || {})[t.id]) || 'idle'
 }
-const STATE_WORDS = { working: 'Working', needs_input: 'Needs your answer', done: 'Finished', failed: 'Failed', idle: 'Idle' }
-function tabStateLabel(t) { return STATE_WORDS[tabState(t)] || 'Idle' }
+const TAB_STATES = new Set(['working', 'needs_input', 'done', 'failed', 'idle'])
+function tabStateLabel(tab) { const s = tabState(tab); return t(`chat.state.${TAB_STATES.has(s) ? s : 'idle'}`) }
 // Each tab's words are kept with it: a reload or a second browser tab showed the server's "Chat with Coding Agent" for
 // every chat but the one on screen (phase 8 run 5, 2026-11-20).
 function saveTabs() {
@@ -474,6 +510,9 @@ watch(() => chat.conversationId, (id) => {
     else tabsStore.tabs.push(newTab(sid))
   }
   labelActiveTab()                         // after the id is on its tab, so the first message names THIS tab
+  // A chat started with "Work on a new branch" (ADM-1327) is on lets-code/<its id> from its first turn: the server
+  // names it so, from the id alone. Its tab and branch bar show it now; the turn's own frames confirm it.
+  if (pendingOwnBranch) { pendingOwnBranch = false; ownBranch.value = false; tabsStore.setBranch(sid, `lets-code/${sid}`) }
   saveTabs()
 })
 // The page's address names the chat on screen. Only a chat with an id is named: the store is cleared while the panel
@@ -491,6 +530,7 @@ async function selectTab(t) {
 }
 function newChat() {
   resumeCancelled = true                 // a New chat pressed while the last one loads is not overridden
+  ownBranch.value = false                // off by default for every new chat (owner decision D4)
   let t = tabsStore.tabs.find((x) => !x.id)
   if (!t) { t = newTab(); tabsStore.tabs.push(t) }
   chat.reset()                            // never stops the chat on screen: a running one keeps going in its tab
@@ -519,6 +559,11 @@ const tabHandlers = { select: selectTab, newChat, close: closeTab, title: tabTit
 // A chat left running reports the files its turn changed, so the tree and Source control reload as for this one.
 function onParkedFrame(_id, d) {
   if (d && d.type === 'lets_code_changes') { noteWorktree(d); emit('changes') }
+  if (d && d.type === 'lets_code_branch') noteBranch(d)
+}
+function noteBranch(d) {
+  if (d && d.chat_id != null && d.branch) tabsStore.setBranch(d.chat_id, d.branch)
+  if (d && String(d.chat_id) === String(chat.conversationId || '')) branchRefresh.value += 1
 }
 // A chat the Coding Agent moved into its own copy (backend phase 7b): the frame names the chat and its branch, and
 // that chat's tab shows the branch.
@@ -573,15 +618,15 @@ function convTitle(c) {
   const title = (c.title || '').trim()
   if (title && !GENERIC_TITLES.has(title.toLowerCase()) && !DEFAULT_TITLE.test(title)) return title
   const lm = c.last_message && c.last_message.content
-  return lm ? lm.slice(0, 60) : 'Untitled chat'
+  return lm ? lm.slice(0, 60) : t('chat.untitled')
 }
 function relTime(ts) {
   if (!ts) return ''
   const d = (Date.now() - new Date(ts).getTime()) / 1000
-  if (d < 60) return 'just now'
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`
-  if (d < 86400) return `${Math.floor(d / 3600)}h ago`
-  if (d < 604800) return `${Math.floor(d / 86400)}d ago`
+  if (d < 60) return t('chat.justNow')
+  if (d < 3600) return t('chat.minutesAgo', { n: Math.floor(d / 60) })
+  if (d < 86400) return t('chat.hoursAgo', { n: Math.floor(d / 3600) })
+  if (d < 604800) return t('chat.daysAgo', { n: Math.floor(d / 86400) })
   return new Date(ts).toLocaleDateString()
 }
 
@@ -589,10 +634,12 @@ function relTime(ts) {
 function changesText(ch) {
   const files = ch.files || []
   const names = files.map((f) => f.path.split('/').pop())
-  const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? `, +${names.length - 3} more` : '')
-  const head = files.length ? `Changed ${files.length} ${files.length === 1 ? 'file' : 'files'}: ${shown}` : 'No files changed in this turn'
+  const shown = names.slice(0, 3).join(', ') + (names.length > 3 ? t('chat.changedMore', { n: names.length - 3 }) : '')
+  const head = files.length
+    ? t('chat.changed', { n: files.length, files: t(files.length === 1 ? 'chat.word.file' : 'chat.word.files'), names: shown })
+    : t('chat.noFilesChanged')
   const others = (ch.total || 0) - files.length
-  return others > 0 ? `${head} · ${others} more ${others === 1 ? 'change' : 'changes'} not committed` : head
+  return others > 0 ? tn('chat.moreChanges', others, { head }) : head
 }
 
 // "Review changes" (ADM-1314): the review is of the person's message that started this answer's turn: the first of
@@ -617,7 +664,7 @@ async function reviewChanges(answer) {
     msg = turnMessageOf(answer)
   }
   if (!msg || msg.serverId == null) {
-    notify.error('This message is not saved yet, so its changes cannot be reviewed. Try again in a moment.')
+    notify.error(t('chat.notSavedYet'))
     return
   }
   emit('review-changes', { messageId: msg.serverId, conversationId: chat.conversationId || null,
@@ -741,7 +788,15 @@ onBeforeUnmount(() => {
   if (previous) { chat.repoId = previous.repoId || 0; if (previous.agentId) chat.selectedAgentId = previous.agentId }
 })
 
-defineExpose({ send, addSelection, sendReview })
+// A chat of this project opened from elsewhere on the page (a background task's chat, ADM-1328): its tab, in front.
+async function openChat(id) {
+  if (id == null || id === '') return false
+  resumeCancelled = true
+  await openConversation({ id: String(id) })
+  return true
+}
+
+defineExpose({ send, addSelection, sendReview, openChat })
 </script>
 
 <style scoped>
@@ -844,6 +899,7 @@ defineExpose({ send, addSelection, sendReview })
 .uac-attach-btn:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 1px; }
 .uac-attach-btn :deep(svg) { width: 16px; height: 16px; }
 @media (pointer: coarse) { .uac-attach-btn { width: 44px; height: 44px; } }
+.uac-branch-btn.on { background: var(--vm-violet-soft); color: var(--vm-violet-ink); }
 
 /* ── Composer ── */
 .uac-composer { border-top: 1px solid var(--vm-line); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -872,6 +928,7 @@ defineExpose({ send, addSelection, sendReview })
 @media (max-width: 640px) {
   .uac-hbtn { width: 44px; height: 44px; }
   .uac-circle { width: 44px; height: 44px; }
+  .uac-attach-btn { width: 44px; height: 44px; }
   .uac-hint > span:last-child { display: none; }
   .ai-changes-open, .ai-preview-open, .uac-restore-btn { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }

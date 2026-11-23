@@ -736,3 +736,61 @@ describe('UnifiedAgentChat: review the changes one at a time, and send review co
     w.unmount()
   })
 })
+
+describe('UnifiedAgentChat: a new chat may start on its own branch (ADM-1327)', () => {
+  beforeEach(() => { chat.conversationId = null; chat.isBusy = false; chat.todos = [] })
+
+  it('is off by default: a first message sent without it carries no ownBranch', async () => {
+    const w = await mountChat()
+    const toggle = w.find('[data-test="uac-own-branch"]')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    expect(toggle.attributes('aria-label')).toBe('Work on a new branch')
+    await w.find('textarea').setValue('add a cart')
+    await w.find('button.send').trigger('click')
+    await flushPromises()
+    expect(chat.sendMessage).toHaveBeenCalledWith('add a cart')
+    w.unmount()
+  })
+
+  it('turned on, the first message asks for the branch, and the new chat names lets-code/<its id> on its tab', async () => {
+    const w = await mountChat()
+    await w.find('[data-test="uac-own-branch"]').trigger('click')
+    expect(w.find('[data-test="uac-own-branch"]').attributes('aria-pressed')).toBe('true')
+    await w.find('textarea').setValue('add a cart')
+    await w.find('button.send').trigger('click')
+    await flushPromises()
+    expect(chat.sendMessage).toHaveBeenCalledWith('add a cart', { ownBranch: true })
+    chat.conversationId = '91'
+    await flushPromises()
+    expect(ctl.branches['91']).toBe('lets-code/91')
+    // The option belongs to the chat's start: a chat with an id offers it no more, and a new chat starts with it off.
+    expect(w.find('[data-test="uac-own-branch"]').exists()).toBe(false)
+    chat.conversationId = null
+    await flushPromises()
+    expect(w.find('[data-test="uac-own-branch"]').attributes('aria-pressed')).toBe('false')
+    w.unmount()
+  })
+
+  it('a message not taken by the chat does not mark the next chat as on a branch', async () => {
+    chat.sendMessage.mockResolvedValueOnce(false)
+    const w = await mountChat()
+    await w.find('[data-test="uac-own-branch"]').trigger('click')
+    await w.find('textarea').setValue('x')
+    await w.find('button.send').trigger('click')
+    await flushPromises()
+    chat.conversationId = '92'
+    await flushPromises()
+    expect(ctl.branches['92']).toBeUndefined()
+    w.unmount()
+  })
+
+  it('the turn-end branch frame names the branch on the tab, for this chat and a chat left running', async () => {
+    const w = await mountChat()
+    expect(chat.surfaceHandler({ type: 'lets_code_branch', chat_id: 93, branch: 'lets-code/93', own_branch: true })).toBe(true)
+    expect(ctl.branches['93']).toBe('lets-code/93')
+    chat.parkedFrameHandler('94', { type: 'lets_code_branch', chat_id: 94, branch: 'lets-code/94', own_branch: true })
+    expect(ctl.branches['94']).toBe('lets-code/94')
+    w.unmount()
+  })
+})

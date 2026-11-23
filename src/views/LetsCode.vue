@@ -5,8 +5,8 @@
       <div class="lc-wrap">
         <header class="lc-head">
           <div class="lc-head-text">
-            <h1 class="lc-title">Let's Code</h1>
-            <p class="lc-sub">Start a new project or clone a GitHub repository, and build it with the coding agent.</p>
+            <h1 class="lc-title">{{ t('landing.title') }}</h1>
+            <p class="lc-sub">{{ t('landing.sub') }}</p>
           </div>
         </header>
 
@@ -14,54 +14,54 @@
           <!-- Your projects -->
           <section class="lc-col" aria-labelledby="lc-projects-h">
             <div class="lc-col-head">
-              <h2 id="lc-projects-h" class="lc-col-h">Your projects</h2>
-              <span v-if="!projectsLoading && projects.length" class="lc-count" :aria-label="`${projects.length} projects`">{{ projects.length }}</span>
+              <h2 id="lc-projects-h" class="lc-col-h">{{ t('landing.projects') }}</h2>
+              <span v-if="!projectsLoading && projects.length" class="lc-count" :aria-label="t('landing.projectsCount', { n: projects.length })">{{ projects.length }}</span>
             </div>
 
             <!-- A new project needs no GitHub repository: it is published from Source control when the person wants. -->
             <form class="lc-new" @submit.prevent="createNewProject">
-              <label class="lc-new-label" for="lc-new-name">New project</label>
+              <label class="lc-new-label" for="lc-new-name">{{ t('landing.newProject') }}</label>
               <div class="lc-new-row">
                 <input id="lc-new-name" v-model="newName" class="lc-new-input" type="text" spellcheck="false" autocomplete="off"
                        placeholder="my-app" maxlength="100" :disabled="creating" :aria-invalid="!!newError" aria-describedby="lc-new-hint" />
                 <button type="submit" class="lc-btn primary" :disabled="creating || !newName.trim()">
                   <Icon :icon="creating ? 'lucide:loader-2' : 'lucide:plus'" :class="{ spin: creating }" />
-                  {{ creating ? 'Creating' : 'Create' }}
+                  {{ creating ? t('landing.creating') : t('landing.create') }}
                 </button>
               </div>
               <p v-if="newError" id="lc-new-hint" class="lc-new-err" role="alert">{{ newError }}</p>
-              <p v-else id="lc-new-hint" class="lc-new-hint">Starts empty. No GitHub repository needed; publish it later from Source control.</p>
+              <p v-else id="lc-new-hint" class="lc-new-hint">{{ t('landing.newHint') }}</p>
             </form>
 
-            <ul v-if="projectsLoading" class="lc-list" aria-busy="true" aria-label="Loading projects">
+            <ul v-if="projectsLoading" class="lc-list" aria-busy="true" :aria-label="t('landing.loadingProjects')">
               <li v-for="n in 3" :key="n" class="lc-skel-row"><span class="lc-skel w40"></span><span class="lc-skel w15"></span><span class="lc-skel w12 pill"></span></li>
             </ul>
 
             <div v-else-if="!projects.length" class="lc-empty">
               <Icon icon="lucide:folder-code" class="lc-empty-ic" aria-hidden="true" />
-              <p>No projects yet. Name one above to start empty, or clone a repository.</p>
+              <p>{{ t('landing.noProjects') }}</p>
             </div>
 
             <ul v-else class="lc-list">
               <li v-for="p in projects" :key="p.repo_id" class="proj" :class="{ failed: isFailed(p) }" @click="openProject(p)"
                   @pointerenter="onCardPointer(p, $event)" @pointerleave="onCardLeave">
                 <div class="proj-row">
-                  <button type="button" class="proj-name" :title="`Open ${p.name}`" @click.stop="openProject(p)" @focus="onCardFocus(p)">{{ p.name }}</button>
+                  <button type="button" class="proj-name" :title="t('landing.openProject', { name: p.name })" @click.stop="openProject(p)" @focus="onCardFocus(p)">{{ p.name }}</button>
                   <span v-if="p.branch" class="proj-branch"><Icon icon="lucide:git-branch" aria-hidden="true" />{{ p.branch }}</span>
-                  <span v-if="p.is_new" class="proj-local" title="Not on GitHub yet: publish it from Source control">Not on GitHub</span>
+                  <span v-if="p.is_new" class="proj-local" :title="t('landing.notOnGithubTitle')">{{ t('landing.notOnGithub') }}</span>
                   <StatusPill :project="p" class="proj-pill" />
-                  <button v-if="!isFailed(p)" type="button" class="proj-del" :aria-label="`Remove ${p.name}`" title="Remove project" @click.stop="removeProject(p)">
+                  <button v-if="!isFailed(p)" type="button" class="proj-del" :aria-label="t('landing.removeNamed', { name: p.name })" :title="t('landing.removeProjectTitle')" @click.stop="removeProject(p)">
                     <Icon icon="lucide:trash-2" />
                   </button>
                 </div>
                 <div v-if="isFailed(p)" class="proj-fail" @click.stop>
-                  <p class="proj-fail-msg"><Icon icon="lucide:circle-alert" aria-hidden="true" />{{ p.error_message || 'Preparing stopped without a reason. Retry to run it again.' }}</p>
+                  <p class="proj-fail-msg"><Icon icon="lucide:circle-alert" aria-hidden="true" />{{ p.error_message || t('landing.preparingStopped') }}</p>
                   <div class="proj-fail-actions">
                     <button type="button" class="lc-btn" :disabled="retryingId === p.repo_id" @click="retryProject(p, { startEmpty: p.failed_step === 'lost' })">
                       <Icon :icon="retryingId === p.repo_id ? 'lucide:loader-2' : (p.failed_step === 'lost' ? 'lucide:file-plus' : 'lucide:rotate-cw')" :class="{ spin: retryingId === p.repo_id }" />
-                      {{ p.failed_step === 'lost' ? 'Start again empty' : 'Retry' }}
+                      {{ p.failed_step === 'lost' ? t('landing.startAgainEmpty') : t('landing.retry') }}
                     </button>
-                    <button type="button" class="lc-btn danger" @click="removeProject(p)"><Icon icon="lucide:trash-2" /> Remove</button>
+                    <button type="button" class="lc-btn danger" @click="removeProject(p)"><Icon icon="lucide:trash-2" /> {{ t('landing.remove') }}</button>
                   </div>
                 </div>
               </li>
@@ -71,18 +71,18 @@
           <!-- Clone from GitHub -->
           <section class="lc-col" aria-labelledby="lc-clone-h">
             <div class="lc-col-head">
-              <h2 id="lc-clone-h" class="lc-col-h">Clone from GitHub</h2>
-              <span v-if="!ghNotConnected && !loadingRepos && repos.length" class="lc-count" :aria-label="`${repos.length} repositories`">{{ repos.length }}</span>
+              <h2 id="lc-clone-h" class="lc-col-h">{{ t('landing.cloneFromGithub') }}</h2>
+              <span v-if="!ghNotConnected && !loadingRepos && repos.length" class="lc-count" :aria-label="t('landing.reposCount', { n: repos.length })">{{ repos.length }}</span>
             </div>
 
             <div v-if="ghNotConnected" class="gh-connect">
               <span class="gh-mark" aria-hidden="true"><Icon icon="lucide:github" /></span>
               <div class="gh-connect-body">
-                <p class="gh-t">Connect GitHub to see your repositories</p>
-                <p class="gh-s">Let's Code lists the repositories of the account you connect, private ones included. You can disconnect at any time.</p>
+                <p class="gh-t">{{ t('landing.connectTitle') }}</p>
+                <p class="gh-s">{{ t('landing.connectText') }}</p>
                 <button type="button" class="lc-btn primary" :disabled="!!ghBusy" @click="connectGithub">
                   <Icon :icon="ghBusy === 'connect' ? 'lucide:loader-2' : 'lucide:github'" :class="{ spin: ghBusy === 'connect' }" />
-                  {{ ghBusy === 'connect' ? 'Connecting' : 'Connect GitHub' }}
+                  {{ ghBusy === 'connect' ? t('landing.connecting') : t('landing.connect') }}
                 </button>
               </div>
             </div>
@@ -92,61 +92,61 @@
               <div v-if="ghAccount" class="gh-acct">
                 <span class="gh-mark sm" aria-hidden="true"><Icon icon="lucide:github" /></span>
                 <p class="gh-acct-id">
-                  <span class="gh-acct-k">Connected as</span>
+                  <span class="gh-acct-k">{{ t('landing.connectedAs') }}</span>
                   <span class="gh-acct-name" :title="ghAccount">{{ ghAccount }}</span>
                 </p>
                 <div class="gh-acct-actions">
                   <button type="button" class="lc-btn sm" :disabled="!!ghBusy" @click="switchGithubAccount">
                     <Icon :icon="ghBusy === 'switch' ? 'lucide:loader-2' : 'lucide:repeat'" :class="{ spin: ghBusy === 'switch' }" />
-                    {{ ghBusy === 'switch' ? 'Switching' : 'Switch account' }}
+                    {{ ghBusy === 'switch' ? t('landing.switching') : t('landing.switchAccount') }}
                   </button>
                   <button type="button" class="lc-btn sm quiet-danger" :disabled="!!ghBusy" @click="disconnectGithub">
                     <Icon :icon="ghBusy === 'disconnect' ? 'lucide:loader-2' : 'lucide:unplug'" :class="{ spin: ghBusy === 'disconnect' }" />
-                    {{ ghBusy === 'disconnect' ? 'Disconnecting' : 'Disconnect' }}
+                    {{ ghBusy === 'disconnect' ? t('landing.disconnecting') : t('landing.disconnect') }}
                   </button>
                 </div>
               </div>
               <!-- Any GitHub repository by its address, on a branch if one is named (ADM-1205, phase C). -->
               <form class="lc-byurl" @submit.prevent="cloneByUrl">
-                <label class="lc-byurl-l" for="lc-url">Clone by address</label>
+                <label class="lc-byurl-l" for="lc-url">{{ t('landing.cloneByAddress') }}</label>
                 <div class="lc-byurl-row">
                   <input id="lc-url" v-model="cloneUrl" class="lc-byurl-in" type="url" inputmode="url" spellcheck="false"
                          autocomplete="off" placeholder="https://github.com/owner/repository" :disabled="!!cloningUrl" />
                   <input v-model="cloneBranch" class="lc-byurl-in br" type="text" spellcheck="false" autocomplete="off"
-                         placeholder="Branch (optional)" aria-label="Branch (optional)" :disabled="!!cloningUrl" />
+                         :placeholder="t('landing.branchOptional')" :aria-label="t('landing.branchOptional')" :disabled="!!cloningUrl" />
                   <button type="submit" class="lc-btn" :disabled="!!cloningUrl || !cloneUrl.trim()">
                     <Icon :icon="cloningByAddress ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningByAddress }" />
-                    {{ cloningByAddress ? 'Cloning' : 'Clone' }}
+                    {{ cloningByAddress ? t('landing.cloning') : t('landing.clone') }}
                   </button>
                 </div>
                 <p v-if="cloneUrlError" class="lc-byurl-err" role="alert">{{ cloneUrlError }}</p>
               </form>
               <label class="lc-search">
-                <span class="sr-only">Search repositories</span>
+                <span class="sr-only">{{ t('landing.searchRepos') }}</span>
                 <Icon icon="lucide:search" aria-hidden="true" />
-                <input v-model="repoQuery" type="search" placeholder="Search repositories" autocomplete="off" />
+                <input v-model="repoQuery" type="search" :placeholder="t('landing.searchRepos')" autocomplete="off" />
               </label>
 
-              <ul v-if="loadingRepos" class="lc-list" aria-busy="true" aria-label="Loading repositories">
+              <ul v-if="loadingRepos" class="lc-list" aria-busy="true" :aria-label="t('landing.loadingRepos')">
                 <li v-for="n in 5" :key="n" class="lc-skel-row"><span class="lc-skel w35"></span><span class="lc-skel w20"></span><span class="lc-skel w12 btn"></span></li>
               </ul>
-              <p v-else-if="!repos.length" class="lc-empty">This GitHub account has no repositories.</p>
-              <p v-else-if="!filteredRepos.length" class="lc-empty">No repositories match "{{ repoQuery.trim() }}".</p>
+              <p v-else-if="!repos.length" class="lc-empty">{{ t('landing.noRepos') }}</p>
+              <p v-else-if="!filteredRepos.length" class="lc-empty">{{ t('landing.noReposMatch', { q: repoQuery.trim() }) }}</p>
               <ul v-else class="lc-list repo-list vm-scroll">
                 <li v-for="r in filteredRepos" :key="r.full_name" class="repo">
                   <div class="repo-main">
                     <div class="repo-top">
                       <span class="repo-name" :title="r.full_name">{{ r.name }}</span>
-                      <span v-if="r.private" class="repo-priv"><Icon icon="lucide:lock" aria-hidden="true" />Private</span>
+                      <span v-if="r.private" class="repo-priv"><Icon icon="lucide:lock" aria-hidden="true" />{{ t('landing.private') }}</span>
                     </div>
                     <div class="repo-meta">
                       <span v-if="r.language && r.language !== 'Unknown'">{{ r.language }}</span>
-                      <span v-if="r.pushed_at">Updated {{ relativeTime(r.pushed_at) }}</span>
+                      <span v-if="r.pushed_at">{{ t('landing.updated', { when: relativeTime(r.pushed_at) }) }}</span>
                     </div>
                   </div>
-                  <button type="button" class="lc-btn" :disabled="!!cloningUrl" :aria-label="`Clone ${r.full_name}`" @click="cloneRepo(r)">
+                  <button type="button" class="lc-btn" :disabled="!!cloningUrl" :aria-label="t('landing.cloneNamed', { name: r.full_name })" @click="cloneRepo(r)">
                     <Icon :icon="cloningUrl === r.clone_url ? 'lucide:loader-2' : 'lucide:download'" :class="{ spin: cloningUrl === r.clone_url }" />
-                    {{ cloningUrl === r.clone_url ? 'Cloning' : 'Clone' }}
+                    {{ cloningUrl === r.clone_url ? t('landing.cloning') : t('landing.clone') }}
                   </button>
                 </li>
               </ul>
@@ -156,16 +156,23 @@
       </div>
     </div>
 
+    <!-- ============================ PHONE VIEW (ADM-1330) ============================ -->
+    <!-- The light project view: the project's chats, their task lists and approval cards, Stop and reply, and the
+         preview link, without the editor. A phone opens it; "Full editor" switches (remembered on this device). -->
+    <LetsCodeLight v-else-if="lightView" :key="`light-${active.repo_id}`" :project="active" :ready="ready"
+                   :chat-id="linkedChatId" :theme="ideTheme"
+                   @back="closeProject" @full-editor="setView('editor')" @chat-opened="onChatOpened" />
+
     <!-- ============================ WORKSPACE ============================ -->
     <div v-else class="lc-ide" :data-theme="ideTheme">
       <div class="ide-bar">
-        <button type="button" class="ide-back" title="Projects" @click="onBackToProjects"><Icon icon="lucide:chevron-left" aria-hidden="true" /> <span class="ide-back-t">Projects</span></button>
+        <button type="button" class="ide-back" :title="t('ide.projects')" @click="onBackToProjects"><Icon icon="lucide:chevron-left" aria-hidden="true" /> <span class="ide-back-t">{{ t('ide.projects') }}</span></button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
-        <span v-if="active.is_new" class="ide-branch off" title="Branches come with GitHub: publish the project from Source control">
+        <span v-if="active.is_new" class="ide-branch off" :title="t('ide.branchesNeedGithub')">
           <Icon icon="lucide:git-branch" aria-hidden="true" /> {{ active.branch || 'main' }}
         </span>
         <label v-else class="ide-branch" :class="{ off: switchingBranch || !ready }">
-          <span class="sr-only">Branch</span>
+          <span class="sr-only">{{ t('ide.branch') }}</span>
           <Icon icon="lucide:git-branch" aria-hidden="true" />
           <select :value="active.branch" :disabled="switchingBranch || !ready" @change="onSwitchBranch($event.target.value)">
             <option :value="active.branch">{{ active.branch }}</option>
@@ -173,19 +180,25 @@
           </select>
         </label>
         <StatusPill :project="active" />
+        <!-- The phone view (ADM-1330): only offered on a narrow screen, where the editor shows one pane at a time. -->
+        <button type="button" class="ide-phone" :title="t('ide.phoneViewTitle')" :aria-label="t('ide.phoneView')" data-test="ide-phone-view" @click="toPhoneView">
+          <Icon icon="lucide:monitor-smartphone" aria-hidden="true" />
+        </button>
         <!-- The editor's own light or dark (ADM-1205): only Let's Code changes, never the rest of AADML. -->
         <button type="button" class="ide-theme" :aria-pressed="ideDark ? 'true' : 'false'"
-                :aria-label="ideDark ? 'Dark editor (switch to light)' : 'Light editor (switch to dark)'"
-                :title="ideDark ? 'Switch the editor to light' : 'Switch the editor to dark'" @click="toggleIdeTheme">
+                :aria-label="ideDark ? t('ide.darkEditor') : t('ide.lightEditor')"
+                :title="ideDark ? t('ide.toLight') : t('ide.toDark')" @click="toggleIdeTheme">
           <Icon :icon="ideDark ? 'lucide:moon' : 'lucide:sun'" aria-hidden="true" />
         </button>
-        <a v-if="active.github_url" class="ide-gh" :href="githubWebUrl(active.github_url)" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub">
-          <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">Open on GitHub</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
+        <a v-if="active.github_url" class="ide-gh" :href="githubWebUrl(active.github_url)" target="_blank" rel="noopener noreferrer" :aria-label="t('ide.openOnGithub')">
+          <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">{{ t('ide.openOnGithub') }}</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
         </a>
         <!-- How the project is installed, built, tested and run: the agent fills these in, the person corrects them. -->
         <ProjectCommands :repo-id="Number(active.repo_id)" :ready="ready" />
         <!-- The project's environment variables, for the Terminal and the Coding Agent's commands (ADM-1205 phase D). -->
         <ProjectEnv :repo-id="Number(active.repo_id)" />
+        <!-- Background tasks that end in a pull request, and GitHub's checks and reviews coming back as fixes (ADM-1328). -->
+        <ProjectTasks :repo-id="Number(active.repo_id)" @open-chat="onOpenTaskChat" />
         <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
@@ -218,7 +231,7 @@
                :style="{ '--bp-h': bottomHeight + 'px' }">
             <!-- Drag the top border to resize the panel (arrow keys when focused; a double click restores it). -->
             <div v-if="!bottomCollapsed && !bottomMax" class="bp-resize" :class="{ active: bottomResizing }"
-                 role="separator" aria-orientation="horizontal" aria-label="Resize the bottom panel" tabindex="0"
+                 role="separator" aria-orientation="horizontal" :aria-label="t('ide.resizeBottom')" tabindex="0"
                  :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
                  @dblclick="setBottomHeight(BP_DEFAULT)"></div>
             <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" @open-file="onOpenFromPreview" />
@@ -230,7 +243,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -254,11 +267,15 @@ import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
 import ProjectEnv from '../components/letscode/ProjectEnv.vue'
+import ProjectTasks from '../components/letscode/ProjectTasks.vue'
 import PipelineStepper from '../components/letscode/PipelineStepper.vue'
 import StatusPill from '../components/letscode/StatusPill.vue'
 import { isReady, phaseTone, relativeTime, githubWebUrl, linkedProject, openQuery } from '../components/letscode/projectStatus'
 import { useChatStore } from '@/stores/useChatStore'
 import { usePlanReviewStore } from '@/stores/usePlanReviewStore'
+import { t } from '../components/letscode/messages'
+// The phone view is its own chunk, fetched only when it is shown (ADM-1330).
+const LetsCodeLight = defineAsyncComponent(() => import('../components/letscode/LetsCodeLight.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -407,7 +424,7 @@ async function createNewProject() {
     await loadProjects()
     openProject(data)
   } catch (e) {
-    newError.value = e?.response?.data?.error || 'Could not create the project'
+    newError.value = e?.response?.data?.error || t('landing.createFailed')
   } finally { creating.value = false }
 }
 
@@ -432,7 +449,7 @@ async function loadGithubRepos() {
     else ghNotConnected.value = true
   } catch (e) {
     if (e?.response?.data?.github_not_connected) ghNotConnected.value = true
-    else notify.error(e?.response?.data?.error || 'Could not load your GitHub repositories')
+    else notify.error(e?.response?.data?.error || t('landing.reposFailed'))
   } finally { loadingRepos.value = false }
 }
 
@@ -448,11 +465,11 @@ async function signInGithub(kind) {
     await loadGithubRepos()
     if (kind === 'switch') {
       notify.success(ghAccount.value && ghAccount.value !== before
-        ? `Switched to ${ghAccount.value}` : `Still connected as ${ghAccount.value || before}`)
+        ? t('landing.switchedTo', { account: ghAccount.value }) : t('landing.stillConnectedAs', { account: ghAccount.value || before }))
     } else {
-      notify.success(ghAccount.value ? `GitHub connected as ${ghAccount.value}` : 'GitHub connected')
+      notify.success(ghAccount.value ? t('landing.connectedAsNamed', { account: ghAccount.value }) : t('landing.connected'))
     }
-  } catch (e) { notify.error(e?.message || 'GitHub connection failed') }
+  } catch (e) { notify.error(e?.message || t('landing.connectFailed')) }
   finally { ghBusy.value = '' }
 }
 const connectGithub = () => signInGithub('connect')
@@ -461,10 +478,9 @@ const switchGithubAccount = () => signInGithub('switch')
 async function disconnectGithub() {
   if (ghBusy.value) return
   const ok = await confirm({
-    title: 'Disconnect GitHub?',
-    message: `Let's Code stops using ${ghAccount.value || 'this account'}: no repository list, and the coding agent `
-      + 'cannot push or open pull requests until you connect again. Your projects and their files stay.',
-    confirmText: 'Disconnect', cancelText: 'Cancel', danger: true,
+    title: t('landing.disconnectTitle'),
+    message: t('landing.disconnectMessage', { account: ghAccount.value || t('landing.thisAccount') }),
+    confirmText: t('landing.disconnect'), cancelText: t('common.cancel'), danger: true,
   })
   if (!ok) return
   ghBusy.value = 'disconnect'
@@ -474,8 +490,8 @@ async function disconnectGithub() {
     ghAccount.value = ''
     repoQuery.value = ''
     ghNotConnected.value = true
-    notify.success('GitHub disconnected')
-  } catch (e) { notify.error(e?.message || 'Could not disconnect GitHub') }
+    notify.success(t('landing.disconnected'))
+  } catch (e) { notify.error(e?.message || t('landing.disconnectFailed')) }
   finally { ghBusy.value = '' }
 }
 
@@ -502,8 +518,8 @@ async function cloneByUrl() {
     openProject(data)
   } catch (e) {
     const d = e?.response?.data || {}
-    if (d.github_not_connected) { ghNotConnected.value = true; cloneUrlError.value = 'Connect GitHub first.' }
-    else cloneUrlError.value = d.error || 'The repository could not be cloned.'
+    if (d.github_not_connected) { ghNotConnected.value = true; cloneUrlError.value = t('landing.connectFirst') }
+    else cloneUrlError.value = d.error || t('landing.cloneFailed')
   } finally { cloningUrl.value = ''; cloningByAddress.value = false }
 }
 
@@ -518,8 +534,8 @@ async function cloneRepo(r) {
     openProject(data)
   } catch (e) {
     const d = e?.response?.data || {}
-    if (d.github_not_connected) { ghNotConnected.value = true; notify.error('Connect GitHub first') }
-    else notify.error(d.error || 'Could not clone the repository')
+    if (d.github_not_connected) { ghNotConnected.value = true; notify.error(t('landing.connectFirstShort')) }
+    else notify.error(d.error || t('landing.cloneRepoFailed'))
   } finally { cloningUrl.value = '' }
 }
 
@@ -590,7 +606,8 @@ const ws = reconnectingSocket({
 const watchState = ref('')
 let lastActiveSent = 0
 let saidWatchError = ''
-function wantWatch() { return !!active.value && isReady(active.value) && !document.hidden }
+// The phone view shows no files, so nothing is watched for it.
+function wantWatch() { return !!active.value && isReady(active.value) && !document.hidden && !lightView.value }
 function sendWatch() { ws.send(JSON.stringify({ type: wantWatch() ? 'watch' : 'unwatch' })) }
 function onWatchState({ state, error }) {
   watchState.value = state || ''
@@ -631,8 +648,7 @@ function connectWs() {
 // THE LONG BUTTONS KEEP RUNNING (ADM-1269). Check project, commit, push, pull, publish, a pull request, a download
 // and a backup run as background jobs. A page opened again while one runs follows it: the person is told it is still
 // running and when it ends; Check project's problems reach the Problems tab and a download is saved.
-const JOB_LABELS = { check: 'Check project', commit: 'The commit', push: 'The push', pull: 'The pull',
-  publish: 'Publishing', pull_request: 'The pull request', download: 'The download', backup: 'The backup' }
+const JOB_KINDS = new Set(['check', 'commit', 'push', 'pull', 'publish', 'pull_request', 'download', 'backup'])
 async function resumeProjectJobs() {
   const a = active.value
   if (!a?.repo_id || !a.system_id) return
@@ -641,9 +657,9 @@ async function resumeProjectJobs() {
   for (const job of jobs) if (!isFollowed(job.id)) followResumedJob(a, job)
 }
 async function followResumedJob(a, job) {
-  const label = JOB_LABELS[job.kind] || 'A job'
+  const label = t(JOB_KINDS.has(job.kind) ? `ide.job.${job.kind}` : 'ide.job.other')
   if (job.kind === 'check') { languages.check(job); return }
-  notify.info(`${label} is still running. You will be told when it ends.`)
+  notify.info(t('ide.jobStillRunning', { label }))
   const stillHere = () => active.value?.repo_id === a.repo_id
   try {
     const { data } = await api.waitForProjectJob(a.system_id, a.repo_id, job, { isCancelled: () => !stillHere() })
@@ -651,10 +667,10 @@ async function followResumedJob(a, job) {
       const file = await api.getProjectJobFile(a.system_id, a.repo_id, job.id)
       saveBlob(file.data, filenameFrom(file.headers, data?.name || 'download'))
     }
-    notify.success(`${label} finished.`)
+    notify.success(t('ide.jobFinished', { label }))
     if (stillHere()) codeBrowser.value?.refresh?.()
   } catch (e) {
-    if (e?.name !== 'AbortError') notify.error(e?.response?.data?.error || `${label} did not finish.`)
+    if (e?.name !== 'AbortError') notify.error(e?.response?.data?.error || t('ide.jobFailed', { label }))
   }
 }
 function closeWs() { ws.close() }
@@ -669,19 +685,19 @@ async function loadBranches() {
 async function onSwitchBranch(branch) {
   if (!active.value || !branch || branch === active.value.branch) return
   const ok = await confirm({
-    title: `Switch to "${branch}"?`,
-    message: 'This checks out the branch in your workspace and indexes it again. Unsaved edits and pending agent changes are discarded.',
-    confirmText: 'Switch branch', cancelText: 'Cancel', danger: true,
+    title: t('ide.switchBranchTitle', { branch }),
+    message: t('ide.switchBranchMessage'),
+    confirmText: t('ide.switchBranch'), cancelText: t('common.cancel'), danger: true,
   })
   if (!ok) { active.value = { ...active.value }; return }   // re-render puts the select back on the current branch
   switchingBranch.value = true
   try {
     const { data } = await api.switchProjectBranch(active.value.repo_id, branch)
     applyStatus(data)
-    notify.info(`Switching to ${branch}`)
+    notify.info(t('ide.switchingTo', { branch }))
     pollStatus()   // phase → switching/indexing → ready; editor remounts when ready
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Could not switch the branch')
+    notify.error(e?.response?.data?.error || t('ide.switchFailed'))
     active.value = { ...active.value }
   } finally {
     switchingBranch.value = false
@@ -706,6 +722,40 @@ function pollStatus() {
   statusPoller.start()
 }
 
+// ── The phone view or the full editor (ADM-1330) ──
+// A phone-width screen opens a project in the light view; the person's own choice ("Full editor" / "Phone view") is
+// kept on this device and wins. `?view=light|editor` in the address names one for that visit (a link, a live check).
+const PHONE = '(max-width: 640px)'
+const VIEW_KEY = 'lc.view'
+const phoneQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(PHONE) : null
+const isPhone = ref(!!phoneQuery?.matches)
+function onPhoneChange(e) { isPhone.value = !!e.matches }
+phoneQuery?.addEventListener?.('change', onPhoneChange)
+onBeforeUnmount(() => phoneQuery?.removeEventListener?.('change', onPhoneChange))
+function readViewPref() {
+  try { const v = localStorage.getItem(VIEW_KEY); return v === 'light' || v === 'editor' ? v : '' } catch { return '' }
+}
+const viewPref = ref(readViewPref())
+const lightView = computed(() => {
+  const asked = String(route.query.view || '')
+  if (asked === 'light' || asked === 'editor') return asked === 'light'
+  if (viewPref.value) return viewPref.value === 'light'
+  return isPhone.value
+})
+function setView(v) {
+  viewPref.value = v
+  try { localStorage.setItem(VIEW_KEY, v) } catch { /* kept for this visit */ }
+  if (route.query.view) {
+    const { view: _drop, ...rest } = route.query
+    router.replace({ query: rest })
+  }
+}
+// From the editor: its unsaved edits are asked about first, as on leaving the project.
+async function toPhoneView() {
+  if (await unsavedGuard.mayLeave()) setView('light')
+}
+watch(lightView, () => { if (active.value) sendWatch() })
+
 // Unsaved edits are never lost without a question: leaving the project, another page, closing the tab (ADM-1200).
 const unsavedGuard = useUnsavedGuard(() => codeBrowser.value?.unsavedCount)
 // The editor's own light or dark, toggled in its bar (ADM-1205).
@@ -728,16 +778,16 @@ async function retryProject(p, { startEmpty = false } = {}) {
   if (retryingId.value) return
   if (startEmpty) {
     const ok = await confirm({
-      title: `Start ${p.name} again empty?`,
-      message: 'Its files are gone and cannot be brought back. The project starts again with no files.',
-      confirmText: 'Start again empty', cancelText: 'Cancel', danger: true,
+      title: t('landing.startEmptyTitle', { name: p.name }),
+      message: t('landing.startEmptyMessage'),
+      confirmText: t('landing.startAgainEmpty'), cancelText: t('common.cancel'), danger: true,
     })
     if (!ok) return
   }
   retryingId.value = p.repo_id
   try {
     const { data } = await api.retryProject(p.repo_id, startEmpty ? { start_empty: true } : {})
-    notify.info(startEmpty ? `Starting ${p.name} again` : `Retrying ${p.name}`)
+    notify.info(t(startEmpty ? 'landing.startingAgain' : 'landing.retrying', { name: p.name }))
     if (active.value && active.value.repo_id === p.repo_id) {
       applyStatus(data)
       pollStatus(); connectWs()
@@ -746,7 +796,7 @@ async function retryProject(p, { startEmpty = false } = {}) {
     }
     loadProjects()
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Retry failed')
+    notify.error(e?.response?.data?.error || t('landing.retryFailed'))
   } finally {
     retryingId.value = null
   }
@@ -754,15 +804,13 @@ async function retryProject(p, { startEmpty = false } = {}) {
 
 async function removeProject(p) {
   const ok = await confirm({
-    title: 'Remove project?',
-    message: p.is_new
-      ? `Remove "${p.name}"? It is not on GitHub, so its files are deleted for good.`
-      : `Remove "${p.name}" and its copy in your workspace? The GitHub repository is not affected.`,
-    confirmText: 'Remove', cancelText: 'Cancel', danger: true,
+    title: t('landing.removeTitle'),
+    message: t(p.is_new ? 'landing.removeNewMessage' : 'landing.removeMessage', { name: p.name }),
+    confirmText: t('landing.remove'), cancelText: t('common.cancel'), danger: true,
   })
   if (!ok) return
-  try { await api.deleteProject(p.repo_id); notify.success('Project removed'); await loadProjects() }
-  catch (e) { notify.error(e?.response?.data?.error || 'Could not remove the project') }
+  try { await api.deleteProject(p.repo_id); notify.success(t('landing.removed')); await loadProjects() }
+  catch (e) { notify.error(e?.response?.data?.error || t('landing.removeFailed')) }
 }
 
 // Published to GitHub from Source control: the project now has its GitHub address and branches.
@@ -802,11 +850,15 @@ function openLinkedProject() {
     openProject(link.project)
     return
   }
-  notify.error("That project is not in your Let's Code projects any more.")
+  notify.error(t('landing.projectGone'))
   router.replace({ query: link.query })
 }
 // The chat the address names, for the open project's chat panel to open first.
 const linkedChatId = computed(() => (route.query.chat ? String(route.query.chat) : null))
+// A background task's chat, opened from the Tasks panel: its tab in the chat panel (ADM-1328).
+function onOpenTaskChat(id) {
+  agentChat.value?.openChat?.(id)
+}
 // The chat panel opened a chat (or gave a new one its id): the address names it.
 function onChatOpened(id) {
   if (!active.value) return
@@ -966,6 +1018,11 @@ onBeforeUnmount(() => {
   transition: border-color .15s, background-color .15s, color .15s;
 }
 .ide-theme:hover { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-ink); }
+/* The phone view's switch: shown only on a narrow screen (below). */
+.ide-phone { display: none; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; padding: 0; border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface); color: var(--vm-ink-soft); cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
+.ide-phone:hover { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-ink); }
+.ide-phone:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.ide-phone :deep(svg) { width: 16px; height: 16px; }
 .ide-theme:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
 .ide-theme :deep(svg) { width: 16px; height: 16px; }
 
@@ -1019,6 +1076,7 @@ onBeforeUnmount(() => {
   .lc-title { font-size: 26px; }
   .lc-btn, .ide-back, .ide-gh, .ide-branch { min-height: 44px; }
   .ide-theme { width: 44px; height: 44px; }
+  .ide-phone { display: grid; width: 44px; height: 44px; }
   .gh-acct-actions { width: 100%; }
   .gh-acct-actions .lc-btn { flex: 1; }
   .proj-del { width: 44px; height: 44px; }
@@ -1038,6 +1096,7 @@ onBeforeUnmount(() => {
   .ide-proj { order: 2; flex: 1 1 0; }
   .ide-bar > .lc-pill { order: 3; }
   .ide-theme { order: 4; }
+  .ide-phone { order: 4; }
   .ide-branch { order: 6; flex: 1 1 0; min-width: 0; }
   .ide-branch select { min-width: 0; width: 100%; }
   .ide-gh { order: 7; }

@@ -62,6 +62,20 @@
                   :title="mergeHint(w)" :data-test="`cbs-merge-${w.chat_id}`" @click="startMerge(w)">
             <Icon icon="lucide:git-merge" aria-hidden="true" /> {{ busy === 'merge:' + key(w) ? 'Merging…' : `Merge into ${into || 'the project'}` }}
           </button>
+          <!-- ADM-1327: the chat's branch to a pull request (pushed first when GitHub lacks its commits), and links. -->
+          <a v-if="w.pull_request_url" class="cbs-btn" :href="w.pull_request_url" target="_blank" rel="noopener noreferrer"
+             title="Open the pull request on GitHub" :data-test="`cbs-pr-link-${w.chat_id}`">
+            <Icon icon="lucide:git-pull-request" aria-hidden="true" /> Pull request
+          </a>
+          <button v-else-if="w.chat_exists !== false" type="button" class="cbs-btn" :disabled="!!busy || !!pullRequestBlocker(w)"
+                  :title="pullRequestBlocker(w) || `Open a pull request from ${w.branch} into ${w.base || 'the project\'s branch'}`"
+                  :data-test="`cbs-open-pr-${w.chat_id}`" @click="openPr(w)">
+            <Icon icon="lucide:git-pull-request" aria-hidden="true" /> {{ busy === 'pr:' + key(w) ? 'Opening…' : 'Open pull request' }}
+          </button>
+          <a v-if="w.preview && w.preview.state === 'READY' && w.preview.url" class="cbs-btn" :href="w.preview.url" target="_blank"
+             rel="noopener noreferrer" title="Open this branch's Vercel preview" :data-test="`cbs-preview-link-${w.chat_id}`">
+            <Icon icon="lucide:external-link" aria-hidden="true" /> Preview
+          </a>
           <button type="button" class="cbs-btn danger" :disabled="!!busy || w.working"
                   :title="w.working ? 'The chat is working. Try when it stops.' : 'Delete this chat\'s copy and its branch'"
                   :aria-label="`Discard ${w.branch}`" :data-test="`cbs-discard-${w.chat_id}`" @click="discard(w)">
@@ -82,6 +96,7 @@ import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { openPullRequestFor, pullRequestBlocker } from '@/services/chatBranchApi'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -226,6 +241,24 @@ async function merge(w) {
   }
 }
 
+// "Open pull request" (ADM-1327): the person's own press, as them; the server works on that chat's own copy.
+async function openPr(w) {
+  if (busy.value || pullRequestBlocker(w)) return
+  busy.value = 'pr:' + key(w)
+  setNote(w, '')
+  try {
+    const { data } = await openPullRequestFor(props.systemId, props.repoId, w)
+    notify.success(data?.existing ? 'The pull request was already open' : `Opened a pull request from ${w.branch}`)
+    await load()
+  } catch (e) {
+    const d = e?.response?.data || {}
+    setNote(w, d.code === 'GITHUB_NOT_CONNECTED' ? 'Connect GitHub first, then open the pull request.'
+      : (d.error || 'The pull request was not opened. Try again.'))
+  } finally {
+    busy.value = ''
+  }
+}
+
 async function discard(w) {
   if (busy.value) return
   const lost = []
@@ -310,6 +343,7 @@ defineExpose({ refresh: load })
 .cbs-input[aria-invalid='true'] { border-color: var(--vm-danger); }
 .cbs-form .cbs-note { margin-left: 0; }
 .cbs-input::placeholder { color: var(--vm-ink-faint); opacity: 1; }
+a.cbs-btn { text-decoration: none; }
 .cbs-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--vm-line-2); border-radius: 7px;
            background: var(--vm-surface); color: var(--vm-ink); font: 600 12px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, border-color .15s, color .15s; }
 .cbs-btn:hover:not(:disabled) { background: var(--vm-surface-soft); }

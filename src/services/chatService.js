@@ -319,6 +319,8 @@ export class ChatConnection {
       // Let's Code (ADM-1205 phase E): { files: [path], selection: { path, start_line, end_line, text } }. The server
       // reads each file in the person's own project and checks protected files as CODE_READ_FILE does.
       code_context: opts.codeContext || undefined,
+      // Let's Code (ADM-1327): a new chat starts on its own branch lets-code/<chat>. Only a literal true is read.
+      own_branch: opts.ownBranch === true || undefined,
       // Chat / Work / Plan: the person's mode for this conversation. The server keeps it on the conversation
       // (agent/services/turn_modes.py); omitted, the turn takes the conversation's kept mode or its default.
       turn_mode: opts.turnMode || undefined,

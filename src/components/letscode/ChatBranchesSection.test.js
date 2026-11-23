@@ -8,6 +8,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 vi.mock('@/services/api', () => ({
   default: {
     getChatWorktrees: vi.fn(), mergeChatWorktree: vi.fn(), discardChatWorktree: vi.fn(), getSourceControlStatus: vi.fn(),
+    post: vi.fn(), get: vi.fn(),
   },
 }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
@@ -157,5 +158,28 @@ describe('Chats’ branches', () => {
     await w.find('[data-test="cbs-discard-77"]').trigger('click')
     await flushPromises()
     expect(notify.success).toHaveBeenCalledWith('This chat has no copy of its own any more.')
+  })
+})
+
+describe('Chats’ branches: a pull request from a chat’s branch (ADM-1327)', () => {
+  it('opens it on that chat’s copy (pushed first), and links it and the preview once there', async () => {
+    api.post.mockResolvedValueOnce({ status: 200, data: { pushed: 'lets-code/77' } })
+      .mockResolvedValueOnce({ status: 200, data: { url: 'https://github.com/a/b/pull/8', existing: false } })
+    api.getChatWorktrees.mockResolvedValue(list([wt({ branch: 'lets-code/77', own_branch: true, on_remote: false, unpushed: 2 })]))
+    const w = await mountSection()
+    await w.find('[data-test="cbs-open-pr-77"]').trigger('click')
+    await flushPromises()
+    expect(api.post.mock.calls.map((c) => [c[0], c[2]])).toEqual([
+      ['/systems/5/repositories/4/source-control/push/', { params: { chat: 77 } }],
+      ['/systems/5/repositories/4/source-control/pull-request/', { params: { chat: 77 } }]])
+    expect(notify.success).toHaveBeenCalledWith('Opened a pull request from lets-code/77')
+
+    api.getChatWorktrees.mockResolvedValue(list([wt({ branch: 'lets-code/77', pull_request_url: 'https://github.com/a/b/pull/8',
+      preview: { state: 'READY', url: 'https://w-git.vercel.app' } })]))
+    await w.vm.refresh()
+    await flushPromises()
+    expect(w.find('[data-test="cbs-open-pr-77"]').exists()).toBe(false)
+    expect(w.find('[data-test="cbs-pr-link-77"]').attributes('href')).toBe('https://github.com/a/b/pull/8')
+    expect(w.find('[data-test="cbs-preview-link-77"]').attributes('href')).toBe('https://w-git.vercel.app')
   })
 })
