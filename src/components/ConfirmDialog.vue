@@ -21,7 +21,7 @@
         <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-[1px]" @click="cancel"></div>
 
         <!-- dialog -->
-        <FocusScope as-child trapped loop @mount-auto-focus.prevent>
+        <component :is="focusScope || Passthrough" v-bind="focusScope ? { asChild: true, trapped: true, loop: true } : {}" @mount-auto-focus.prevent>
         <div
           ref="panel"
           class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
@@ -71,15 +71,25 @@
             </button>
           </div>
         </div>
-        </FocusScope>
+        </component>
       </div>
     </Transition>
   </Teleport>
 </template>
 
 <script setup>
-import { watch, nextTick, ref, onMounted, onBeforeUnmount } from 'vue'
-import { FocusScope } from 'reka-ui'
+import { watch, nextTick, ref, shallowRef, onMounted, onBeforeUnmount } from 'vue'
+// Reka's FocusScope joins the trap of an AppDialog/AppSheet under the question. It is loaded when a confirm first opens,
+// never with the page: this host is mounted on EVERY page, and a static import put the whole Reka chunk (42 kB gzip) in
+// the first load, over the 200 kB budget (CI, 2026-11-20). The question always shows at once (a plain wrapper until
+// then); asked from inside a dialog, Reka is already loaded by that dialog, so the scope is there in a microtask.
+const focusScope = shallowRef(null)
+// Until then the panel renders as itself, with no wrapper element (the layer stays its direct parent).
+const Passthrough = (_props, { slots }) => slots.default?.()
+function loadFocusScope() {
+  if (focusScope.value) return
+  import('reka-ui').then((m) => { focusScope.value = m.FocusScope }).catch(() => { /* the plain wrapper stays */ })
+}
 import { confirmState, _settleConfirm } from '../composables/useConfirm'
 
 const state = confirmState
@@ -106,6 +116,7 @@ function onKey(e) {
 // a stray Enter can never be the thing that deletes.
 watch(() => state.open, async (open) => {
   if (open) {
+    loadFocusScope()
     await nextTick()
     const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
     if (first) first.focus()
