@@ -24,7 +24,8 @@ vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
 const PUSH = { server: 'rtmps://ingest.aadml.com:1936/', path: 'src3', available: true, key_set_at: '2026-11-18T09:00:00+00:00' };
 const NEW_KEY = 'src3?user=src3&pass=NewKey_0123456789abcdefghijklmnopqrstuvw';
 const REC = { id: 5, source: { id: 1, name: 'Gate' }, started_at: '2026-11-17T10:05:00+00:00', ended_at: '2026-11-17T10:10:00+00:00',
-  bytes: 52428800, play_url: 'https://bucket.example/r.mp4?sig=1', download_url: 'https://bucket.example/r.mp4?sig=2' };
+  bytes: 52428800, play_url: 'https://bucket.example/r.mp4?sig=1', download_url: 'https://bucket.example/r.mp4?sig=2',
+  seconds: 300, motion: true, thumbnail_url: 'https://bucket.example/r.jpg?sig=3' };
 const RECORDING_OFF = { on: false, days: 30, max_days: 30, unpaid: false, stored_bytes: 0, day_price_usd: '0',
   per_gb_month_usd: '0.0312', consent_text: 'I may record this camera.', rtsp_only: true };
 import VideoSourcePage from '../../../training-data/src/components/VideoSourcePage.vue';
@@ -129,8 +130,13 @@ describe('a video source page', () => {
     await w.findAll('[role="tab"]').find(t => t.text() === 'Recordings').trigger('click');
     await flushPromises();
     expect(calls.find(c => c[0] === 'list')[1]).toMatchObject({ source: 1 });
-    expect(w.find('.sp-rec-list').text()).toContain('10:05 to 10:10 UTC');
-    expect(w.find('.sp-rec-list').text()).toContain('50.0 MB');
+    expect(w.find('.sp-rec-cards').text()).toContain('10:05 to 10:10 UTC');
+    expect(w.find('.sp-rec-cards').text()).toContain('50.0 MB');
+    // A video card as Cloud Streaming's Recordings (2026-11-23): its picture, its length, Motion when it is a burst.
+    const card = w.find('[data-test="sp-rec-card-5"]');
+    expect(card.find('[data-test="rec-picture"]').attributes('src')).toBe(REC.thumbnail_url);
+    expect(card.find('[data-test="rec-length"]').text()).toBe('5:00');
+    expect(card.text()).toContain('Motion');
     await w.findAll('button').find(b => b.text().includes('Play')).trigger('click');
     expect(w.find('video.sp-player').attributes('src')).toBe(REC.play_url);
     await w.find('[aria-label^="Delete the recording"]').trigger('click');

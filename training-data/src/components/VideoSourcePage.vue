@@ -24,6 +24,7 @@ import PushDetails from './PushDetails.vue';
 import PhoneLinkDetails from './PhoneLinkDetails.vue';
 import UiBadge from './UiBadge.vue';
 import UiButton from './UiButton.vue';
+import RecordingThumb from './RecordingThumb.vue';
 import { timeAgo } from '../api/workspace.js';
 import {
   streamingApi, POLL_MS, isActive, streamState, classNames, countOf, recentBars, clockText, endedText,
@@ -205,6 +206,7 @@ const today = new Date().toISOString().slice(0, 10);
 const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
 const playing = ref(null); const playError = ref(''); let recLoadedAt = 0;
+const recFresh = () => linksFresh(recLoadedAt);
 async function loadRecordings() {
   recLoading.value = true; recListError.value = '';
   try {
@@ -752,9 +754,11 @@ watch(tab, now => {
             <h4>No recordings on this day</h4>
             <p>{{ rec && rec.on ? (motion && motion.mode === 'motion' ? 'Each burst of motion appears here as a recording, a minute or two after it ends.' : 'Recordings appear here in 5-minute pieces, a few minutes after they are made.') : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
           </div>
-          <ul v-else class="sp-rec-list">
-            <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id }">
-              <span><strong>{{ windowText(r) }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
+          <!-- Video cards, as Cloud Streaming's Recordings (the owner, 2026-11-23: "show recording like youtube here as well"). -->
+          <ul v-else class="sp-rec-cards">
+            <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion }" :data-test="`sp-rec-card-${r.id}`">
+              <RecordingThumb :recording="r" :fresh="recFresh" :label="`Play the recording ${windowText(r)}`" @play="playRecording(r)"/>
+              <span class="sp-rec-what"><strong>{{ windowText(r) }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
               <span class="sp-rec-acts">
                 <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
                 <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
@@ -915,6 +919,14 @@ watch(tab, now => {
 .sp-rec-list li.playing{border-color:var(--aadml-primary);background:var(--aadml-tint)}
 .sp-rec-list li span:first-child{display:flex;flex-direction:column;gap:2px}
 .sp-rec-list small{color:#64748b;font-size:12px}
+.sp-rec-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.sp-rec-cards li{display:flex;flex-direction:column;gap:8px;padding:0 0 10px;border:1px solid #e5e6ed;border-radius:12px;background:#fff;overflow:hidden;min-width:0}
+.sp-rec-cards li.playing{border-color:var(--aadml-primary);background:var(--aadml-tint)}
+.sp-rec-cards li.waiting{background:#fffaf9;border-style:dashed}
+.sp-rec-cards li > .sp-rec-what,.sp-rec-cards li > .sp-rec-acts{padding:0 10px}
+.sp-rec-what{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sp-rec-what strong{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:14px;color:#162139}
+.sp-rec-cards .sp-rec-acts{display:flex;flex-wrap:wrap;gap:6px}
 .sp-manage{margin-top:12px}
 .sp-pad{padding:12px 14px}
 .sp-spend{margin:0;padding:6px 14px 10px}

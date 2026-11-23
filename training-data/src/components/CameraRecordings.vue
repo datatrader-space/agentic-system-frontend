@@ -11,7 +11,8 @@
 // own picture (one frame of it, ``thumbnail_url``; a plain card while it has none) and its length in the corner.
 // Pointing at a card (or focusing it) plays a silent preview of it in the card; clicking the picture plays it above.
 import { computed, onMounted, ref, watch } from 'vue';
-import { Cctv, Disc, Download, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
+import { Disc, Download, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
+import RecordingThumb from './RecordingThumb.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import {
@@ -24,9 +25,8 @@ const rows = ref([]); const count = ref(0); const cameras = ref([]); const store
 const mayDelete = ref(false); const loading = ref(false); const error = ref(''); const said = ref('');
 const camera = ref(''); const day = ref(''); const state = ref(''); const grace = ref(14); const waiting = ref(0);
 const playing = ref(null); const playError = ref(''); const confirming = ref(null); const busy = ref(false);
-// The card whose silent preview plays now (pointer or focus on it), and the pictures that could not be shown.
-const previewing = ref(null); const noPicture = ref(new Set());
 let loadedAt = 0;
+const fresh = () => linksFresh(loadedAt);
 
 const choices = computed(() => cameraChoices(cameras.value));
 const usage = computed(() => storageText(stored.value, limit.value));
@@ -60,18 +60,6 @@ async function play(row) {
   }
   playing.value = row;
 }
-// "5:00", "1:02:03": a recording's length as a video card says it.
-function lengthText(seconds) {
-  const s = Math.max(0, Math.round(Number(seconds) || 0));
-  const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const r = String(s % 60).padStart(2, '0');
-  return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
-}
-function startPreview(row) { if (row.play_url && linksFresh(loadedAt)) previewing.value = row.id; }
-function endPreview(row) { if (previewing.value === row.id) previewing.value = null; }
-// Started once it has loaded: a video added on hover is not always started by `autoplay` (live, 2026-11-23: loaded,
-// not playing). Muted first, so the browser allows it without a tap.
-function playPreview(event) { const v = event.target; v.muted = true; v.play?.()?.catch?.(() => {}); }
-function pictureFailed(row) { noPicture.value = new Set([...noPicture.value, row.id]); }
 function cannotPlay() {
   playError.value = 'This recording could not be played in this browser. Download it to watch it, or try again.';
 }
@@ -141,15 +129,7 @@ async function restore(row) {
     <ul v-else class="recs-list">
       <li v-for="r in rows" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion }"
           :data-test="`rec-card-${r.id}`">
-        <button type="button" class="recs-thumb" :disabled="!r.play_url" :aria-label="`Play the recording of ${r.source.name}, ${recordingWhen(r)}`"
-                @click="play(r)" @mouseenter="startPreview(r)" @mouseleave="endPreview(r)" @focus="startPreview(r)" @blur="endPreview(r)">
-          <img v-if="r.thumbnail_url && !noPicture.has(r.id)" :src="r.thumbnail_url" alt="" loading="lazy" data-test="rec-picture" @error="pictureFailed(r)">
-          <span v-else class="recs-nopic" aria-hidden="true"><Cctv :size="28"/></span>
-          <video v-if="previewing === r.id" :src="r.play_url" muted autoplay loop playsinline preload="metadata"
-                 class="recs-preview" aria-hidden="true" data-test="rec-preview" @loadeddata="playPreview"></video>
-          <span class="recs-length" data-test="rec-length">{{ lengthText(r.seconds) }}</span>
-          <span class="recs-playmark" aria-hidden="true"><Play :size="18"/></span>
-        </button>
+        <RecordingThumb :recording="r" :fresh="fresh" :label="`Play the recording of ${r.source.name}, ${recordingWhen(r)}`" @play="play(r)"/>
         <span class="recs-what">
           <strong>{{ r.source.name }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.source.removed">Removed</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong>
           <span>{{ recordingWhen(r) }}</span>
@@ -193,15 +173,6 @@ async function restore(row) {
 .recs-list li{display:flex;flex-direction:column;gap:10px;padding:0 0 12px;border:1px solid #e5e6ed;border-radius:12px;background:#fff;overflow:hidden;min-width:0}
 .recs-list li.playing{border-color:var(--aadml-primary);background:var(--aadml-tint)}
 .recs-list li > .recs-what,.recs-list li > .recs-acts{padding:0 12px}
-.recs-thumb{position:relative;display:block;width:100%;aspect-ratio:16/9;padding:0;border:0;background:#0d1320;cursor:pointer;overflow:hidden}
-.recs-thumb:disabled{cursor:default}
-.recs-thumb img,.recs-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.recs-nopic{position:absolute;inset:0;display:grid;place-items:center;color:#8a97ad}
-.recs-length{position:absolute;right:8px;bottom:8px;padding:1px 6px;border-radius:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:600}
-.recs-playmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
-.recs-thumb:hover .recs-playmark,.recs-thumb:focus-visible .recs-playmark{opacity:1}
-.recs-thumb:focus-visible{outline:2px solid var(--aadml-primary);outline-offset:-2px}
-@media (prefers-reduced-motion: reduce){.recs-playmark{transition:none}}
 .recs-what{display:flex;flex-direction:column;gap:2px;min-width:0}
 .recs-what strong{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:14px;color:#162139}
 .recs-what span{font-size:14px;color:#33415a}
