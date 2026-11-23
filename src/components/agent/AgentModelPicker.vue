@@ -196,7 +196,9 @@ const RENDER_LIMIT = 60
 // Run mode for the CALLER (shared agents store it per user — see useAgentRunMode).
 const { label: modeLabel, options: modeOptions, saving: modeSaving, error: modeError,
         select: applyMode } = useAgentRunMode(() => props.agentId)
-const pickMode = (opt) => applyMode(opt)
+// A mode that took effect closes the menu, as a model pick does (release check A-04: picking Plan left it open over
+// the composer). A cancelled confirmation (Autonomous) or a failed save keeps it open.
+const pickMode = async (opt) => { if (await applyMode(opt)) close() }
 
 const pillLabel = computed(() => {
   if (loading.value && !current.value) return 'Model…'

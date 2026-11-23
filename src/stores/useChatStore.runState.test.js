@@ -79,3 +79,72 @@ describe('useChatStore — a plan answered in its own run (finding 3)', () => {
     expect(chat.messages.find((m) => m.kind === 'plan_approval')).toBeTruthy()
   })
 })
+
+describe('useChatStore — a plan decision is acted on only in its own chat (release check F13, 2026-11-23)', () => {
+  // One plan-mode reply became three new chats: every OTHER open tab of the person with no chat open took the plan
+  // event and resumed the plan on its own socket, which created a new chat with the reply in it.
+  const event = (extra) => ({ type: 'plan_event', conversation_id: '3391', plan_id: 'p', run_id: 'r', ...extra })
+  const tab = (conversationId, withUserMessage = true) => {
+    const chat = useChatStore()
+    chat.conversationId = conversationId
+    if (withUserMessage) chat.messages.push({ id: 'u1', role: 'user', content: 'Build the store' })
+    const sendMessage = vi.fn()
+    chat._conn = { sendMessage, send: vi.fn(), sendIfOpen: vi.fn() }
+    return { chat, sendMessage }
+  }
+
+  it('a tab with no chat open sends nothing for a change request or an approval', () => {
+    const { sendMessage } = tab(null)
+    useChatStore()._onEvent(event({ change_type: 'changes_requested', feedback: 'Also add a usage section', event_id: 'a' }))
+    useChatStore()._onEvent(event({ change_type: 'approved', event_id: 'b' }))
+    expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('a tab on another chat sends nothing', () => {
+    const { sendMessage } = tab(3392)
+    useChatStore()._onEvent(event({ change_type: 'changes_requested', feedback: 'Also add a usage section', event_id: 'c' }))
+    expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('a decision with no conversation named is acted on nowhere', () => {
+    const { sendMessage } = tab(3391)
+    useChatStore()._onEvent({ type: 'plan_event', change_type: 'approved', event_id: 'd', plan_id: 'p', run_id: 'r' })
+    expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('the chat the plan belongs to still resumes it', () => {
+    const { sendMessage } = tab(3391)
+    useChatStore()._onEvent(event({ change_type: 'changes_requested', feedback: 'Also add a usage section', event_id: 'e' }))
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage.mock.calls[0][0]).toBe('Also add a usage section')
+  })
+
+  it('a resume asked of a tab with no chat of its own sends nothing', () => {
+    const { chat, sendMessage } = tab(null)
+    chat._resumeAfterPlan()
+    chat._resumeAfterRevise('anything')
+    expect(sendMessage).not.toHaveBeenCalled()
+  })
+})
+
+describe('useChatStore — a resumed turn does not show the message twice (release check F14, 2026-11-23)', () => {
+  it("the tab's own bubble takes the server id instead of a second bubble", () => {
+    const chat = useChatStore()
+    chat.conversationId = 3408
+    chat.messages.push({ id: 'mine', role: 'user', content: 'Remember: my store ships only within Pakistan.',
+                         serverId: null, status: 'done' })
+    chat._onEvent({ type: 'turn_started', conversation_id: '3408', message_id: 16768,
+                    message: 'Remember: my store ships only within Pakistan.' })
+    const users = chat.messages.filter((m) => m.role === 'user')
+    expect(users.length).toBe(1)
+    expect(users[0].serverId).toBe(16768)
+  })
+
+  it('another tab without the bubble still shows the message once', () => {
+    const chat = useChatStore()
+    chat.conversationId = 3408
+    chat._onEvent({ type: 'turn_started', conversation_id: '3408', message_id: 16768, message: 'hello' })
+    chat._onEvent({ type: 'turn_started', conversation_id: '3408', message_id: 16768, message: 'hello' })
+    expect(chat.messages.filter((m) => m.role === 'user').length).toBe(1)
+  })
+})

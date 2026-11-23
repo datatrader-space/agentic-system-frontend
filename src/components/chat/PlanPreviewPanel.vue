@@ -47,6 +47,9 @@ const html = computed(() => (review.value && review.value.content ? renderUntrus
 .ppp-doc :deep(h3) { font-size: 15px; margin: 14px 0 6px; }
 .ppp-doc :deep(p) { margin: 0 0 10px; }
 .ppp-doc :deep(ul), .ppp-doc :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
+/* The global reset strips list markers; a plan's steps are numbered and its points bulleted (release check A-03). */
+.ppp-doc :deep(ul) { list-style: disc; }
+.ppp-doc :deep(ol) { list-style: decimal; }
 .ppp-doc :deep(li) { margin: 3px 0; }
 .ppp-doc :deep(pre) { overflow: auto; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--vm-surface-soft); }
 .ppp-doc :deep(code) { font-size: 13px; }

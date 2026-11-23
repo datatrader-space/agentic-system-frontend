@@ -88,3 +88,14 @@ describe('ChatDock — the Plan tab', () => {
     expect(mount(ChatDock, { global: { stubs } }).find('[data-test="dock-tab-plan"]').exists()).toBe(false)
   })
 })
+
+describe('PlanPreviewPanel — list markers', () => {
+  // The global reset strips list markers; a plan's numbered steps showed no numbers (release check A-03, 2026-11-23).
+  it('gives the plan its numbers and bullets back', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const sfc = readFileSync(resolve(__dirname, 'PlanPreviewPanel.vue'), 'utf8')
+    expect(sfc).toMatch(/\.ppp-doc :deep\(ol\) \{ list-style: decimal; \}/)
+    expect(sfc).toMatch(/\.ppp-doc :deep\(ul\) \{ list-style: disc; \}/)
+  })
+})

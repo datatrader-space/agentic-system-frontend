@@ -310,3 +310,22 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.tokens.value.estimated).toBe(false)
   })
 })
+
+describe('useAgentTimeline — a mid-run message is one line in the run', () => {
+  // Release check C-07 / F17 (2026-11-23): "You added: Use a dark charcoal header…" showed twice; the same
+  // steering_applied frame arrived twice. Its saved message id makes it one line.
+  it('the same message taken in twice is one line; another message is its own', () => {
+    const tl = useAgentTimeline()
+    tl.addSteer('Use a dark charcoal header', 16807)
+    tl.addSteer('Use a dark charcoal header', 16807)
+    tl.addSteer('Also add a footer', 16808)
+    expect(tl.steps.value.filter((s) => s.isSteer).map((s) => s.label))
+      .toEqual(['Use a dark charcoal header', 'Also add a footer'])
+  })
+
+  it('a frame without an id is still shown', () => {
+    const tl = useAgentTimeline()
+    tl.addSteer('no id')
+    expect(tl.steps.value.filter((s) => s.isSteer).length).toBe(1)
+  })
+})

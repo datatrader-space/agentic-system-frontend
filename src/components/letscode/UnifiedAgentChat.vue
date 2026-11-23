@@ -841,7 +841,6 @@ defineExpose({ send, addSelection, sendReview, openChat })
 .uac-stream :deep(.user-col) { max-width: 92%; }
 .uac-stream :deep(.bubble.user) { padding: 9px 12px; font-size: 13px; line-height: 1.6; }
 .uac-stream :deep(.bubble.assistant) { font-size: 13.5px; line-height: 1.6; }
-.uac-stream :deep(.hitl-overlay--inline) { position: static; display: block; padding: 0; background: transparent; }
 .uac-stream :deep(.hitl-modal) { width: 100%; min-width: 0; max-height: none; }
 
 .uac-cards { display: flex; flex-direction: column; gap: 8px; margin: -6px 0 14px 30px; }

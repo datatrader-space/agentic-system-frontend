@@ -330,8 +330,6 @@ const tokensText = computed(() => (props.tokens != null && props.tokens > 0 ? `$
 
 /* Approvals and questions sit IN the rail as a card of their own (HITLModal inline, PermissionCard). */
 .wt-pending .wt-body { display: flex; flex-direction: column; gap: 8px; }
-.wt-pending :deep(.hitl-overlay--inline) { position: static; inset: auto; display: block; padding: 0; background: transparent; z-index: auto; }
-.wt-pending :deep(.hitl-modal) { width: 100%; min-width: 0; max-width: 100%; max-height: none; }
 
 /* The live status line, under the last row. */
 .wt-status { display: flex; align-items: center; gap: 7px; margin: 6px 0 2px 1px; color: var(--vm-ink-soft); font-size: 13px; }

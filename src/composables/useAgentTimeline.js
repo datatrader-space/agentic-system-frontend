@@ -570,10 +570,14 @@ export function useAgentTimeline() {
   // A message the person sent WHILE this run was working, taken in by the run (`steering_applied`). It is
   // placed in the step list at the point the run took it in — the work before it above, the work and the
   // answer after it below — so it never jumps, and it is saved with the run's timeline for a reload.
-  function addSteer(text) {
+  // ``key``: the saved message's id. The same frame can arrive twice (live and in the run's replay, or on two
+  // channels); a message is one line in the run, never two (release check C-07 / F17, 2026-11-23).
+  function addSteer(text, key = null) {
     const t = String(text || '').trim()
     if (!t) return
+    if (key != null && steps.value.some((s) => s.isSteer && s.steerKey === String(key))) return
     steps.value.push({
+      steerKey: key != null ? String(key) : undefined,
       stepId: `steer_${steps.value.length}_${_now()}`,
       toolCallId: '', phase: 'steer', tool: '', argsPreview: '',
       label: t, status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',

@@ -1298,6 +1298,8 @@ export const useChatStore = defineStore('chat', {
     // (agent/services/plan_resume.py) and answers `plan_resume_refused` to any other. The local guard
     // only saves the second request. The approval shows as an approval row, never as a user bubble.
     _resumeAfterPlan() {
+      // Only the chat the plan belongs to resumes it: a tab with no conversation of its own would start a new chat.
+      if (!this.conversationId) return
       const lastUser = [...this.messages].reverse().find((m) => m.role === 'user')
       if (!lastUser) return
       const now = Date.now()
@@ -1314,7 +1316,7 @@ export const useChatStore = defineStore('chat', {
     // and the agent re-plans from it.
     _resumeAfterRevise(feedback) {
       const text = (feedback || '').trim()
-      if (!text) return
+      if (!text || !this.conversationId) return
       if (!this._conn && this.conversationId) this._connect()
       this.messages.push({ id: nid(), role: 'user', content: text, status: 'done' })
       this._beginAssistant()
@@ -2264,10 +2266,13 @@ export const useChatStore = defineStore('chat', {
       // A run's plan event (the run's event stream, run_coordinator): the chat draws no plan from it -- a plan is
       // reviewed on its card and beside the chat, and followed on the task list (PLAN_REVIEW_LIKE_CLAUDE_PLAN.md).
       // It still names the run of the message it reaches and carries the person's plan DECISION. Scope to THIS
-      // window's conversation (the frame is broadcast to the user group with conversation_id inside).
+      // window's conversation (the frame is broadcast to the user group with conversation_id inside), and only to it:
+      // a tab with NO conversation open (a new chat, a blank Let's Code tab) is not that conversation. It used to be
+      // let in, and it resumed the plan on its own socket, which started a NEW chat with the person's reply in it,
+      // once per open tab (release check F13, 2026-11-23: one reply became three chats, two Coding Agent runs).
       if (t === 'plan_event') {
         const pcid = msg.conversation_id
-        if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
+        if (pcid != null && this.conversationId != null && String(pcid) === String(this.conversationId)) {
           try {
             // WHICH RUN PRODUCED THIS MESSAGE, stamped on every message the run's events reach: a Work run's
             // segments each have their own assistant message, and the renderer reads it from the message.
@@ -2813,7 +2818,7 @@ export const useChatStore = defineStore('chat', {
           const text = msg.message || ''
           const qm = this._queuedBubble(msg)
           if (qm) this.messages.splice(this.messages.indexOf(qm), 1)
-          _tl.addSteer(text)
+          _tl.addSteer(text, msg.message_id ?? null)
           break
         }
         case 'queued_messages_cancelled': {
@@ -2842,7 +2847,15 @@ export const useChatStore = defineStore('chat', {
               String(msg.conversation_id) !== String(this.conversationId)) break
           if (this.isStreaming) break
           const _sid = msg.message_id != null ? String(msg.message_id) : null
-          if (!_sid || !this.messages.some((x) => x.role === 'user' && String(x.serverId ?? '') === _sid)) {
+          // THIS tab's own bubble for the message, not yet given its server id (the turn was handed to the run host
+          // and resumed there after a restart): it IS the message, so it takes the id instead of a second bubble
+          // being added (release check C-14 / F14, 2026-11-23: conv 3408 showed the person's message twice).
+          const _own = _sid && msg.kind !== 'plan_approval'
+            ? [...this.messages].reverse().find((x) => x.role === 'user' && x.serverId == null)
+            : null
+          if (_own && String(_own.content || '').trim() === String(msg.message || '').trim()) {
+            _own.serverId = msg.message_id
+          } else if (!_sid || !this.messages.some((x) => x.role === 'user' && String(x.serverId ?? '') === _sid)) {
             const _approval = msg.kind === 'plan_approval'
             this.messages.push({ id: nid(), role: 'user', content: _approval ? PLAN_APPROVED_CONTINUE : (msg.message || ''),
                                  ...(_approval ? { kind: 'plan_approval' } : {}), serverId: msg.message_id ?? null,

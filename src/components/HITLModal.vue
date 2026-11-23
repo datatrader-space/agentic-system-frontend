@@ -32,7 +32,7 @@
           <div class="modal-body">
             <!-- The Studio card says why in a sentence ("it makes 1 image with ..."); the tool's own name is only the
                  fallback when there is no reason to show. -->
-            <p v-if="!(inline && heldBecause)" class="summary">{{ approvalTitle }}</p>
+            <p v-if="!(inline && heldBecause) && !summaryRepeatsQuestion" class="summary">{{ approvalTitle }}</p>
             <!-- WHY IT IS ASKING, when that is more than "this call changes something": the agent's own
                  rule, or a browser signed in to an account. Without it a card for a harmless tool reads
                  as a fault (seen live 2026-10-09, conversation 2667: "Approve ECHO?" and nothing else). -->
@@ -444,6 +444,11 @@ const askQuestions = computed(() => {
   const qs = currentRequest.value?.payload?.kind === 'ask_user' ? currentRequest.value.payload.questions : null
   return Array.isArray(qs) ? qs.filter((q) => q && q.question && Array.isArray(q.options)) : []
 });
+
+// One question whose text IS the card's summary: the question is shown once, under its header chip, not twice
+// (release check A-10, 2026-11-23). Several questions keep the summary ("The agent has 4 questions for you").
+const summaryRepeatsQuestion = computed(() => askQuestions.value.length === 1
+  && String(currentRequest.value?.summary || '').trim() === String(askQuestions.value[0].question || '').trim());
 
 // A parked approval (backend phase 2b, `payload.parked`): its run waits for this answer and continues after it.
 const isParked = computed(() => currentRequest.value?.payload?.parked === true || currentRequest.value?.parked === true);
@@ -1889,5 +1894,27 @@ watch(currentRequest, () => {
   background: var(--vm-blue-soft);
   color: var(--vm-link);
   border: 1px solid #BFDBFE;
+}
+
+/* INLINE: the card sits in the page's own flow (a chat stream, a Sessions row, the Studio feed), never as a
+   fixed overlay. Placed last so it also wins over the docked (compact) rules above. A fixed overlay inside a
+   contained ancestor (Sessions' rows use `content-visibility: auto`) is clipped to that ancestor: on the
+   Sessions page "Answer" showed a strip with only "Cancel this step" (release check S-02, 2026-11-23). */
+.hitl-overlay--inline {
+  position: static;
+  inset: auto;
+  display: block;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  z-index: auto;
+  pointer-events: auto;
+}
+.hitl-overlay--inline .hitl-modal {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  max-height: none;
+  animation: none;
 }
 </style>

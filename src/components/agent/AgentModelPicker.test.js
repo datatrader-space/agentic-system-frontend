@@ -26,6 +26,7 @@ const api = vi.hoisted(() => ({
   getAgentModelOptions: vi.fn(),
   selectAgentModel: vi.fn(),
   getAgentReasoningOptions: vi.fn(),
+  getAgentCard: vi.fn(() => Promise.resolve({ data: { agent_run_mode: 'manual' } })),
 }))
 
 vi.mock('../../services/api', () => ({ default: api }))
@@ -234,5 +235,20 @@ describe('AgentModelPicker — frontend and backend can be released separately',
     await openModels(w)
     expect(w.findAll('.amp-model')).toHaveLength(0)
     expect(w.get('[role="alert"]').text()).toBe('Could not load the models.')
+  })
+})
+
+describe('AgentModelPicker — the Mode section', () => {
+  // Picking Plan left the menu open over the composer (release check A-04, 2026-11-23); a mode that took effect
+  // closes it, as a model pick does.
+  it('picking Plan switches the chat to plan mode and closes the menu', async () => {
+    const { useChatStore } = await import('../../stores/useChatStore')
+    const wrapper = mountPicker()
+    await flushPromises()
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-mode-plan"]').trigger('click')
+    await flushPromises()
+    expect(useChatStore().turnMode).toBe('plan')
+    expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
   })
 })
