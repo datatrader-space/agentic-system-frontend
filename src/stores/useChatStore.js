@@ -1794,6 +1794,10 @@ export const useChatStore = defineStore('chat', {
     // until the answer has landed, and the latest window only then.
     async _refreshHistory({ probe = false } = {}) {
       const cid = this.conversationId
+      // A new chat whose first turn dropped before the server named it has no conversation to read yet. Asking
+      // anyway sent GET /conversations/null/messages/ every 2.5 s for as long as the recovery loop ran (a 500 each
+      // on production, 2026-11-24); the loop's socket check still ends the wait.
+      if (cid == null || cid === '') return false
       const landedIn = (rows) => {
         const last = rows[rows.length - 1]
         return !!last && last.role === 'assistant' && (last.content || '').trim().length > 0

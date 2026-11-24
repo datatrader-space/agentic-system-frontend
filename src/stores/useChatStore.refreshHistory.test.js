@@ -27,6 +27,16 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('_refreshHistory', () => {
+  it('asks nothing for a new chat the server has not named yet (no /conversations/null/messages/)', async () => {
+    const s = useChatStore()
+    for (const id of [null, undefined, '']) {
+      s.conversationId = id
+      expect(await s._refreshHistory({ probe: true })).toBe(false)
+      expect(await s._refreshHistory()).toBe(false)
+    }
+    expect(api.getConversationMessages).not.toHaveBeenCalled()
+  })
+
   it('reads the latest window of messages, not the conversation, and merges it', async () => {
     api.getConversationMessages.mockResolvedValue(page([USER_ROW, ANSWER_ROW], true))
     const s = useChatStore()
