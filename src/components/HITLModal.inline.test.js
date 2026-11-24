@@ -61,9 +61,10 @@ describe('HITLModal — one question is shown once', () => {
     expect((w.text().match(/Which city\?/g) || []).length).toBe(1)
   })
 
-  it('keeps the summary for several questions', () => {
+  it('several questions: no summary line either; the tabs say what is asked (Claude Code card, 2026-11-24)', () => {
     setActivePinia(createPinia())
     const w = mount(HITLModal, { props: { inline: true, requests: [ask([q('Which city?'), q('Which region?')], 'The agent has 2 questions for you')] } })
-    expect(w.find('.summary').text()).toBe('The agent has 2 questions for you')
+    expect(w.find('.summary').exists()).toBe(false)
+    expect(w.findAll('[role="tab"]').length).toBe(3)
   })
 })

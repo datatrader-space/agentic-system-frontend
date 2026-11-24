@@ -3,8 +3,8 @@
     <Transition name="modal-fade">
       <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isDocked, 'hitl-overlay--inline': inline }" @click.self="handleOverlayClick">
         <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
-          <!-- Header -->
-          <div class="modal-header">
+          <!-- Header. A question card has none: it draws Claude Code's own bar (tabs, hide, cancel) (owner, 2026-11-24). -->
+          <div v-if="!askQuestions.length" class="modal-header">
             <div class="header-left">
               <!-- A step to approve: a small shield, never an emoji. -->
               <svg v-if="isToolApproval" class="approval-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -32,7 +32,7 @@
           <div class="modal-body">
             <!-- The Studio card says why in a sentence ("it makes 1 image with ..."); the tool's own name is only the
                  fallback when there is no reason to show. -->
-            <p v-if="!(inline && heldBecause) && !summaryRepeatsQuestion" class="summary">{{ approvalTitle }}</p>
+            <p v-if="!(inline && heldBecause) && !askQuestions.length" class="summary">{{ approvalTitle }}</p>
             <!-- WHY IT IS ASKING, when that is more than "this call changes something": the agent's own
                  rule, or a browser signed in to an account. Without it a card for a harmless tool reads
                  as a fault (seen live 2026-10-09, conversation 2667: "Approve ECHO?" and nothing else). -->
@@ -148,10 +148,11 @@
               </div>
             </div>
 
-            <!-- The agent's questions (ASK_USER, Claude Code's AskUserQuestion shape): one to four, each with options
-                 and "Other"; one Send. -->
+            <!-- The agent's questions (ASK_USER), drawn as Claude Code draws AskUserQuestion: a tab per question, one on
+                 screen at a time, a Submit tab; its X and Esc are "Cancel this step". -->
             <div v-else-if="askQuestions.length" class="response-section">
-              <AskUserQuestions :questions="askQuestions" :disabled="isExpired" @answer="(v) => respond(v)" />
+              <AskUserQuestions :questions="askQuestions" :disabled="isExpired" :cancellable="canCancelStep"
+                                @answer="(v) => respond(v)" @cancel="cancelStep" />
               <div v-if="isExpired" class="choice-expired" data-test="hitl-expired">
                 <span>This question timed out — an answer can no longer reach the agent.</span>
                 <button class="btn-link" @click="dismiss">Close</button>
@@ -349,7 +350,7 @@
             </div>
 
             <!-- Optional Feedback (not shown for credential_setup or compact-ask cards) -->
-            <div v-if="!isSuperseded && currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isDocked" class="feedback-section">
+            <div v-if="!isSuperseded && currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isDocked && !askQuestions.length" class="feedback-section">
               <label for="feedback">Optional Comment:</label>
               <textarea
                 id="feedback"
@@ -362,7 +363,8 @@
           </div>
 
           <!-- Footer -->
-          <div class="modal-footer">
+          <!-- A question card's footer is its own ("Esc to cancel"); this one shows for it only to skip to the next card. -->
+          <div v-if="!askQuestions.length || pendingRequests.length > 1" class="modal-footer">
             <div class="footer-left">
               <span v-if="currentRequest.timeout_at && inline" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}" data-test="hitl-time-left">
                 {{ isExpired ? 'This request has expired' : `Answer within ${timeRemaining}` }}
@@ -377,7 +379,7 @@
             </div>
             <div class="footer-right">
               <!-- A deny with the reason "cancelled by you", through the same answer as Decline (ADM-1283). -->
-              <button v-if="canCancelStep" type="button" @click="cancelStep" class="btn-link" data-test="hitl-cancel-step"
+              <button v-if="canCancelStep && !askQuestions.length" type="button" @click="cancelStep" class="btn-link" data-test="hitl-cancel-step"
                       title="Don't run this step; the agent is told you cancelled it">
                 Cancel this step
               </button>
@@ -445,10 +447,6 @@ const askQuestions = computed(() => {
   return Array.isArray(qs) ? qs.filter((q) => q && q.question && Array.isArray(q.options)) : []
 });
 
-// One question whose text IS the card's summary: the question is shown once, under its header chip, not twice
-// (release check A-10, 2026-11-23). Several questions keep the summary ("The agent has 4 questions for you").
-const summaryRepeatsQuestion = computed(() => askQuestions.value.length === 1
-  && String(currentRequest.value?.summary || '').trim() === String(askQuestions.value[0].question || '').trim());
 
 // A parked approval (backend phase 2b, `payload.parked`): its run waits for this answer and continues after it.
 const isParked = computed(() => currentRequest.value?.payload?.parked === true || currentRequest.value?.parked === true);
