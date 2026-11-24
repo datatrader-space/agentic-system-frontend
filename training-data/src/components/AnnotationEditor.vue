@@ -139,7 +139,8 @@ async function sendToUnannotatedLive(){const W=meta.value.photo.width,H=meta.val
     const body=await liveApi.sendToUnannotated(props.state.ref,it.id);askAction.value='';dirty.value=false;
     // The photo leaves this batch: on to the next one, or back to the batch when it was the last or the batch closed.
     props.state.images=props.state.images.filter(i=>i!==it);const words='Sent to Unannotated: the photo waits with the unassigned photos, its draft kept.';
-    if(body?.closed||!scopedImages.value.length){emit('close');return;}load(Math.min(at,scopedImages.value.length-1));hint.value=words;}
+    // A batch whose last photo left is closed: the page that opened the editor says so (ProjectStudio.editorClosed).
+    if(body?.closed||!scopedImages.value.length){emit('close',{closed:!!body?.closed});return;}load(Math.min(at,scopedImages.value.length-1));hint.value=words;}
   catch(e){askError.value=e.message;}finally{busy.value=false;}}
 async function addComment(){const text=comment.value.trim();if(!text)return;if(live.value){try{comments.value=(await liveApi.comment(props.state.ref,item.value.id,text)).comments;comment.value='';}catch(e){status.value=e.message;}return;}comments.value.push(text);comment.value='';}
 function openComments(){panel.value='Comments';nextTick(()=>document.getElementById('editor-comment')?.focus());}

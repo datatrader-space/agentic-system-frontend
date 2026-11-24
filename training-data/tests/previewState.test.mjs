@@ -27,6 +27,8 @@ test('unassigned batches stay out of annotating even after a draft status change
  assert.equal(batchColumn({status:'Annotating',assignee:'Demo labeller'}),'Annotating');
  assert.equal(batchColumn({status:'In review',assignee:'Unassigned'}),'In review');
  assert.equal(batchColumn({status:'Dataset',assignee:'Me'}),'Dataset');
+ // A rejected batch is closed: in no column of the board, not "Annotating" for the labeller it still names.
+ assert.equal(batchColumn({status:'Rejected',assignee:'Me'}),'Rejected');
 });
 
 test('partial assignment leaves remaining media unassigned and isolates the new job',()=>{

@@ -23,6 +23,9 @@ export function addPreviewBatch(id, batch) {
 // Assignment determines the work queue; completed/review states keep their columns.
 export function batchColumn(batch) {
   if (['In review', 'Dataset'].includes(batch.status)) return batch.status;
+  // A rejected batch is closed and its photos are back in Unassigned: it belongs to no column of the board (never
+  // "Annotating" because it still names a labeller).
+  if (batch.status === 'Rejected') return 'Rejected';
   const assignee = batch.assignee?.trim();
   return !assignee || assignee.toLowerCase() === 'unassigned' ? 'Unassigned' : 'Annotating';
 }

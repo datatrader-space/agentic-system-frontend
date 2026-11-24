@@ -285,6 +285,8 @@ test('Send to Unannotated goes back to the batch when the batch closed', async()
   await button(w,'Send to Unannotated').trigger('click');
   await button(w,'Send to Unannotated').trigger('click');await flushPromises();
   expect(w.emitted('close')).toHaveLength(1);
+  // The page that opened the editor is told the batch closed, so it can say where the batch went (ProjectStudio).
+  expect(w.emitted('close')[0]).toEqual([{closed:true}]);
 });
 
 test('Smart Select: click adds, Shift-click and right-click remove, Esc drops, Enter keeps the way chosen', async()=>{
