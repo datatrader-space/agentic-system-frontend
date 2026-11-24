@@ -7,12 +7,12 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sent = [];
-const state = { workflows: [], refuse: null };
+const state = { workflows: [], refuse: null, may: { start: true } };
 const ROW = { id: 5, project: { ref: 'p1', name: 'Office' }, model: null, workflow: { id: 12, name: 'Desk check', version: 3 },
   source: 'all', source_label: 'All photos', state: 'done', total: 4, done: 4, failed: 0, created_at: new Date().toISOString(),
   finished_at: new Date().toISOString(), by: 'Sajid', may: { download: true, cancel: false } };
 const PAGE = () => ({
-  batches: [ROW], limit: 500, may: { start: true },
+  batches: [ROW], limit: 500, may: state.may,
   options: { projects: [{ ref: 'p1', name: 'Office', photos: 40, versions: [], models: [], running: false }], workflows: state.workflows },
 });
 vi.mock('../../../training-data/src/api/batch.js', async (real) => {
@@ -46,7 +46,19 @@ async function openDialog() {
 }
 
 describe('a batch answered by a workflow', () => {
-  beforeEach(() => { sent.length = 0; state.workflows = []; state.refuse = null; document.body.innerHTML = ''; });
+  beforeEach(() => { sent.length = 0; state.workflows = []; state.refuse = null; state.may = { start: true }; document.body.innerHTML = ''; });
+
+  it('where model batches are off, New batch still opens, "A model" is off with the reason, and a workflow can start', async () => {
+    state.workflows = [{ id: 12, name: 'Desk check', version: 3 }];
+    state.may = { start: true, models: false, models_reason: 'Batches run only where models are tried at no cost of their own.' };
+    const w = await openDialog();
+    expect(document.body.textContent).toContain('A workflow can still answer a batch');
+    const model = w.find('[data-test="bt-by-model"]');
+    expect(model.attributes('disabled')).toBeDefined();
+    expect(w.find('#bt-by-model-help').text()).toContain('no cost of their own');
+    expect(w.find('[data-test="bt-by-workflow"]').element.checked).toBe(true);
+    w.unmount();
+  });
 
   it('names the workflow and its version where a model name is shown', async () => {
     const w = mount(BatchTab, { attachTo: document.body, global: { stubs: STUBS } });

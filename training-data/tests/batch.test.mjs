@@ -51,6 +51,14 @@ test('why Start is off is said in the order a person fixes it', () => {
   assert.equal(startProblem({ may: {}, project, model, choice: choices[2] }), '');
 });
 
+test('model batches off on the server leave workflow batches open (ADM-1351 phase 3)', () => {
+  const project = { ref: 'p1', name: 'Leads', photos: 40, versions: [], models: [{ number: 2, label: 'v2' }], running: false };
+  const choice = photoChoices(project)[0];
+  const may = { start: true, models: false, models_reason: 'Model batches are off here.' };
+  assert.equal(startProblem({ may, project, by: 'model', model: project.models[0], choice }), 'Model batches are off here.');
+  assert.equal(startProblem({ may, project, by: 'workflow', workflow: { id: 12 }, workflows: [{ id: 12 }], choice }), '');
+});
+
 test('the summary says what will happen in one sentence', () => {
   const choices = photoChoices(project);
   assert.equal(batchSummary(project, project.models[0], choices[2]), 'walls 2.0.0 will look at the 480 photos of train_val-v3, one at a time, and save what it finds in each.');

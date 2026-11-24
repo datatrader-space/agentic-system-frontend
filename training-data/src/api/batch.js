@@ -110,6 +110,8 @@ export function startProblem({ may, project, by = 'model', model, workflow, work
     if (!(workflows || []).length) return NO_BATCH_WORKFLOW;
     if (!workflow) return 'Choose the workflow that answers each photo.';
   } else {
+    // Model batches can be off on a server while workflow batches, paid per call, still run (batch_api._body).
+    if (may && may.models === false) return may.models_reason || 'A model cannot answer a batch on this server. Choose a workflow.';
     if (!(project.models || []).length) return `${project.name} has no trained model yet. Choose a workflow instead, or train a model first.`;
     if (!model) return 'Choose a model.';
   }

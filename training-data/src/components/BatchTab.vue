@@ -90,8 +90,9 @@ watch(() => form.value.project, () => {
 function openCreate() {
   const first = props.projectRef ? projects.value.find(p => p.ref === props.projectRef)
     : projects.value.find(p => !p.running && (p.models || []).length) || projects.value[0];
-  // A project without a trained model starts on "A workflow" when there is one to choose.
-  const by = !first?.models?.length && workflows.value.length ? 'workflow' : 'model';
+  // A project without a trained model, or a server where model batches are off, starts on "A workflow" when there
+  // is one to choose.
+  const by = (!first?.models?.length || may.value.models === false) && workflows.value.length ? 'workflow' : 'model';
   form.value = { project: first?.ref || '', by, model: first?.models?.[0] ? String(first.models[0].number) : '', workflow: workflows.value[0]?.id || '', photos: 'all' };
   const fits = photoChoices(first).find(c => !limitProblem(c.photos, limit.value));
   if (fits) form.value.photos = fits.value;
@@ -160,6 +161,7 @@ function whenText(b) {
     <DeploymentMetrics :items="batchMetrics" :loaded="!!page"/>
     <p class="bt-limit"><Info :size="17" aria-hidden="true"/><span>{{ limitNote }}</span></p>
     <p v-if="page && may.start === false && may.reason" class="bt-closed" role="status">{{ may.reason }}</p>
+    <p v-else-if="page && may.models === false && may.models_reason" class="bt-closed" role="status" data-test="bt-models-off">{{ may.models_reason }} A workflow can still answer a batch: it is charged per model call.</p>
     <div v-if="said" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ said }}</span></div>
     <div v-if="error" class="bt-error" role="alert">
       <span>{{ error }}</span>
@@ -217,9 +219,9 @@ function whenText(b) {
         <fieldset class="bt-field">
           <legend>Answer each photo with</legend>
           <div class="bt-choices">
-            <label class="bt-choice" :class="{ chosen: form.by === 'model' }">
-              <input v-model="form.by" type="radio" name="bt-by" value="model" aria-describedby="bt-by-model-help" data-test="bt-by-model">
-              <span><strong>A model of the project</strong><small id="bt-by-model-help">One of its trained models looks at each photo.</small></span>
+            <label class="bt-choice" :class="{ chosen: form.by === 'model', off: may.models === false }">
+              <input v-model="form.by" type="radio" name="bt-by" value="model" :disabled="may.models === false" aria-describedby="bt-by-model-help" data-test="bt-by-model">
+              <span><strong>A model of the project</strong><small id="bt-by-model-help">{{ may.models === false ? (may.models_reason || 'A model cannot answer a batch on this server.') : 'One of its trained models looks at each photo.' }}</small></span>
             </label>
             <label class="bt-choice" :class="{ chosen: form.by === 'workflow', off: !workflows.length }">
               <input v-model="form.by" type="radio" name="bt-by" value="workflow" :disabled="!workflows.length" aria-describedby="bt-by-workflow-help" data-test="bt-by-workflow">
