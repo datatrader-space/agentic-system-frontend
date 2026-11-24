@@ -96,6 +96,29 @@ describe('the Input pane', () => {
     expect(items).toContain('{{nodes.blur.output.text}}')
   })
 
+  it("a manual trigger's image input is an image in Variables too: a sample before a run, the real one after (ADM-1351)", () => {
+    const imgNodes = [
+      { id: 'start', type: 'trigger.manual', data: { inputs: [{ key: 'photo', type: 'image' }, { key: 'city', default: 'Oslo' }] } },
+      { id: 'find', type: 'vision.model', data: {} },
+    ]
+    const imgEdges = [{ id: 'e1', source: 'start', target: 'find' }]
+    const before = buildSources({ nodeId: 'find', nodes: imgNodes, edges: imgEdges })
+    expect(before.find((s) => s.id === 'vars').value).toEqual({ photo: { kind: 'image', id: '(image)' }, city: 'Oslo' })
+    const items = pickerItems(before)
+    expect(items.find((i) => i.id === '{{vars.photo}}')).toMatchObject({ description: 'object' })
+    expect(items.map((i) => i.id)).toContain('{{vars.photo.kind}}')
+
+    const photo = { kind: 'image', id: 'asset-42', url: 'https://example.test/p.png' }
+    const states = { start: { status: 'succeeded', output: { text: '', trigger: { photo, city: 'Bergen' } } } }
+    const after = buildSources({ nodeId: 'find', nodes: imgNodes, edges: imgEdges, states })
+    // The image is the payload's; a text input still shows its declared default, as before.
+    expect(after.find((s) => s.id === 'vars').value).toEqual({ photo, city: 'Oslo' })
+    // A run whose payload has no image leaves it empty, never a sample presented as real.
+    expect(varsValue({}, imgNodes, { city: 'Bergen' })).toEqual({ photo: '', city: 'Oslo' })
+    // A secret variable of the same name stays hidden.
+    expect(varsValue({ photo: { secret: true, default: 'x' } }, imgNodes, { photo })).toMatchObject({ photo: '(secret)' })
+  })
+
   it('offers {{item}} on a for-each step only', () => {
     expect(buildSources({ nodeId: 'loop', nodes, edges }).some((s) => s.base === 'item')).toBe(true)
     expect(buildSources({ nodeId: 'think', nodes, edges }).some((s) => s.base === 'item')).toBe(false)

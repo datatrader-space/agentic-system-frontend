@@ -205,15 +205,31 @@ function manualInputs(nodes) {
   return (Array.isArray(manual?.data?.inputs) ? manual.data.inputs : []).filter((i) => i && i.key)
 }
 
-/** The workflow's variables as the Input pane shows them: a secret's value is never shown. */
-export function varsValue(vars, nodes) {
+// An image input (ADM-1351) arrives as an image reference; '(image)' marks the design-time sample, never fetched.
+const IMAGE_SAMPLE = () => ({ kind: 'image', id: '(image)' })
+
+/**
+ * The workflow's variables as the Input pane shows them: a secret's value is never shown. The engine seeds `vars`
+ * from the trigger payload (executor._seed_vars), so a manual trigger's IMAGE input is `{{vars.<key>}}` too: the
+ * fired payload's value after a run (`payload`), an image reference sample before one.
+ */
+export function varsValue(vars, nodes, payload = null) {
   const out = {}
+  const secret = new Set()
   for (const [k, decl] of Object.entries(vars || {})) {
-    if (decl && typeof decl === 'object' && decl.secret === true) out[k] = '(secret)'
+    if (decl && typeof decl === 'object' && decl.secret === true) { out[k] = '(secret)'; secret.add(k) }
     else if (decl && typeof decl === 'object') out[k] = decl.default ?? decl.value ?? ''
     else out[k] = decl ?? ''
   }
-  for (const input of manualInputs(nodes)) if (!(input.key in out)) out[input.key] = input.default ?? ''
+  const fired = payload && typeof payload === 'object' ? payload : null
+  for (const input of manualInputs(nodes)) {
+    if (input.type === 'image') {
+      if (secret.has(input.key)) continue
+      if (!fired) out[input.key] = IMAGE_SAMPLE()
+      else if (input.key in fired) out[input.key] = fired[input.key]
+      else if (!(input.key in out)) out[input.key] = ''
+    } else if (!(input.key in out)) out[input.key] = input.default ?? ''
+  }
   return out
 }
 
@@ -259,12 +275,11 @@ export function buildSources({ nodeId, nodes = [], edges = [], vars = {}, states
       const declared = wfOutputSample(n.type)
       if (declared && typeof declared === 'object' && !Array.isArray(declared)) Object.assign(sample, declared)
     }
-    // An image input (ADM-1351) arrives as an image reference; '(image)' marks the sample, which is never fetched.
-    for (const i of inputs) sample[i.key] = i.type === 'image' ? { kind: 'image', id: '(image)' } : (i.default ?? '')
+    for (const i of inputs) sample[i.key] = i.type === 'image' ? IMAGE_SAMPLE() : (i.default ?? '')
     out.push({ id: 'trigger', label: 'Trigger', base: 'trigger', value: sample, real: false })
   }
 
-  const v = varsValue(vars, nodes)
+  const v = varsValue(vars, nodes, fired ? fired.output.trigger : null)
   if (Object.keys(v).length) out.push({ id: 'vars', label: 'Variables', base: 'vars', value: v, real: true })
 
   for (const n of ancestors) {

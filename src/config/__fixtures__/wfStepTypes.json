@@ -722,7 +722,11 @@
     },
     "cost_usd": {
      "kind": "number",
-     "description": "what the call cost"
+     "description": "the provider's cost of the call (what the run's spend counts)"
+    },
+    "price_usd": {
+     "kind": "number",
+     "description": "what you were charged for the call (the platform markup included)"
     }
    },
    "inputs": {
