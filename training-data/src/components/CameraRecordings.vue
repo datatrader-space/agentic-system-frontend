@@ -10,18 +10,21 @@
 // VIDEO CARDS (the owner, 2026-11-23: "a video card preview like YouTube"): a grid of cards, each with the recording's
 // own picture (one frame of it, ``thumbnail_url``; a plain card while it has none) and its length in the corner.
 // Pointing at a card (or focusing it) plays a silent preview of it in the card; clicking the picture plays it above.
-import { computed, onMounted, ref, watch } from 'vue';
+// AS IT IS MADE (the owner, 2026-11-24): a recording being made is listed first, marked Recording, its length growing
+// (the list asks again every few seconds while a camera records, ``refreshAfter``), and plays what is recorded so far;
+// when it ends it is listed as the kept recording.
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Disc, Download, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
 import RecordingThumb from './RecordingThumb.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import {
   recordingsApi, dayRange, recordingWhen, keptUntilText, cameraChoices, storageText, sizeText, linksFresh,
-  deletionText, deletionWhy, RECORDING_STATES,
+  deletionText, deletionWhy, RECORDING_STATES, refreshAfter,
 } from '../api/streaming.js';
 
 const PAGE = 50;
-const rows = ref([]); const count = ref(0); const cameras = ref([]); const stored = ref(null); const limit = ref(0);
+const rows = ref([]); const live = ref([]); const count = ref(0); const cameras = ref([]); const stored = ref(null); const limit = ref(0);
 const mayDelete = ref(false); const loading = ref(false); const error = ref(''); const said = ref('');
 const camera = ref(''); const day = ref(''); const state = ref(''); const grace = ref(14); const waiting = ref(0);
 const playing = ref(null); const playError = ref(''); const confirming = ref(null); const busy = ref(false);
@@ -31,20 +34,35 @@ const fresh = () => linksFresh(loadedAt);
 const choices = computed(() => cameraChoices(cameras.value));
 const usage = computed(() => storageText(stored.value, limit.value));
 const more = computed(() => rows.value.length < count.value);
+const shown = computed(() => [...live.value, ...rows.value]);
+let again = null; let gone = false;
+function askAgain(answer) {
+  clearTimeout(again); again = null;
+  const wait = refreshAfter(answer);
+  if (wait && !gone) again = setTimeout(() => load({ quiet: true }), wait);
+}
+onUnmounted(() => { gone = true; clearTimeout(again); });
 
-async function load({ append = false } = {}) {
-  loading.value = true; error.value = '';
+async function load({ append = false, quiet = false } = {}) {
+  if (!quiet) loading.value = true;
+  if (!quiet) error.value = '';
   try {
     const answer = await recordingsApi.list({ source: camera.value, ...dayRange(day.value), state: state.value, limit: PAGE, offset: append ? rows.value.length : 0 });
     const got = answer?.recordings || [];
-    rows.value = append ? [...rows.value, ...got] : got;
+    if (quiet && rows.value.length > got.length) {          // a later page was shown: keep it, put the newest first
+      const ids = new Set(got.map(r => r.id));
+      rows.value = [...got, ...rows.value.filter(r => !ids.has(r.id))];
+    } else rows.value = append ? [...rows.value, ...got] : got;
+    if (!append) live.value = answer?.live || [];
     count.value = Number(answer?.count) || 0; cameras.value = answer?.cameras || [];
     stored.value = answer?.stored_bytes ?? null; limit.value = Number(answer?.limit_bytes) || 0;
     mayDelete.value = !!answer?.may?.delete;
     grace.value = Number(answer?.grace_days) || 14; waiting.value = Number(answer?.scheduled) || 0;
     if (!append) loadedAt = Date.now();
-    if (playing.value && !rows.value.some(r => r.id === playing.value.id)) playing.value = null;
-  } catch (e) { error.value = e.message; }
+    // One being played stays (a recording being made plays what was recorded when it was opened).
+    if (playing.value && !playing.value.live && !rows.value.some(r => r.id === playing.value.id)) playing.value = null;
+    if (!append) askAgain(answer);
+  } catch (e) { if (!quiet) error.value = e.message; else askAgain({ recording_cameras: 1 }); }
   finally { loading.value = false; }
 }
 onMounted(load);
@@ -56,6 +74,7 @@ async function play(row) {
   if (!linksFresh(loadedAt)) {
     await load();
     row = rows.value.find(r => r.id === row.id) || null;
+    if (!row) row = live.value.find(r => r.source.id === playing.value?.source?.id) || null;
     if (!row) { said.value = 'That recording is no longer kept.'; return; }
   }
   playing.value = row;
@@ -120,26 +139,27 @@ async function restore(row) {
       </p>
     </div>
 
-    <p v-if="loading && !rows.length" class="recs-muted" role="status">Loading the recordings…</p>
-    <div v-else-if="!rows.length && !error" class="recs-empty" role="status">
+    <p v-if="loading && !shown.length" class="recs-muted" role="status">Loading the recordings…</p>
+    <div v-else-if="!shown.length && !error" class="recs-empty" role="status">
       <span class="recs-empty-icon"><Disc :size="20" aria-hidden="true"/></span>
       <h4>{{ day || camera ? 'No recordings here' : 'No recordings yet' }}</h4>
-      <p>Turn on Record to the cloud on a camera in Cloud Streaming. Its video is kept here in 5-minute pieces, a few minutes after it is made, and stays when the camera is removed (unless you choose to delete it then).</p>
+      <p>Turn on Record to the cloud on a camera in Cloud Streaming. Its recording shows here as it is made, all the time in 5-minute pieces or each burst of motion, and stays when the camera is removed (unless you choose to delete it then).</p>
     </div>
     <ul v-else class="recs-list">
-      <li v-for="r in rows" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion }"
+      <li v-for="r in shown" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion, live: r.live }"
           :data-test="`rec-card-${r.id}`">
         <RecordingThumb :recording="r" :fresh="fresh" :label="`Play the recording of ${r.source.name}, ${recordingWhen(r)}`" @play="play(r)"/>
         <span class="recs-what">
           <strong>{{ r.source.name }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.source.removed">Removed</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong>
           <span>{{ recordingWhen(r) }}</span>
-          <small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template><template v-else-if="keptUntilText(r.kept_until)"> · {{ keptUntilText(r.kept_until) }}</template></small>
+          <small v-if="r.live">Being recorded: it is kept when it ends</small>
+          <small v-else>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template><template v-else-if="keptUntilText(r.kept_until)"> · {{ keptUntilText(r.kept_until) }}</template></small>
         </span>
         <span class="recs-acts">
           <UiButton class="small" :disabled="!r.play_url" @click="play(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
           <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
           <UiButton v-if="mayDelete && r.deletion" class="small recs-restore" :disabled="busy" :aria-label="`Cancel the deletion of ${recordingWhen(r)}`" @click="restore(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
-          <UiButton v-if="mayDelete && !r.deletion" class="small recs-danger" :disabled="busy" :aria-label="confirming === r.id ? `Confirm: delete the recording ${recordingWhen(r)}` : `Delete the recording ${recordingWhen(r)}`" @click="remove(r)">
+          <UiButton v-if="mayDelete && !r.deletion && !r.live" class="small recs-danger" :disabled="busy" :aria-label="confirming === r.id ? `Confirm: delete the recording ${recordingWhen(r)}` : `Delete the recording ${recordingWhen(r)}`" @click="remove(r)">
             <Trash2 :size="13" aria-hidden="true"/><template v-if="confirming === r.id"> Delete? Kept {{ grace }} days first</template>
           </UiButton>
         </span>

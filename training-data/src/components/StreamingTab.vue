@@ -433,7 +433,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
         <tbody>
           <tr v-for="s in visibleStreams" :key="s.id" :class="{ open: viewing && viewing.id === s.id }">
             <td data-label="Video"><span class="st-src"><FileVideo v-if="s.source_kind === 'file'" :size="15" aria-hidden="true"/><Radio v-else :size="15" aria-hidden="true"/><strong>{{ s.source }}</strong></span>
-              <small>{{ s.source_kind_label }}, {{ s.fps }} a second</small></td>
+              <small>{{ s.source_kind_label }}, {{ s.fps }} frame{{ s.fps === 1 ? '' : 's' }} a second</small></td>
             <td data-label="Project and model">{{ s.project.name }}<small>{{ streamWhat(s) }}</small></td>
             <td data-label="State">
               <UiBadge :tone="streamState(s)[0]"><LoaderCircle v-if="isActive(s)" class="spin" :size="12" aria-hidden="true"/>{{ streamState(s)[1] }}</UiBadge>
@@ -599,7 +599,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
           <div class="st-cards">
             <label v-for="f in options.fps" :key="f" class="st-card" :class="{chosen: Number(form.fps)===f}">
               <input v-model.number="form.fps" type="radio" name="st-fps" :value="f">
-              <span><strong>{{ f }} a second</strong><small>{{ f === 1 ? 'One answer for every second of video.' : 'Two answers a second, for quicker movement.' }}</small></span>
+              <span><strong>{{ f }} frame{{ f === 1 ? '' : 's' }} a second</strong><small>{{ f === 1 ? 'One answer for every second of video.' : 'Two answers every second, for quicker movement.' }}</small></span>
             </label>
           </div>
           <p v-if="fieldErrors.fps" class="field-error" role="alert">{{ fieldErrors.fps }}</p>

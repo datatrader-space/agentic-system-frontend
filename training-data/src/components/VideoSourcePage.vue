@@ -33,7 +33,7 @@ import {
   videoSources, recordingsApi, dayRange, windowText, sizeText, dayPriceText, historyRows, spendItems, monthText,
   streamWhat, codesRead, frameCodesText, pushDetails, phoneLinkDetails, phoneLinkUntil,
   streamRules, streamEvents, ruleForm, ruleProblems, ruleBody, ruleClasses, cooldownText, matchedText, eventTime,
-  workflowFromCamera, COOLDOWN_MIN, linksFresh, deletionText, deletionWhy, ruleKinds, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
+  workflowFromCamera, COOLDOWN_MIN, linksFresh, refreshAfter, deletionText, deletionWhy, ruleKinds, WEEKDAYS, RULE_ALERTS, RULE_AI, myCameraAlerts,
   answersFrames, DWELL_MIN, DWELL_MAX,
 } from '../api/streaming.js';
 
@@ -115,11 +115,11 @@ const recBusy = ref(false); const recError = ref(''); const recSaid = ref('');
 // Record all the time or only when there is motion (ADM-1350): its sensitivity and how long a still camera ends a
 // recording. ``rec.motion`` is absent from a server older than the choice; the form then sends none of it.
 const motion = computed(() => rec.value?.motion || null);
-const recMode = ref('always'); const recSens = ref('medium'); const recQuiet = ref(30);
+const recMode = ref('always'); const recSens = ref('medium'); const recQuiet = ref(60);
 function askRecording() {
   recDays.value = rec.value?.days || 30; recConsent.value = false; recError.value = '';
   recMode.value = motion.value?.mode || 'always'; recSens.value = motion.value?.sensitivity || 'medium';
-  recQuiet.value = motion.value?.quiet_seconds || 30;
+  recQuiet.value = motion.value?.quiet_seconds || 60;
   asking.value = true;
 }
 function recordingBody() {
@@ -139,8 +139,8 @@ const recLine = computed(() => {
   const r = rec.value;
   if (!r) return '';
   if (r.on && r.unpaid) return 'Recording stopped: a day of keeping it could not be paid. Top up and it goes on within the hour.';
-  if (r.on && r.motion?.mode === 'motion') return `Recording to the cloud when there is motion${r.motion.moving ? ' (motion now)' : ''}. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: each burst of motion appears a minute or two after it ends'}.`;
-  if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the first 5 minutes appear a few minutes after recording starts'}.`;
+  if (r.on && r.motion?.mode === 'motion') return `Recording to the cloud when there is motion${r.motion.moving ? ' (motion now)' : ''}. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: each burst of motion appears in Recordings as it is recorded'}.`;
+  if (r.on) return `Recording to the cloud. Kept ${r.days} day${r.days === 1 ? '' : 's'}, ${r.stored_bytes ? `${sizeText(r.stored_bytes)} kept now` : 'nothing kept yet: the recording appears in Recordings as it is made'}.`;
   return r.stored_bytes ? `Not recording. ${sizeText(r.stored_bytes)} kept until its days are over.` : 'Not recording.';
 });
 // A phone camera's Record button (§16): its phone records only after an Admin lets it, with the recording consent;
@@ -209,23 +209,37 @@ const recDay = ref(today);
 const recRows = ref([]); const recLoading = ref(false); const recListError = ref(''); const mayDelete = ref(false);
 const playing = ref(null); const playError = ref(''); let recLoadedAt = 0;
 const recFresh = () => linksFresh(recLoadedAt);
-async function loadRecordings() {
-  recLoading.value = true; recListError.value = '';
+// The recording being made is listed first and asked for again every few seconds while the camera records (the owner,
+// 2026-11-24: "recording should instantly start showing"; api/streaming.js refreshAfter).
+const recLive = ref([]);
+const recShown = computed(() => [...recLive.value, ...recRows.value]);
+let recAgain = null;
+function askRecordingsAgain(answer) {
+  clearTimeout(recAgain); recAgain = null;
+  const wait = refreshAfter(answer);
+  if (wait && !gone && tab.value === 'recordings') recAgain = setTimeout(() => loadRecordings({ quiet: true }), wait);
+}
+onUnmounted(() => clearTimeout(recAgain));
+async function loadRecordings({ quiet = false } = {}) {
+  if (!quiet) { recLoading.value = true; recListError.value = ''; }
   try {
     const answer = await recordingsApi.list({ source: props.source.id, ...dayRange(recDay.value) });
-    recRows.value = answer?.recordings || []; mayDelete.value = !!answer?.may?.delete; recLoadedAt = Date.now();
-    if (playing.value && !recRows.value.some(r => r.id === playing.value.id)) playing.value = null;
-  } catch (e) { recListError.value = e.message; }
+    recRows.value = answer?.recordings || []; recLive.value = answer?.live || [];
+    mayDelete.value = !!answer?.may?.delete; recLoadedAt = Date.now();
+    // One being played stays (a recording being made plays what was recorded when it was opened).
+    if (playing.value && !playing.value.live && !recRows.value.some(r => r.id === playing.value.id)) playing.value = null;
+    askRecordingsAgain(answer);
+  } catch (e) { if (!quiet) recListError.value = e.message; else askRecordingsAgain({ recording_cameras: 1 }); }
   finally { recLoading.value = false; }
 }
-watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); });
+watch([tab, recDay], () => { if (tab.value === 'recordings') loadRecordings(); else { clearTimeout(recAgain); recAgain = null; } });
 // The links are signed for 15 minutes: a list older than 10 asks for new ones before playing (live, 2026-11-19: a
 // recording that kept loading), and one the browser cannot play says so, with its download.
 async function playRecording(row) {
   playError.value = '';
   if (!linksFresh(recLoadedAt)) {
     await loadRecordings();
-    row = recRows.value.find(r => r.id === row.id) || null;
+    row = recShown.value.find(r => r.id === row.id) || null;
     if (!row) return;
   }
   playing.value = row;
@@ -762,22 +776,22 @@ watch(tab, now => {
           <p v-if="playing && playError" class="field-error" role="alert">{{ playError }} <a v-if="playing.download_url" :href="playing.download_url" rel="noopener">Download it</a></p>
           <p v-if="recListError" class="field-error" role="alert">{{ recListError }}</p>
           <p v-else-if="recLoading" class="sp-muted" role="status">Loading the recordings…</p>
-          <div v-else-if="!recRows.length" class="sp-results-empty" role="status">
+          <div v-else-if="!recShown.length" class="sp-results-empty" role="status">
             <span class="sp-empty-icon"><Disc :size="20" aria-hidden="true"/></span>
             <h4>No recordings on this day</h4>
-            <p>{{ rec && rec.on ? (motion && motion.mode === 'motion' ? 'Each burst of motion appears here as a recording, a minute or two after it ends.' : 'Recordings appear here in 5-minute pieces, a few minutes after they are made.') : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
+            <p>{{ rec && rec.on ? (motion && motion.mode === 'motion' ? 'Each burst of motion appears here as it is recorded, and is kept when it ends.' : 'The recording appears here as it is made, kept in 5-minute pieces.') : 'Turn on Record to the cloud to keep this camera\'s video.' }}</p>
           </div>
           <!-- Video cards, as Cloud Streaming's Recordings (the owner, 2026-11-23: "show recording like youtube here as well"). -->
           <ul v-else class="sp-rec-cards">
-            <li v-for="r in recRows" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion }" :data-test="`sp-rec-card-${r.id}`">
+            <li v-for="r in recShown" :key="r.id" :class="{ playing: playing && playing.id === r.id, waiting: !!r.deletion, live: r.live }" :data-test="`sp-rec-card-${r.id}`">
               <RecordingThumb :recording="r" :fresh="recFresh" :label="`Play the recording ${windowText(r)}`" @play="playRecording(r)"/>
-              <span class="sp-rec-what"><strong>{{ windowText(r) }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
+              <span class="sp-rec-what"><strong>{{ windowText(r) }} <UiBadge v-if="r.motion">Motion</UiBadge> <UiBadge v-if="r.deletion" tone="red">{{ deletionText(r.deletion) }}</UiBadge></strong><small v-if="r.live">Being recorded: it is kept when it ends</small><small v-else>{{ sizeText(r.bytes) }}<template v-if="r.deletion"> · {{ deletionWhy(r.deletion) }}</template></small></span>
               <span class="sp-rec-acts">
                 <UiButton class="small" :disabled="!r.play_url" @click="playRecording(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
-                <UiButton v-if="mayUse" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
+                <UiButton v-if="mayUse && !r.live" class="small" :title="`Run a project's model over this recording`" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
                 <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
                 <UiButton v-if="mayDelete && r.deletion" class="small" :aria-label="`Cancel the deletion of ${windowText(r)}`" @click="restoreRecording(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
-                <UiButton v-else-if="mayDelete" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)} (kept 14 days first, and it can be restored)`" title="Kept 14 days first, and it can be restored" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
+                <UiButton v-else-if="mayDelete && !r.live" class="small sp-danger" :aria-label="`Delete the recording ${windowText(r)} (kept 14 days first, and it can be restored)`" title="Kept 14 days first, and it can be restored" @click="removeRecording(r)"><Trash2 :size="13" aria-hidden="true"/></UiButton>
               </span>
             </li>
           </ul>

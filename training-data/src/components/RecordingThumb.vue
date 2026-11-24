@@ -45,6 +45,7 @@ function playPreview(event) { const v = event.target; v.muted = true; v.play?.()
     <span v-else class="recs-nopic" aria-hidden="true"><Cctv :size="28"/></span>
     <video v-if="previewing" :src="recording.play_url" muted autoplay loop playsinline preload="metadata"
            class="recs-preview" aria-hidden="true" data-test="rec-preview" @loadeddata="playPreview"></video>
+    <span v-if="recording.live" class="recs-live" data-test="rec-live"><span class="recs-live-dot" aria-hidden="true"></span>Recording</span>
     <span class="recs-length" data-test="rec-length">{{ lengthText(recording.seconds) }}</span>
     <span class="recs-playmark" aria-hidden="true"><Play :size="18"/></span>
   </button>
@@ -55,9 +56,12 @@ function playPreview(event) { const v = event.target; v.muted = true; v.play?.()
 .recs-thumb:disabled{cursor:default}
 .recs-thumb img,.recs-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .recs-nopic{position:absolute;inset:0;display:grid;place-items:center;color:#8a97ad}
+.recs-live{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:5px;padding:2px 7px;border-radius:4px;background:#c4320a;color:#fff;font-size:12px;font-weight:600}
+.recs-live-dot{width:7px;height:7px;border-radius:50%;background:#fff;animation:recs-blink 1.2s ease-in-out infinite}
+@keyframes recs-blink{50%{opacity:.25}}
 .recs-length{position:absolute;right:8px;bottom:8px;padding:1px 6px;border-radius:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:600}
 .recs-playmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
 .recs-thumb:hover .recs-playmark,.recs-thumb:focus-visible .recs-playmark{opacity:1}
 .recs-thumb:focus-visible{outline:2px solid var(--aadml-primary);outline-offset:-2px}
-@media (prefers-reduced-motion: reduce){.recs-playmark{transition:none}}
+@media (prefers-reduced-motion: reduce){.recs-playmark{transition:none}.recs-live-dot{animation:none}}
 </style>

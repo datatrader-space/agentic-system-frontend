@@ -25,11 +25,12 @@ vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
       add: vi.fn(async (id, body) => { calls.push(['addRule', id, body]); return { ...RULES_PAGE, said: 'Rule added.' }; }),
     },
     recordingsApi: {
-      list: vi.fn(async query => { calls.push(['list', query]); return { recordings: [REC], may: { delete: true } }; }),
+      list: vi.fn(async query => { calls.push(['list', query]); return { recordings: [REC], may: { delete: true }, live: making ? [making] : [], recording_cameras: making ? 1 : 0 }; }),
       remove: vi.fn(async id => { calls.push(['remove', id]); return {}; }),
     },
   };
 });
+let making = null;                                          // the recording being made (``live``), if any
 const PUSH = { server: 'rtmps://ingest.aadml.com:1936/', path: 'src3', available: true, key_set_at: '2026-11-18T09:00:00+00:00' };
 const NEW_KEY = 'src3?user=src3&pass=NewKey_0123456789abcdefghijklmnopqrstuvw';
 const REC = { id: 5, source: { id: 1, name: 'Gate' }, started_at: '2026-11-17T10:05:00+00:00', ended_at: '2026-11-17T10:10:00+00:00',
@@ -156,6 +157,37 @@ describe('a video source page', () => {
     await flushPromises();
     expect(calls.some(c => c[0] === 'remove' && c[1] === 5)).toBe(true);
     w.unmount();
+  });
+
+  it('lists the recording being made first, growing, playable, and asks again while the camera records', async () => {
+    vi.useFakeTimers();
+    making = { id: 'live-1', live: true, source: { id: 1, name: 'Gate' }, started_at: '2026-11-24T06:40:00+00:00',
+      ended_at: '2026-11-24T06:40:15+00:00', seconds: 15, motion: true, deletion: null, thumbnail_url: null,
+      play_url: '/api/training-data/app/workspace/recordings/live/t1/' };
+    const w = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true, stored_bytes: 1 } } });
+    await w.findAll('[role="tab"]').find(t => t.text() === 'Recordings').trigger('click');
+    await flushPromises();
+    const cards = w.findAll('.sp-rec-cards li');
+    expect(cards.map(c => c.attributes('data-test'))).toEqual(['sp-rec-card-live-1', 'sp-rec-card-5']);
+    expect(cards[0].get('[data-test="rec-live"]').text()).toBe('Recording');
+    expect(cards[0].get('[data-test="rec-length"]').text()).toBe('0:15');
+    expect(cards[0].text()).toContain('06:40 UTC to now');
+    expect(cards[0].find('[aria-label^="Delete the recording"]').exists()).toBe(false);
+    making = { ...making, seconds: 25 };
+    const asked = calls.filter(c => c[0] === 'list').length;
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(calls.filter(c => c[0] === 'list').length).toBe(asked + 1);
+    expect(w.get('[data-test="sp-rec-card-live-1"] [data-test="rec-length"]').text()).toBe('0:25');
+    await w.get('[data-test="sp-rec-card-live-1"] button.recs-thumb').trigger('click');
+    expect(w.get('video.sp-player').attributes('src')).toBe(making.play_url);
+    making = null;
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(w.find('[data-test="sp-rec-card-live-1"]').exists()).toBe(false);
+    expect(w.find('video.sp-player').exists()).toBe(true);          // what was being played keeps playing
+    w.unmount();
+    vi.useRealTimers();
   });
 
   it('shows the running stream: its model, the newest counts by class, and Stop', async () => {

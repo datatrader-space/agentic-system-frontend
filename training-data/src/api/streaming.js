@@ -205,7 +205,18 @@ export function dayRange(day) {
 // "10:05 to 10:10 UTC" for a recording's window, and a size in MB or GB.
 export function windowText(recording) {
   const t = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '');
+  if (recording?.live) return `${t(recording?.started_at)} UTC to now`;
   return `${t(recording?.started_at)} to ${t(recording?.ended_at)} UTC`;
+}
+// The recording being made (``live``, backend recordings.live_items: the owner, 2026-11-24, "recording should
+// instantly start showing, 10 seconds recorded shows 10 s, continuously"): a list showing one asks again every
+// LIVE_REFRESH_MS, so its length grows and it becomes the kept recording when it ends; a list of cameras that record
+// (``recording_cameras``) asks every RECORDING_REFRESH_MS, so a new one appears.
+export const LIVE_REFRESH_MS = 5000;
+export const RECORDING_REFRESH_MS = 10000;
+export function refreshAfter(answer) {
+  if (answer?.live?.length) return LIVE_REFRESH_MS;
+  return Number(answer?.recording_cameras) > 0 ? RECORDING_REFRESH_MS : 0;
 }
 // ── the Recordings tab (CameraRecordings.vue): every kept recording of the workspace, a removed camera's too ────────
 // A recording's links are signed for 15 minutes (backend storage.url): a list older than this asks for new ones first

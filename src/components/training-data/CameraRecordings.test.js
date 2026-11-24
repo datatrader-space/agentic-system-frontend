@@ -15,6 +15,7 @@ const REC = (id, source, removed = false, minute = 10) => ({
 });
 const calls = { list: [], removed: [], restored: [] };
 let mayDelete = true;
+let making = null;                                            // the recording being made (``live``), if any
 vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
   const actual = await real();
   return { ...actual, recordingsApi: {
@@ -28,7 +29,7 @@ vi.mock('../../../training-data/src/api/streaming.js', async (real) => {
       return { recordings: rows, count: rows.length, offset: 0, stored_bytes: 240 * 1024 ** 2, limit_bytes: 50 * 1024 ** 3,
         grace_days: 14, scheduled: all.filter(r => r.deletion).length,
         cameras: [{ id: 9, name: 'Dock', removed: false, recordings: 1, bytes: 1 }, { id: 4, name: 'Gate', removed: true, recordings: 2, bytes: 2 }],
-        may: { delete: mayDelete } };
+        may: { delete: mayDelete }, live: making ? [making] : [], recording_cameras: making ? 1 : 0 };
     }),
     remove: vi.fn(async id => { calls.removed.push(id); return { deleted: id, said: 'The recording is deleted on 03 Dec 2026. Until then it can be restored.' }; }),
     restore: vi.fn(async id => { calls.restored.push(id); return { said: 'The recording is restored.' }; }),
@@ -39,7 +40,7 @@ import CameraRecordings from '../../../training-data/src/components/CameraRecord
 const button = (w, text) => w.findAll('button').find(b => b.text().includes(text));
 
 describe('the Recordings tab', () => {
-  beforeEach(() => { calls.list = []; calls.removed = []; calls.restored = []; mayDelete = true; });
+  beforeEach(() => { calls.list = []; calls.removed = []; calls.restored = []; mayDelete = true; making = null; });
   afterEach(() => { vi.useRealTimers(); });
 
   it("lists every recording, a removed camera's marked, and filters by camera", async () => {
@@ -153,5 +154,42 @@ describe('the Recordings tab', () => {
     await flushPromises();
     expect(w.get('.recs-player video').attributes('src')).toContain('rec-3.mp4');
   });
-});
 
+  it('lists the recording being made first, its length growing, and asks again every few seconds while it is made', async () => {
+    vi.useFakeTimers();
+    making = { id: 'live-9', live: true, source: { id: 9, name: 'Dock', removed: false }, started_at: '2026-11-24T06:40:00+00:00',
+      ended_at: '2026-11-24T06:40:10+00:00', seconds: 10, motion: true, deletion: null, thumbnail_url: null,
+      play_url: '/api/training-data/app/workspace/recordings/live/t1/' };
+    const w = mount(CameraRecordings);
+    await flushPromises();
+    let card = w.get('[data-test="rec-card-live-9"]');
+    expect(w.findAll('.recs-list li')[0].attributes('data-test')).toBe('rec-card-live-9');   // first
+    expect(card.get('[data-test="rec-live"]').text()).toBe('Recording');
+    expect(card.get('[data-test="rec-length"]').text()).toBe('0:10');
+    expect(card.text()).toContain('06:40 UTC to now');
+    expect(card.text()).toContain('Being recorded');
+    expect(card.findAll('button').some(b => b.classes().includes('recs-danger'))).toBe(false);   // not deleted while made
+    expect(card.find('a[href*="dl="]').exists()).toBe(false);
+    making = { ...making, ended_at: '2026-11-24T06:40:20+00:00', seconds: 20 };
+    const asked = calls.list.length;
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(calls.list.length).toBe(asked + 1);
+    card = w.get('[data-test="rec-card-live-9"]');
+    expect(card.get('[data-test="rec-length"]').text()).toBe('0:20');
+    // Played: what is recorded so far; it keeps playing when the list asks again.
+    await card.get('button.recs-thumb').trigger('click');
+    await flushPromises();
+    expect(w.get('.recs-player video').attributes('src')).toBe('/api/training-data/app/workspace/recordings/live/t1/');
+    making = null;                                              // it ended: kept, and no camera records any more
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(w.find('[data-test="rec-card-live-9"]').exists()).toBe(false);
+    expect(w.find('.recs-player video').exists()).toBe(true);
+    const after = calls.list.length;
+    vi.advanceTimersByTime(30000);
+    await flushPromises();
+    expect(calls.list.length).toBe(after);                      // nothing records: not asked again
+    w.unmount();
+  });
+});
