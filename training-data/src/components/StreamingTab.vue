@@ -230,6 +230,11 @@ watch(() => form.value.project, () => {
   if (!models.value.some(m => String(m.number) === String(form.value.model))) form.value.model = models.value[0] ? String(models.value[0].number) : '';
   if (!models.value.length) form.value.useModel = false;          // a project without a model can still read barcodes
 });
+// "Use in project" on the Recordings view: the stream it starts is followed under Cameras and streams.
+function startFromRecording(recording) {
+  view.value = 'cameras';
+  openCreate(null, recording);
+}
 // Opened from the header (no source), from a saved camera's "Start stream" (that camera, its default project first),
 // or from one of its recordings' "Use in project" (that recording, read in place: never continuous).
 function openCreate(saved = null, recording = null) {
@@ -346,7 +351,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <button v-for="[id, label] in VIEWS" :id="`st-view-${id}`" :key="id" type="button" role="tab" :aria-selected="view === id"
               :class="{ on: view === id }" @click="view = id">{{ label }}</button>
     </div>
-    <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"/>
+    <CameraRecordings v-if="view === 'recordings'" role="tabpanel" aria-labelledby="st-view-recordings"
+                      :may-start="may.start !== false" @start="startFromRecording"/>
     <CameraEvents v-if="view === 'events'" role="tabpanel" aria-labelledby="st-view-events"/>
     <WorkplaceTab v-if="view === 'workplace'" role="tabpanel" aria-labelledby="st-view-workplace"/>
     </template>

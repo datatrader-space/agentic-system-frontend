@@ -227,6 +227,11 @@ export function linksFresh(loadedAt, now = Date.now()) {
 }
 const DAY = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
 // "18 Nov 2026, 14:10 to 14:15 UTC".
+// Whether a recording on the Recordings view offers "Use in project" (a stream read in place; runbook P5, 2026-11-24): the
+// person may start a stream, and the recording is kept: not still being recorded, not scheduled for deletion.
+export function canUseRecording(recording, mayStart) {
+  return !!mayStart && !!recording && !recording.live && !recording.deletion;
+}
 export function recordingWhen(recording) {
   const start = new Date(recording?.started_at || '');
   if (Number.isNaN(start.getTime())) return windowText(recording);

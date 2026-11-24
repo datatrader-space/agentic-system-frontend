@@ -10,7 +10,7 @@ import {
   notPlayableText, LIVE_CHECK_FIRST, LIVE_STOPPED,
   recordingsApi, dayRange, windowText, sizeText, dayPriceText, connectorAddressProblem, CONNECTOR_ADDRESS_HELP,
   historyRows, monthText, spendItems, connectorRows, connectorLine,
-  linksFresh, LINKS_FRESH_MS, recordingWhen, keptUntilText, cameraChoices, storageText, deletionText, deletionWhy, RECORDING_STATES,
+  linksFresh, LINKS_FRESH_MS, canUseRecording, recordingWhen, keptUntilText, cameraChoices, storageText, deletionText, deletionWhy, RECORDING_STATES,
   streamWhat, codesRead, frameCodesText, formFromScan, pairingApi, CODE_VALUE_LIMIT, isPairingLink, PAIRING_SCANNED,
 } from '../src/api/streaming.js';
 import { timeAgo } from '../src/api/workspace.js';
@@ -927,4 +927,13 @@ test('a video link is kept until a minute before it is over, and only a web addr
   for (const url of ['javascript:alert(1)', '//evil.example/v.mp4', '', undefined]) {
     assert.throws(() => videoLinkFrom({ url, expires_in: 900 }), /did not send a link/);
   }
+});
+
+test('a kept recording offers Use in project to a person who may start a stream (runbook P5)', () => {
+  const kept = { id: 30, source: { name: 'sajidphone' } };
+  assert.equal(canUseRecording(kept, true), true);
+  assert.equal(canUseRecording(kept, false), false);                              // may not start a stream
+  assert.equal(canUseRecording({ ...kept, live: true }, true), false);            // still being recorded
+  assert.equal(canUseRecording({ ...kept, deletion: { at: '2026-12-08' } }, true), false);   // scheduled for deletion
+  assert.equal(canUseRecording(null, true), false);
 });

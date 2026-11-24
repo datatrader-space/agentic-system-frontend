@@ -183,6 +183,31 @@ describe('AutonomySafetyStep', () => {
     expect(superAgent.workflows_enabled).toBe(false)
   })
 
+  it('shows Video Studio and Training Data off until chosen, and locked on for their built-in agents (ADM-1358)', async () => {
+    const agent = reactive({ id: 1, name: 'A', video_studio_enabled: false, training_data_enabled: false,
+      switch_locks: { video_studio: false, training_data: false } })
+    const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })
+    await flushPromises()
+    for (const [id, field] of [['#video-studio-switch', 'video_studio_enabled'], ['#training-data-switch', 'training_data_enabled']]) {
+      expect(w.find(id).attributes('aria-checked')).toBe('false')
+      await w.find(id).trigger('click')
+      expect(agent[field]).toBe(true)
+      expect(w.find(id).attributes('aria-checked')).toBe('true')
+    }
+    expect(w.text()).toContain('The agent has every Video Studio tool')
+    expect(w.text()).toContain('The agent has every Training Data tool')
+
+    const assistant = reactive({ id: 2, name: 'Training Assistant', training_data_enabled: false,
+      switch_locks: { video_studio: false, training_data: true } })
+    const t = mount(AutonomySafetyStep, { props: { agent: assistant }, global: { stubs } })
+    await flushPromises()
+    const locked = t.find('#training-data-switch')
+    expect(locked.attributes('aria-checked')).toBe('true')
+    expect(locked.attributes('disabled')).toBeDefined()
+    expect(t.text()).toContain('Always on for the Training Assistant.')
+    expect(t.find('#video-studio-switch').attributes('aria-checked')).toBe('false')
+  })
+
   it('offers only Manual and Autonomous, and shows a stored plan-review mode as its mapped mode (ADM-1306)', async () => {
     const agent = reactive({ id: 1, name: 'A', agent_run_mode: 'plan_review_autonomous' })
     const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })

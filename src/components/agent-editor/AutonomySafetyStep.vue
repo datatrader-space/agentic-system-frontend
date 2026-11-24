@@ -214,6 +214,78 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Video Studio (ADM-1358) -->
+              <div class="capability-card rounded-xl border transition-colors" :class="videoStudioEnabled ? 'border-rose-300 bg-gradient-to-r from-rose-50 to-white' : 'border-[#E5E7EB] bg-white'">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-rose-100 text-rose-600">
+                      <Clapperboard :size="18" :stroke-width="2" />
+                    </span>
+                    <div>
+                      <div class="text-[13.5px] font-semibold text-[#0F172A]">Video Studio</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent make and edit videos, images and audio with every Video Studio tool.</div>
+                    </div>
+                  </div>
+                  <button
+                    id="video-studio-switch"
+                    type="button"
+                    role="switch"
+                    :aria-checked="videoStudioEnabled"
+                    aria-label="Video Studio"
+                    :disabled="videoStudioLocked"
+                    :title="videoStudioLocked ? 'Always on for the Video Studio agent.' : ''"
+                    @click="videoStudioEnabled = !videoStudioEnabled"
+                    :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2', videoStudioLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer', videoStudioEnabled ? 'bg-rose-600' : 'bg-gray-300']"
+                  >
+                    <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', videoStudioEnabled ? 'translate-x-6' : 'translate-x-1']" />
+                  </button>
+                </div>
+                <div class="mt-3 border-t pt-3" :class="videoStudioEnabled ? 'border-rose-200/60' : 'border-[#E5E7EB]'">
+                  <div class="flex items-start gap-2 text-[12px] text-[#475569]">
+                    <span class="mt-0.5" :class="videoStudioEnabled ? 'text-rose-500' : 'text-[#94A3B8]'">ℹ</span>
+                    <p v-if="videoStudioLocked">Always on for the Video Studio agent.</p>
+                    <p v-else-if="videoStudioEnabled">The agent has every Video Studio tool: it makes and edits videos, runs recipes, storyboards, explainers, ads and characters, and quotes the price first. It uses its video model, or the platform default, and asks before anything that spends.</p>
+                    <p v-else>The agent has no Video Studio tools. It will point the person to Video Studio instead.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Training Data (ADM-1358) -->
+              <div class="capability-card rounded-xl border transition-colors" :class="trainingDataEnabled ? 'border-emerald-300 bg-gradient-to-r from-emerald-50 to-white' : 'border-[#E5E7EB] bg-white'">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-600">
+                      <Database :size="18" :stroke-width="2" />
+                    </span>
+                    <div>
+                      <div class="text-[13.5px] font-semibold text-[#0F172A]">Training Data</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent work in the Training Data app: projects, labelling, training, deploying, cameras and streams.</div>
+                    </div>
+                  </div>
+                  <button
+                    id="training-data-switch"
+                    type="button"
+                    role="switch"
+                    :aria-checked="trainingDataEnabled"
+                    aria-label="Training Data"
+                    :disabled="trainingDataLocked"
+                    :title="trainingDataLocked ? 'Always on for the Training Assistant.' : ''"
+                    @click="trainingDataEnabled = !trainingDataEnabled"
+                    :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2', trainingDataLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer', trainingDataEnabled ? 'bg-emerald-600' : 'bg-gray-300']"
+                  >
+                    <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', trainingDataEnabled ? 'translate-x-6' : 'translate-x-1']" />
+                  </button>
+                </div>
+                <div class="mt-3 border-t pt-3" :class="trainingDataEnabled ? 'border-emerald-200/60' : 'border-[#E5E7EB]'">
+                  <div class="flex items-start gap-2 text-[12px] text-[#475569]">
+                    <span class="mt-0.5" :class="trainingDataEnabled ? 'text-emerald-500' : 'text-[#94A3B8]'">ℹ</span>
+                    <p v-if="trainingDataLocked">Always on for the Training Assistant.</p>
+                    <p v-else-if="trainingDataEnabled">The agent has every Training Data tool: projects and photos, labelling, datasets, training runs, evaluations, approvals, every way of deploying, streams, batches, cameras and recordings. It acts with the person's own role in each project and asks before it spends or changes what is deployed.</p>
+                    <p v-else>The agent has no Training Data tools. It will point the person to the Training Data app instead.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -520,7 +592,9 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
+  Clapperboard,
   Code2,
+  Database,
   Hand,
   LayoutTemplate,
   Link2,
@@ -742,6 +816,18 @@ const connectInChatEnabled = computed({
 const workflowsEnabled = computed({
   get: () => (agent.value.workflows_enabled ?? agent.value.workflows_default) === true,
   set: (value) => { agent.value.workflows_enabled = value },
+})
+// The Video Studio and Training Data switches (ADM-1358). Off unless chosen; the Video Studio agent's Video Studio and the
+// Training Assistant's Training Data are always on and locked (switch_locks from the server).
+const videoStudioLocked = computed(() => agent.value.switch_locks?.video_studio === true)
+const videoStudioEnabled = computed({
+  get: () => videoStudioLocked.value || agent.value.video_studio_enabled === true,
+  set: (value) => { if (!videoStudioLocked.value) agent.value.video_studio_enabled = value },
+})
+const trainingDataLocked = computed(() => agent.value.switch_locks?.training_data === true)
+const trainingDataEnabled = computed({
+  get: () => trainingDataLocked.value || agent.value.training_data_enabled === true,
+  set: (value) => { if (!trainingDataLocked.value) agent.value.training_data_enabled = value },
 })
 const serviceSetupEnabled = computed({
   get: () => !!agent.value.builder_mode_enabled,

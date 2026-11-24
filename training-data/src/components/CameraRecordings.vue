@@ -14,15 +14,20 @@
 // (the list asks again every few seconds while a camera records, ``refreshAfter``), and plays what is recorded so far;
 // when it ends it is listed as the kept recording.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Disc, Download, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
+import { Disc, Download, FolderInput, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
 import RecordingThumb from './RecordingThumb.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import {
   recordingsApi, dayRange, recordingWhen, keptUntilText, cameraChoices, storageText, sizeText, linksFresh,
-  deletionText, deletionWhy, RECORDING_STATES, refreshAfter,
+  deletionText, deletionWhy, RECORDING_STATES, refreshAfter, canUseRecording,
 } from '../api/streaming.js';
 
+// "Use in project" (runbook P5, 2026-11-24: a recording could only be downloaded and uploaded again): opens the New stream
+// form on this recording, read in place, for a project's model, a detector, SAM 3 or a workflow. ``mayStart`` is
+// Cloud Streaming's own start permission.
+const props = defineProps({ mayStart: { type: Boolean, default: false } });
+const emit = defineEmits(['start']);
 const PAGE = 50;
 const rows = ref([]); const live = ref([]); const count = ref(0); const cameras = ref([]); const stored = ref(null); const limit = ref(0);
 const mayDelete = ref(false); const loading = ref(false); const error = ref(''); const said = ref('');
@@ -158,6 +163,7 @@ async function restore(row) {
         <span class="recs-acts">
           <UiButton class="small" :disabled="!r.play_url" @click="play(r)"><Play :size="13" aria-hidden="true"/> Play</UiButton>
           <a v-if="r.download_url" class="button small" :href="r.download_url" rel="noopener"><Download :size="13" aria-hidden="true"/> Download</a>
+          <UiButton v-if="canUseRecording(r, props.mayStart)" class="small" :aria-label="`Use the recording of ${r.source.name}, ${recordingWhen(r)}, in a project`" title="Run a project's model or a workflow over this recording" @click="emit('start', r)"><FolderInput :size="13" aria-hidden="true"/> Use in project</UiButton>
           <UiButton v-if="mayDelete && r.deletion" class="small recs-restore" :disabled="busy" :aria-label="`Cancel the deletion of ${recordingWhen(r)}`" @click="restore(r)"><RotateCcw :size="13" aria-hidden="true"/> Cancel deletion</UiButton>
           <UiButton v-if="mayDelete && !r.deletion && !r.live" class="small recs-danger" :disabled="busy" :aria-label="confirming === r.id ? `Confirm: delete the recording ${recordingWhen(r)}` : `Delete the recording ${recordingWhen(r)}`" @click="remove(r)">
             <Trash2 :size="13" aria-hidden="true"/><template v-if="confirming === r.id"> Delete? Kept {{ grace }} days first</template>

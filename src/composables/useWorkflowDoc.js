@@ -341,7 +341,15 @@ export function useWorkflowDoc(graphId, {
       savedSignature.value = sentSignature
       conflict.value = ''
       issues.value = {}
-      notify.success('Workflow saved')
+      // What the save found that does not block it (runbook B4, 2026-11-24: an unconnected step's warning was shown
+      // nowhere): said with the step it is about, so the person sees it without pressing Validate.
+      const warnings = data?.validation?.warnings || []
+      if (warnings.length) {
+        notify.warning(`Workflow saved, with ${warnings.length === 1 ? 'a warning' : `${warnings.length} warnings`}: `
+          + warnings.map((w) => (w?.node_id ? `${w.node_id}: ` : '') + (w?.message || w)).join('; '))
+      } else {
+        notify.success('Workflow saved')
+      }
       return true
     } catch (e) {
       reportError(e, 'The workflow could not be saved. Try again.')
@@ -433,6 +441,15 @@ export function useWorkflowDoc(graphId, {
     const { state, inverse } = applyWorkflowOps(
       { name: name.value, nodes: nodes.value, edges: edges.value, vars: vars.value }, ops)
     setState(state)
+    // A step's problem from the last save no longer describes it once the step is changed or removed (runbook S6,
+    // 2026-11-24: a fixed schedule step still showed the error of the save before). The next save says it again if
+    // it still holds.
+    const touched = (ops || []).filter((o) => o?.op === 'update_node' || o?.op === 'remove_node').map((o) => o.id)
+    if (touched.some((id) => id in issues.value)) {
+      const next = { ...issues.value }
+      for (const id of touched) delete next[id]
+      issues.value = next
+    }
     return inverse
   }
 

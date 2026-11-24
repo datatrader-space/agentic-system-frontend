@@ -238,6 +238,30 @@ describe('useWorkflowDoc', () => {
     expect(doc.issues.value).toEqual({ fetch: 'URL required' })
   })
 
+  it('changing a step clears its problem from the last save, and only its own (runbook S6)', async () => {
+    const err = { response: { status: 400, data: { error: 'Invalid', errors: [
+      { node_id: 'fetch', message: 'URL required' }, { node_id: 'other', message: 'Pick a day' }] } } }
+    const { doc } = setup(makeApi({ saveWorkflowGraph: vi.fn().mockRejectedValue(err) }))
+    await doc.load()
+    doc.applyOps([{ op: 'set_name', name: 'X' }])
+    await doc.save()
+    expect(doc.issues.value).toEqual({ fetch: 'URL required', other: 'Pick a day' })
+    doc.applyOps([{ op: 'update_node', id: 'fetch', data: { url: 'https://example.com' } }])
+    expect(doc.issues.value).toEqual({ other: 'Pick a day' })
+  })
+
+  it('a save with warnings says so, naming the step (runbook B4)', async () => {
+    const answer = { data: { version: 4, etag: 'etag-2', status: 'draft',
+      validation: { ok: true, errors: [], warnings: [{ node_id: 'lonely', message: 'Node is not connected to any trigger' }] } } }
+    const { doc } = setup(makeApi({ saveWorkflowGraph: vi.fn().mockResolvedValue(answer) }))
+    await doc.load()
+    notify.success.mockClear(); notify.warning.mockClear()
+    doc.applyOps([{ op: 'set_name', name: 'X' }])
+    expect(await doc.save()).toBe(true)
+    expect(notify.warning).toHaveBeenCalledWith('Workflow saved, with a warning: lonely: Node is not connected to any trigger')
+    expect(notify.success).not.toHaveBeenCalled()
+  })
+
   it('saveIfDirty does nothing when clean and saves when dirty', async () => {
     const { doc, api } = setup()
     await doc.load()
