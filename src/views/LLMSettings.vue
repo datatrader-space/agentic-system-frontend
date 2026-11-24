@@ -1330,7 +1330,8 @@ const MODEL_KINDS = [
   { value: 'chat', label: 'Chat' }, { value: 'unknown', label: 'Unknown (listed for chat)' },
   { value: 'speech', label: 'Speech' }, { value: 'transcription', label: 'Transcription' },
   { value: 'image', label: 'Image' }, { value: 'video', label: 'Video' }, { value: 'embedding', label: 'Embedding' },
-  { value: 'rerank', label: 'Rerank' }, { value: 'decision', label: 'Decision' }, { value: 'other', label: 'Other output' },
+  { value: 'rerank', label: 'Rerank' }, { value: 'decision', label: 'Decision' }, { value: 'batch', label: 'Batch only' },
+  { value: 'other', label: 'Other output' },
 ]
 const savingKind = ref({})
 const kindSourceLabel = (model) => (model.kind_source === 'admin' ? 'Set by an admin'
