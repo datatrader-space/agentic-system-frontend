@@ -10,7 +10,7 @@ import UiButton from './UiButton.vue';
 import UiDialog from './UiDialog.vue';
 import { libraryApi, mediaPath, usable, sizeText, addedSaid } from '../api/library.js';
 import { listProjects } from '../api/training.js';
-import { FRAME_EVERY } from '../api/phone.js';
+import { FRAME_EVERY, everyText } from '../api/phone.js';
 import { projectLink } from '../api/workspace.js';
 
 const TYPES = [['image', 'Photos'], ['video', 'Videos'], ['all', 'Everything']];
@@ -136,7 +136,7 @@ function openProject() { const ref = outcome.value?.ref; adding.value = false; i
         <label class="field-label">Grouping<select v-model="form.grouping" class="text-input"><option value="one">All of one home/group</option><option value="file">Each its own home/group</option></select></label>
         <label v-if="form.grouping==='one'" class="field-label">Home/group name<input v-model="form.group" class="text-input" maxlength="100" placeholder="e.g. Demo home 01"></label>
         <label class="field-label">Batch name<input v-model="form.batch" class="text-input" maxlength="100"></label>
-        <label v-if="hasVideo" class="field-label">From each video, a photo every<select v-model.number="form.every" class="text-input"><option v-for="n in FRAME_EVERY" :key="n" :value="n">{{ n }} second{{ n===1?'':'s' }}</option></select></label>
+        <label v-if="hasVideo" class="field-label">From each video, a photo every<select v-model.number="form.every" class="text-input"><option v-for="n in FRAME_EVERY" :key="n" :value="n">{{ everyText(n) }}</option></select></label>
         <p v-if="addError" class="field-error" role="alert">{{ addError }}</p>
         <div class="dialog-actions"><UiButton @click="adding=false">Cancel</UiButton><UiButton variant="primary" :disabled="sending||!projects.length" @click="addToProject">{{ sending ? 'Adding…' : `Add ${chosen.length} file${chosen.length===1?'':'s'}` }}</UiButton></div>
       </template>

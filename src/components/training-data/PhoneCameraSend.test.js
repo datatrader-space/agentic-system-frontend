@@ -6,15 +6,17 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const SECRET = 'Abc_def-0123456789xyzABCDEFGHIJKLMNOPQRSTUV';
-const calls = { publish: [], stop: 0, record: [], replaced: [], sound: [] };
+const calls = { publish: [], stop: 0, record: [], replaced: [], sound: [], video: [] };
 let refuse = false; let lastOnState = null; let linkGone = false; let recording = null; let recordRefusal = null;
+let video = null;                                              // what AADML asks the phone to send (camera_quality.ask)
 vi.mock('../../../training-data/src/api/phone.js', async (real) => ({
   ...(await real()),
   phoneCameraApi: {
     info: vi.fn(async () => {
       if (linkGone) throw Object.assign(new Error('This phone link has ended. Make a new one on the camera page in AADML.'), { status: 403 });
-      return { name: 'Dock phone', expires_at: '2026-11-25T12:00:00+00:00', whip: '/live-publish/src14/whip', ...(recording ? { recording } : {}) };
+      return { name: 'Dock phone', expires_at: '2026-11-25T12:00:00+00:00', whip: '/live-publish/src14/whip', ...(recording ? { recording } : {}), ...(video ? { video } : {}) };
     }),
+    video: vi.fn(async (secret, track) => { calls.video.push(track); return video ? { video } : {}; }),
     sound: vi.fn(async (secret, microphone) => {
       calls.sound.push(microphone);
       return { has_sound: microphone, sound_whip: microphone ? '/live-publish/src14a/whip' : '' };
@@ -69,8 +71,8 @@ function phoneBrowser({ noFront = false, microphone = false, micRefused = false 
 const button = (w, text) => w.findAll('button').find(b => b.text().includes(text));
 
 afterEach(() => {
-  calls.publish = []; calls.stop = 0; calls.record = []; calls.replaced = []; calls.sound = []; calls.soundStops = 0;
-  refuse = false; lastOnState = null; linkGone = false; recording = null; recordRefusal = null;
+  calls.publish = []; calls.stop = 0; calls.record = []; calls.replaced = []; calls.sound = []; calls.soundStops = 0; calls.video = [];
+  refuse = false; lastOnState = null; linkGone = false; recording = null; recordRefusal = null; video = null;
   sessionStorage.clear();
 });
 
@@ -220,6 +222,35 @@ describe('the phone camera page', () => {
     await flushPromises();
     expect(button(old, 'Record')).toBeUndefined();
     old.unmount();
+  });
+
+  it('opens its camera at the quality AADML asks, caps the video at its bitrate, reports the camera, and follows a change', async () => {
+    vi.useFakeTimers();
+    const { getUserMedia } = phoneBrowser();
+    video = { quality: '1080p', width: 1920, height: 1080, fps: 30, max_kbps: 5000 };
+    const w = mount(PhoneCameraSend, { props: { secret: SECRET } });
+    await flushPromises();
+    await button(w, 'Start').trigger('click');
+    await flushPromises();
+    expect(getUserMedia.mock.calls[0][0].video).toMatchObject({ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } });
+    expect(calls.publish[0].maxKbps).toBe(5000);
+    expect(calls.video).toHaveLength(1);                                     // what the open camera sends, reported
+    lastOnState('connected');
+    await flushPromises();
+    // An Admin chose 480p at 15: within half a minute the camera is opened again with it and sent again.
+    video = { quality: '480p', width: 854, height: 480, fps: 15, max_kbps: 1200 };
+    vi.advanceTimersByTime(30000);
+    await flushPromises();
+    expect(getUserMedia.mock.calls.at(-1)[0].video).toMatchObject({ width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: 15 } });
+    expect(calls.publish.at(-1).maxKbps).toBe(1200);
+    expect(calls.stop).toBe(1);                                              // the old session ended first
+    // Nothing changed: nothing opened again.
+    const opened = getUserMedia.mock.calls.length;
+    vi.advanceTimersByTime(30000);
+    await flushPromises();
+    expect(getUserMedia.mock.calls.length).toBe(opened);
+    w.unmount();
+    vi.useRealTimers();
   });
 
   it('starts sending again by itself after a reload of a tab that was sending, with its camera, and shows the recording', async () => {

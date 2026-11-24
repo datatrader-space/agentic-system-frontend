@@ -7,13 +7,18 @@
 //
 // This file imports nothing, so the same code runs in the phone page and, unchanged, in the local WebRTC test page.
 
-// What the phone's camera is asked for: the back camera by default, 1280x720 at 25 frames a second where it can.
-export function cameraConstraints(facing = 'environment') {
+// What the phone's camera is asked for: the back camera by default, at the quality AADML asks for (backend
+// camera_quality.ask: the camera's recording settings; 1280x720 at 25 frames a second unless chosen) where it can.
+export const DEFAULT_ASK = { width: 1280, height: 720, fps: 25 };
+export function cameraConstraints(facing = 'environment', ask = DEFAULT_ASK) {
+  const a = { ...DEFAULT_ASK, ...(ask || {}) };
   return {
-    video: { facingMode: { ideal: facing === 'user' ? 'user' : 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 25 } },
+    video: { facingMode: { ideal: facing === 'user' ? 'user' : 'environment' }, width: { ideal: a.width }, height: { ideal: a.height }, frameRate: { ideal: a.fps } },
     audio: false,
   };
 }
+// The asked quality as one value, to tell when it changed.
+export const askKey = ask => (ask ? `${ask.width}x${ask.height}@${ask.fps}/${ask.max_kbps || ''}` : '');
 
 // Whether the phone has a microphone at all: the browser lists its devices without asking (their names stay hidden until
 // the person allows one), so the page knows before it asks. False where the browser cannot tell.
@@ -33,12 +38,12 @@ export const SOUND_CONSTRAINTS = { audio: { echoCancellation: false, noiseSuppre
 // (RTCRtpSender.replaceTrack), so the WHIP session goes on. When the other camera cannot be opened, the one that was
 // open (`back`) is opened again so the phone keeps sending, and the first error is thrown with `reopened`: that stream,
 // or null when it could not be opened either.
-export async function swapCamera({ stream, facing, back, getUserMedia }) {
+export async function swapCamera({ stream, facing, back, getUserMedia, ask = DEFAULT_ASK }) {
   for (const track of stream?.getTracks?.() || []) { try { track.stop(); } catch { /* already stopped */ } }
-  try { return await getUserMedia(cameraConstraints(facing)); }
+  try { return await getUserMedia(cameraConstraints(facing, ask)); }
   catch (error) {
     let reopened = null;
-    try { reopened = await getUserMedia(cameraConstraints(back)); } catch { reopened = null; }
+    try { reopened = await getUserMedia(cameraConstraints(back, ask)); } catch { reopened = null; }
     const failed = error instanceof Error ? error : new Error(String(error));
     try { failed.reopened = reopened; } catch { /* a frozen error: the caller sees no reopened stream */ }
     throw failed;
@@ -156,7 +161,7 @@ export function gathered(pc, ms = 2500) {
 // tries again (PhoneCameraSend.vue).
 // `onState(state)` hears the connection's state: 'connecting', 'connected', 'disconnected', 'failed', 'closed'.
 // `sound`: send `stream`'s microphone alone, to the camera's sound path (soundWhipUrlOk), instead of its video.
-export async function publish({ whipUrl, secret, stream, onState = () => {}, fetchImpl = globalThis.fetch, PeerConnection = globalThis.RTCPeerConnection, Sender = globalThis.RTCRtpSender, gatherMs = 2500, sound = false } = {}) {
+export async function publish({ whipUrl, secret, stream, onState = () => {}, fetchImpl = globalThis.fetch, PeerConnection = globalThis.RTCPeerConnection, Sender = globalThis.RTCRtpSender, gatherMs = 2500, sound = false, maxKbps = 0 } = {}) {
   if (!(sound ? soundWhipUrlOk(whipUrl) : whipUrlOk(whipUrl))) throw new PublishError('refused', 'This phone link does not lead to an AADML camera.');
   const track = sound ? stream?.getAudioTracks?.()[0] : stream?.getVideoTracks?.()[0];
   if (!track) throw new PublishError('camera', sound ? 'The microphone gave no sound.' : 'The camera gave no video.');
@@ -165,7 +170,9 @@ export async function publish({ whipUrl, secret, stream, onState = () => {}, fet
   const close = () => { if (!closed) { closed = true; try { pc.close(); } catch { /* already closed */ } } };
   pc.addEventListener?.('connectionstatechange', () => onState(pc.connectionState));
   try {
-    const transceiver = pc.addTransceiver(track, { direction: 'sendonly', streams: [stream] });
+    // The video is capped at the asked quality's bitrate (a 1080p picture needs more than the browser's own default).
+    const capped = !sound && Number(maxKbps) > 0 ? { sendEncodings: [{ maxBitrate: Math.round(Number(maxKbps) * 1000) }] } : {};
+    const transceiver = pc.addTransceiver(track, { direction: 'sendonly', streams: [stream], ...capped });
     const asked = sound ? '' : preferCodecs(transceiver, Sender);
     await pc.setLocalDescription(await pc.createOffer());
     await gathered(pc, gatherMs);

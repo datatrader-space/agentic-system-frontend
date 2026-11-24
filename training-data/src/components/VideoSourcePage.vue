@@ -116,7 +116,12 @@ const recBusy = ref(false); const recError = ref(''); const recSaid = ref('');
 // recording. ``rec.motion`` is absent from a server older than the choice; the form then sends none of it.
 const motion = computed(() => rec.value?.motion || null);
 const recMode = ref('always'); const recSens = ref('medium'); const recQuiet = ref(60);
+// Its video quality (backend camera_quality.card; absent from an older server): what it sends, the most a phone can,
+// and a phone camera's quality and frames a second, chosen here (the owner, 2026-11-24).
+const quality = computed(() => rec.value?.quality || null);
+const recQuality = ref(''); const recFps = ref(25);
 function askRecording() {
+  recQuality.value = quality.value?.quality || ''; recFps.value = quality.value?.fps || 25;
   recDays.value = rec.value?.days || 30; recConsent.value = false; recError.value = '';
   recMode.value = motion.value?.mode || 'always'; recSens.value = motion.value?.sensitivity || 'medium';
   recQuiet.value = motion.value?.quiet_seconds || 60;
@@ -124,6 +129,7 @@ function askRecording() {
 }
 function recordingBody() {
   const how = motion.value ? { mode: recMode.value, ...(recMode.value === 'motion' ? { sensitivity: recSens.value, quiet_seconds: Number(recQuiet.value) } : {}) } : {};
+  if (quality.value?.choosable && recQuality.value) Object.assign(how, { quality: recQuality.value, video_fps: Number(recFps.value) });
   return rec.value.on ? { days: recDays.value, ...how } : { on: true, days: recDays.value, consent: recConsent.value, ...how };
 }
 async function setRecording(body) {
@@ -469,10 +475,14 @@ watch(tab, now => {
           <!-- Cloud recording -->
           <div v-if="rec" class="sp-rec" :class="{ on: rec.on && !rec.unpaid }">
             <p class="sp-rec-line"><Circle v-if="rec.on && !rec.unpaid" class="sp-rec-dot" :size="10" aria-hidden="true"/>{{ recLine }}</p>
+            <p v-if="quality && (quality.sends_text || quality.can_text)" class="sp-muted sp-rec-quality" data-test="sp-rec-sends">
+              <template v-if="quality.sends_text">Sends {{ quality.sends_text }}.</template>
+              <template v-if="quality.can_text"> Its camera can send up to {{ quality.can_text }}.</template>
+            </p>
             <template v-if="mayRecord && !asking">
               <UiButton v-if="!rec.on" class="small" :disabled="!recordable || recBusy" :title="recordable ? undefined : 'Only rtsp:// and rtsps:// cameras can be recorded.'" @click="askRecording"><Disc :size="14" aria-hidden="true"/> Record to the cloud</UiButton>
               <span v-else class="sp-rec-acts">
-                <UiButton class="small" :disabled="recBusy" @click="askRecording">{{ motion ? 'Recording settings' : 'Days kept' }}</UiButton>
+                <UiButton class="small" :disabled="recBusy" @click="askRecording">{{ motion || quality ? 'Recording settings' : 'Days kept' }}</UiButton>
                 <UiButton class="small" :disabled="recBusy" @click="setRecording({ on: false })"><Square :size="12" aria-hidden="true"/> Stop recording</UiButton>
               </span>
             </template>
@@ -490,6 +500,16 @@ watch(tab, now => {
                 </label>
                 <p class="sp-muted">Each burst of motion is kept as one recording, from {{ motion.pre_roll }} seconds before it starts. A "motion seen" rule is added in Rules (no alert) so each motion is also an event; change its alerts there. Motion under a privacy mask never counts.</p>
               </template>
+              <template v-if="quality && quality.choosable && quality.qualities">
+                <label class="sp-rec-days">Quality
+                  <select v-model="recQuality" class="text-input" data-test="sp-rec-q"><option v-for="q in quality.qualities" :key="q.value" :value="q.value">{{ q.label }}</option></select>
+                </label>
+                <label class="sp-rec-days">Frames a second
+                  <select v-model.number="recFps" class="text-input" data-test="sp-rec-fps"><option v-for="f in quality.fps_choices" :key="f" :value="f">{{ f }}</option></select>
+                </label>
+                <p class="sp-muted">The phone sends this from its camera: it is what is recorded, watched and analysed. A larger picture or more frames keep more data each minute.</p>
+              </template>
+              <p v-else-if="quality && quality.note" class="sp-muted">{{ quality.note }}</p>
               <label class="sp-rec-days">Keep recordings
                 <select v-model.number="recDays" class="text-input"><option v-for="d in [1, 3, 7, 14, 30]" :key="d" :value="d">{{ d }} day{{ d === 1 ? '' : 's' }}</option></select>
               </label>

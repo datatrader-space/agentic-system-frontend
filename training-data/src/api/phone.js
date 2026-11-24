@@ -15,7 +15,10 @@ export const phoneLinksApi = {
 
 // A video or a PDF can take minutes to read on the server.
 export const extractPhotos = (ref, form) => apiFetch(`${base(ref)}/photos/extract/`, { method: 'POST', body: form, timeoutMs: 300000 });
-export const FRAME_EVERY = [1, 2, 5, 10, 30];
+// A photo every this many seconds of a video (backend media_import.EVERY_CHOICES); 0.5 is two a second (the owner,
+// 2026-11-24: "we need 2 frames per second as well").
+export const FRAME_EVERY = [0.5, 1, 2, 5, 10, 30];
+export const everyText = n => (n === 0.5 ? 'half second (2 a second)' : `${n} second${n === 1 ? '' : 's'}`);
 
 // The QR code of an address, as one SVG path (drawn here: the address never goes to an outside QR service).
 export function qrOf(text) {
@@ -93,7 +96,23 @@ export const phoneCameraApi = {
   record: (secret, on, opts) => phoneFetch('phone-camera/recording/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: { on: on === true } }),
   // Whether this phone has a microphone it may use; with one, the answer says where to send its sound (sound_whip).
   sound: (secret, microphone, opts) => phoneFetch('phone-camera/sound/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: { microphone: microphone === true } }),
+  // What the open camera sends and the most it can (backend camera_quality.report_phone); the answer's ``video`` is
+  // what this phone is asked to send.
+  video: (secret, track, opts) => phoneFetch('phone-camera/video/', secret, { timeoutMs: 30000, ...opts, method: 'POST', json: cameraReport(track) }),
 };
+
+// A camera track's report: its settings (width, height, frameRate) and the most it can (getCapabilities: absent in
+// some browsers), numbers only.
+export function cameraReport(track) {
+  const pick = (o, names) => Object.fromEntries(names.filter(n => Number.isFinite(o?.[n])).map(n => [n, o[n]]));
+  let settings = {}; let caps = {};
+  try { settings = pick(track?.getSettings?.() || {}, ['width', 'height', 'frameRate']); } catch { settings = {}; }
+  try {
+    const c = track?.getCapabilities?.() || {};
+    caps = Object.fromEntries(['width', 'height', 'frameRate'].filter(n => Number.isFinite(c?.[n]?.max)).map(n => [n, { max: c[n].max }]));
+  } catch { caps = {}; }
+  return { settings, capabilities: caps };
+}
 
 // What the phone's Record button shows of a ``recording`` answer: null when the server said nothing of it (an older
 // server); else whether it is on (and paid), whether this phone may start and stop it, the server's own words, and the

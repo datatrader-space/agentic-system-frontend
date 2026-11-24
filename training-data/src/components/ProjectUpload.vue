@@ -12,7 +12,7 @@ import UploadFormats from './UploadFormats.vue';
 import { apiFetch } from '../api/client.js';
 import { LARGE_FILE_BYTES, stageFile, uploadParts } from '../api/uploads.js';
 import { uploadPhotos, listLabellers, assignUpload, folderOf } from '../api/training.js';
-import { phoneLinksApi, extractPhotos, qrOf, FRAME_EVERY } from '../api/phone.js';
+import { phoneLinksApi, extractPhotos, qrOf, FRAME_EVERY, everyText } from '../api/phone.js';
 const props = defineProps({ project: Object });
 const emit = defineEmits(['continue', 'navigate']);
 const batch = ref('New upload batch'); const tag = ref(''); const tags = ref([]); const instant = ref(false);
@@ -225,7 +225,7 @@ onUnmounted(() => { clearTimeout(phoneTimer); files.value.forEach(f => { if(f.ur
 <template v-if="provider==='ZIP with annotations'"><DatasetImportPanel :project="project" :formats="formats" :selected-format="selectedFormat" :origin="origin" :consent="consent" :grouping="grouping" :group-name="groupName"/></template>
 <template v-else-if="provider==='Image folder'"><p>Every JPG, PNG, BMP, WebP and AVIF image in a folder and its subfolders joins this batch; anything else is left out. The photos of each subfolder are kept together as one home by themselves (More options › Homes).</p><UiButton variant="primary" @click="closeHelp(); folder.click()"><FolderOpen :size="16" /> Choose a folder</UiButton></template>
 <template v-else><p>{{ provider === 'Video frames' ? 'A photo every few seconds of a video: MP4, MOV, WebM or MKV, up to 3 GB, with preview and frame selection.' : 'The photo on each page of a PDF, up to 95 MB and 200 pages; a page without a photo gives none.' }} They join the batch “{{ batch }}” with this screen's image source and homes. The {{ provider === 'Video frames' ? 'video' : 'PDF' }} itself is not kept.</p>
-<label v-if="provider==='Video frames'" class="field-label">Take a photo every<select v-model.number="every" class="text-input"><option v-for="n in FRAME_EVERY" :key="n" :value="n">{{ n }} second{{ n===1?'':'s' }}</option></select></label>
+<label v-if="provider==='Video frames'" class="field-label">Take a photo every<select v-model.number="every" class="text-input"><option v-for="n in FRAME_EVERY" :key="n" :value="n">{{ everyText(n) }}</option></select></label>
 <input ref="mediaInput" type="file" :accept="provider==='Video frames' ? 'video/mp4,video/quicktime,video/webm,video/x-matroska' : 'application/pdf,.pdf'" hidden @change="chooseMedia($event.target.files)">
 <div class="media-actions"><UiButton :disabled="mediaBusy" @click="mediaInput.click()"><FileArchive :size="16" /> {{ mediaFile ? mediaFile.name : provider==='Video frames' ? 'Choose a video' : 'Choose a PDF' }}</UiButton><UiButton variant="primary" :disabled="!mediaFile||mediaBusy" @click="provider === 'Video frames' ? openSelectedVideo() : runMedia()">{{ mediaBusy ? 'Taking the photos…' : 'Take the photos' }}</UiButton></div>
 <p v-if="mediaOutcome" role="status"><Check :size="14" /> {{ mediaOutcome.taken }} photo{{ mediaOutcome.taken===1?'':'s' }} taken: {{ mediaOutcome.counts.added }} added, {{ mediaOutcome.counts.already }} already in the project{{ mediaOutcome.counts.stored ? `, ${mediaOutcome.counts.stored} kept as a record only` : '' }}{{ mediaOutcome.counts.rejected ? `, ${mediaOutcome.counts.rejected} rejected` : '' }}{{ mediaOutcome.pages_without_photo ? `; ${mediaOutcome.pages_without_photo} page${mediaOutcome.pages_without_photo===1?'':'s'} without a photo` : '' }}.</p></template>

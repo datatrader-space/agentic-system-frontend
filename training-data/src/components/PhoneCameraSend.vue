@@ -21,7 +21,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Camera, CircleAlert, Disc, Mic, MicOff, RefreshCw, RotateCw, Smartphone, Square, Video } from 'lucide-vue-next';
 import { cameraMemory, elapsedText, phoneCameraApi, recordingOf, rememberCamera } from '../api/phone.js';
 import {
-  cameraConstraints, canHoldLandscape, hasMicrophone, holdLandscape, publish, releaseLandscape, retryDelay, shapeOf,
+  askKey, cameraConstraints, canHoldLandscape, hasMicrophone, holdLandscape, publish, releaseLandscape, retryDelay, shapeOf,
   swapCamera, whipUrlOk, REFUSED_TEXT, SOUND_CONSTRAINTS,
 } from '../api/phoneCamera.js';
 
@@ -42,6 +42,11 @@ let failures = 0; let run = 0; let gone = false;
 // 720x1280 picture stretched to 2276x1280 through it (local test with MediaMTX 1.15.4 and hls.js, 2026-11-18). A new
 // session gives the relay a new stream, and the camera page's player starts again by itself (LiveView.vue).
 let sentShape = ''; let turnTimer = null;
+// The quality AADML asks this phone to send (backend camera_quality.ask; chosen in the camera's recording settings)
+// and the one the open camera was opened with: when an Admin changes it while the phone sends, the camera is opened
+// again with it and sent again (a new session, as when the picture turns).
+const asked = computed(() => info.value?.video || null);
+let openedWith = '';
 
 const supported = typeof globalThis.RTCPeerConnection === 'function' && !!globalThis.navigator?.mediaDevices?.getUserMedia;
 const until = computed(() => (info.value?.expires_at
@@ -109,8 +114,12 @@ async function record(on) {
 async function refresh() {
   if (gone || state.value === 'ended') return;
   if (sending.value) rememberCamera({ facing: facing.value, sending: true });   // still sending: a reload resumes
-  try { takeRecording((await phoneCameraApi.info(props.secret))?.recording); }
-  catch (e) { if (e?.status === 401 || e?.status === 403) end(e.message || REFUSED_TEXT); }
+  try {
+    const answer = await phoneCameraApi.info(props.secret);
+    takeRecording(answer?.recording);
+    if (answer?.video && info.value) info.value = { ...info.value, video: answer.video };
+    if (sending.value && !busy.value && openedWith && askKey(asked.value) !== openedWith) { release(); start(); }
+  } catch (e) { if (e?.status === 401 || e?.status === 403) end(e.message || REFUSED_TEXT); }
 }
 
 onMounted(async () => {
@@ -142,8 +151,20 @@ function show(next) {
 async function openCamera() {
   const old = stream;
   if (old) { old.getTracks().forEach(t => t.stop()); stream = null; }       // a phone opens one camera at a time
-  show(await navigator.mediaDevices.getUserMedia(cameraConstraints(facing.value)));
+  show(await navigator.mediaDevices.getUserMedia(cameraConstraints(facing.value, asked.value)));
+  openedWith = askKey(asked.value);
+  reportCamera();
   return stream;
+}
+// What the open camera sends and the most it can, for the camera's page in AADML (never holds anything up).
+function reportCamera() {
+  const track = stream?.getVideoTracks()[0];
+  if (!track) return;
+  try {
+    Promise.resolve(phoneCameraApi.video(props.secret, track)).then(answer => {
+      if (answer?.video && info.value) info.value = { ...info.value, video: answer.video };
+    }).catch(() => { /* an older server, or offline: the picture is sent all the same */ });
+  } catch { /* the same */ }
 }
 async function keepScreenOn() {
   try { if (!wakeLock && navigator.wakeLock?.request) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener?.('release', () => { wakeLock = null; }); } }
@@ -215,7 +236,7 @@ async function connect(mine) {
   if (mine !== run || gone || !stream || !info.value) return;
   try {
     const made = await publish({
-      whipUrl: info.value.whip, secret: props.secret, stream,
+      whipUrl: info.value.whip, secret: props.secret, stream, maxKbps: asked.value?.max_kbps || 0,
       onState: s => {
         if (mine !== run) return;
         if (s === 'connected') { state.value = 'live'; failures = 0; problem.value = ''; clearTimeout(watchTimer); }
@@ -289,7 +310,8 @@ async function chooseCamera(next) {
   busy.value = true; problem.value = '';
   const was = facing.value;
   try {
-    show(await swapCamera({ stream, facing: next, back: was, getUserMedia: c => navigator.mediaDevices.getUserMedia(c) }));
+    show(await swapCamera({ stream, facing: next, back: was, getUserMedia: c => navigator.mediaDevices.getUserMedia(c), ask: asked.value || undefined }));
+    reportCamera();
     facing.value = next; rememberCamera({ facing: next });
   } catch (e) {
     problem.value = e?.name === 'NotReadableError'

@@ -159,6 +159,31 @@ describe('a video source page', () => {
     w.unmount();
   });
 
+  it("says what the camera sends, and a phone camera's quality and frames a second are chosen in its recording settings", async () => {
+    const QUALITY = { choosable: true, sends_text: '1280x720 (0.9 MP), 25 frames a second, H264, 2.4 Mbit/s',
+      can_text: '1920x1080 (2.1 MP) at 30 frames a second', quality: '720p', fps: 25,
+      qualities: [{ value: '480p', label: '480p (854x480, 0.4 MP)' }, { value: '720p', label: '720p (1280x720, 0.9 MP)' }, { value: '1080p', label: '1080p (1920x1080, 2.1 MP)' }],
+      fps_choices: [5, 10, 15, 20, 25, 30] };
+    const phone = { ...HLS, kind: 'phone', shown_address: 'Phone browser (WebRTC)', recording: { ...RECORDING_OFF, on: true, quality: QUALITY }, may: { record: true } };
+    const w = page({ source: phone });
+    expect(w.get('[data-test="sp-rec-sends"]').text()).toBe('Sends 1280x720 (0.9 MP), 25 frames a second, H264, 2.4 Mbit/s. Its camera can send up to 1920x1080 (2.1 MP) at 30 frames a second.');
+    await w.findAll('button').find(b => b.text() === 'Recording settings').trigger('click');
+    expect(w.get('[data-test="sp-rec-q"]').element.value).toBe('720p');
+    await w.get('[data-test="sp-rec-q"]').setValue('1080p');
+    await w.get('[data-test="sp-rec-fps"]').setValue(30);
+    await w.find('.sp-rec-form').trigger('submit');
+    await flushPromises();
+    expect(calls.at(-1)).toEqual(['recording', 1, { days: 30, quality: '1080p', video_fps: 30 }]);
+    // A camera address: what it sends, and where to choose less; nothing to choose here.
+    const camera = page({ source: { ...HLS, shown_address: 'rtsp://cam.example.com', recording: { ...RECORDING_OFF, on: true,
+      quality: { choosable: false, sends_text: '2560x1440 (3.7 MP), 15 frames a second, H265, 4.1 Mbit/s', note: "Recorded as the camera sends it. Choose less in the camera's own settings." } } } });
+    expect(camera.get('[data-test="sp-rec-sends"]').text()).toContain('2560x1440 (3.7 MP)');
+    await camera.findAll('button').find(b => b.text() === 'Recording settings').trigger('click');
+    expect(camera.find('[data-test="sp-rec-q"]').exists()).toBe(false);
+    expect(camera.find('.sp-rec-form').text()).toContain("camera's own settings");
+    w.unmount(); camera.unmount();
+  });
+
   it('lists the recording being made first, growing, playable, and asks again while the camera records', async () => {
     vi.useFakeTimers();
     making = { id: 'live-1', live: true, source: { id: 1, name: 'Gate' }, started_at: '2026-11-24T06:40:00+00:00',
