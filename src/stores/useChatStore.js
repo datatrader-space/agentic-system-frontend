@@ -1895,6 +1895,14 @@ export const useChatStore = defineStore('chat', {
             _prev && _prev.memoriesSaved),
           conversationId: String(this.conversationId),
         }))
+        // WHAT THE PERSON SENT AND THE SERVER HAS NOT SAVED YET STAYS. The run host saves a message when it starts
+        // the turn; while it restarts (a deploy) the turn waits, and a refresh then reads a history whose newest
+        // row is the PREVIOUS answer. Release check C-04, 2026-11-24 (conv 3466): the message vanished from the
+        // chat for 7 minutes and came back when the host ran it. A bubble no server row matched, with no server
+        // id, is kept at the end until its row arrives.
+        const _unsaved = _onScreen.user.filter((x) => !_used.has(x) && x.serverId == null && !x.error
+          && x.authoredBy !== 'system' && String(x.content || '').trim())
+        if (_unsaved.length) this.messages = [...this.messages, ..._unsaved]
         this.messages = this._foldSteers(this.messages)   // a STEER shows inside its run (see _foldSteers)
         // The thread is now the latest window again, so older pages are "more" whenever the server has them.
         this.messagesHasMore = !!data.has_more

@@ -47,6 +47,41 @@ describe('_refreshHistory', () => {
     expect(s.messagesHasMore).toBe(true)         // older pages exist again beyond this window
   })
 
+  it('keeps a message the person sent that the server has not saved yet (release check C-04)', async () => {
+    // The run host saves the message when it starts the turn; while it restarts the newest saved row is the
+    // PREVIOUS answer, and the refresh used to replace the thread with it and drop the new message.
+    api.getConversationMessages.mockResolvedValue(page([USER_ROW, ANSWER_ROW]))
+    const s = useChatStore()
+    s.conversationId = '77'
+    s.messages = [
+      { id: 'm1', role: 'user', content: 'what is the title?', serverId: 1 },
+      { id: 'm2', role: 'assistant', content: 'The title is Tide.', serverId: 2 },
+      { id: 'm3', role: 'user', content: 'Keep planning: add a size guide link' },
+    ]
+    expect(await s._refreshHistory()).toBe(true)
+    expect(s.messages.map((m) => [m.role, m.content])).toEqual([
+      ['user', 'what is the title?'], ['assistant', 'The title is Tide.'],
+      ['user', 'Keep planning: add a size guide link'],
+    ])
+    expect(s.messages[2].id).toBe('m3')
+  })
+
+  it('a saved message replaces its bubble once its row arrives: never shown twice', async () => {
+    api.getConversationMessages.mockResolvedValue(page([USER_ROW, ANSWER_ROW,
+      { id: 3, role: 'user', content: 'Keep planning: add a size guide link' },
+      { id: 4, role: 'assistant', content: 'Revised.', model_info: {} }]))
+    const s = useChatStore()
+    s.conversationId = '77'
+    s.messages = [
+      { id: 'm1', role: 'user', content: 'what is the title?', serverId: 1 },
+      { id: 'm2', role: 'assistant', content: 'The title is Tide.', serverId: 2 },
+      { id: 'm3', role: 'user', content: 'Keep planning: add a size guide link' },
+    ]
+    expect(await s._refreshHistory()).toBe(true)
+    expect(s.messages.filter((m) => m.content === 'Keep planning: add a size guide link').length).toBe(1)
+    expect(s.messages.find((m) => m.content.startsWith('Keep planning')).serverId).toBe(3)
+  })
+
   it('leaves the thread alone while the newest saved message is not an answer', async () => {
     api.getConversationMessages.mockResolvedValue(page([USER_ROW]))
     const s = useChatStore()
