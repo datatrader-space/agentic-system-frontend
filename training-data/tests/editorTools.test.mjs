@@ -184,7 +184,8 @@ test('Add to Dataset and Send to Unannotated run only from the app\'s own dialog
   // Offered only when the editor's answer says this person may; the server checks again on the call.
   assert.match(editor, /const mayAddToDataset=computed\(\(\)=>!!\(live\.value&&meta\.value\?\.can_add_to_dataset===true\)\)/);
   assert.match(editor, /const maySendToUnannotated=computed\(\(\)=>!!\(live\.value&&meta\.value\?\.can_send_to_unannotated===true\)\)/);
-  assert.match(editor, /if\(body\?\.closed\|\|!scopedImages\.value\.length\)\{emit\('close'\);return;\}/);
+  // A batch whose last photo left is closed: the close says so, and the page says where the batch went (ProjectStudio).
+  assert.match(editor, /if\(body\?\.closed\|\|!scopedImages\.value\.length\)\{emit\('close',\{closed:!!body\?\.closed\}\);return;\}/);
   assert.match(api, /sendToUnannotated: \(ref, photo\) => json\(`\$\{base\(ref\)\}\/photos\/\$\{enc\(photo\)\}\/send-to-unannotated\/`, 'POST', \{\}\)/);
 });
 
