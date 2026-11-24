@@ -164,6 +164,25 @@ describe('AutonomySafetyStep', () => {
     expect(coding.text()).not.toContain('Code Execution')
   })
 
+  it('shows the Workflows switch at the agent\'s default until chosen, and stores the choice (ADM-1358)', async () => {
+    const normal = reactive({ id: 1, name: 'A', workflows_enabled: null, workflows_default: false })
+    const w = mount(AutonomySafetyStep, { props: { agent: normal }, global: { stubs } })
+    await flushPromises()
+    const sw = w.find('#workflows-switch')
+    expect(sw.attributes('aria-checked')).toBe('false')
+    expect(w.text()).toContain('The agent has no workflow tools')
+    await sw.trigger('click')
+    expect(normal.workflows_enabled).toBe(true)
+    expect(w.find('#workflows-switch').attributes('aria-checked')).toBe('true')
+
+    const superAgent = reactive({ id: 2, name: 'Super Agent', workflows_enabled: null, workflows_default: true })
+    const s = mount(AutonomySafetyStep, { props: { agent: superAgent }, global: { stubs } })
+    await flushPromises()
+    expect(s.find('#workflows-switch').attributes('aria-checked')).toBe('true')
+    await s.find('#workflows-switch').trigger('click')
+    expect(superAgent.workflows_enabled).toBe(false)
+  })
+
   it('offers only Manual and Autonomous, and shows a stored plan-review mode as its mapped mode (ADM-1306)', async () => {
     const agent = reactive({ id: 1, name: 'A', agent_run_mode: 'plan_review_autonomous' })
     const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })

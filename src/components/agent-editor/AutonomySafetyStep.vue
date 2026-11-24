@@ -181,6 +181,39 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Workflows (the WORKFLOW_* tools; ADM-1358) -->
+              <div class="capability-card rounded-xl border transition-colors" :class="workflowsEnabled ? 'border-indigo-300 bg-gradient-to-r from-indigo-50 to-violet-50' : 'border-[#E5E7EB] bg-white'">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-100 text-indigo-600">
+                      <Workflow :size="18" :stroke-width="2" />
+                    </span>
+                    <div>
+                      <div class="text-[13.5px] font-semibold text-[#0F172A]">Workflows</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent build, check, publish, run and manage workflows for the person chatting.</div>
+                    </div>
+                  </div>
+                  <button
+                    id="workflows-switch"
+                    type="button"
+                    role="switch"
+                    :aria-checked="workflowsEnabled"
+                    aria-label="Workflows"
+                    @click="workflowsEnabled = !workflowsEnabled"
+                    :class="['relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2', workflowsEnabled ? 'bg-indigo-600' : 'bg-gray-300']"
+                  >
+                    <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', workflowsEnabled ? 'translate-x-6' : 'translate-x-1']" />
+                  </button>
+                </div>
+                <div class="mt-3 border-t pt-3" :class="workflowsEnabled ? 'border-indigo-200/60' : 'border-[#E5E7EB]'">
+                  <div class="flex items-start gap-2 text-[12px] text-[#475569]">
+                    <span class="mt-0.5" :class="workflowsEnabled ? 'text-indigo-500' : 'text-[#94A3B8]'">ℹ</span>
+                    <p v-if="workflowsEnabled">The agent has every workflow tool: it lists and reads workflows, builds and checks a draft, publishes it, runs it, reads its runs and schedules, and sets which apps may call it. It reaches only the workflows the person chatting may reach, and asks before it publishes, runs or lets an app in.</p>
+                    <p v-else>The agent has no workflow tools. It will point the person to the Workflow Builder instead.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -497,6 +530,7 @@ import {
   PlugZap,
   ShieldCheck,
   Sparkles,
+  Workflow,
   Wrench,
   X,
   Zap,
@@ -702,6 +736,12 @@ const codeModeEnabled = computed({
 const connectInChatEnabled = computed({
   get: () => agent.value.connect_service_enabled !== false,
   set: (value) => { agent.value.connect_service_enabled = value },
+})
+// The Workflows switch (the WORKFLOW_* tools; ADM-1358). Not chosen yet (null): the agent's default from the server,
+// on for the Super Agent and the Coding Agent, off for every other agent.
+const workflowsEnabled = computed({
+  get: () => (agent.value.workflows_enabled ?? agent.value.workflows_default) === true,
+  set: (value) => { agent.value.workflows_enabled = value },
 })
 const serviceSetupEnabled = computed({
   get: () => !!agent.value.builder_mode_enabled,
