@@ -107,32 +107,6 @@
           <section class="ag-card admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2 class="admin-section-title">Answer Assurance</h2>
-                <p>Check what an agent says it did against what its tools actually returned, before the answer ships.</p>
-              </div>
-              <span class="ag-card-badge">Verification</span>
-            </div>
-            <div class="ag-control-grid admin-responsive-grid">
-              <label class="ag-field ag-switch-row">
-                <span>
-                  <b>Check actions against tool results</b>
-                  <small>When ON, a reply saying something was published, saved or changed is checked against the tool results. If they disagree, the agent answers again from the results, or the reply ships with a note of what really happened. A reply is never deleted or replaced. When OFF, replies ship as written.</small>
-                </span>
-                <button
-                  :class="['ag-switch', { on: pol.final_assurance_enabled }]"
-                  type="button"
-                  :disabled="!canEdit"
-                  @click="pol.final_assurance_enabled = !pol.final_assurance_enabled; mark()"
-                >
-                  <i />
-                </button>
-              </label>
-            </div>
-          </section>
-
-          <section class="ag-card admin-surface">
-            <div class="ag-card-head">
-              <div>
                 <h2 class="admin-section-title">Tool-Call Budget</h2>
                 <p>Anti-runaway limits enforced on every agent turn.</p>
               </div>
@@ -268,7 +242,6 @@ const pol = reactive({
   tool_call_budget: 4,
   on_budget_exceeded: 'ask_llm',
   max_tool_calls_hard: 25,
-  final_assurance_enabled: true,
   forbidden_tools: [],
   guardrails: [],
   tool_permissions: {},
@@ -315,7 +288,6 @@ function apply(d) {
   pol.tool_call_budget = d.tool_call_budget ?? 4
   pol.on_budget_exceeded = d.on_budget_exceeded || 'ask_llm'
   pol.max_tool_calls_hard = d.max_tool_calls_hard ?? 25
-  pol.final_assurance_enabled = d.final_assurance_enabled !== false
   pol.forbidden_tools = Array.isArray(d.forbidden_tools) ? [...d.forbidden_tools] : []
   pol.guardrails = Array.isArray(d.guardrails) ? [...d.guardrails] : []
   pol.tool_permissions = d.tool_permissions && typeof d.tool_permissions === 'object' ? { ...d.tool_permissions } : {}
@@ -384,7 +356,6 @@ async function save() {
       tool_call_budget: pol.tool_call_budget,
       on_budget_exceeded: pol.on_budget_exceeded,
       max_tool_calls_hard: pol.max_tool_calls_hard,
-      final_assurance_enabled: pol.final_assurance_enabled,
       forbidden_tools: pol.forbidden_tools,
       guardrails: pol.guardrails,
       tool_permissions: pol.tool_permissions,

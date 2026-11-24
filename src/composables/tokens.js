@@ -36,7 +36,7 @@ export function normalizeUsage(u) {
   // THE WHOLE TURN, WHEN THE BACKEND SENT IT.
   //
   // `prompt_tokens`/`total_tokens` describe the MAIN model call. A turn also pays for the routing call,
-  // any embeddings and the assurance pass, and none of those were ever in this number — so the figure
+  // any embeddings and any side call (a summary), and none of those were ever in this number — so the figure
   // under an answer was the part of the bill that happened to flow through one path.
   //
   // MEASURED, production conv 1777 (2026-09-19): the UI read "159.7k tokens · $0.004" for a turn that
