@@ -39,6 +39,8 @@
 //   frameMode     the step may run on a camera frame, in a workflow that starts with "Each camera frame" (server
 //                 `frame_mode`; ADM-1351 phase 2): a stream refuses a frame workflow with any other step
 
+import { browserTimeZone } from '@/utils/timeZone'
+
 // Each step type's icon (Lucide). A type the server adds without an entry here is drawn with its category's icon.
 export const WF_ICONS = Object.freeze({
   'media.generate': 'lucide:film',
@@ -159,7 +161,12 @@ export function wfPaletteItems() {
 export function wfDefaultData(type) {
   const def = WF_NODE_DEFS[type]
   const d = def && def.defaults ? def.defaults : {}
-  try { return JSON.parse(JSON.stringify(d)) } catch { return { ...d } }
+  let data
+  try { data = JSON.parse(JSON.stringify(d)) } catch { data = { ...d } }
+  // A new schedule runs in the person's own timezone (ADM-1354): "every day at 08:00" means their 08:00. The server
+  // cannot know it, so it is filled here, where the step is made.
+  if (type === 'trigger.schedule' && !data.timezone) data.timezone = browserTimeZone()
+  return data
 }
 
 // Schema fields for SchemaForm — null when the node uses a bespoke (custom) inspector template.

@@ -9,6 +9,7 @@ import { hydrateMediaNode, serializeMediaNode } from '@/services/mediaWorkflowNo
 import { workflowJson } from '@/utils/workflowInput'
 import { wfDef } from '@/config/wfNodeDefinitions'
 import { nodeIsConfigured, nodeConfigPreview } from '@/utils/wfNodeView'
+import { scheduleSummary } from './wfSchedule'
 
 // The node types that take retries, a timeout and an `on_error` choice: the reliability settings in the node window,
 // and the same list decides which cards show the `error` output (plan §3.2). One list, used by both.
@@ -71,7 +72,7 @@ export function serializeNode(type, data) {
 
 const TRIGGER_KIND = {
   'trigger.manual': () => 'Manual',
-  'trigger.schedule': (d) => (d.cron ? `Schedule · ${d.cron}` : 'Schedule'),
+  'trigger.schedule': (d) => (scheduleSummary(d) ? `Schedule · ${scheduleSummary(d)}` : 'Schedule'),
   'trigger.webhook': () => 'Webhook',
   'trigger.channel': (d) => [d.platform ? d.platform[0].toUpperCase() + d.platform.slice(1) : 'Channel', d.channel].filter(Boolean).join(' · '),
   'trigger.connector': (d) => [d.provider || 'Connector', d.event_type].filter(Boolean).join(' · '),

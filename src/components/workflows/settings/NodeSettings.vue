@@ -34,6 +34,8 @@
         <SchemaForm :fields="fields" />
       </template>
 
+      <ScheduleSettings v-else-if="type === 'trigger.schedule'" />
+
       <template v-else-if="type === 'trigger.webhook'">
         <p class="ns-note">Starts the workflow when an HTTP POST request arrives at this address.</p>
         <InboundUrl :path="triggerPath('webhook', 'webhook_path')" label="Endpoint address" method="POST" v-bind="addressNote" />
@@ -96,6 +98,7 @@ import SchemaForm from '../SchemaForm.vue'
 import AgentRunSettings from './AgentRunSettings.vue'
 import McpToolSettings from './McpToolSettings.vue'
 import ConditionSettings from './ConditionSettings.vue'
+import ScheduleSettings from './ScheduleSettings.vue'
 import ForeachSettings from './ForeachSettings.vue'
 import LlmModelField from './LlmModelField.vue'
 import ReliabilitySettings from './ReliabilitySettings.vue'

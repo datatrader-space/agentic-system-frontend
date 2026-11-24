@@ -4,12 +4,13 @@
 // The run state is never read from the node's data (D1 rule 1): the caller passes the status from useWorkflowRun's
 // `nodeStates`, in the engine's own words (contract C2), and whether validation marked the node invalid.
 import { WF_CATEGORIES, wfCategory, wfDef } from '../config/wfNodeDefinitions'
+import { scheduleConfigured, scheduleSummary } from '../components/workflows/wfSchedule'
 
 // A node is "configured" when its key fields are set (drives the idle vs configured indicator).
 const CONFIGURED = {
   'media.generate': d => !!(d.operation && d.route_id),
   'trigger.manual': () => true,
-  'trigger.schedule': (d) => !!d.cron,
+  'trigger.schedule': (d) => scheduleConfigured(d),
   'trigger.webhook': () => true,
   'trigger.channel': (d) => !!d.platform,
   // A connector binding is only useful once it knows WHICH provider and WHICH account;
@@ -86,7 +87,7 @@ export function nodeAriaLabel(type, data, state) {
 export function nodeConfigPreview(type, data) {
   const d = data || {}
   try {
-    if (type === 'trigger.schedule') return d.cron ? `cron ${d.cron}` : ''
+    if (type === 'trigger.schedule') return scheduleSummary(d)
     if (type === 'trigger.channel') return [d.platform, d.channel].filter(Boolean).join(' · ')
     if (type === 'trigger.webhook') return 'inbound HTTP'
     if (type === 'trigger.training.stream_event') {

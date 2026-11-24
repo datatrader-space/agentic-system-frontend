@@ -167,28 +167,146 @@
    "type": "trigger.schedule",
    "category": "trigger",
    "label": "Schedule",
-   "sub": "Cron trigger",
+   "sub": "Runs on a schedule",
    "order": 2,
    "trigger": true,
    "executable": true,
    "billable": false,
    "frame_mode": false,
-   "custom": false,
+   "custom": true,
    "palette": true,
    "custom_tail": "",
    "defaults": {
-    "cron": "0 8 * * *"
+    "mode": "daily",
+    "at": "08:00"
    },
    "fields": [
+    {
+     "key": "mode",
+     "type": "enum",
+     "title": "How often",
+     "options": [
+      [
+       "minutes",
+       "Every few minutes"
+      ],
+      [
+       "hours",
+       "Every few hours"
+      ],
+      [
+       "daily",
+       "Every day"
+      ],
+      [
+       "weekly",
+       "Every week"
+      ],
+      [
+       "days",
+       "Every few days"
+      ],
+      [
+       "cron",
+       "Custom (cron)"
+      ]
+     ]
+    },
+    {
+     "key": "every",
+     "type": "number",
+     "title": "Every",
+     "help": "minutes: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30. hours: 1, 2, 3, 4, 6, 8, 12. days: 1 to 365.",
+     "choices": {
+      "minutes": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       10,
+       12,
+       15,
+       20,
+       30
+      ],
+      "hours": [
+       1,
+       2,
+       3,
+       4,
+       6,
+       8,
+       12
+      ]
+     },
+     "showIf": {
+      "mode": [
+       "minutes",
+       "hours",
+       "days"
+      ]
+     }
+    },
+    {
+     "key": "minute",
+     "type": "number",
+     "title": "At minute",
+     "min": 0,
+     "max": 59,
+     "showIf": {
+      "mode": "hours"
+     }
+    },
+    {
+     "key": "at",
+     "type": "string",
+     "title": "At (24-hour time)",
+     "placeholder": "02:00",
+     "showIf": {
+      "mode": [
+       "daily",
+       "weekly",
+       "days"
+      ]
+     }
+    },
+    {
+     "key": "weekdays",
+     "type": "string",
+     "title": "Days of the week",
+     "help": "A list of numbers, 0 = Sunday to 6 = Saturday.",
+     "showIf": {
+      "mode": "weekly"
+     }
+    },
+    {
+     "key": "start_date",
+     "type": "string",
+     "title": "First day (YYYY-MM-DD)",
+     "showIf": {
+      "mode": "days"
+     }
+    },
     {
      "key": "cron",
      "type": "string",
      "mono": true,
-     "title": "Cron (m h dom mon dow)",
-     "placeholder": "0 8 * * *"
+     "title": "Cron (minute hour day month weekday)",
+     "placeholder": "0 8 * * *",
+     "showIf": {
+      "mode": "cron"
+     }
+    },
+    {
+     "key": "timezone",
+     "type": "string",
+     "title": "Timezone",
+     "help": "An IANA name, for example Europe/London. Blank = UTC."
     }
    ],
-   "hint": "Save to register the schedule. A scheduler tick fires it when the cron matches.",
+   "hint": "Runs at the times shown, in the timezone chosen. A time missed while the platform restarts still runs if it is less than 5 minutes late.",
    "output_sample": null,
    "outputs": {
     "text": {
