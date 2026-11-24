@@ -1165,7 +1165,7 @@
    "type": "action.script",
    "category": "action",
    "label": "Run script",
-   "sub": "Run a saved script",
+   "sub": "Python in a sandbox",
    "order": 16,
    "trigger": false,
    "executable": true,
@@ -1175,6 +1175,7 @@
    "palette": true,
    "custom_tail": "",
    "defaults": {
+    "code": "",
     "script_id": null,
     "image": "",
     "images": "",
@@ -1182,11 +1183,21 @@
    },
    "fields": [
     {
+     "key": "code",
+     "type": "textarea",
+     "mono": true,
+     "rows": 14,
+     "title": "Code (Python)",
+     "placeholder": "from PIL import Image\n\nimg = Image.open('../input/image.jpg')\nimg.convert('L').save('../output/image.png')\nprint('done')",
+     "help": "Runs in a sandbox with no internet and no keys. What it prints is the step's text; an image it saves as ../output/image.png (or .jpg, .webp) is the step's image."
+    },
+    {
      "key": "script_id",
      "type": "enum",
      "optionsKey": "scripts",
-     "title": "Saved script",
-     "placeholder": "Select a script\u2026"
+     "title": "Or a saved script (optional)",
+     "placeholder": "Select a script\u2026",
+     "help": "A saved script of one of your agents, for code that needs the internet or a key. Use the code box or a saved script, not both."
     },
     {
      "key": "image",
@@ -1216,7 +1227,7 @@
      "help": "What a Find objects (or Filter objects) step found. The script reads it as ../input/detections.json, every box in the pixels of its image."
     }
    ],
-   "hint": "Runs a SavedScript you own in the sandbox, never on AADML's servers. Manage scripts on the Scripts page. A script that writes ../output/image.jpg (or .png or .webp) gives the next steps that image as {{nodes.<id>.output.image}}. A Test run does not run the script. A stream's frames cannot run a script: each run of a script is a sandbox run, and a stream's frames run only steps without side effects.",
+   "hint": "Runs in a sandbox, never on AADML's servers. A script that writes ../output/image.jpg (or .png or .webp) gives the next steps that image as {{nodes.<id>.output.image}}. A Test run does not run the script. A stream's frames cannot run a script: each run of a script is a sandbox run, and a stream's frames run only steps without side effects.",
    "output_sample": {
     "text": "script output",
     "script": "Script name",
