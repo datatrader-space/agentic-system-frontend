@@ -83,6 +83,7 @@
             <label :for="`rm-host-${m.key}`">Run on</label>
             <select :id="`rm-host-${m.key}`" v-model="hostPick[m.key]" :disabled="isBusy(m.key) || running(m)"
                     :aria-describedby="`rm-host-help-${m.key}`" data-test="rm-host">
+              <option value="" disabled>Choose where it runs</option>
               <option value="runpod">RunPod</option>
               <option v-for="mc in machines" :key="mc.id" :value="`machine:${mc.id}`" :disabled="!!fitWords(mc, m)">
                 {{ machineWords(mc) }}{{ fitWords(mc, m) ? ` (${fitWords(mc, m)})` : '' }}
@@ -333,7 +334,12 @@ function takeModel(row, { resetPrice = false } = {}) {
   if (before && before.state !== row.state) announcement.value = `${row.name || row.key} is ${stateWord(row.state)}.`
   if (row.host === 'runpod') hostPick[row.key] = 'runpod'
   else if (row.host === 'machine' && row.machine) hostPick[row.key] = `machine:${row.machine.id}`
-  else if (!hostPick[row.key]) hostPick[row.key] = 'runpod'
+  else if (!hostPick[row.key]) {
+    // The platform machine is the default place (ADM-1365 phase 3). When it cannot take the model now, nothing is
+    // picked: the admin chooses (RunPod is never picked in its place). With no platform machine chosen: RunPod.
+    const own = row.platform_machine && machines.value.find(mc => mc.id === row.platform_machine.id)
+    hostPick[row.key] = !row.platform_machine ? 'runpod' : own && !fitWords(own, row) ? `machine:${own.id}` : ''
+  }
   const priceNow = row.usd_per_image == null ? '' : String(row.usd_per_image)
   if (resetPrice || !before || (pricePick[row.key] || '') === (before.usd_per_image == null ? '' : String(before.usd_per_image))) {
     pricePick[row.key] = priceNow

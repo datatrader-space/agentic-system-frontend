@@ -61,10 +61,25 @@ describe('AdminReadyModels', () => {
   it('offers RunPod and the machines, a machine that cannot run it disabled with its reason', async () => {
     await render()
     const opts = w.get('[data-test="rm-host"]').findAll('option')
-    expect(opts.map(o => o.text())).toEqual(['RunPod', 'Studio PC · RTX 4090 24 GB',
+    expect(opts.map(o => o.text())).toEqual(['Choose where it runs', 'RunPod', 'Studio PC · RTX 4090 24 GB',
       'Old box · GTX 1060 6 GB (The SAM License is not accepted for Lab.)'])
-    expect(opts[2].attributes('disabled')).toBeDefined()
-    expect(opts[1].attributes('disabled')).toBeUndefined()
+    expect(opts[3].attributes('disabled')).toBeDefined()
+    expect(opts[2].attributes('disabled')).toBeUndefined()
+    expect(w.get('[data-test="rm-host"]').element.value).toBe('runpod')    // no platform machine chosen: RunPod
+  })
+
+  // ADM-1365 phase 3: the platform machine is the default place; when it cannot take the model, nothing is picked.
+  it('picks the platform machine by default, and nothing (never RunPod) when it cannot run the model', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam({ platform_machine: { id: 4, name: 'Studio PC' } })],
+      machines, kinds } })
+    await render()
+    expect(w.get('[data-test="rm-host"]').element.value).toBe('machine:4')
+    w.unmount()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam({ platform_machine: { id: 5, name: 'Old box' } })],
+      machines, kinds } })
+    await render()
+    expect(w.get('[data-test="rm-host"]').element.value).toBe('')
+    expect(w.get('[data-test="rm-start"]').attributes('disabled')).toBeDefined()
   })
 
   it('starts on RunPod with the right call and shows Starting, then polls every 5 seconds until it is on', async () => {
@@ -195,8 +210,8 @@ describe('AdminReadyModels', () => {
     expect(card.get('[data-test="rm-gpu"]').text()).toBe('22 GB')
     expect(card.get('[data-test="rm-files"]').text()).toContain('Qwen/Qwen3-VL-8B-Instruct @ 0c351dd01ed8')
     const opts = card.get('[data-test="rm-host"]').findAll('option')
-    expect(opts[2].text()).toContain('no NVIDIA GPU with 22 GB')
-    expect(opts[2].attributes('disabled')).toBeDefined()
+    expect(opts[3].text()).toContain('no NVIDIA GPU with 22 GB')
+    expect(opts[3].attributes('disabled')).toBeDefined()
     expect(card.find('[data-test="rm-remove"]').exists()).toBe(true)
     expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-remove"]').exists()).toBe(false)
   })

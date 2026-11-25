@@ -15,7 +15,8 @@ const places = [{ value: 'machine', label: 'The platform machine' }, { value: 'r
 const machines = [{ id: 3, name: 'cd2ccc296f7f', workspace: 'Default', online: true },
   { id: 9, name: 'old box', workspace: 'Lab', online: false }]
 const payload = (over = {}) => ({ machine: null, machine_refusal: 'No platform machine is chosen. Choose one in Admin → Platform work.',
-  builds_on: 'machine', builds_on_words: 'The platform machine', places, updated_by: '', updated_at: null, machines, ...over })
+  builds_on: 'machine', builds_on_words: 'The platform machine', prepares_on: 'machine',
+  prepares_on_words: 'The platform machine', places, updated_by: '', updated_at: null, machines, ...over })
 
 let w
 beforeEach(() => { vi.clearAllMocks() })
@@ -47,6 +48,17 @@ describe('Platform work', () => {
     await w.get('#pw-machine-pick').setValue('9')
     await w.get('[data-test="pw-machine-save"]').trigger('click'); await flushPromises()
     expect(notifyMock.error).toHaveBeenCalledWith('That machine is not one of yours.')
+  })
+
+  it('chooses where models are prepared and downloaded, one setting at a time', async () => {
+    api.platformWorkAdmin.mockResolvedValue({ data: payload() })
+    api.platformWorkSet.mockResolvedValueOnce({ data: payload({ prepares_on: 'runpod', prepares_on_words: 'RunPod' }) })
+    w = mount(AdminPlatformWork); await flushPromises()
+    const radios = w.findAll('input[name="pw-prepares-on"]')
+    expect(radios[0].element.checked).toBe(true)
+    await radios[1].setValue(true); await flushPromises()
+    expect(api.platformWorkSet).toHaveBeenCalledWith({ prepares_on: 'runpod' })
+    expect(notifyMock.success).toHaveBeenCalledWith('Models are prepared and downloaded on RunPod from now on.')
   })
 
   it('says why the settings could not be read', async () => {

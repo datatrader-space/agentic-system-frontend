@@ -7,7 +7,8 @@
           <div class="pw-eyebrow">AI &amp; agents</div>
           <h1 class="admin-page-title">Platform work</h1>
           <p>
-            Where AADML's own work runs: building, testing, scanning, clearing and signing its images. RunPod is for
+            Where AADML's own work runs: building, testing, scanning, clearing and signing its images, and making its
+            models ready and downloading their files. RunPod is for
             people who have no machine of their own; the platform's work runs on the platform machine, or on RunPod
             when you choose it here. AADML never moves it to the other place by itself.
           </p>
@@ -66,6 +67,23 @@
         <p class="pw-help">If the chosen place cannot build now, the build is refused and says why; it is never moved to the other place.</p>
       </section>
 
+      <section class="pw-card admin-surface" aria-labelledby="pw-prepares-title" data-test="pw-prepares">
+        <h2 id="pw-prepares-title">Prepare models and download files on</h2>
+        <p class="pw-help">
+          Where AADML downloads a model's files from its publisher (Hugging Face, RF-DETR) and makes a published model
+          ready to serve. On the platform machine, the Hugging Face token comes from its secret store. A download a person
+          pays for (an open model they added) always runs on RunPod.
+        </p>
+        <div class="pw-places" role="radiogroup" aria-labelledby="pw-prepares-title">
+          <label v-for="p in settings.places" :key="p.value" class="pw-place" :class="{ 'is-on': settings.prepares_on === p.value }">
+            <input type="radio" name="pw-prepares-on" :value="p.value" :checked="settings.prepares_on === p.value"
+                   :disabled="saving === 'prepares_on'" @change="save('prepares_on', p.value)">
+            <span>{{ p.label }}</span>
+          </label>
+        </div>
+        <p class="pw-help">If the chosen place cannot run it now, it is refused and says why; it is never moved to the other place.</p>
+      </section>
+
       <p v-if="settings.updated_by" class="pw-updated">Last changed by {{ settings.updated_by }}<template v-if="settings.updated_at">, {{ new Date(settings.updated_at).toLocaleString() }}</template>.</p>
     </template>
   </div>
@@ -108,7 +126,9 @@ async function save(name, value) {
   saving.value = name
   try {
     apply((await api.platformWorkSet({ [name]: value })).data)
-    notify.success(name === 'machine' ? 'Platform machine saved.' : `Images are built on ${settings.value.builds_on_words} from now on.`)
+    notify.success(name === 'machine' ? 'Platform machine saved.'
+      : name === 'builds_on' ? `Images are built on ${settings.value.builds_on_words} from now on.`
+        : `Models are prepared and downloaded on ${settings.value.prepares_on_words} from now on.`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'The setting was not saved. Try again.')
     await load()
