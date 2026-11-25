@@ -81,17 +81,9 @@
             <Search :size="14" :stroke-width="2"
                     class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
             <input v-model="query"
-                   :placeholder="semantic ? 'Describe what you need — semantic search…'
-                                          : 'Search skills by name, description or tag…'"
+                   placeholder="Search skills by name, description or tag…"
                    class="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-9 pr-3 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
           </div>
-          <button type="button" @click="semantic = !semantic"
-                  :class="semantic ? 'border-indigo-600 bg-indigo-600 text-white'
-                                   : 'border-[#E5E7EB] bg-white text-[#667085] hover:bg-[#F8FAFC]'"
-                  class="shrink-0 rounded-lg border px-3 py-2 text-[12px] font-semibold"
-                  title="Rank by meaning (embeddings) instead of exact text match">
-            Semantic
-          </button>
         </div>
         <div v-if="categories.length > 1" class="flex flex-wrap items-center gap-1.5">
           <button v-for="c in categories" :key="c" type="button"
@@ -160,7 +152,7 @@
           </div>
         </div>
 
-        <!-- Pager — pages the FILTERED set; search/category/semantic changes reset to page 1. -->
+        <!-- Pager — pages the FILTERED set; search/category changes reset to page 1. -->
         <div v-if="builtinPageCount > 1" class="mt-3 flex flex-wrap items-center justify-center gap-1.5">
           <button type="button" :disabled="builtinPage === 1" @click="builtinPage--"
                   class="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#475467] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40">
@@ -286,20 +278,9 @@ const query = ref('')
 const category = ref('')      // '' = all categories
 const builtinSkills = computed(() => skills.value.filter(s => s.visibility === 'system'))
 const mySkills = computed(() => skills.value.filter(s => s.visibility !== 'system'))
-// Semantic mode replaces the lexical filter with the server's cosine-ranked rows (order preserved);
-// category chips still apply on top.
-const _bySemantic = (rows) => {
-  if (semanticResults.value === null) return null
-  const ids = new Set(rows.map(s => s.id))
-  return semanticResults.value.filter(s => ids.has(s.id))
-}
-const visibleBuiltin = computed(() => {
-  const sem = _bySemantic(builtinSkills.value)
-  return sem !== null ? filterSkills(sem, '', category.value)
-                      : filterSkills(builtinSkills.value, query.value, category.value)
-})
+const visibleBuiltin = computed(() => filterSkills(builtinSkills.value, query.value, category.value))
 
-// Library pager over the FILTERED set. Any filter change (search/category/semantic) resets to page 1 —
+// Library pager over the FILTERED set. Any filter change (search/category) resets to page 1 —
 // staying on page 7 of a list that just shrank to 4 pages would show emptiness that looks like a bug.
 const BUILTIN_PAGE_SIZE = 24
 const builtinPage = ref(1)
@@ -316,12 +297,7 @@ const builtinPageNumbers = computed(() => {
   pages.push(n)
   return pages
 })
-// (pager reset watches live below the semantic block — `semantic` must exist first)
-const visibleMine = computed(() => {
-  const sem = _bySemantic(mySkills.value)
-  return sem !== null ? filterSkills(sem, '', category.value)
-                      : filterSkills(mySkills.value, query.value, category.value)
-})
+const visibleMine = computed(() => filterSkills(mySkills.value, query.value, category.value))
 // Chips come from the SEARCH-visible set (not category-filtered — picking one must not hide the rest).
 const categories = computed(() => categoriesOf(filterSkills(skills.value, query.value)))
 const scriptCount = (s) => (s.files || []).filter(f => f.is_script).length
@@ -358,26 +334,9 @@ async function load() {
   }
 }
 
-// Semantic search (server-side, embedding cosine over the same rows). Debounced; falls back to the
-// normal lexical/client filtering when off or when the deployment has no embedding provider.
-const semantic = ref(false)
-const semanticResults = ref(null)   // null = inactive; [] = active with no matches
-let semanticTimer = null
-watch([semantic, query], () => {
-  clearTimeout(semanticTimer)
-  if (!semantic.value || !query.value.trim()) { semanticResults.value = null; return }
-  semanticTimer = setTimeout(async () => {
-    try {
-      const { data } = await api.get('/skills/', {
-        params: { q: query.value.trim(), mode: 'semantic', page_size: 100 } })
-      semanticResults.value = pickArray(data)
-    } catch { semanticResults.value = null }
-  }, 350)
-})
-
-// Filter changes (search/category/semantic) reset the library pager to page 1; a shrinking result set
+// Filter changes (search/category) reset the library pager to page 1; a shrinking result set
 // clamps the current page rather than stranding the user on an empty one.
-watch([query, category, semantic], () => { builtinPage.value = 1 })
+watch([query, category], () => { builtinPage.value = 1 })
 watch(builtinPageCount, (n) => { if (builtinPage.value > n) builtinPage.value = n })
 
 function newSkill() {

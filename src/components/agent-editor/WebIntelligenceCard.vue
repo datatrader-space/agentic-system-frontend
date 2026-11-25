@@ -160,8 +160,6 @@ const agent = defineModel('agent', { type: Object, required: true })
 const TOGGLES = [
   { field: 'citations_required', label: 'Require citations',
     hint: 'Warn when results come back without source citations, so ungrounded answers are visible.' },
-  { field: 'semantic_cache', label: 'Reuse similar searches',
-    hint: 'Serve stored evidence for equivalent questions. Freshness is always respected — time-sensitive asks never reuse stale results.' },
 ]
 
 const NUMBERS = [
@@ -179,7 +177,7 @@ const models = ref([])
 const saved = ref('{}')
 
 const cfg = reactive({
-  enabled: true, engine_provider: 'auto', citations_required: true, semantic_cache: true, max_results: 10,
+  enabled: true, engine_provider: 'auto', citations_required: true, max_results: 10,
 })
 // Kept out of `cfg` so an empty input round-trips as null (no limit) rather than 0.
 const costLimit = ref('')
