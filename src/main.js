@@ -359,6 +359,8 @@ const router = createRouter({
         // Ready-to-use models (SAM 3 ...): only the platform admin starts, stops and prices them; they run on RunPod or
         // on one of his own GPU machines until he stops them (backend FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10).
         { path: 'ready-models', name: 'admin-ready-models', component: () => import('./views/admin/AdminReadyModels.vue') },
+        // Where the platform's own work runs (backend platform_work.py, ADM-1365): the platform machine and where images are built.
+        { path: 'platform-work', name: 'admin-platform-work', component: () => import('./views/admin/AdminPlatformWork.vue') },
         // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
         { path: 'billing', name: 'admin-billing', component: () => import('./views/admin/AdminBilling.vue') },
         // What AWS charged the AADML account and the ML account, by service and tag (backend billing/services/infra_cost.py).

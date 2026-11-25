@@ -1062,6 +1062,9 @@ export default {
   readyModelCameraAdd: (body) => api.post('/training-data/admin/ready-models/camera/', body),
   readyModelCameraFetch: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/fetch/`, {}),
   readyModelCameraRemove: (key) => api.delete(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`),
+  // Where the platform's own work runs (backend platform_work.py, ADM-1365). body: {machine: <id>} or {builds_on: 'machine' | 'runpod'}.
+  platformWorkAdmin: () => api.get('/training-data/admin/platform-work/', { noCache: true }),
+  platformWorkSet: (body) => api.patch('/training-data/admin/platform-work/', body),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),
