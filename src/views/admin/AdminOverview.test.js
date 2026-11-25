@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import AdminOverview from './AdminOverview.vue'
+import { adminItems } from '../../components/admin-shell/adminNavigation'
 const api=vi.hoisted(()=>({get:vi.fn()}))
 vi.mock('../../services/api',()=>({default:api}))
 let wrapper
@@ -14,7 +15,7 @@ describe('Admin overview',()=>{
     expect(wrapper.text()).toContain('$0.00000017')
     expect(wrapper.text()).toContain('Users in report')
     expect(wrapper.text()).not.toContain('Active Users')
-    expect(wrapper.findAll('.ov-tool')).toHaveLength(32)
+    expect(wrapper.findAll('.ov-tool')).toHaveLength(adminItems.length)  // one tool for every admin page
     expect(wrapper.findAll('.ov-tool').some(e => e.attributes('href') === '/admin-dashboard/oauth-providers')).toBe(true)
     await wrapper.get('input[type=search]').setValue('prepaid')
     expect(wrapper.findAll('.ov-tool')).toHaveLength(1)
