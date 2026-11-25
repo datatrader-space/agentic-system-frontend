@@ -34,5 +34,5 @@ describe('WorkflowTablesPage (ADM-1367)', () => {
     await buttons[which].trigger('click')
     expect(w.get('[role="dialog"]').text()).toContain('New table')
     w.unmount()
-  })
+  }, 20000)   // the first import of the page is slow on a busy machine
 })

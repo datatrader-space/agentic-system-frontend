@@ -25,8 +25,8 @@
         <template v-if="form.engine === 'mongodb'">
           <fieldset class="dcd-radios dcd-wide">
             <legend class="dcd-label">Connect with</legend>
-            <label><input v-model="form.mongo_mode" type="radio" value="uri"> A connection string</label>
-            <label><input v-model="form.mongo_mode" type="radio" value="host"> A host and port</label>
+            <label><input v-model="form.mongo_mode" type="radio" :name="`${formId}-mongo`" value="uri"> A connection string</label>
+            <label><input v-model="form.mongo_mode" type="radio" :name="`${formId}-mongo`" value="host"> A host and port</label>
           </fieldset>
         </template>
 
@@ -64,7 +64,7 @@
       <!-- TLS -->
       <fieldset class="dcd-set">
         <legend class="dcd-label">Encryption (TLS)</legend>
-        <label v-for="m in tlsModes" :key="m.value" class="dcd-radio"><input v-model="form.tls_mode" type="radio" :value="m.value"> {{ m.label }}</label>
+        <label v-for="m in tlsModes" :key="m.value" class="dcd-radio"><input v-model="form.tls_mode" type="radio" :name="`${formId}-tls`" :value="m.value"> {{ m.label }}</label>
         <p v-if="TLS_WARNINGS[form.tls_mode]" class="dcd-warn" role="alert"><Icon icon="lucide:shield-alert" aria-hidden="true" /><span>{{ TLS_WARNINGS[form.tls_mode] }}</span></p>
       </fieldset>
 
@@ -72,7 +72,7 @@
       <fieldset class="dcd-set">
         <legend class="dcd-label">Access</legend>
         <label v-for="a in accessModes" :key="a.value" class="dcd-radio">
-          <input v-model="form.access" type="radio" :value="a.value"> {{ a.label }}
+          <input v-model="form.access" type="radio" :name="`${formId}-access`" :value="a.value"> {{ a.label }}
           <span class="dcd-sub">{{ a.value === 'read_write' ? 'Workflow steps may write. An agent\'s write always asks you first on an approval card.' : 'Workflows and agents can only read. The database enforces it.' }}</span>
         </label>
         <p v-if="advice" class="dcd-note"><Icon icon="lucide:shield-check" aria-hidden="true" /><span>{{ advice }}</span></p>
@@ -94,8 +94,8 @@
           </Field>
           <fieldset class="dcd-radios">
             <legend class="dcd-label">Sign in with</legend>
-            <label><input v-model="form.ssh.auth" type="radio" value="key"> A private key</label>
-            <label><input v-model="form.ssh.auth" type="radio" value="password"> A password</label>
+            <label><input v-model="form.ssh.auth" type="radio" :name="`${formId}-ssh-auth`" value="key"> A private key</label>
+            <label><input v-model="form.ssh.auth" type="radio" :name="`${formId}-ssh-auth`" value="password"> A password</label>
           </fieldset>
           <template v-if="form.ssh.auth === 'key'">
             <div class="dcd-field dcd-wide">

@@ -105,6 +105,9 @@ describe('errors', () => {
     expect(apiErrorText({ response: { status: 402, data: { code: 'storage_unpaid' } } }, 'x')).toMatch(/Top up, or delete rows/)
     expect(apiErrorText({ response: { status: 409, data: { error: 'Already taken.', code: 'unique_violation', column: 'email' } } }, 'x'))
       .toBe('Already taken. (column email)')
+    // ADM-1367: a message that already names its column is not told it again.
+    expect(apiErrorText({ response: { status: 409, data: { error: "Column 'email' is unique, and another row already has 'a@example.com'.", code: 'unique_violation', column: 'email' } } }, 'x'))
+      .toBe("Column 'email' is unique, and another row already has 'a@example.com'.")
     expect(apiErrorText({ response: { status: 500, data: {} } }, 'The row was not saved')).toBe('The row was not saved (error 500).')
     expect(apiErrorText(new Error('Network Error'), 'The row was not saved')).toBe('The row was not saved. Check your connection.')
   })

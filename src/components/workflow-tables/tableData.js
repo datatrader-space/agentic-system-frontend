@@ -168,8 +168,11 @@ export function apiErrorText(err, fallback) {
   const d = err?.response?.data
   if (d?.code === 'storage_unpaid') return d.error || 'Writes are paused: the balance could not pay for storage. Top up, or delete rows.'
   if (d && (d.error || d.detail)) {
-    const where = [d.row != null ? `row ${d.row}` : '', d.column ? `column ${d.column}` : ''].filter(Boolean).join(', ')
-    return where ? `${d.error || d.detail} (${where})` : String(d.error || d.detail)
+    const text = String(d.error || d.detail)
+    // A message that already names its column ("Column 'email' is unique ...") is not told it again (ADM-1367).
+    const named = !!d.column && text.includes(`'${d.column}'`)
+    const where = [d.row != null ? `row ${d.row}` : '', d.column && !named ? `column ${d.column}` : ''].filter(Boolean).join(', ')
+    return where ? `${text} (${where})` : text
   }
   if (err?.response) return `${fallback} (error ${err.response.status}).`
   return `${fallback}. Check your connection.`
