@@ -22,6 +22,10 @@
     <div v-if="dbg" v-show="!collapsed && tab === 'debug-console'" class="bp-body" role="tabpanel">
       <DebugConsole />
     </div>
+    <!-- The Coding Agent's background tasks of the chat on screen (ADM-1360 release): built the first time the tab opens. -->
+    <div v-if="bg" v-show="!collapsed && tab === 'background'" class="bp-body vm-scroll" role="tabpanel" tabindex="0" aria-label="Background tasks">
+      <BackgroundTasksList v-if="backgroundOpened" />
+    </div>
     <!-- Built the first time the Terminal tab is opened, then kept: switching tabs never ends a shell (ADM-1196). -->
     <div v-if="terminalOpened && repoId" v-show="!collapsed && tab === 'terminal'" class="bp-term" role="tabpanel">
       <TerminalPanel ref="terminalPanel" :repo-id="repoId" :ready="ready" :agent-commands="agentCommands" :maximized="maximized"
@@ -45,6 +49,10 @@ import ProblemsPanel from './ProblemsPanel.vue'
 import DebugConsole from './DebugConsole.vue'
 import { LANGUAGE_SERVERS } from '@/stores/useLanguageServers'
 import { DEBUGGER } from '@/stores/useDebugger'
+import { BACKGROUND_TASKS, counts as bgCountsOf } from '@/stores/useBackgroundTasks'
+import { lazyComponent } from '@/utils/lazyComponent'
+// Its own chunk, fetched when the Background tab is first opened.
+const BackgroundTasksList = lazyComponent(() => import('./BackgroundTasksList.vue'), { loadingLabel: 'Loading the background tasks…' })
 
 const props = defineProps({
   pipelineLog: { type: Array, default: () => [] },
@@ -67,6 +75,11 @@ const emit = defineEmits(['toggle', 'maximize', 'ask-agent', 'open-file'])
 const languages = inject(LANGUAGE_SERVERS, null)
 const dbg = inject(DEBUGGER, null)
 const problemCount = computed(() => (languages ? languages.problems.value.length : 0))
+// Background = the Coding Agent's background work in the chat on screen (where the Let's Code page provides it); the tab
+// counts what still runs.
+const bg = inject(BACKGROUND_TASKS, null)
+const bgRunning = computed(() => (bg ? bgCountsOf(bg).running : 0))
+const backgroundOpened = ref(false)
 const tabs = computed(() => [
   ...(languages ? [{ id: 'problems', label: problemCount.value ? `Problems (${problemCount.value})` : 'Problems',
     icon: 'lucide:circle-alert', count: problemCount.value },
@@ -74,6 +87,8 @@ const tabs = computed(() => [
   ...(dbg ? [{ id: 'debug-console', label: 'Debug Console', icon: 'lucide:bug' }] : []),
   { id: 'log', label: 'Log', icon: 'lucide:scroll-text' },
   { id: 'activity', label: 'Activity', icon: 'lucide:activity' },
+  ...(bg ? [{ id: 'background', label: bgRunning.value ? `Background (${bgRunning.value} running)` : 'Background',
+    icon: 'lucide:list-todo', count: bgRunning.value }] : []),
   ...(props.repoId ? [{ id: 'terminal', label: 'Terminal', icon: 'lucide:square-terminal' },
     { id: 'preview', label: 'Preview', icon: 'lucide:monitor-play' }] : []),
 ])
@@ -87,6 +102,7 @@ function selectTab(id) {
   tab.value = id
   if (id === 'terminal') terminalOpened.value = true
   if (id === 'preview') previewOpened.value = true
+  if (id === 'background') backgroundOpened.value = true
   if (props.collapsed) emit('toggle')
 }
 

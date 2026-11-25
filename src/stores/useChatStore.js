@@ -72,6 +72,15 @@ export const PLAN_APPROVED_CONTINUE = 'Approved. Carry out the approved plan, fr
 //: A second resume for the same approval inside this window is not sent (the server would refuse it).
 const PLAN_RESUME_DEDUPE_MS = 15000
 
+// The tasks a background-task `system_event` reports (ADM-1360 release): `background_tasks` (all of them; one wake can
+// report several), else the single `background_task`. Only objects with an id.
+function backgroundTasksOf(meta) {
+  if (!meta || typeof meta !== 'object') return []
+  const list = Array.isArray(meta.background_tasks) && meta.background_tasks.length ? meta.background_tasks
+    : (meta.background_task ? [meta.background_task] : [])
+  return list.filter((x) => x && typeof x === 'object' && x.id != null)
+}
+
 function pickArray(d) {
   if (Array.isArray(d)) return d
   if (d && Array.isArray(d.results)) return d.results
@@ -811,6 +820,9 @@ export const useChatStore = defineStore('chat', {
         // Let's Code: the checkpoint taken before this user message's turn first changed a file, so the chat can
         // offer "Restore to before this message" (AGENT_ENGINE_CAPABILITIES_PLAN.md section 9).
         restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id) || null,
+        // A `system_event` the server wrote when background tasks ended (ADM-1360 release): each task as it ended (one
+        // wake can report several), drawn as event cards (BackgroundEventCard), never as the person's message.
+        backgroundTasks: backgroundTasksOf(m.metadata),
         // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
         // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
         attachments: pickArray(m.attachments),
@@ -1882,6 +1894,8 @@ export const useChatStore = defineStore('chat', {
           // Same restore point as the main loader: a turn's checkpoint lands on its user row while it runs.
           restoreCheckpointId: (m.metadata && m.metadata.restore_checkpoint_id)
             || (_prev && _prev.restoreCheckpointId) || null,
+          // Same background-task event as the main loader (ADM-1360 release).
+          backgroundTasks: backgroundTasksOf(m.metadata),
           citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations)
             || (_prev && _prev.citations) || [],
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
@@ -2862,11 +2876,21 @@ export const useChatStore = defineStore('chat', {
           // THIS tab's own bubble for the message, not yet given its server id (the turn was handed to the run host
           // and resumed there after a restart): it IS the message, so it takes the id instead of a second bubble
           // being added (release check C-14 / F14, 2026-11-23: conv 3408 showed the person's message twice).
-          const _own = _sid && msg.kind !== 'plan_approval'
+          const _own = _sid && msg.kind !== 'plan_approval' && msg.kind !== 'system_event'
             ? [...this.messages].reverse().find((x) => x.role === 'user' && x.serverId == null)
             : null
           if (_own && String(_own.content || '').trim() === String(msg.message || '').trim()) {
             _own.serverId = msg.message_id
+          } else if (msg.kind === 'system_event') {
+            // A TURN THE SERVER WOKE because a background task ended (ADM-1360 release): its message is the server's
+            // event, drawn as the event card at once (the saved row replaces it on the next history read).
+            const _fromMeta = backgroundTasksOf(msg.metadata)
+            const _bt = _fromMeta.length ? _fromMeta : backgroundTasksOf(msg)
+            if (!_sid || !this.messages.some((x) => String(x.serverId ?? '') === _sid)) {
+              this.messages.push({ id: nid(), role: 'user', kind: 'system_event', authoredBy: 'system',
+                                   content: msg.message || '', backgroundTasks: _bt, serverId: msg.message_id ?? null,
+                                   status: 'done', error: '', toolCalls: [] })
+            }
           } else if (!_sid || !this.messages.some((x) => x.role === 'user' && String(x.serverId ?? '') === _sid)) {
             const _approval = msg.kind === 'plan_approval'
             this.messages.push({ id: nid(), role: 'user', content: _approval ? PLAN_APPROVED_CONTINUE : (msg.message || ''),

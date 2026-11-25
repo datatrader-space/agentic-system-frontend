@@ -22,6 +22,11 @@
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
           <span>You approved the plan</span>
         </div>
+        <!-- A BACKGROUND TASK ENDED (ADM-1360 release): the server's system event, a compact card, never the person's
+             own bubble. Checked before the scaffolding rule: the server writes it, yet it is shown. -->
+        <template v-else-if="isBackgroundEvent(m)">
+          <BackgroundEventCard v-for="bt in m.backgroundTasks" :key="bt.id" :task="bt" />
+        </template>
         <ChatMessage
           v-else-if="!isRunScaffolding(m)"
           :message="presentMessage ? presentMessage(m) : m"
@@ -61,6 +66,10 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
+import { lazyComponent } from '../../utils/lazyComponent'
+
+// Its own chunk: only a chat with background work shows one (the first-load budget).
+const BackgroundEventCard = lazyComponent(() => import('./BackgroundEventCard.vue'), { showLoading: false })
 
 // Optional display-only adapter; store messages and requests are never modified.
 defineProps({ presentMessage: Function, prepareEdit: Function })
@@ -71,6 +80,8 @@ const chat = useChatStore()
 // `authoredBy` is stamped by agent/headless_consumer.py; it is absent on every ordinary message and
 // on every row written before the marker existed, so both read as the user's own — which is correct.
 const isRunScaffolding = (m) => m.role === 'user' && m.authoredBy === 'system'
+// The server's note that background tasks ended (`kind: system_event` with `metadata.background_tasks`): one card each.
+const isBackgroundEvent = (m) => !!m && m.kind === 'system_event' && Array.isArray(m.backgroundTasks) && m.backgroundTasks.length > 0
 
 // A Work turn (ADM-1302): its approvals are drawn on its rail, not after it.
 const isWorkTurn = (m) => !!m && m.role === 'assistant' && m.turnMode === 'work'

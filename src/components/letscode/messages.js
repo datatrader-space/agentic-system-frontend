@@ -151,6 +151,11 @@ const en = {
   'chat.reconnecting': 'Reconnecting',
   'chat.connected': 'Connected',
   'chat.keys': 'Enter to send, Shift+Enter for a new line',
+  // The count pill above the composer (ADM-1360 release): the chat's background tasks, like Claude Code's footer.
+  'chat.bgTasks.one': '{n} background task',
+  'chat.bgTasks.other': '{n} background tasks',
+  'chat.bgRunning': '{n} running',
+  'chat.bgOpen': 'Show the background tasks',
   'chat.restoreAskTitle': 'Restore to before this message?',
   'chat.restoreAskMessage': "Restore the project's files to how they were before this message? Changes made after it are discarded. Files that git ignores are not touched.",
   'chat.restoreConfirm': 'Restore',

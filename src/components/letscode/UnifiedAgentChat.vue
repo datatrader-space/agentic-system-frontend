@@ -66,6 +66,11 @@
               {{ t('chat.review') }}
             </button>
           </div>
+          <!-- A background task this turn started (ADM-1360 release): its live card, as Claude Code's chat shows one. It
+               follows the task's frames and opens it when pressed. -->
+          <div v-if="bgStartCards[message.id]" class="uac-bgstart" data-test="uac-bg-started">
+            <BackgroundTaskCard v-for="bt in bgStartCards[message.id]" :key="bt.id" :task="bt" variant="chat" />
+          </div>
           <div v-if="message.lcCard" class="uac-cards">
             <div v-if="message.lcCard.changes" class="ai-changes">
               <Icon icon="lucide:file-diff" aria-hidden="true" />
@@ -107,6 +112,17 @@
                    @branch="(b) => tabsStore.setBranch(b.chatId, b.branch)" />
 
     <div class="uac-composer">
+      <!-- The chat's background work (ADM-1360 release), like Claude Code's footer: "2 background tasks · 1 running".
+           Hidden when there is none. Opens the list: a popover here, a bottom sheet on a phone. -->
+      <div v-if="bgCounts.total" class="uac-bg">
+        <button ref="bgPillEl" type="button" class="uac-bg-pill" :class="{ on: bg.sheetOpen, live: bgCounts.running }"
+                aria-haspopup="dialog" :aria-expanded="bg.sheetOpen ? 'true' : 'false'" :title="t('chat.bgOpen')"
+                data-test="uac-bg-pill" @click="toggleBgSheet">
+          <Icon :icon="bgCounts.running ? 'lucide:loader-2' : 'lucide:layers'" :class="{ spin: bgCounts.running }" aria-hidden="true" />
+          <span>{{ bgPillText }}</span>
+        </button>
+      </div>
+      <BackgroundTasksSheet v-if="bg.sheetOpen" @close="closeBgSheet" />
       <!-- @ mentions a project file: Go to file's own search and list (useFileSearch, FileResultList). -->
       <div v-if="mention" class="uac-mention" data-test="uac-mention">
         <p class="uac-mention-status" role="status" aria-live="polite">{{ mentionStatus }}</p>
@@ -176,11 +192,15 @@
           </div>
         </div>
       </div>
+      <!-- A background task's state changes, said to a screen reader (the list itself may be closed). -->
+      <p class="sr-only" role="status" aria-live="polite" data-test="uac-bg-live">{{ bg.announcement }}</p>
       <div class="uac-hint">
         <span class="uac-conn" :class="{ on: !chat.connectionLost }"><span class="uac-conn-dot" aria-hidden="true"></span>{{ chat.connectionLost ? t('chat.reconnecting') : t('chat.connected') }}</span>
         <span>{{ t('chat.keys') }}</span>
       </div>
     </div>
+    <!-- Open on a background task: its output, a subagent's transcript or a schedule, in a side drawer. -->
+    <BackgroundTaskDrawer v-if="bg.opened" @open-chat="openChat" />
   </div>
 </template>
 
@@ -208,6 +228,12 @@ import { useComposerAttachments } from '@/composables/useComposerAttachments'
 import { useFileSearch } from '@/composables/useFileSearch'
 import { mentionAt, mentionedPaths } from '@/utils/codeMentions'
 import { t, tn } from './messages'
+import { lazyComponent } from '@/utils/lazyComponent'
+import { BACKGROUND_TASKS, createBackgroundTasks, counts as bgCountsOf, startCardsByMessage } from '@/stores/useBackgroundTasks'
+// The background-tasks popover / sheet and drawer are their own chunks, fetched when first opened.
+const BackgroundTasksSheet = lazyComponent(() => import('./BackgroundTasksSheet.vue'), { showLoading: false })
+const BackgroundTaskDrawer = lazyComponent(() => import('./BackgroundTaskDrawer.vue'), { showLoading: false })
+const BackgroundTaskCard = lazyComponent(() => import('./BackgroundTaskCard.vue'), { showLoading: false })
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -268,6 +294,10 @@ function cardFor(message) {
 // Frames only a project turn sends. Everything else (the stream, the steps, approvals) is the shared chat's.
 function onProjectFrame(d) {
   const t = d?.type
+  // A background task started, wrote a line, moved on or ended (ADM-1360 release): the panel's list, never a chat row.
+  // One that started in the chat on screen gets its live card under the message it started from.
+  if (t === 'background_task' && d.event === 'started') anchorStarted(d)
+  if (bg.handleFrame(d, chat.conversationId)) return true
   // A new turn of this chat began (here, in another tab, or a turn the server started): a card the last turn asked
   // is no longer waiting. The shared chat still handles the frame.
   if (t === 'turn_started' || t === 'followup_turn_started') expirePermissions()
@@ -448,6 +478,36 @@ function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send() }
 }
 
+// ── Background tasks (ADM-1360 release): the page's controller (the bottom panel's Tasks tab reads it too), or one of
+// its own when nothing provides it. The chat on screen's list is read on opening it and after the socket comes back;
+// frames bring every change in between. ──
+const bg = inject(BACKGROUND_TASKS, null) || createBackgroundTasks()
+const bgCounts = computed(() => bgCountsOf(bg))
+// Each task's start card, under the answer of the run that started it (`started_in`, kept after a reload), else under
+// the message its live `started` frame found; each task once.
+const bgStartCards = computed(() => startCardsByMessage(bg, chat.messages))
+const bgPillText = computed(() => {
+  const { total, running } = bgCounts.value
+  const head = tn('chat.bgTasks', total)
+  return running ? `${head} · ${t('chat.bgRunning', { n: running })}` : head
+})
+const bgPillEl = ref(null)
+// The message a task that just started belongs to: the turn's answer on screen, else the newest message.
+function anchorStarted(d) {
+  const task = d.task || d
+  const cid = d.conversation_id != null && d.conversation_id !== '' ? String(d.conversation_id) : String(chat.conversationId || '')
+  if (!task || task.id == null || !cid || cid !== String(chat.conversationId || '')) return
+  const anchorMsg = lastAssistant() || chat.messages[chat.messages.length - 1]
+  if (anchorMsg) bg.anchor(cid, anchorMsg.id, task.id)
+}
+function toggleBgSheet() { if (bg.sheetOpen) closeBgSheet(); else bg.openSheet() }
+function closeBgSheet() {
+  bg.closeSheet()
+  nextTick(() => bgPillEl.value?.focus())
+}
+watch(() => chat.conversationId, (id) => bg.setConversation(id || ''))
+watch(() => chat.connectionLost, (lost, was) => { if (was && !lost && bg.conversationId) bg.load() })
+
 // ── Chat tabs (ADM-1221): the editor's tabs. One per chat; a tab without an id is a new chat not sent yet, and its
 // first message gives it one. The list lives in useCodingChatTabs, which the editor's tab bar draws; this panel binds
 // what a tab does (tabHandlers). The key never changes: the editor names its front tab by it. ──
@@ -558,6 +618,7 @@ const tabHandlers = { select: selectTab, newChat, close: closeTab, title: tabTit
                       stateLabel: tabStateLabel, isActive: isActiveTab }
 // A chat left running reports the files its turn changed, so the tree and Source control reload as for this one.
 function onParkedFrame(_id, d) {
+  if (bg.handleFrame(d, _id)) return
   if (d && d.type === 'lets_code_changes') { noteWorktree(d); emit('changes') }
   if (d && d.type === 'lets_code_branch') noteBranch(d)
 }
@@ -784,6 +845,7 @@ onBeforeUnmount(() => {
   chat.reset()                             // a Coding Agent chat still running keeps going on its own socket
   chat.keepRunsOnLeave = false
   tabsStore.unbind(tabHandlers)
+  bg.reset()
   // Give the main chat back what it had: its own socket endpoint and agent.
   if (previous) { chat.repoId = previous.repoId || 0; if (previous.agentId) chat.selectedAgentId = previous.agentId }
 })
@@ -862,6 +924,19 @@ defineExpose({ send, addSelection, sendReview, openChat })
 .uac-tasks :deep(.ctl) { margin: 0; }
 .uac-tasks + .uac-composer { border-top: none; }
 
+/* ── The background-tasks pill (ADM-1360 release), above the composer's box ── */
+.uac-bg { display: flex; }
+.uac-bg-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 0 10px; border: 1px solid var(--vm-line-2); border-radius: 999px; background: var(--vm-surface); color: var(--vm-ink-soft); font: 600 12px var(--vm-font-sans); font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color .15s, border-color .15s, color .15s; touch-action: manipulation; }
+.uac-bg-pill span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uac-bg-pill :deep(svg) { width: 14px; height: 14px; flex: 0 0 auto; }
+.uac-bg-pill.live :deep(svg) { color: var(--vm-violet); }
+.uac-bg-pill:hover, .uac-bg-pill.on { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-ink); }
+.uac-bg-pill:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 2px; }
+.uac-bg-pill .spin { animation: uacspin 1s linear infinite; }
+
+/* The live card of a background task this turn started. */
+.uac-bgstart { display: flex; flex-direction: column; gap: 8px; margin: -6px 0 14px 30px; }
+
 /* ── Restore to before a message: a quiet action under the person's own bubble ── */
 .uac-restore { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin: -8px 0 14px; }
 .uac-restore-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--vm-ink-soft); font: 600 12px var(--vm-font-sans); cursor: pointer; transition: color .15s, background-color .15s, border-color .15s; }
@@ -929,7 +1004,7 @@ defineExpose({ send, addSelection, sendReview, openChat })
   .uac-circle { width: 44px; height: 44px; }
   .uac-attach-btn { width: 44px; height: 44px; }
   .uac-hint > span:last-child { display: none; }
-  .ai-changes-open, .ai-preview-open, .uac-restore-btn { min-height: 44px; }
+  .ai-changes-open, .ai-preview-open, .uac-restore-btn, .uac-bg-pill { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
   /* WRAP, never overlap (ADM-1330, live at 375 px 2026-11-23): the attach button, the model picker and the Chat/Work
      switch at their 44 px size do not fit one row beside Send/Stop, which then covered the switch. The left group
@@ -938,6 +1013,6 @@ defineExpose({ send, addSelection, sendReview, openChat })
   .uac-bar-left { flex: 1 1 auto; flex-wrap: wrap; row-gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .uac-restore-btn .spin { animation: none; }
+  .uac-restore-btn .spin, .uac-bg-pill .spin { animation: none; }
 }
 </style>

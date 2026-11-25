@@ -264,6 +264,7 @@ import UnifiedAgentChat from '../components/letscode/UnifiedAgentChat.vue'
 import { CODING_CHAT_TABS, createCodingChatTabs } from '@/stores/useCodingChatTabs'
 import { LANGUAGE_SERVERS, createLanguageServers } from '@/stores/useLanguageServers'
 import { DEBUGGER, createDebugger } from '@/stores/useDebugger'
+import { BACKGROUND_TASKS, createBackgroundTasks } from '@/stores/useBackgroundTasks'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
@@ -292,6 +293,9 @@ const agentChat = ref(null)
 // goes to its box.
 const chatTabs = createCodingChatTabs()
 provide(CODING_CHAT_TABS, chatTabs)
+// The Coding Agent's background tasks of the chat on screen (ADM-1360 release): the chat panel feeds it, and its count
+// pill, the bottom panel's Tasks tab and the chat's event cards read it.
+provide(BACKGROUND_TASKS, createBackgroundTasks())
 // The editor's language servers and the bottom panel's Problems / References (ADM-1205 phase F item 16): one store,
 // for the project that is open; another project starts from nothing.
 const languages = createLanguageServers({ systemId: () => Number(active.value?.system_id),
