@@ -32,6 +32,8 @@ export default {
   'dashboard-workflow-builder': { label: 'Workflows', parent: 'dashboard-home' },
   'dashboard-workflow-canvas': { label: 'Canvas', parent: 'dashboard-workflow-builder' },
   'dashboard-workflow-runs': { label: 'Workflow runs', parent: 'dashboard-workflow-builder' },
+  'dashboard-workflow-tables': { label: 'Tables', parent: 'dashboard-workflow-builder' },
+  'dashboard-workflow-table': { label: 'Table', parent: 'dashboard-workflow-tables' },
   'dashboard-schedules': { label: 'Schedules', parent: 'dashboard-home' },
   'dashboard-budgets': { label: 'Budgets', parent: 'dashboard-home' },
   'dashboard-activity': { label: 'Activity', parent: 'dashboard-home' },

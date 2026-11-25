@@ -39,6 +39,12 @@ export const WORKFLOW_LEAVE_QUESTION = {
 
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 
+/** A workflow's workspace as the server sends it (an id, or { id, name }) -> its id, or null when not sent. */
+export function workspaceIdOf(ws) {
+  const id = ws && typeof ws === 'object' ? ws.id : ws
+  return id === undefined || id === null || id === '' ? null : id
+}
+
 // A node saved without a canvas place (by the AADML MCP or the API) is dropped by Vue Flow without a word and the
 // workflow showed "0 nodes" (ADM-1135); such a node is laid out left to right.
 function placed(nodes) {
@@ -184,9 +190,11 @@ export function useWorkflowDoc(graphId, {
   let graphRest = {}                     // every other key of the stored graph (input_schema, output_schema, ...)
 
   // `myRole` and `owner` come from the server (ADM-1339): what the page offers follows the role; the server enforces it.
+  // `workspace` is the workflow's own workspace id (ADM-1363): its Data Tables and database connections are the ones
+  // its steps may use, so the builder's pickers read that workspace's, never the one the page happens to be in.
   const meta = reactive({
     id: null, publicId: null, version: 1, etag: '', status: 'draft', triggers: [], lastRun: null, publishedVersionId: null,
-    myRole: 'viewer', owner: null,
+    myRole: 'viewer', owner: null, workspace: null,
   })
   const agents = shallowRef([])
   const agentsError = ref('')
@@ -261,6 +269,7 @@ export function useWorkflowDoc(graphId, {
       meta.publishedVersionId = g.published_version_id ?? null
       meta.myRole = workflowRole(g.my_role)
       meta.owner = g.owner || null
+      meta.workspace = workspaceIdOf(g.workspace)
       allGraphs.value = data.all_graphs?.results || data.all_graphs || []
       scripts.value = data.scripts?.results || data.scripts || []
       agentsError.value = ''

@@ -36,6 +36,8 @@
 //   hint          def-level hint rendered after the schema form
 //   customTail    marker the inspector uses to append extra UI after the schema form (server `custom_tail`)
 //   outputSample  design-time sample for the Data Picker (server `output_sample`)
+//   branches      the named outputs a deciding step routes by (server `branches`, ADM-1363): a Data table step's
+//                 ["exists", "missing"], drawn while its operation is Exists (see wfBranchHandles)
 //   frameMode     the step may run on a camera frame, in a workflow that starts with "Each camera frame" (server
 //                 `frame_mode`; ADM-1351 phase 2): a stream refuses a frame workflow with any other step
 
@@ -67,6 +69,13 @@ export const WF_ICONS = Object.freeze({
   'logic.foreach': 'lucide:repeat-2',
   'logic.delay': 'lucide:timer',
   'action.subworkflow': 'lucide:workflow',
+  // Data (ADM-1363): the workspace's own tables and external databases.
+  'data.table': 'lucide:table-2',
+  'trigger.table': 'lucide:table-properties',
+  'data.sql': 'lucide:database',
+  'data.mongo': 'lucide:leaf',
+  'data.redis': 'lucide:layers',
+  'trigger.database': 'lucide:database-zap',
 })
 
 // THE category set (plan §3.2): one label, one Lucide icon and one colour token per category. The colours are the
@@ -78,8 +87,9 @@ export const WF_CATEGORIES = {
   logic: { label: 'Logic', icon: 'lucide:split', token: '--wf-cat-logic' },
   media: { label: 'Media', icon: 'lucide:film', token: '--wf-cat-media' },
   vision: { label: 'Vision', icon: 'lucide:eye', token: '--wf-cat-vision' },
+  data: { label: 'Data', icon: 'lucide:database', token: '--wf-cat-data' },
 }
-export const WF_CATEGORY_ORDER = ['trigger', 'agent', 'action', 'logic', 'media', 'vision']
+export const WF_CATEGORY_ORDER = ['trigger', 'agent', 'action', 'logic', 'media', 'vision', 'data']
 
 // Filled in place by setStepRegistry (never reassigned, so importers keep their reference).
 export const WF_NODE_DEFS = {}
@@ -124,6 +134,7 @@ export function setStepRegistry(json) {
       outputSample: s.output_sample ?? undefined,
       outputs: s.outputs && typeof s.outputs === 'object' ? s.outputs : {},
       inputs: s.inputs && typeof s.inputs === 'object' ? s.inputs : {},
+      branches: Array.isArray(s.branches) ? s.branches.filter((b) => typeof b === 'string' && b) : [],
     }
   }
   for (const k of Object.keys(WF_NODE_DEFS)) delete WF_NODE_DEFS[k]
@@ -144,6 +155,22 @@ export function resetStepRegistry() {
 }
 
 export function wfDef(type) { return WF_NODE_DEFS[type] || null }
+
+// A condition's two outputs: the engine routes it by true / false (executor `_BRANCH_HANDLES`).
+const CONDITION_BRANCHES = Object.freeze(['true', 'false'])
+
+/**
+ * The named outputs a step routes by, for its data ([] for a step with one plain output). A condition always has
+ * true / false. A step whose registry entry declares `branches` (a Data table step: exists / missing, ADM-1363) has
+ * them only while its operation is the deciding one, Exists: every other operation has one plain output, as the
+ * engine routes it (executor `_branch_handle`).
+ */
+export function wfBranchHandles(type, data) {
+  if (type === 'logic.condition') return CONDITION_BRANCHES
+  const branches = WF_NODE_DEFS[type]?.branches || []
+  if (!branches.length) return []
+  return (data || {}).operation === 'exists' ? branches : []
+}
 
 /** The category id of a node type ('logic' for a type the registry does not know). */
 export function wfCategory(type) { return WF_NODE_DEFS[type]?.category || 'logic' }

@@ -20,6 +20,10 @@
             title="Every run across all your workflows — what failed, what needs a decision">
             <Activity :size="15" :stroke-width="2" aria-hidden="true" /> Workflow Runs
           </button>
+          <!-- Data Tables (ADM-1363): the workspace's tables the workflows store rows in. Here, like Runs, not in the nav. -->
+          <button type="button" @click="openTables" class="wf-btn" title="The workspace's tables your workflows store and read rows in">
+            <Table2 :size="15" :stroke-width="2" aria-hidden="true" /> Tables
+          </button>
           <button type="button" @click="openTemplates" class="wf-btn">
             <LayoutTemplate :size="15" :stroke-width="2" aria-hidden="true" /> Templates
           </button>
@@ -153,7 +157,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Activity, Archive, ArchiveRestore, ArrowRight, Copy, Download, LayoutTemplate, Plus, Upload, Users, Workflow,
+  Activity, Archive, ArchiveRestore, ArrowRight, Copy, Download, LayoutTemplate, Plus, Table2, Upload, Users, Workflow,
 } from 'lucide-vue-next'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
@@ -279,6 +283,7 @@ function needs(t) {
 }
 
 function openRuns() { router.push('/dashboard/workflow-runs') }
+function openTables() { router.push({ name: 'dashboard-workflow-tables' }) }
 
 // A failed load says so in the dialog, with Try again; it never reads as "No templates available".
 async function loadTemplates() {

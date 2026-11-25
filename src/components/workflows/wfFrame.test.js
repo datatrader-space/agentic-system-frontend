@@ -40,11 +40,13 @@ describe('a frame workflow', () => {
 
   it('names the steps that may follow the frame, in the registry order, by their labels', () => {
     const labels = frameStepLabels()
-    expect(labels).toHaveLength(6)
+    // The four vision steps, Condition, For-each and (ADM-1363) Data table and SQL database.
+    expect(labels).toHaveLength(8)
+    expect(labels).toContain('Data table')
     expect(labels).not.toContain('Each camera frame')
     const json = JSON.parse(JSON.stringify(fixture))
     json.steps.find((s) => s.type === 'logic.delay').frame_mode = true
     setStepRegistry(json)
-    expect(frameStepLabels()).toHaveLength(7)
+    expect(frameStepLabels()).toHaveLength(9)
   })
 })

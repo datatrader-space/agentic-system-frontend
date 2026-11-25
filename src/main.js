@@ -260,6 +260,9 @@ const router = createRouter({
         // Operations view (ADM-278 / P7) — cross-workflow, because "what needs me right now" cannot be
         // asked of a single workflow; the dead run is on whichever one you were not looking at.
         { path: 'workflow-runs', name: 'dashboard-workflow-runs', component: () => import('./views/WorkflowRunsPage.vue') },
+        // Data Tables (ADM-1363): the workspace's built-in tables the workflows' Data table steps read and write.
+        { path: 'workflow-tables', name: 'dashboard-workflow-tables', component: () => import('./views/WorkflowTablesPage.vue') },
+        { path: 'workflow-tables/:id', name: 'dashboard-workflow-table', component: () => import('./views/WorkflowTablesPage.vue') },
         { path: 'schedules', name: 'dashboard-schedules', component: SchedulesPage },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },

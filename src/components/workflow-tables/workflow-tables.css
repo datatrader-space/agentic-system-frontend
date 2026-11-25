@@ -1,0 +1,33 @@
+/* The Tables page's and the Databases section's shared buttons and chips (ADM-1363). Not scoped: the dialogs' footers
+   are rendered by AppDialog. Every colour is a --vm-* token, so [data-theme="dark"] re-skins it. */
+/* Native checkboxes, radios, selects and scrollbars follow the theme too: without this they stay white on the dark
+   surfaces. Scoped to these pages and their dialogs; the app shell does not set color-scheme yet. */
+:root[data-theme="dark"] :is(.wtp, .trg-dlg, .tcd, .dcs, .dcd, .dsd) { color-scheme: dark; }
+.tp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px;
+  border: 1px solid var(--vm-line-2); border-radius: 8px; background: var(--vm-surface);
+  color: var(--vm-ink-soft); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background-color .15s var(--vm-ease2), color .15s var(--vm-ease2), border-color .15s var(--vm-ease2);
+}
+.tp-btn:hover:not(:disabled) { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.tp-btn:disabled { opacity: .6; cursor: not-allowed; }
+.tp-btn:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.tp-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.tp-btn--primary { border-color: transparent; background: var(--vm-primary); color: #fff; }
+.tp-btn--primary:hover:not(:disabled) { background: var(--vm-primary-d); color: #fff; }
+.tp-btn--danger { border-color: transparent; background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.tp-btn--danger:hover:not(:disabled) { background: var(--vm-red-soft); color: var(--vm-red-ink); border-color: var(--vm-red-ink); }
+.tp-btn--ghost { border-color: transparent; background: none; }
+.tp-btn--icon { width: 36px; padding: 0; }
+.tp-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tp-chip svg { width: 12px; height: 12px; }
+.tp-chip--muted { background: var(--vm-surface-soft); color: var(--vm-ink-soft); border: 1px solid var(--vm-line); }
+.tp-chip--ok { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.tp-chip--warn { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.tp-chip--bad { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.tp-chip--info { background: var(--vm-primary-soft); color: var(--vm-link); }
+.tp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.spin { animation: tp-spin 1s linear infinite; }
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+@media (pointer: coarse) { .tp-btn { min-height: 44px; } .tp-btn--icon { width: 44px; } }
+@media (prefers-reduced-motion: reduce) { .tp-btn { transition: none; } .spin { animation: none; } }

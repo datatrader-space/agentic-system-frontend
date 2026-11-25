@@ -300,7 +300,7 @@ import { useHelpAssistant } from '@/composables/useHelpAssistant'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import api from '@/services/api'
-import { stepRegistryReady, wfDef, wfIcon } from '@/config/wfNodeDefinitions'
+import { stepRegistryReady, wfBranchHandles, wfDef, wfIcon } from '@/config/wfNodeDefinitions'
 import { loadStepRegistry } from '@/config/wfStepRegistry'
 import { serverSentence, workflowAbilities } from '@/utils/workflowAccess'
 import { deleteSelection } from '@/utils/wfFlow'
@@ -461,7 +461,7 @@ function openPicker(ctx) {
     // With one step selected, a step added from the keyboard or the toolbar follows it (and is connected).
     const ids = canvas.value?.selectedIds().nodeIds || []
     const only = ids.length === 1 && doc.nodes.value.find((n) => n.id === ids[0])
-    next = only ? { mode: 'from', source: { nodeId: only.id, handle: only.type === 'logic.condition' ? 'true' : null } } : { mode: 'free' }
+    next = only ? { mode: 'from', source: { nodeId: only.id, handle: wfBranchHandles(only.type, only.data)[0] || null } } : { mode: 'free' }
   }
   pickerCtx.value = next
   pickerOpen.value = true

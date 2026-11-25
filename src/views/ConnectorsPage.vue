@@ -315,6 +315,9 @@
         <ConnectorGettingStartedSidebar v-if="!compact" class="getting-started-pane" @browse="openBrowse" />
       </div>
 
+      <!-- ── Databases (ADM-1363): the connections workflow Data steps use ── -->
+      <DatabaseConnectionsSection />
+
       <!-- ── Execution sandboxes (Workspace, distinct section) ── -->
       <details v-if="compact" class="compact-help"><summary>How connectors work</summary><ConnectorGettingStartedSidebar @browse="openBrowse" /></details>
       <section class="sandboxes">
@@ -499,6 +502,7 @@ import IntegrationHubModal from '../components/connectors/IntegrationHubModal.vu
 import ConnectorTabs from '../components/connectors/ConnectorTabs.vue'
 import ConnectorGettingStartedSidebar from '../components/connectors/ConnectorGettingStartedSidebar.vue'
 import SecureEntryModal from '../components/connectors/SecureEntryModal.vue'
+import DatabaseConnectionsSection from '../components/connectors/DatabaseConnectionsSection.vue'
 
 const props = defineProps({ compact: { type: Boolean, default: false } })
 const settingsDialogHost = inject('settingsDialogHost', null)

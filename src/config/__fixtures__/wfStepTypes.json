@@ -96,7 +96,8 @@
      "description": "more results of the same job"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.manual",
@@ -161,7 +162,8 @@
      "description": "the run's inputs: each declared input by its key (an image input is an image)"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.schedule",
@@ -318,7 +320,8 @@
      "description": "the trigger payload"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.webhook",
@@ -347,7 +350,8 @@
      "description": "the request payload"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.channel",
@@ -397,7 +401,7 @@
      "key": "keyword",
      "type": "string",
      "title": "Keyword filter (optional)",
-     "placeholder": "only fire if message contains\u2026"
+     "placeholder": "only fire if message contains…"
     }
    ],
    "hint": "",
@@ -412,7 +416,8 @@
      "description": "the channel message"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.connector",
@@ -473,7 +478,8 @@
      "description": "the connector's event"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.training.stream_event",
@@ -541,7 +547,8 @@
      "description": "the camera event (event, source {id, name}, rule, frame_time, matched, answer, image, snapshot_link, snapshot_url)"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "trigger.frame",
@@ -587,7 +594,8 @@
      "description": "the frame (image, frame, t, stream, source {id, name} or null)"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "agent.run",
@@ -627,7 +635,8 @@
      "description": "each field of data.output_schema, when data.output_mode is json or schema"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "llm.call",
@@ -739,7 +748,8 @@
      "image",
      "images"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "vision.model",
@@ -775,7 +785,7 @@
      "type": "enum",
      "optionsKey": "visionModels",
      "title": "Model",
-     "placeholder": "Select a model\u2026",
+     "placeholder": "Select a model…",
      "help": "A model of one of your Training Data projects (its test server or staging deployment must be running), or a ready model. Each image is paid from your balance at the model's price."
     },
     {
@@ -851,7 +861,8 @@
     "image": [
      "image"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "vision.filter",
@@ -931,7 +942,8 @@
     "detections": [
      "detections"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "vision.crop",
@@ -1000,7 +1012,8 @@
     "detections": [
      "detections"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "vision.draw",
@@ -1052,7 +1065,8 @@
     "detections": [
      "detections"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "action.tool",
@@ -1110,7 +1124,8 @@
      "description": "the tool's name"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "action.mcp_tool",
@@ -1159,7 +1174,8 @@
      "description": "the MCP server"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "action.script",
@@ -1196,7 +1212,7 @@
      "type": "enum",
      "optionsKey": "scripts",
      "title": "Or a saved script (optional)",
-     "placeholder": "Select a script\u2026",
+     "placeholder": "Select a script…",
      "help": "A saved script of one of your agents, for code that needs the internet or a key. Use the code box or a saved script, not both."
     },
     {
@@ -1215,7 +1231,7 @@
      "mono": true,
      "title": "Images (optional)",
      "placeholder": "{{nodes.crop.output.images}}",
-     "help": "Several images, for example the crops of a Crop objects step, separated by commas. The script reads them as ../input/images/0.jpg, 1.jpg\u2026 At most 10 images, 20 MB in all, with Image."
+     "help": "Several images, for example the crops of a Crop objects step, separated by commas. The script reads them as ../input/images/0.jpg, 1.jpg… At most 10 images, 20 MB in all, with Image."
     },
     {
      "key": "detections",
@@ -1265,7 +1281,8 @@
     "detections": [
      "detections"
     ]
-   }
+   },
+   "branches": []
   },
   {
    "type": "action.channel",
@@ -1321,7 +1338,7 @@
      "key": "slack_channel",
      "type": "string",
      "title": "Slack channel (id or #name)",
-     "placeholder": "C0123\u2026 or #general",
+     "placeholder": "C0123… or #general",
      "showIf": {
       "kind": "slack"
      }
@@ -1330,7 +1347,7 @@
      "key": "url",
      "type": "string",
      "title": "Webhook URL",
-     "placeholder": "https://\u2026",
+     "placeholder": "https://…",
      "showIf": {
       "kind": "webhook"
      }
@@ -1358,7 +1375,7 @@
      "key": "to",
      "type": "string",
      "title": "Recipient(s)",
-     "placeholder": "to@example.com, other@\u2026",
+     "placeholder": "to@example.com, other@…",
      "showIf": {
       "kind": "email"
      }
@@ -1405,7 +1422,8 @@
      "description": "webhook, telegram"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "action.http",
@@ -1443,7 +1461,7 @@
      "type": "string",
      "insertable": true,
      "title": "URL",
-     "placeholder": "https://\u2026"
+     "placeholder": "https://…"
     },
     {
      "key": "json_text",
@@ -1470,7 +1488,8 @@
      "description": "the response body"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "logic.condition",
@@ -1502,7 +1521,7 @@
    "output_sample": {
     "result": true,
     "text": "True",
-    "expression": "\u2026 contains ok"
+    "expression": "… contains ok"
    },
    "outputs": {
     "result": {
@@ -1518,7 +1537,8 @@
      "description": "the expression as evaluated"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "logic.approval",
@@ -1565,7 +1585,8 @@
      "description": "who may decide"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "logic.foreach",
@@ -1607,7 +1628,8 @@
      "description": "a summary"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "logic.delay",
@@ -1642,7 +1664,8 @@
      "description": "what happened"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
   },
   {
    "type": "action.subworkflow",
@@ -1667,7 +1690,7 @@
      "type": "enum",
      "optionsKey": "graphs",
      "title": "Workflow to run",
-     "placeholder": "Select a workflow\u2026"
+     "placeholder": "Select a workflow…"
     }
    ],
    "hint": "Runs another graph you own and waits for it (max depth 3). Its trigger payload receives this run's context.",
@@ -1685,7 +1708,1569 @@
      "description": "its answer"
     }
    },
-   "inputs": {}
+   "inputs": {},
+   "branches": []
+  },
+  {
+   "type": "data.table",
+   "category": "data",
+   "label": "Data table",
+   "sub": "Store and read rows in a workspace table",
+   "order": 24,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "frame_mode": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "operation": "insert",
+    "table": null,
+    "values": [],
+    "filters": [],
+    "match": "all",
+    "order_by": "",
+    "order": "asc",
+    "limit": null,
+    "cursor": "",
+    "items": "",
+    "mapping": [],
+    "column": "",
+    "value": "",
+    "return_rows": false,
+    "dry_run": false,
+    "only_changed": false,
+    "compare_columns": ""
+   },
+   "fields": [
+    {
+     "key": "operation",
+     "type": "enum",
+     "title": "Operation",
+     "options": [
+      [
+       "insert",
+       "Insert a row"
+      ],
+      [
+       "insert_many",
+       "Insert many rows"
+      ],
+      [
+       "get_rows",
+       "Get rows"
+      ],
+      [
+       "get_one",
+       "Get one row (by a unique column)"
+      ],
+      [
+       "update",
+       "Update rows"
+      ],
+      [
+       "upsert",
+       "Insert or update (upsert)"
+      ],
+      [
+       "delete",
+       "Delete rows"
+      ],
+      [
+       "delete_all",
+       "Delete all rows"
+      ],
+      [
+       "exists",
+       "If a row exists"
+      ],
+      [
+       "count",
+       "Count rows"
+      ]
+     ]
+    },
+    {
+     "key": "table",
+     "type": "enum",
+     "optionsKey": "tables",
+     "title": "Table",
+     "placeholder": "Select a table",
+     "help": "A Data Table of this workflow's workspace (Workflows > Tables). The workflow reads and writes it as its owner."
+    },
+    {
+     "key": "values",
+     "type": "kv",
+     "title": "Values",
+     "addLabel": "+ Add value",
+     "insertable": true,
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "value",
+       "ph": "value or {{template}}"
+      }
+     ],
+     "showIf": {
+      "operation": [
+       "insert",
+       "update",
+       "upsert"
+      ]
+     },
+     "help": "One value per column. A template is written as its value: {{nodes.find.output.count}} is the number."
+    },
+    {
+     "key": "items",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Rows (a list)",
+     "placeholder": "{{nodes.<id>.output.items}}",
+     "showIf": {
+      "operation": "insert_many"
+     },
+     "help": "A list from an earlier step. Each item is a row, or is read with the mapping below."
+    },
+    {
+     "key": "mapping",
+     "type": "kv",
+     "title": "Mapping (optional)",
+     "addLabel": "+ Add column",
+     "insertable": true,
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "value",
+       "ph": "{{item.email}}"
+      }
+     ],
+     "showIf": {
+      "operation": "insert_many"
+     },
+     "help": "Each column's value from the item, for example {{item.email}}. Empty: each item is written as it is."
+    },
+    {
+     "key": "column",
+     "type": "string",
+     "mono": true,
+     "title": "Unique column",
+     "showIf": {
+      "operation": [
+       "get_one",
+       "upsert"
+      ]
+     },
+     "help": "Get one finds the row whose unique column has the value; Upsert changes that row, or adds one."
+    },
+    {
+     "key": "value",
+     "type": "string",
+     "insertable": true,
+     "title": "Value",
+     "showIf": {
+      "operation": "get_one"
+     }
+    },
+    {
+     "key": "filters",
+     "type": "kv",
+     "title": "Filters",
+     "addLabel": "+ Add filter",
+     "insertable": true,
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "op",
+       "ph": "op",
+       "options": [
+        [
+         "eq",
+         "equals"
+        ],
+        [
+         "neq",
+         "not equals"
+        ],
+        [
+         "gt",
+         ">"
+        ],
+        [
+         "gte",
+         ">="
+        ],
+        [
+         "lt",
+         "<"
+        ],
+        [
+         "lte",
+         "<="
+        ],
+        [
+         "contains",
+         "contains"
+        ],
+        [
+         "starts_with",
+         "starts with"
+        ],
+        [
+         "is_empty",
+         "is empty"
+        ],
+        [
+         "is_not_empty",
+         "is not empty"
+        ]
+       ]
+      },
+      {
+       "key": "value",
+       "ph": "value or {{template}}"
+      }
+     ],
+     "showIf": {
+      "operation": [
+       "get_rows",
+       "update",
+       "delete",
+       "exists",
+       "count"
+      ]
+     },
+     "help": "Update and Delete need at least one filter."
+    },
+    {
+     "key": "match",
+     "type": "enum",
+     "title": "Rows must match",
+     "options": [
+      [
+       "all",
+       "All filters"
+      ],
+      [
+       "any",
+       "Any filter"
+      ]
+     ],
+     "showIf": {
+      "operation": [
+       "get_rows",
+       "update",
+       "delete",
+       "exists",
+       "count"
+      ]
+     }
+    },
+    {
+     "key": "order_by",
+     "type": "string",
+     "mono": true,
+     "title": "Order by (optional)",
+     "placeholder": "id",
+     "showIf": {
+      "operation": "get_rows"
+     }
+    },
+    {
+     "key": "order",
+     "type": "enum",
+     "title": "Order",
+     "options": [
+      [
+       "asc",
+       "Ascending"
+      ],
+      [
+       "desc",
+       "Descending"
+      ]
+     ],
+     "showIf": {
+      "operation": "get_rows"
+     }
+    },
+    {
+     "key": "limit",
+     "type": "number",
+     "min": 1,
+     "title": "Limit (optional)",
+     "placeholder": "every row",
+     "showIf": {
+      "operation": "get_rows"
+     },
+     "help": "Empty returns every matching row. With a limit, next_cursor reads the next page."
+    },
+    {
+     "key": "cursor",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Cursor (optional)",
+     "placeholder": "{{nodes.<id>.output.next_cursor}}",
+     "showIf": {
+      "operation": "get_rows"
+     }
+    },
+    {
+     "key": "return_rows",
+     "type": "boolean",
+     "title": "Return the rows",
+     "showIf": {
+      "operation": [
+       "insert_many",
+       "update",
+       "delete"
+      ]
+     }
+    },
+    {
+     "key": "dry_run",
+     "type": "boolean",
+     "title": "Dry run (write nothing; say what would change)",
+     "showIf": {
+      "operation": [
+       "insert",
+       "insert_many",
+       "update",
+       "upsert",
+       "delete",
+       "delete_all"
+      ]
+     }
+    },
+    {
+     "key": "only_changed",
+     "type": "boolean",
+     "title": "On camera frames: only when something changed",
+     "showIf": {
+      "operation": "insert"
+     },
+     "help": "After Each camera frame, write a row only when its values differ from the last row this step wrote."
+    },
+    {
+     "key": "compare_columns",
+     "type": "string",
+     "mono": true,
+     "title": "Compare these columns (optional)",
+     "placeholder": "zone, people",
+     "showIf": {
+      "only_changed": true
+     }
+    }
+   ],
+   "hint": "Update and Delete need a filter; Delete all rows asks on an approval card first. Exists has two outputs: exists and missing. A Test run reads for real and writes nothing. After Each camera frame only Insert can run: the rows are written together every 30 seconds or 500 rows.",
+   "output_sample": {
+    "operation": "get_rows",
+    "table": {
+     "id": 0,
+     "name": "Contacts"
+    },
+    "rows": [
+     {
+      "id": 1,
+      "email": "a@example.com",
+      "created_at": "2026-11-25T09:00:00+00:00",
+      "updated_at": "2026-11-25T09:00:00+00:00"
+     }
+    ],
+    "count": 1,
+    "next_cursor": null
+   },
+   "outputs": {
+    "row": {
+     "kind": "object",
+     "description": "insert, get_one, upsert: the row ({id, created_at, updated_at, <column>...})"
+    },
+    "rows": {
+     "kind": "list",
+     "description": "get_rows, update, delete (and insert_many with return_rows): the rows"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many rows were read, written, deleted or match"
+    },
+    "next_cursor": {
+     "kind": "text",
+     "description": "get_rows with a limit: the next page's cursor, empty on the last"
+    },
+    "exists": {
+     "kind": "boolean",
+     "description": "exists: whether a matching row exists (the exists / missing handles)"
+    },
+    "found": {
+     "kind": "boolean",
+     "description": "get_one: whether the row was found"
+    },
+    "created": {
+     "kind": "boolean",
+     "description": "upsert: whether a row was added"
+    },
+    "table": {
+     "kind": "object",
+     "description": "the table {id, name}"
+    },
+    "text": {
+     "kind": "text",
+     "description": "what the step did"
+    }
+   },
+   "inputs": {},
+   "branches": [
+    "exists",
+    "missing"
+   ]
+  },
+  {
+   "type": "trigger.table",
+   "category": "trigger",
+   "label": "Table row",
+   "sub": "A row was added or changed in a table",
+   "order": 25,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "frame_mode": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "table": null,
+    "on": "added"
+   },
+   "fields": [
+    {
+     "type": "note",
+     "text": "Starts once for each row added or changed in the table, after the change is saved. Read the row as {{trigger.row.<column>}}, its id as {{trigger.row.id}} and what happened as {{trigger.change}} (added or changed)."
+    },
+    {
+     "key": "table",
+     "type": "enum",
+     "optionsKey": "tables",
+     "title": "Table",
+     "placeholder": "Select a table",
+     "help": "A Data Table of this workflow's workspace."
+    },
+    {
+     "key": "on",
+     "type": "enum",
+     "title": "Start when",
+     "options": [
+      [
+       "added",
+       "A row is added"
+      ],
+      [
+       "changed",
+       "A row is changed"
+      ],
+      [
+       "added_or_changed",
+       "A row is added or changed"
+      ]
+     ]
+    }
+   ],
+   "hint": "A row this workflow writes itself never starts it again, and a chain of table workflows stops after 3.",
+   "output_sample": {
+    "change": "added",
+    "table": {
+     "id": 0,
+     "name": "Contacts"
+    },
+    "row": {
+     "id": 1,
+     "email": "a@example.com"
+    },
+    "chain": []
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "the change (change, table {id, name}, row {id, created_at, updated_at, <column>...})"
+    }
+   },
+   "inputs": {},
+   "branches": []
+  },
+  {
+   "type": "data.sql",
+   "category": "data",
+   "label": "SQL database",
+   "sub": "Postgres, MySQL / MariaDB, SQL Server",
+   "order": 26,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "frame_mode": true,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "connection": "",
+    "operation": "select",
+    "table": "",
+    "columns": "",
+    "filters": [],
+    "match": "all",
+    "order_by": [],
+    "limit": "",
+    "cursor": "",
+    "values": [],
+    "items": "",
+    "batch_mode": "transaction",
+    "match_columns": "",
+    "query": "",
+    "params": []
+   },
+   "fields": [
+    {
+     "key": "connection",
+     "type": "enum",
+     "optionsKey": "databaseConnections",
+     "title": "Connection",
+     "placeholder": "Select a database connection…",
+     "help": "A database connection of this workspace (Settings > Connectors > Databases). The workflow uses it as its owner; a read-only connection can only read."
+    },
+    {
+     "key": "operation",
+     "type": "enum",
+     "title": "Operation",
+     "options": [
+      [
+       "select",
+       "Select rows"
+      ],
+      [
+       "insert",
+       "Insert"
+      ],
+      [
+       "update",
+       "Update"
+      ],
+      [
+       "upsert",
+       "Insert or update (upsert)"
+      ],
+      [
+       "delete",
+       "Delete"
+      ],
+      [
+       "query",
+       "Run a query"
+      ]
+     ]
+    },
+    {
+     "key": "table",
+     "type": "enum",
+     "optionsKey": "databaseTables",
+     "title": "Table",
+     "showIf": {
+      "operation": [
+       "select",
+       "insert",
+       "update",
+       "upsert",
+       "delete"
+      ]
+     },
+     "help": "Read from the connection. A name that is not in the database is refused."
+    },
+    {
+     "key": "columns",
+     "type": "string",
+     "title": "Columns (optional)",
+     "placeholder": "id, email",
+     "showIf": {
+      "operation": "select"
+     },
+     "help": "Comma separated. Empty: every column."
+    },
+    {
+     "key": "filters",
+     "type": "kv",
+     "title": "Filters",
+     "addLabel": "+ Add filter",
+     "showIf": {
+      "operation": [
+       "select",
+       "update",
+       "delete"
+      ]
+     },
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "op",
+       "ph": "op",
+       "options": [
+        [
+         "eq",
+         "equals"
+        ],
+        [
+         "ne",
+         "does not equal"
+        ],
+        [
+         "gt",
+         ">"
+        ],
+        [
+         "gte",
+         ">="
+        ],
+        [
+         "lt",
+         "<"
+        ],
+        [
+         "lte",
+         "<="
+        ],
+        [
+         "contains",
+         "contains"
+        ],
+        [
+         "starts_with",
+         "starts with"
+        ],
+        [
+         "ends_with",
+         "ends with"
+        ],
+        [
+         "in",
+         "is one of"
+        ],
+        [
+         "not_in",
+         "is not one of"
+        ],
+        [
+         "is_null",
+         "is empty"
+        ],
+        [
+         "is_not_null",
+         "is not empty"
+        ]
+       ]
+      },
+      {
+       "key": "value",
+       "ph": "value",
+       "insertable": true
+      }
+     ],
+     "help": "Each value is sent as a bound parameter, never written into the SQL. Update and delete need at least one filter."
+    },
+    {
+     "key": "match",
+     "type": "enum",
+     "title": "Rows must match",
+     "options": [
+      [
+       "all",
+       "All filters"
+      ],
+      [
+       "any",
+       "Any filter"
+      ]
+     ],
+     "showIf": {
+      "operation": [
+       "select",
+       "update",
+       "delete"
+      ]
+     }
+    },
+    {
+     "key": "order_by",
+     "type": "kv",
+     "title": "Order by",
+     "addLabel": "+ Add order",
+     "showIf": {
+      "operation": "select"
+     },
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "direction",
+       "ph": "direction",
+       "options": [
+        [
+         "asc",
+         "Ascending"
+        ],
+        [
+         "desc",
+         "Descending"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "key": "limit",
+     "type": "number",
+     "min": 1,
+     "title": "Limit (optional)",
+     "showIf": {
+      "operation": "select"
+     },
+     "help": "Empty returns every row (a large result is stored as an artifact, never cut). With a limit the output has next_cursor for the next page."
+    },
+    {
+     "key": "cursor",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Cursor (optional)",
+     "placeholder": "{{nodes.<id>.output.next_cursor}}",
+     "showIf": {
+      "operation": "select"
+     }
+    },
+    {
+     "key": "values",
+     "type": "kv",
+     "title": "Values",
+     "addLabel": "+ Add column",
+     "showIf": {
+      "operation": [
+       "insert",
+       "update",
+       "upsert"
+      ]
+     },
+     "cols": [
+      {
+       "key": "column",
+       "ph": "column",
+       "mono": true
+      },
+      {
+       "key": "value",
+       "ph": "value or {{template}}",
+       "insertable": true
+      }
+     ],
+     "help": "Each value is a bound parameter. With a list of items, use {{item.<field>}}."
+    },
+    {
+     "key": "match_columns",
+     "type": "string",
+     "title": "Match on (unique columns)",
+     "placeholder": "email",
+     "showIf": {
+      "operation": "upsert"
+     },
+     "help": "The column(s) of a unique key: a row with the same value is updated, else one is inserted."
+    },
+    {
+     "key": "items",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "For each item (optional)",
+     "placeholder": "{{nodes.<id>.output.items}}",
+     "showIf": {
+      "operation": [
+       "insert",
+       "update",
+       "upsert",
+       "delete"
+      ]
+     },
+     "help": "A list: the values (and filters) are filled in once per item, from {{item}}."
+    },
+    {
+     "key": "batch_mode",
+     "type": "enum",
+     "title": "With a list of items",
+     "options": [
+      [
+       "transaction",
+       "One transaction for all (rolled back on a failure)"
+      ],
+      [
+       "per_item",
+       "Once per item"
+      ],
+      [
+       "single",
+       "One statement for all (insert, upsert)"
+      ]
+     ],
+     "showIf": {
+      "operation": [
+       "insert",
+       "update",
+       "upsert",
+       "delete"
+      ]
+     }
+    },
+    {
+     "key": "query",
+     "type": "textarea",
+     "mono": true,
+     "rows": 8,
+     "title": "Query",
+     "placeholder": "SELECT * FROM orders WHERE customer_id = $1 AND status = $2",
+     "showIf": {
+      "operation": "query"
+     },
+     "help": "One statement. Put each value in the parameters below as $1, $2 … — {{ }} in the query is refused."
+    },
+    {
+     "key": "params",
+     "type": "kv",
+     "title": "Parameters ($1, $2 …)",
+     "addLabel": "+ Add parameter",
+     "showIf": {
+      "operation": "query"
+     },
+     "cols": [
+      {
+       "key": "value",
+       "ph": "value or {{template}}",
+       "insertable": true
+      }
+     ]
+    }
+   ],
+   "hint": "Reads never change the database; a read-only connection is enforced by the database itself. Each call has 60 seconds. A Test run does not connect to the database. After Each camera frame only Insert can run: the rows are written together, in one transaction, every 30 seconds or 500 rows.",
+   "output_sample": {
+    "rows": [
+     {
+      "id": 1
+     }
+    ],
+    "count": 1,
+    "affected": 0,
+    "next_cursor": null
+   },
+   "outputs": {
+    "rows": {
+     "kind": "list",
+     "description": "the rows read (select, query) or returned by the write"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many rows are in rows"
+    },
+    "affected": {
+     "kind": "number",
+     "description": "how many rows the write changed"
+    },
+    "next_cursor": {
+     "kind": "text",
+     "description": "the next page's cursor, when a limit was given and more may follow"
+    },
+    "columns": {
+     "kind": "list",
+     "description": "the column names of rows"
+    },
+    "items": {
+     "kind": "number",
+     "description": "how many items were written"
+    },
+    "text": {
+     "kind": "text",
+     "description": "a summary"
+    }
+   },
+   "inputs": {},
+   "branches": []
+  },
+  {
+   "type": "data.mongo",
+   "category": "data",
+   "label": "MongoDB",
+   "sub": "Find, insert, update, delete, aggregate",
+   "order": 27,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "frame_mode": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "connection": "",
+    "operation": "find",
+    "collection": "",
+    "filter": "{}",
+    "projection": "",
+    "sort": "",
+    "limit": "",
+    "cursor": "",
+    "document": "",
+    "documents": "",
+    "update": "",
+    "upsert": false,
+    "pipeline": ""
+   },
+   "fields": [
+    {
+     "key": "connection",
+     "type": "enum",
+     "optionsKey": "databaseConnections",
+     "title": "Connection",
+     "placeholder": "Select a database connection…",
+     "help": "A database connection of this workspace (Settings > Connectors > Databases). The workflow uses it as its owner; a read-only connection can only read."
+    },
+    {
+     "key": "operation",
+     "type": "enum",
+     "title": "Operation",
+     "options": [
+      [
+       "find",
+       "Find"
+      ],
+      [
+       "find_one",
+       "Find one"
+      ],
+      [
+       "count",
+       "Count"
+      ],
+      [
+       "insert_one",
+       "Insert one"
+      ],
+      [
+       "insert_many",
+       "Insert many"
+      ],
+      [
+       "update_one",
+       "Update one"
+      ],
+      [
+       "update_many",
+       "Update many"
+      ],
+      [
+       "delete_one",
+       "Delete one"
+      ],
+      [
+       "delete_many",
+       "Delete many"
+      ],
+      [
+       "aggregate",
+       "Aggregate"
+      ]
+     ]
+    },
+    {
+     "key": "collection",
+     "type": "enum",
+     "optionsKey": "databaseTables",
+     "title": "Collection"
+    },
+    {
+     "key": "filter",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "insertable": true,
+     "title": "Filter (JSON)",
+     "placeholder": "{ \"email\": \"{{trigger.email}}\" }",
+     "showIf": {
+      "operation": [
+       "find",
+       "find_one",
+       "count",
+       "update_one",
+       "update_many",
+       "delete_one",
+       "delete_many"
+      ]
+     },
+     "help": "A template only as a value, in quotes: it is inserted as data and can never become an operator. $where, $function and $accumulator are refused. A delete needs a filter."
+    },
+    {
+     "key": "projection",
+     "type": "textarea",
+     "mono": true,
+     "rows": 2,
+     "title": "Projection (JSON, optional)",
+     "showIf": {
+      "operation": [
+       "find",
+       "find_one"
+      ]
+     }
+    },
+    {
+     "key": "sort",
+     "type": "textarea",
+     "mono": true,
+     "rows": 2,
+     "title": "Sort (JSON, optional)",
+     "placeholder": "{ \"created_at\": -1 }",
+     "showIf": {
+      "operation": [
+       "find",
+       "find_one"
+      ]
+     }
+    },
+    {
+     "key": "limit",
+     "type": "number",
+     "min": 1,
+     "title": "Limit (optional)",
+     "showIf": {
+      "operation": "find"
+     }
+    },
+    {
+     "key": "cursor",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Cursor (optional)",
+     "showIf": {
+      "operation": "find"
+     }
+    },
+    {
+     "key": "document",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "insertable": true,
+     "title": "Document (JSON)",
+     "showIf": {
+      "operation": "insert_one"
+     }
+    },
+    {
+     "key": "documents",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "insertable": true,
+     "title": "Documents (a JSON list, or {{nodes.<id>.output.items}})",
+     "showIf": {
+      "operation": "insert_many"
+     }
+    },
+    {
+     "key": "update",
+     "type": "textarea",
+     "mono": true,
+     "rows": 4,
+     "insertable": true,
+     "title": "Update (JSON)",
+     "placeholder": "{ \"$set\": { \"status\": \"{{trigger.status}}\" } }",
+     "showIf": {
+      "operation": [
+       "update_one",
+       "update_many"
+      ]
+     }
+    },
+    {
+     "key": "upsert",
+     "type": "boolean",
+     "title": "Insert when nothing matches (upsert)",
+     "showIf": {
+      "operation": [
+       "update_one",
+       "update_many"
+      ]
+     }
+    },
+    {
+     "key": "pipeline",
+     "type": "textarea",
+     "mono": true,
+     "rows": 6,
+     "insertable": true,
+     "title": "Pipeline (a JSON list of stages)",
+     "showIf": {
+      "operation": "aggregate"
+     },
+     "help": "$out and $merge are refused on a read-only connection."
+    }
+   ],
+   "hint": "A read-only connection can only find, count and aggregate. Each read has 60 seconds (maxTimeMS).",
+   "output_sample": {
+    "documents": [
+     {
+      "_id": "(id)"
+     }
+    ],
+    "count": 1
+   },
+   "outputs": {
+    "documents": {
+     "kind": "list",
+     "description": "the documents found (find, aggregate)"
+    },
+    "document": {
+     "kind": "object",
+     "description": "the document found (find one), or null"
+    },
+    "found": {
+     "kind": "boolean",
+     "description": "find one: whether a document matched"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many documents"
+    },
+    "next_cursor": {
+     "kind": "text",
+     "description": "the next page's cursor"
+    },
+    "inserted_id": {
+     "kind": "text",
+     "description": "insert one: the new document's id"
+    },
+    "inserted_ids": {
+     "kind": "list",
+     "description": "insert many: the new documents' ids"
+    },
+    "matched": {
+     "kind": "number",
+     "description": "update: how many matched"
+    },
+    "modified": {
+     "kind": "number",
+     "description": "update: how many changed"
+    },
+    "deleted": {
+     "kind": "number",
+     "description": "delete: how many were deleted"
+    },
+    "text": {
+     "kind": "text",
+     "description": "a summary"
+    }
+   },
+   "inputs": {},
+   "branches": []
+  },
+  {
+   "type": "data.redis",
+   "category": "data",
+   "label": "Redis",
+   "sub": "Get, set, keys, hashes, lists, publish",
+   "order": 28,
+   "trigger": false,
+   "executable": true,
+   "billable": false,
+   "frame_mode": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "connection": "",
+    "operation": "get",
+    "key": "",
+    "value": "",
+    "expire_seconds": "",
+    "field": "",
+    "pattern": "*",
+    "amount": 1
+   },
+   "fields": [
+    {
+     "key": "connection",
+     "type": "enum",
+     "optionsKey": "databaseConnections",
+     "title": "Connection",
+     "placeholder": "Select a database connection…",
+     "help": "A database connection of this workspace (Settings > Connectors > Databases). The workflow uses it as its owner; a read-only connection can only read."
+    },
+    {
+     "key": "operation",
+     "type": "enum",
+     "title": "Operation",
+     "options": [
+      [
+       "get",
+       "Get"
+      ],
+      [
+       "set",
+       "Set"
+      ],
+      [
+       "delete",
+       "Delete"
+      ],
+      [
+       "incr",
+       "Increment"
+      ],
+      [
+       "scan",
+       "Find keys (SCAN)"
+      ],
+      [
+       "exists",
+       "Exists"
+      ],
+      [
+       "ttl",
+       "Time to live"
+      ],
+      [
+       "expire",
+       "Set expiry"
+      ],
+      [
+       "hget",
+       "Hash get"
+      ],
+      [
+       "hgetall",
+       "Hash get all"
+      ],
+      [
+       "hset",
+       "Hash set"
+      ],
+      [
+       "hdel",
+       "Hash delete field"
+      ],
+      [
+       "lpush",
+       "List push (left)"
+      ],
+      [
+       "rpush",
+       "List push (right)"
+      ],
+      [
+       "lpop",
+       "List pop (left)"
+      ],
+      [
+       "rpop",
+       "List pop (right)"
+      ],
+      [
+       "lrange",
+       "List range"
+      ],
+      [
+       "llen",
+       "List length"
+      ],
+      [
+       "publish",
+       "Publish"
+      ]
+     ]
+    },
+    {
+     "key": "key",
+     "type": "string",
+     "insertable": true,
+     "mono": true,
+     "title": "Key (publish: the channel)",
+     "showIf": {
+      "operation": [
+       "get",
+       "set",
+       "delete",
+       "incr",
+       "exists",
+       "ttl",
+       "expire",
+       "hget",
+       "hgetall",
+       "hset",
+       "hdel",
+       "lpush",
+       "rpush",
+       "lpop",
+       "rpop",
+       "lrange",
+       "llen",
+       "publish"
+      ]
+     }
+    },
+    {
+     "key": "value",
+     "type": "textarea",
+     "rows": 3,
+     "insertable": true,
+     "title": "Value",
+     "showIf": {
+      "operation": [
+       "set",
+       "hset",
+       "lpush",
+       "rpush",
+       "publish"
+      ]
+     }
+    },
+    {
+     "key": "expire_seconds",
+     "type": "number",
+     "min": 1,
+     "title": "Expires after (seconds, optional)",
+     "showIf": {
+      "operation": [
+       "set",
+       "expire"
+      ]
+     }
+    },
+    {
+     "key": "field",
+     "type": "string",
+     "insertable": true,
+     "title": "Hash field",
+     "showIf": {
+      "operation": [
+       "hget",
+       "hset",
+       "hdel"
+      ]
+     }
+    },
+    {
+     "key": "amount",
+     "type": "number",
+     "title": "By",
+     "showIf": {
+      "operation": "incr"
+     }
+    },
+    {
+     "key": "pattern",
+     "type": "string",
+     "mono": true,
+     "title": "Pattern",
+     "placeholder": "user:*",
+     "showIf": {
+      "operation": "scan"
+     },
+     "help": "Every matching key is returned (SCAN, never KEYS)."
+    }
+   ],
+   "hint": "Only these operations: no raw command can be sent. A read-only connection can only read.",
+   "output_sample": {
+    "value": "(value)",
+    "found": true
+   },
+   "outputs": {
+    "value": {
+     "kind": "any",
+     "description": "the value read, popped or incremented"
+    },
+    "found": {
+     "kind": "boolean",
+     "description": "whether it existed"
+    },
+    "keys": {
+     "kind": "list",
+     "description": "scan: every matching key"
+    },
+    "count": {
+     "kind": "number",
+     "description": "how many"
+    },
+    "fields": {
+     "kind": "object",
+     "description": "hash get all: the fields"
+    },
+    "items": {
+     "kind": "list",
+     "description": "list range: the items"
+    },
+    "length": {
+     "kind": "number",
+     "description": "the list's length"
+    },
+    "deleted": {
+     "kind": "number",
+     "description": "how many were deleted"
+    },
+    "receivers": {
+     "kind": "number",
+     "description": "publish: how many subscribers got it"
+    },
+    "text": {
+     "kind": "text",
+     "description": "a summary"
+    }
+   },
+   "inputs": {},
+   "branches": []
+  },
+  {
+   "type": "trigger.database",
+   "category": "trigger",
+   "label": "New database rows",
+   "sub": "New rows in a table or collection",
+   "order": 29,
+   "trigger": true,
+   "executable": true,
+   "billable": false,
+   "frame_mode": false,
+   "custom": false,
+   "palette": true,
+   "custom_tail": "",
+   "defaults": {
+    "connection": "",
+    "table": "",
+    "cursor_column": "",
+    "every": 5,
+    "mode": "per_row",
+    "include_existing": false
+   },
+   "fields": [
+    {
+     "key": "connection",
+     "type": "enum",
+     "optionsKey": "databaseConnections",
+     "title": "Connection",
+     "placeholder": "Select a database connection…",
+     "help": "A Postgres, MySQL, SQL Server or MongoDB connection of this workspace."
+    },
+    {
+     "key": "table",
+     "type": "enum",
+     "optionsKey": "databaseTables",
+     "title": "Table or collection"
+    },
+    {
+     "key": "cursor_column",
+     "type": "string",
+     "mono": true,
+     "title": "Column that only grows",
+     "placeholder": "id or updated_at",
+     "help": "An increasing id or an \"updated at\" time. A row whose value is larger than the last one seen is new."
+    },
+    {
+     "key": "every",
+     "type": "enum",
+     "title": "Check every",
+     "options": [
+      [
+       1,
+       "1 minute"
+      ],
+      [
+       2,
+       "2 minutes"
+      ],
+      [
+       5,
+       "5 minutes"
+      ],
+      [
+       10,
+       "10 minutes"
+      ],
+      [
+       15,
+       "15 minutes"
+      ],
+      [
+       30,
+       "30 minutes"
+      ],
+      [
+       60,
+       "60 minutes"
+      ]
+     ]
+    },
+    {
+     "key": "mode",
+     "type": "enum",
+     "title": "Start",
+     "options": [
+      [
+       "per_row",
+       "One run per new row"
+      ],
+      [
+       "batch",
+       "One run per check, with all new rows"
+      ]
+     ]
+    },
+    {
+     "key": "include_existing",
+     "type": "boolean",
+     "title": "Also run for the rows already there",
+     "help": "Off: the first check starts from now, so the rows already in the table are not run."
+    }
+   ],
+   "hint": "Publish the workflow to start checking. A paused workflow keeps its place and does not check; on resume it continues from there, so no row is missed or run twice. An empty check costs nothing.",
+   "output_sample": {
+    "row": {
+     "id": 1
+    },
+    "cursor": 1
+   },
+   "outputs": {
+    "text": {
+     "kind": "text",
+     "description": "empty"
+    },
+    "trigger": {
+     "kind": "object",
+     "description": "one run per row: {row, cursor}; one run per check: {rows, count}"
+    }
+   },
+   "inputs": {},
+   "branches": []
   }
  ],
  "kinds": [
@@ -1705,6 +3290,7 @@
   "action",
   "logic",
   "media",
-  "vision"
+  "vision",
+  "data"
  ]
 }

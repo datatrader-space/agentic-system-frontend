@@ -48,7 +48,7 @@ const light = block(css, '.wfb-root')
 const dark = { ...light, ...block(css, '[data-theme="dark"] .wfb-root') }
 const vmLight = block(appCss, ':root')
 const vmDark = { ...vmLight, ...block(appCss, '[data-theme="dark"]') }
-const CATEGORIES = ['trigger', 'agent', 'action', 'logic', 'media', 'vision']
+const CATEGORIES = ['trigger', 'agent', 'action', 'logic', 'media', 'vision', 'data']
 
 describe('workflow tokens', () => {
   it('has no literal colour outside the token blocks', () => {

@@ -17,8 +17,8 @@ describe('one icon and category map (registry)', () => {
       expect(wfIcon(type)).toBe(def.icon)
     }
   })
-  it('the categories are trigger, agent, action, logic, media and vision, each with a token and an icon', () => {
-    expect(WF_CATEGORY_ORDER).toEqual(['trigger', 'agent', 'action', 'logic', 'media', 'vision'])
+  it('the categories are trigger, agent, action, logic, media, vision and data, each with a token and an icon', () => {
+    expect(WF_CATEGORY_ORDER).toEqual(['trigger', 'agent', 'action', 'logic', 'media', 'vision', 'data'])
     for (const id of WF_CATEGORY_ORDER) {
       expect(WF_CATEGORIES[id].token).toBe(`--wf-cat-${id}`)
       expect(hasLucide(WF_CATEGORIES[id].icon)).toBe(true)

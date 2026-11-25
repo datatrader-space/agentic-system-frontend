@@ -9,7 +9,7 @@
 //   { mode: 'insert', edgeId, position? }                          the + in the middle of a connection
 // Every connection made here carries the output's handle (F13: the quick-add edge had no `sourceHandle`, so a step
 // added from a condition's "false" output ran on the true branch) and an id of our own (newEdgeId, D1 rule 4).
-import { WF_CATEGORIES, WF_CATEGORY_ORDER, wfCategory, wfDefaultData, wfIcon, wfPaletteItems } from '@/config/wfNodeDefinitions'
+import { WF_CATEGORIES, WF_CATEGORY_ORDER, wfBranchHandles, wfCategory, wfDefaultData, wfIcon, wfPaletteItems } from '@/config/wfNodeDefinitions'
 import { newEdgeId, newNodeId } from '@/utils/wfVarExpr'
 import { freeWorkflowPosition } from '@/utils/workflowNodePlacement'
 import { frameRefusal } from './wfFrame'
@@ -121,8 +121,9 @@ export function createNode(item, { existingIds = [], position = { x: 0, y: 0 }, 
   return { id: newNodeId(type, existingIds), type, position: { x: Math.round(position.x), y: Math.round(position.y) }, data }
 }
 
-// A condition has no plain output: a connection out of one leaves its "true" output unless the person picks another.
-const outHandle = (type) => (type === 'logic.condition' ? 'true' : undefined)
+// A deciding step has no plain output: a connection out of one leaves its first branch ("true", "exists") unless the
+// person picks another (wfBranchHandles).
+const outHandle = (node) => wfBranchHandles(node.type, node.data)[0] || undefined
 
 function edge(source, target, edges, { sourceHandle, targetHandle } = {}) {
   const e = { id: newEdgeId(source, target, edges.map((x) => x.id), sourceHandle || null), source, target }
@@ -137,7 +138,7 @@ export function placeFor(ctx, nodes, edges) {
   let preferred = ctx?.position
   if (!preferred && ctx?.mode === 'from') {
     const src = byId(ctx.source.nodeId)
-    const dy = ctx.source.handle === 'false' ? 112 : ctx.source.handle === 'error' ? 160 : 0
+    const dy = ['false', 'missing'].includes(ctx.source.handle) ? 112 : ctx.source.handle === 'error' ? 160 : 0
     if (src) preferred = { x: src.position.x + 272, y: src.position.y + dy }
   }
   if (!preferred && ctx?.mode === 'insert') {
@@ -160,13 +161,13 @@ export function connectOps(ctx, node, edges) {
   if (mode === 'from') {
     ops.push({ op: 'add_edge', edge: edge(ctx.source.nodeId, node.id, edges, { sourceHandle: ctx.source.handle }) })
   } else if (mode === 'into') {
-    ops.push({ op: 'add_edge', edge: edge(node.id, ctx.target.nodeId, edges, { sourceHandle: outHandle(node.type), targetHandle: ctx.target.handle }) })
+    ops.push({ op: 'add_edge', edge: edge(node.id, ctx.target.nodeId, edges, { sourceHandle: outHandle(node), targetHandle: ctx.target.handle }) })
   } else if (mode === 'insert') {
     const old = edges.find((e) => e.id === ctx.edgeId)
     if (!old) throw new Error('That connection is gone, so the step was not inserted.')
     const rest = edges.filter((e) => e.id !== old.id)
     const first = edge(old.source, node.id, rest, { sourceHandle: old.sourceHandle })
-    const second = edge(node.id, old.target, [...rest, first], { sourceHandle: outHandle(node.type), targetHandle: old.targetHandle })
+    const second = edge(node.id, old.target, [...rest, first], { sourceHandle: outHandle(node), targetHandle: old.targetHandle })
     ops.unshift({ op: 'remove_edge', id: old.id })
     ops.push({ op: 'add_edge', edge: first }, { op: 'add_edge', edge: second })
   }

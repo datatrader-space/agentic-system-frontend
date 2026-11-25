@@ -61,11 +61,12 @@ describe('the registry taken from the server', () => {
     expect(inputs.cols[1].options).toEqual([['text', 'Text'], ['image', 'Image']])
   })
 
-  it('maps frame_mode: the frame trigger, the vision steps, Condition and For-each may run on a camera frame (phase 2)', () => {
+  it('maps frame_mode: the frame trigger, the vision steps, Condition, For-each and a Data table or SQL database Insert may run on a camera frame', () => {
     expect(wfDef('trigger.frame')).toMatchObject({ trigger: true, frameMode: true, label: 'Each camera frame', icon: 'lucide:aperture' })
     expect(wfOutputSample('trigger.frame')).toMatchObject({ image: { kind: 'image' }, frame: 0, source: { name: 'Camera' } })
     const frame = WF_TYPES.filter((t) => wfDef(t).frameMode).sort()
-    expect(frame).toEqual(['logic.condition', 'logic.foreach', 'trigger.frame', 'vision.crop', 'vision.draw', 'vision.filter', 'vision.model'])
+    // ADM-1363: a Data table or SQL database step may follow a frame trigger (its Insert rows are buffered per stream).
+    expect(frame).toEqual(['data.sql', 'data.table', 'logic.condition', 'logic.foreach', 'trigger.frame', 'vision.crop', 'vision.draw', 'vision.filter', 'vision.model'])
     const json = fresh()
     delete json.steps.find((s) => s.type === 'vision.draw').frame_mode
     setStepRegistry(json)

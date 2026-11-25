@@ -164,6 +164,8 @@ async function prepare(page, overrides = {}) {
       return json({ results: [{ user_id: 1, email: state.graph.owner.email, name: state.graph.owner.name, role: 'owner' }, ...state.shares.map(({ user_id, email, name, role }) => ({ user_id, email, name, role }))] })
     }
     if (path === '/api/tools/') return json({ tools: [{ name: 'FIXTURE_TOOL', description: 'Synthetic test tool', category: 'utility' }], total_count: 1 })
+    // Data Tables (ADM-1363): the workflow's workspace's tables, for the Data table step's pickers.
+    if (path === '/api/workflow-tables/') return json({ workspace: { id: 5, name: 'Team' }, can_create: true, tables: state.tables || [], usage: {} })
     if (path.includes('mcp-catalog')) return json({ enabled: true, servers: [{ id: 7, name: 'Fixture MCP', tools: [{ name: 'fixture_read', description: 'Read synthetic data' }] }] })
     return json({})
   })
@@ -267,6 +269,38 @@ test('an output + adds a connected step, keeping the handle', async ({ page }) =
   await expect.poll(() => mutations(state, '/86/').length).toBe(1)
   const added = state.graph.graph.nodes.find((n) => n.type === 'logic.delay')
   expect(state.graph.graph.edges).toContainEqual(expect.objectContaining({ source: 'check', target: added.id, sourceHandle: 'false' }))
+})
+
+test('a Data table Exists step routes by exists / missing: both outputs connect and are saved (ADM-1363)', async ({ page }) => {
+  const graph = clone(baseGraph)
+  graph.workspace = 5
+  graph.graph.nodes.push({ id: 'seen', type: 'data.table', position: { x: 410, y: 380 }, data: { label: 'Seen before', operation: 'get_rows', table: 11, filters: [{ column: 'email', op: 'eq', value: '{{trigger.email}}' }], match: 'all' } })
+  graph.graph.edges = [{ id: 'e_start_seen', source: 'start', target: 'seen' }, { id: 'e_seen_log', source: 'seen', target: 'log' }]
+  const tables = [{ id: 11, name: 'Contacts', row_count: 2, bytes: 100, archived: false, can: { read: true, write: true, manage: true },
+    columns: [{ key: 'email', label: 'Email', type: 'text', required: true, unique: true }] }]
+  const { state, errors } = await prepare(page, { graph, tables })
+  await node(page, 'seen').dblclick()
+  const win = page.getByRole('dialog')
+  await win.getByLabel('Operation', { exact: true }).selectOption('exists')
+  await expect(win).toContainText('Two outputs')
+  await expect(win.getByLabel('Filters 1: column')).toHaveValue('email')
+  expect(state.requests.find((r) => r.path === '/api/workflow-tables/').query).toEqual({ workspace: '5' })
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'data-table-exists-window.png') })
+  await closeLayers(page)
+  // The plain connection moved onto "exists"; "missing" has its own +.
+  await expect(node(page, 'seen').locator('.wf-h-label')).toHaveText(['exists', 'missing'])
+  await node(page, 'seen').hover()
+  await page.getByRole('button', { name: 'Add a step on the missing branch of Seen before' }).click()
+  await choose(page, 'Delay')
+  if (SHOTS) await page.screenshot({ path: resolve(SHOTS, 'data-table-exists-canvas.png') })
+  await page.keyboard.press('Control+s')
+  await expect.poll(() => mutations(state, '/86/').length).toBe(1)
+  const saved = mutations(state, '/86/').at(-1).body.graph
+  const delay = saved.nodes.find((n) => n.type === 'logic.delay')
+  expect(saved.nodes.find((n) => n.id === 'seen').data.operation).toBe('exists')
+  expect(saved.edges).toContainEqual(expect.objectContaining({ source: 'seen', target: 'log', sourceHandle: 'exists' }))
+  expect(saved.edges).toContainEqual(expect.objectContaining({ source: 'seen', target: delay.id, sourceHandle: 'missing' }))
+  expect(errors).toEqual([])
 })
 
 test('the + on a connection inserts a step between its ends', async ({ page }) => {

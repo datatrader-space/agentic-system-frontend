@@ -17,6 +17,9 @@ import { checkTemplateTokens } from '@/utils/wfVarExpr'
 import { wfDef } from '@/config/wfNodeDefinitions'
 import { buildSources, mergeNodeStates, pickerItems, secretVarNames, tokenResolves } from '../wfNodeModalModel'
 import { loadVisionModels, visionModelsState } from './visionModels'
+import {
+  connectionOptions, connectionsState, loadConnections, loadSchema, loadTables, schemaState, schemaTableOptions, tablesState,
+} from './dataLists'
 import { isFrameWorkflow, runInputs } from '../wfFrame'
 
 const NODE_EDITOR = Symbol('wfNodeEditor')
@@ -129,11 +132,34 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
       if (doc.meta.id != null && usesVisionModels(fields())) loadVisionModels(doc.meta.id)
     }, { immediate: true })
   }
+  // The Data steps' lists (ADM-1363, dataLists.js): the tables and the database connections of the WORKFLOW's
+  // workspace, and the tables of the connection the step chose. Loaded only when the step's fields use them.
+  const usesList = (fields, key) => (fields || []).some((f) => f.optionsKey === key)
+  const workspace = () => doc.meta.workspace ?? null
+  const connectionId = () => data.value.connection ?? ''
+  watch(() => [workspace(), def.value?.fields], () => {
+    const fields = def.value?.fields
+    if (usesList(fields, 'tables')) loadTables(workspace())
+    if (usesList(fields, 'databaseConnections')) loadConnections(workspace())
+  }, { immediate: true })
+  watch(() => [connectionId(), usesList(def.value?.fields, 'databaseTables')], ([id, uses]) => {
+    if (uses && id !== '' && id !== null) loadSchema(id)
+  }, { immediate: true })
+  const stateOf = (s, retry) => ({ loading: s.loading, error: s.error, retry })
+
   function listStatesFor(fields) {
+    const out = {}
+    if (usesList(fields, 'tables')) out.tables = stateOf(tablesState(workspace()), () => loadTables(workspace(), { force: true }))
+    if (usesList(fields, 'databaseConnections')) {
+      out.databaseConnections = stateOf(connectionsState(workspace()), () => loadConnections(workspace(), { force: true }))
+    }
+    if (usesList(fields, 'databaseTables') && connectionId() !== '' && connectionId() !== null) {
+      out.databaseTables = stateOf(schemaState(connectionId()), () => loadSchema(connectionId(), { fresh: true }))
+    }
+    if (!usesVisionModels(fields)) return out
     const v = visionState.value
-    if (!usesVisionModels(fields)) return {}
-    if (!v) return { visionModels: { loading: false, error: 'Save the workflow to choose a model.', retry: () => {} } }
-    return { visionModels: { loading: v.loading, error: v.error, retry: () => loadVisionModels(doc.meta.id, { force: true }) } }
+    if (!v) return { ...out, visionModels: { loading: false, error: 'Save the workflow to choose a model.', retry: () => {} } }
+    return { ...out, visionModels: { loading: v.loading, error: v.error, retry: () => loadVisionModels(doc.meta.id, { force: true }) } }
   }
   watchVisionModels(() => def.value?.fields)
   const listStates = computed(() => listStatesFor(def.value?.fields))
@@ -147,6 +173,9 @@ export function createNodeEditor({ nodeId, doc, history, run, catalog = null, va
     secretVars: secretVarNames(doc.vars.value),
     tools: catalog?.toolNames?.value || [],
     visionModels: (visionState.value?.models || []).map((m) => [m.value, m.label || String(m.value)]),
+    tables: (tablesState(workspace()).items || []).map((t) => [t.id, t.name]),
+    databaseConnections: connectionOptions(connectionsState(workspace()).items, type.value),
+    databaseTables: connectionId() !== '' && connectionId() !== null ? schemaTableOptions(schemaState(connectionId()).items) : [],
   }))
 
   // ── tests run the DRAFT as a dry run up to a node (D4); the draft is saved first by useWorkflowRun ──

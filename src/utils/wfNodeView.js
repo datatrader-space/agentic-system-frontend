@@ -36,6 +36,13 @@ const CONFIGURED = {
   'vision.filter': (d) => !!String(d.detections ?? '').trim(),
   'vision.crop': (d) => !!String(d.detections ?? '').trim(),
   'vision.draw': (d) => !!String(d.detections ?? '').trim(),
+  // Data (ADM-1363): a table, or a connection and what it reads (the server's check says the rest on Validate).
+  'data.table': (d) => isSet(d.table),
+  'trigger.table': (d) => isSet(d.table),
+  'data.sql': (d) => isSet(d.connection) && (d.operation === 'query' ? isSet(d.query) : isSet(d.table)),
+  'data.mongo': (d) => isSet(d.connection) && isSet(d.collection),
+  'data.redis': (d) => isSet(d.connection) && (d.operation === 'scan' || isSet(d.key)),
+  'trigger.database': (d) => isSet(d.connection) && isSet(d.table) && isSet(d.cursor_column),
 }
 
 const isSet = (v) => v !== null && v !== undefined && String(v).trim() !== ''
@@ -83,6 +90,14 @@ export function nodeAriaLabel(type, data, state) {
   return `${kind} step, ${title}, ${(NODE_STATUS_LABELS[state] || state || '').toLowerCase()}${off}`
 }
 
+/** The label the registry gives a step's enum value (an operation's "Get rows"), else the value itself. */
+export function optionLabel(type, key, value) {
+  const field = (wfDef(type)?.fields || []).find((f) => f.key === key)
+  const opt = (field?.options || []).find((o) => (Array.isArray(o) ? String(o[0]) === String(value) : String(o) === String(value)))
+  if (opt === undefined) return value == null ? '' : String(value)
+  return Array.isArray(opt) ? String(opt[1]) : String(opt)
+}
+
 // Compact one-line config preview shown on the node (truncated by CSS).
 export function nodeConfigPreview(type, data) {
   const d = data || {}
@@ -128,6 +143,20 @@ export function nodeConfigPreview(type, data) {
     }
     if (type === 'vision.crop') return isSet(d.max) ? `up to ${d.max} crops${Number(d.padding) > 0 ? ` · ${d.padding}% padding` : ''}` : ''
     if (type === 'vision.draw') return d.labels === false ? 'boxes only' : 'boxes and labels'
+    if (type === 'data.table') return d.operation === 'exists' ? 'exists / missing' : optionLabel(type, 'operation', d.operation || 'insert')
+    if (type === 'trigger.table') return optionLabel(type, 'on', d.on || 'added')
+    if (type === 'data.sql') {
+      if (d.operation === 'query') return 'Run a query'
+      return [optionLabel(type, 'operation', d.operation || 'select'), isSet(d.table) ? String(d.table) : ''].filter(Boolean).join(' · ')
+    }
+    if (type === 'data.mongo') return [optionLabel(type, 'operation', d.operation || 'find'), isSet(d.collection) ? String(d.collection) : ''].filter(Boolean).join(' · ')
+    if (type === 'data.redis') {
+      const op = optionLabel(type, 'operation', d.operation || 'get')
+      return d.operation === 'scan' ? `${op} ${d.pattern || '*'}` : [op, isSet(d.key) ? String(d.key) : ''].filter(Boolean).join(' · ')
+    }
+    if (type === 'trigger.database') {
+      return [isSet(d.table) ? String(d.table) : '', isSet(d.every) ? `every ${d.every} min` : ''].filter(Boolean).join(' · ')
+    }
   } catch { /* defensive */ }
   return ''
 }

@@ -63,6 +63,9 @@
       <McpToolSettings v-else-if="type === 'action.mcp_tool'" />
       <ConditionSettings v-else-if="type === 'logic.condition'" />
       <ForeachSettings v-else-if="type === 'logic.foreach'" />
+      <!-- Data (ADM-1363): the column pickers, the Exists outputs, the connection's access and the query's parameters -->
+      <DataTableSettings v-else-if="type === 'data.table'" />
+      <DatabaseStepSettings v-else-if="DATABASE_STEPS.includes(type)" />
 
       <SchemaForm v-else-if="type === 'llm.call'" :fields="fields">
         <template #field-model_id><LlmModelField /></template>
@@ -100,6 +103,8 @@ import McpToolSettings from './McpToolSettings.vue'
 import ConditionSettings from './ConditionSettings.vue'
 import ScheduleSettings from './ScheduleSettings.vue'
 import ForeachSettings from './ForeachSettings.vue'
+import DataTableSettings from './DataTableSettings.vue'
+import DatabaseStepSettings from './DatabaseStepSettings.vue'
 import LlmModelField from './LlmModelField.vue'
 import ReliabilitySettings from './ReliabilitySettings.vue'
 import ChannelSecretField from './ChannelSecretField.vue'
@@ -111,6 +116,8 @@ import { hasReliability } from '../wfNodeData'
 
 // The platforms that sign their deliveries (backend triggers.py CHANNEL_SIGNING_SCHEMES).
 const SIGNING_PLATFORMS = ['slack', 'telegram']
+// The steps on an external database (DatabaseStepSettings): their tables and columns come from the connection.
+const DATABASE_STEPS = ['data.sql', 'data.mongo', 'data.redis', 'trigger.database']
 
 const editor = useNodeEditor()
 const uid = `ns-${useId()}`

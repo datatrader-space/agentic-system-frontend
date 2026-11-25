@@ -1416,6 +1416,54 @@ export default {
   removeWorkflowShare: (id, userId) => api.delete(`/workflow-graphs/${id}/shares/${userId}/`),
   getWorkflowPeople: (id) => api.get(`/workflow-graphs/${id}/people/`),
 
+  // ── Workflow Data Tables (ADM-1363) ──────────────────────────────────────
+  // A workspace's built-in tables. The workspace is `?workspace=` (the builder passes the workflow's own), else the
+  // X-Workspace-ID header. Errors are { error, code, column?, row?, errors? }: 402 storage_unpaid (writes paused),
+  // 403 forbidden_role, 404 not_found, 409 conflict / unique_violation / archived.
+  getWorkflowTables: (params = {}) => api.get('/workflow-tables/', { params }),
+  createWorkflowTable: (payload) => api.post('/workflow-tables/', payload),
+  getWorkflowTableUsage: (params = {}) => api.get('/workflow-tables/usage/', { params }),
+  getWorkflowTable: (id) => api.get(`/workflow-tables/${id}/`),
+  updateWorkflowTable: (id, payload) => api.patch(`/workflow-tables/${id}/`, payload),
+  // { action: 'add', column } | { action: 'rename', key, new_key?, label? } | { action: 'remove', key }
+  // | { action: 'update', key, required?, unique?, label? }
+  changeWorkflowTableColumns: (id, payload) => api.post(`/workflow-tables/${id}/columns/`, payload),
+  archiveWorkflowTable: (id, archived) => api.post(`/workflow-tables/${id}/archive/`, { archived }),
+  // `filters` is a list [{ column, op, value }], sent as JSON text; `cursor` is the previous page's next_cursor.
+  getWorkflowTableRows: (id, { filters, ...params } = {}, config = {}) => api.get(`/workflow-tables/${id}/rows/`, {
+    ...config, params: { ...params, ...(Array.isArray(filters) && filters.length ? { filters: JSON.stringify(filters) } : {}) },
+  }),
+  // { values } adds one row ({ row }); { rows: [values...] } adds several ({ count, rows }).
+  addWorkflowTableRows: (id, payload) => api.post(`/workflow-tables/${id}/rows/`, payload),
+  updateWorkflowTableRow: (id, rowId, values) => api.patch(`/workflow-tables/${id}/rows/${rowId}/`, { values }),
+  deleteWorkflowTableRow: (id, rowId) => api.delete(`/workflow-tables/${id}/rows/${rowId}/`),
+  // { row_ids } or { filters, match, dry_run, return_rows }
+  deleteWorkflowTableRows: (id, payload) => api.post(`/workflow-tables/${id}/rows/delete/`, payload),
+  // { confirm: true } or { dry_run: true }
+  deleteAllWorkflowTableRows: (id, payload) => api.post(`/workflow-tables/${id}/rows/delete-all/`, payload),
+  importWorkflowTableCsv: (id, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/workflow-tables/${id}/import/`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  exportWorkflowTableCsv: (id) => api.get(`/workflow-tables/${id}/export/`, { responseType: 'blob' }),
+
+  // ── External database connections (ADM-1363) ─────────────────────────────
+  // A projection never carries a secret. Writing a secret: a non-empty string sets it, null clears it, "" or a missing
+  // key keeps what is stored. 404 = a connection the person cannot use, 403 = a change by a non-owner, 503 = no worker.
+  getDatabaseConnections: (params = {}) => api.get('/database-connections/', { params }),
+  createDatabaseConnection: (payload) => api.post('/database-connections/', payload),
+  getDatabaseConnection: (id) => api.get(`/database-connections/${id}/`),
+  updateDatabaseConnection: (id, payload) => api.patch(`/database-connections/${id}/`, payload),
+  deleteDatabaseConnection: (id) => api.delete(`/database-connections/${id}/`),
+  testDatabaseConnection: (id) => api.post(`/database-connections/${id}/test/`),
+  getDatabaseConnectionSchema: (id, { fresh = false } = {}) =>
+    api.get(`/database-connections/${id}/schema/`, { params: fresh ? { fresh: 1 } : {} }),
+  getDatabaseConnectionShares: (id) => api.get(`/database-connections/${id}/shares/`),
+  // { email } or { user_id }
+  addDatabaseConnectionShare: (id, payload) => api.post(`/database-connections/${id}/shares/`, payload),
+  removeDatabaseConnectionShare: (id, userId) => api.delete(`/database-connections/${id}/shares/${userId}/`),
+
   // ── Workflow operations (ADM-278 / P7) ───────────────────────────────────
   // Cross-workflow, unlike getWorkflowGraphRuns(id) which serves the builder for ONE workflow. An
   // operator asking "what needs me" cannot ask it of a single workflow.

@@ -38,9 +38,10 @@
     </span>
     <span v-if="view.mark" class="wf-node__mark" :class="`is-${view.mark}`" aria-hidden="true">{{ MARK_SIGN[view.mark] }}</span>
 
-    <!-- Outputs. An output with nothing connected shows a + that opens the picker and connects the new step. -->
-    <template v-if="type === 'logic.condition'">
-      <template v-for="h in CONDITION_HANDLES" :key="h.id">
+    <!-- Outputs. An output with nothing connected shows a + that opens the picker and connects the new step. A deciding
+         step (a condition's true / false, a Data table Exists step's exists / missing) has one output per branch. -->
+    <template v-if="branchHandles.length">
+      <template v-for="h in branchHandles" :key="h.id">
         <Handle :id="h.id" type="source" :position="Position.Right" class="wf-h wf-h--out" :class="`wf-h--${h.id}`" :style="{ top: h.top }" :connectable="!view.ghost" />
         <span class="wf-h-label" :class="`wf-h-label--${h.id}`" :style="{ top: h.top }" aria-hidden="true">{{ h.id }}</span>
         <button
@@ -99,7 +100,7 @@ import { computed, inject, ref, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Handle, Position } from '@vue-flow/core'
 import { NodeToolbar } from '@vue-flow/node-toolbar'
-import { WF_CATEGORIES, wfCategory, wfIcon } from '@/config/wfNodeDefinitions'
+import { WF_CATEGORIES, wfBranchHandles, wfCategory, wfIcon } from '@/config/wfNodeDefinitions'
 import { NODE_STATUS_LABELS, NODE_STATUS_ICONS } from '@/utils/wfNodeView'
 import { nodeBadge, nodeTitle, hasReliability, nodeIsOff, canTurnOff, offButtonTitle as offTitleFor, OFF_EXPLAINED } from './wfNodeData'
 import { WF_CANVAS } from './wfCanvasContext'
@@ -112,7 +113,8 @@ const props = defineProps({
   selected: { type: Boolean, default: false },
 })
 
-const CONDITION_HANDLES = [{ id: 'true', top: '30%' }, { id: 'false', top: '70%' }]
+// Two branches sit at 30% and 70% of the card's height (a condition's true / false, exists / missing).
+const BRANCH_TOPS = ['30%', '70%']
 const MARK_SIGN = { add: '+', change: '~', remove: '−' }
 const MARK_WORD = { add: 'addition', change: 'change', remove: 'removal' }
 
@@ -123,6 +125,10 @@ const icon = computed(() => wfIcon(props.type))
 const title = computed(() => nodeTitle(props.type, props.data))
 const badge = computed(() => nodeBadge(props.type, props.data))
 const isTrigger = computed(() => props.type.startsWith('trigger.'))
+const branchHandles = computed(() => {
+  const ids = wfBranchHandles(props.type, props.data)
+  return ids.map((id, i) => ({ id, top: BRANCH_TOPS[i] || `${Math.round(((i + 1) * 100) / (ids.length + 1))}%` }))
+})
 const hasErrorOutput = computed(() => hasReliability(props.type))
 // Turned off (ADM-1343): the run skips the step and passes on its input. Shown by a word and an icon, not by fading alone.
 const off = computed(() => nodeIsOff(props.data))

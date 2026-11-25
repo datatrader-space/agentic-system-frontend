@@ -47,7 +47,8 @@
   --wf-status-failed:var(--wf-danger-ink);
   --wf-status-skipped:var(--wf-muted);
   --wf-status-cancelled:var(--wf-muted);
-  /* Node categories (plan §3.2): trigger emerald, agent/LLM violet, action blue, logic slate, media amber, vision pink.
+  /* Node categories (plan §3.2): trigger emerald, agent/LLM violet, action blue, logic slate, media amber, vision pink,
+     data cyan (ADM-1363).
      <id> is the icon and text colour, <id>-soft the tile behind it. */
   --wf-cat-trigger:#047857;--wf-cat-trigger-soft:#ECFDF5;
   --wf-cat-agent:#6D28D9;--wf-cat-agent-soft:#F5F3FF;
@@ -55,6 +56,7 @@
   --wf-cat-logic:#475569;--wf-cat-logic-soft:#F1F5F9;
   --wf-cat-media:#B45309;--wf-cat-media-soft:#FFFBEB;
   --wf-cat-vision:#BE185D;--wf-cat-vision-soft:#FDF2F8;
+  --wf-cat-data:#0E7490;--wf-cat-data-soft:#ECFEFF;
 }
 [data-theme="dark"] .wfb-root,[data-theme="dark"] .wf-tokens,[data-theme="dark"] .app-dialog:has(.wfb-layer){
   --wf-shadow-tint:rgb(0 0 0 / .45);
@@ -65,6 +67,7 @@
   --wf-cat-logic:#94A3B8;--wf-cat-logic-soft:#202939;
   --wf-cat-media:#FBBF24;--wf-cat-media-soft:#3A3022;
   --wf-cat-vision:#F472B6;--wf-cat-vision-soft:#3A1D2E;
+  --wf-cat-data:#22D3EE;--wf-cat-data-soft:#123139;
 }
 /* Vue Flow's theme, mapped onto our tokens in this ONE block (D1 rule 5). On the move to @xyflow/vue 2.x
    (ADM-1336) these become --xy-* names and the .vue-flow__* selectors below change here only. */
@@ -191,6 +194,7 @@
 .wfb-root .wf-mm--logic{fill:var(--wf-cat-logic)}
 .wfb-root .wf-mm--media{fill:var(--wf-cat-media)}
 .wfb-root .wf-mm--vision{fill:var(--wf-cat-vision)}
+.wfb-root .wf-mm--data{fill:var(--wf-cat-data)}
 
 /* ── node card (plan §3.2) ────────────────────────────────────────────────────────────────────────────────────── */
 .wf-node{position:relative;display:flex;align-items:center;gap:10px;width:200px;height:64px;padding:0 12px 0 13px;border:1px solid var(--wf-line-2);border-radius:12px;background:var(--wf-surface);color:var(--wf-ink);box-shadow:0 1px 3px var(--wf-shadow-tint);transition:box-shadow .15s,border-color .15s,opacity .15s}
@@ -254,11 +258,16 @@
 .wfb-root .wf-h--out{border-color:var(--wf-node-cat)}
 .wfb-root .wf-h--true{border-color:var(--wf-success-ink)}
 .wfb-root .wf-h--false{border-color:var(--wf-danger-ink)}
+.wfb-root .wf-h--exists{border-color:var(--wf-success-ink)}
+.wfb-root .wf-h--missing{border-color:var(--wf-warn-ink)}
 .wfb-root .wf-h--error{border-color:var(--wf-warn-ink)}
-.wf-h-label{position:absolute;right:-40px;transform:translateY(-50%);font-size:11px;font-weight:600;pointer-events:none}
+/* A branch's word sits where its edge leaves the card: an opaque pill so the line passes behind it, never through it. */
+.wf-h-label{position:absolute;z-index:1;left:calc(100% + 10px);transform:translateY(-50%);padding:0 4px;border-radius:4px;background:var(--wf-canvas);font-size:11px;font-weight:600;line-height:16px;white-space:nowrap;pointer-events:none}
 .wf-h-label--true{color:var(--wf-success-ink)}
 .wf-h-label--false{color:var(--wf-danger-ink)}
-.wf-h-label--error{right:auto;left:calc(50% + 10px);bottom:-20px;transform:none;color:var(--wf-warn-ink)}
+.wf-h-label--exists{color:var(--wf-success-ink)}
+.wf-h-label--missing{color:var(--wf-warn-ink)}
+.wf-h-label--error{left:calc(50% + 10px);bottom:-20px;transform:none;color:var(--wf-warn-ink)}
 .wf-plus{position:absolute;top:50%;right:-48px;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;background:none;color:var(--wf-accent-ink);transform:translateY(-50%);opacity:.85}
 .wf-plus::before{content:'';position:absolute;inset:5px;border:1.5px solid var(--wf-accent-line);border-radius:50%;background:var(--wf-surface)}
 .wf-plus::after{content:'';position:absolute;top:50%;right:100%;width:12px;height:2px;background:var(--wf-line-2);transform:translateY(-50%)}
@@ -267,6 +276,8 @@
 .wf-plus:hover::before{border-color:var(--wf-accent);background:var(--wf-accent-soft)}
 .wf-plus--true,.wf-plus--false{right:-80px}
 .wf-plus--true::after,.wf-plus--false::after{width:40px}
+.wf-plus--exists,.wf-plus--missing{right:-96px}
+.wf-plus--exists::after,.wf-plus--missing::after{width:56px}
 .wf-plus--error{top:auto;right:auto;bottom:-56px;left:50%;transform:translateX(-50%)}
 .wf-plus--error::after{top:auto;right:auto;bottom:100%;left:50%;width:2px;height:14px;transform:translateX(-50%)}
 .wf-node.is-ghost .wf-plus{display:none}
