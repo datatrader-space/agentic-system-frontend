@@ -138,6 +138,29 @@ test('a Masks answer is shown on the mask layer and kept as masks; Polygons keep
   expect(sent.at(-1)).toEqual({kind:'sofa',mask:rectMask(50,50,70,70)});
 });
 
+// AI refine opens its card first (ADM-1364): nothing is asked until the person presses Refine with the model shown.
+async function refine(w){
+  expect(api.detect).not.toHaveBeenCalled();
+  expect(w.get('.find-card').text()).toContain('AI refine');
+  expect(w.get('.find-card').text()).toContain('Replaces the selected sofa mask');
+  await w.get('.find-card form.find-ask').trigger('submit');await flushPromises();
+}
+
+test('AI refine shows the model and its price first; Cancel closes it and nothing is asked or changed', async()=>{
+  const w=render();await flushPromises();
+  key('v');await flushPromises();
+  fire(w,'pointerdown',20,20);await flushPromises();
+  key('f');await flushPromises();
+  const card=w.get('.find-card');
+  expect(card.text()).toContain('AI refine');
+  expect(card.find('#refine-model').exists()).toBe(true);                  // the model is chosen here, never silently
+  expect(api.detect).not.toHaveBeenCalled();
+  await card.findAll('button').find(b=>b.text().trim()==='Cancel').trigger('click');await flushPromises();
+  expect(w.find('.find-card').exists()).toBe(false);
+  expect(api.detect).not.toHaveBeenCalled();
+  expect((await saved(w))[0]).toEqual({kind:'sofa',mask:sofa});
+});
+
 test('AI refine on a mask takes the answer mask that best overlaps it, as one step of Undo', async()=>{
   const better=rectMask(12,10,42,30);
   api.detect.mockResolvedValue({state:'ready',name:'SAM 3 (Masks)',started_model:'sam3',tidy:false,
@@ -146,6 +169,7 @@ test('AI refine on a mask takes the answer mask that best overlaps it, as one st
   key('v');await flushPromises();
   fire(w,'pointerdown',20,20);await flushPromises();
   key('f');await flushPromises();
+  await refine(w);
   expect(api.detect).toHaveBeenCalledWith('~902','p1','sam3',['sofa','wall'],null);
   expect(w.text()).toContain('refined this sofa mask (88% the same pixels as yours)');
   let sent=await saved(w);
@@ -161,6 +185,7 @@ test('AI refine on a mask fills a polygon answer at the photo size when the mode
   key('v');await flushPromises();
   fire(w,'pointerdown',20,20);await flushPromises();
   key('f');await flushPromises();
+  await refine(w);
   const sent=await saved(w);
   expect(sent[0].mask).toEqual(rectMask(10,12,40,30));
 });
@@ -171,6 +196,7 @@ test('AI refine on a mask changes nothing when no answer overlaps it enough, and
   key('v');await flushPromises();
   fire(w,'pointerdown',20,20);await flushPromises();
   key('f');await flushPromises();
+  await refine(w);
   expect(w.text()).toContain('SAM 3 (Masks) found no sofa in the same place as this one. Nothing was changed.');
   expect((await saved(w))[0]).toEqual({kind:'sofa',mask:sofa});
   expect(w.get('.editor-toolbar [aria-label="Undo (Ctrl+Z)"]').attributes('aria-disabled')).toBe('true');

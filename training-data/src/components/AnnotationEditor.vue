@@ -414,11 +414,11 @@ function maskColor(name){return colorOf({kind:name});}
 function previewMaskColor(name){return found.value&&!found.value.assist?previewColor.value:colorOf({kind:name});}
 function openDetect(){if(refuseLocked())return;if(!live.value){pendingTool('Find Objects with AI');return;}
   if(!meta.value?.detect){hint.value=meta.value?.readonly||(meta.value?.approving?'This label waits for approval: a model does not draw on it here.':'A model cannot draw on this photo here.');return;}
-  if(detectOpen.value&&!assistMode.value)return;
-  stopDetect();assistMode.value=false;detectError.value='';found.value=null;assistOpen.value=false;
+  if(detectOpen.value&&!assistMode.value&&!refineTarget.value)return;
+  stopDetect();assistMode.value=false;detectError.value='';found.value=null;assistOpen.value=false;refineTarget.value=null;
   const offered=meta.value.detect.sources;detectPick.value=offered.find(x=>x.id===meta.value.detect.preference&&!x.unavailable)?.id||offered.find(x=>!x.unavailable)?.id||'';
   detectOpen.value=true;nextTick(()=>document.getElementById('find-class-name')?.focus());}
-function closeFind(){stopDetect();found.value=null;detectError.value='';detectOpen.value=false;assistMode.value=false;}
+function closeFind(){stopDetect();found.value=null;detectError.value='';detectOpen.value=false;assistMode.value=false;refineTarget.value=null;}
 function runFind(){if(findBlocked.value||!pickedSource.value||pickedSource.value.unavailable)return;
   runDetect(pickedSource.value.id,null,{name:findClass.value,description:findDescription.value.trim()});}
 function stopDetect(){clearTimeout(pollTimer);pollTimer=null;detecting.value=null;}
@@ -471,14 +471,21 @@ async function saveFound(){const f=found.value;const kept=foundKept.value;if(!f|
   const what=f.assist?`label${kept.length===1?'':'s'}`:`${f.cls} shape${kept.length===1?'':'s'}`;
   hint.value=`${kept.length} ${what} from ${f.name} added beside what was drawn. A head start, not a label: check each one; Ctrl+Z takes them away.${f.research_only?' The model is for research or evaluation only, and the label says so.':''}`;}
 // AI refine: the selected shape is replaced by the shape of its kind that a model finds in the same place (a mask by the
-// answer's mask that covers the most the same pixels, editorTools.bestMaskMatch) (the model
-// the person chose for new photos, else the first one offered), tidied by the same rules as Auto annotation. Only that
-// shape changes, as one step of Undo; when the model finds nothing of its kind there, nothing changes.
+// answer's mask that covers the most the same pixels, editorTools.bestMaskMatch), tidied by the same rules as Auto
+// annotation. Only that shape changes, as one step of Undo; when the model finds nothing of its kind there, nothing
+// changes. It opens the Find Objects card first (the owner, 2026-11-25, ADM-1364: it ran a model nobody saw chosen, at
+// a price nobody saw): the person picks the model, sees where it runs and its price, and Refine asks it.
+const refineTarget=ref(null);
+const refineShape=computed(()=>shapes.value.find(x=>x.id===refineTarget.value)||null);
 function refineSelected(){if(refuseLocked())return;if(!live.value){pendingTool('AI refine');return;}
   const target=shapes.value.find(x=>x.id===selected.value);if(!target){hint.value='Select a shape first: AI refine replaces it with the shape a model finds in the same place.';return;}
   const detect=meta.value?.detect;if(!detect?.sources?.length){hint.value=meta.value?.readonly||'A model cannot draw on this photo here.';return;}
-  const source=detect.sources.find(x=>x.id===detect.preference)||detect.sources[0];closePop();runDetect(source.id,target.id);}
-function applyRefine(body,targetId){const W=meta.value.photo.width,H=meta.value.photo.height;detecting.value=null;
+  closePop();stopDetect();assistMode.value=false;assistOpen.value=false;found.value=null;detectError.value='';refineTarget.value=target.id;
+  detectPick.value=detect.sources.find(x=>x.id===detect.preference&&!x.unavailable)?.id||detect.sources.find(x=>!x.unavailable)?.id||'';
+  detectOpen.value=true;nextTick(()=>document.getElementById('refine-model')?.querySelector('button,[role=combobox]')?.focus());}
+function runRefine(){const target=refineShape.value;if(!target){hint.value='The shape was removed. Nothing was changed.';closeFind();return;}
+  if(!pickedSource.value||pickedSource.value.unavailable)return;runDetect(pickedSource.value.id,target.id);}
+function applyRefine(body,targetId){const W=meta.value.photo.width,H=meta.value.photo.height;detecting.value=null;detectOpen.value=false;refineTarget.value=null;
   const target=shapes.value.find(x=>x.id===targetId);if(!target){hint.value='The shape was removed while the model looked at the photo. Nothing was changed.';return;}
   if(target.mask){let match=null;try{match=bestMaskMatch(target.mask,[...(body.shapes||[]),...(body.other||[])],target.kind);}catch(e){hint.value=`${body.name} answered a mask that could not be read. Nothing was changed. ${e.message}`;return;}
     if(!match){hint.value=`${body.name} found no ${target.kind} in the same place as this one. Nothing was changed.`;return;}
@@ -517,7 +524,7 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
   <header class="editor-header"><UiButton @click="close"><ArrowLeft :size="16"/> Back</UiButton><strong>{{ item?.name }}</strong><UiBadge v-if="!live" tone="purple">Coming soon</UiBadge><span role="status">{{ dirty ? 'Unsaved changes' : status }}</span><UiButton :disabled="busy||!!meta?.readonly||!!meta?.approving" @click="save()"><Save :size="15"/> Save draft</UiButton><UiButton variant="primary" :disabled="busy||!!meta?.readonly||!!meta?.approving" @click="save(true)"><Check :size="15"/> Send to review</UiButton><UiButton v-if="mayTakeBack" :disabled="busy" @click="takeBackError='';takeBackOpen=true"><Undo2 :size="15" aria-hidden="true"/> Take back approval</UiButton></header>
   <div v-if="item" class="editor-layout"><aside class="editor-left">
     <section v-if="detectOpen" class="find-card" aria-labelledby="find-card-title">
-      <header class="find-card-head"><h3 id="find-card-title"><component :is="assistMode?WandSparkles:Sparkles" :size="16" aria-hidden="true"/> {{ assistMode?'Label Assist':'Find Objects with AI' }}</h3><button type="button" class="icon-button" :aria-label="assistMode?'Close Label Assist':'Close Find Objects with AI'" @click="closeFind"><X :size="16" aria-hidden="true"/></button></header>
+      <header class="find-card-head"><h3 id="find-card-title"><component :is="assistMode?WandSparkles:Sparkles" :size="16" aria-hidden="true"/> {{ refineTarget?'AI refine':assistMode?'Label Assist':'Find Objects with AI' }}</h3><button type="button" class="icon-button" :aria-label="refineTarget?'Close AI refine':assistMode?'Close Label Assist':'Close Find Objects with AI'" @click="closeFind"><X :size="16" aria-hidden="true"/></button></header>
       <div v-if="detecting" class="detect-wait" role="status"><strong>{{ detecting.title }}</strong><span>Now: {{ detecting.now }}{{ detecting.seconds?` · ${detecting.seconds} s`:'' }}</span><ol v-if="detecting.steps?.length"><li v-for="(step,i) in detecting.steps" :key="i" :class="step.state">{{ step.label }}</li></ol><span v-if="detecting.note">{{ detecting.note }}</span><UiButton @click="stopDetect">Stop waiting</UiButton></div>
       <template v-else-if="found">
         <p class="find-count" role="status">{{ foundSummary }}</p>
@@ -528,6 +535,12 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
         <AnswerWays :sources="meta?.detect?.sources||[]" v-model="detectPick"/><div class="find-actions"><UiButton v-if="found.assist" @click="backToAssist">Back</UiButton><UiButton v-else @click="found=null">Back</UiButton><UiButton variant="primary" :disabled="!foundKept.length||findSaving" @click="saveFound">{{ findSaving?'Saving…':`Save (${foundKept.length})` }}</UiButton></div>
       </template>
       <div v-else-if="assistMode" class="find-actions"><UiButton @click="backToAssist">Back to Label Assist</UiButton></div>
+      <form v-else-if="refineTarget" class="find-ask" @submit.prevent="runRefine">
+        <p class="field-help">{{ refineShape ? `Replaces the selected ${refineShape.kind} ${refineShape.mask?'mask':'shape'} with the ${refineShape.kind} this model finds in the same place. Only that shape changes; Ctrl+Z brings yours back.` : 'The shape was removed. Choose Cancel.' }}</p>
+        <div id="refine-model"><ModelSourcePicker v-model="detectPick" :sources="meta?.detect?.sources||[]"/></div>
+        <p v-if="pickedSource" class="field-help">{{ aboutOf(pickedSource) }}<template v-if="startsServer(pickedSource)"> If it is not running it is started first, which takes a moment.</template><template v-if="pickedSource.licence"> Licence: {{ pickedSource.licence }}.</template></p>
+        <div class="find-actions"><UiButton type="button" @click="closeFind">Cancel</UiButton><UiButton type="submit" variant="primary" :disabled="!refineShape||!pickedSource||!!pickedSource.unavailable"><Sparkles :size="15" aria-hidden="true"/> Refine</UiButton></div>
+      </form>
       <form v-else class="find-ask" @submit.prevent="runFind">
         <ModelSourcePicker v-model="detectPick" :sources="meta?.detect?.sources||[]"/>
         <label class="field-label" for="find-class-name">Class name</label>

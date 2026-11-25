@@ -40,7 +40,7 @@ export const RAIL = [
   { id: 'find', name: 'Text Prompting', kind: 'action', keys: ['M'], group: 'ai', slug: 'label-editor-text-prompting',
     lines: ['Describe an object with text: the model finds every one of it in the photo.', 'You check what it found; Save keeps it.'] },
   { id: 'refine', name: 'AI refine', kind: 'action', keys: ['F'], group: 'ai', slug: 'label-editor-ai-refine',
-    lines: ['Replaces the selected shape with the one a model finds in the same place.', 'Only that shape changes; Ctrl+Z brings yours back.'] },
+    lines: ['Replaces the selected shape with the one a model finds in the same place.', 'You choose the model and see its price first; Ctrl+Z brings yours back.'] },
   { id: 'comments', name: 'Comments', kind: 'action', keys: ['C'], group: 'review', slug: 'label-editor-comments',
     lines: ["Opens this photo's comments.", 'Notes between the labeller and the reviewer.'] },
   { id: 'undo', name: 'Undo', kind: 'action', keys: ['Ctrl', 'Z'], group: 'review', slug: 'label-editor-undo-redo',
