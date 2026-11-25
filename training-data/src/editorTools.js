@@ -35,6 +35,10 @@ export const RAIL = [
     lines: ['A model labels every class you tick in this photo.', 'You check what it found; Save keeps it.'] },
   { id: 'outline', name: 'Box to outline', kind: 'tool', keys: ['O'], group: 'ai', slug: 'label-editor-box-to-outline',
     lines: ["Draw a box around one object: SAM 3 turns it into the object's outline.", 'Enter keeps the outline, Esc drops it.'] },
+  // Text Prompting (the owner, 2026-11-25, as Roboflow's): the rail's door to Find Objects with AI. Name a thing, the
+  // model finds every one of it in the photo; the same card as the button under Annotations and the M key.
+  { id: 'find', name: 'Text Prompting', kind: 'action', keys: ['M'], group: 'ai', slug: 'label-editor-text-prompting',
+    lines: ['Describe an object with text: the model finds every one of it in the photo.', 'You check what it found; Save keeps it.'] },
   { id: 'refine', name: 'AI refine', kind: 'action', keys: ['F'], group: 'ai', slug: 'label-editor-ai-refine',
     lines: ['Replaces the selected shape with the one a model finds in the same place.', 'Only that shape changes; Ctrl+Z brings yours back.'] },
   { id: 'comments', name: 'Comments', kind: 'action', keys: ['C'], group: 'review', slug: 'label-editor-comments',

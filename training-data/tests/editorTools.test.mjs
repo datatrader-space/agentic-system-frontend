@@ -20,9 +20,9 @@ const api = read('../src/api/annotate.js');
 const tools = read('../src/editorTools.js');
 
 test('the rail is in the plan\'s order, with its keys', () => {
-  assert.deepEqual(RAIL.map(t => t.id), ['pan', 'select', 'box', 'polygon', 'split', 'brush', 'rotate', 'smart', 'assist', 'outline', 'refine', 'comments', 'undo', 'redo', 'empty', 'labels']);
+  assert.deepEqual(RAIL.map(t => t.id), ['pan', 'select', 'box', 'polygon', 'split', 'brush', 'rotate', 'smart', 'assist', 'outline', 'find', 'refine', 'comments', 'undo', 'redo', 'empty', 'labels']);
   const keys = Object.fromEntries(RAIL.map(t => [t.id, t.keys.join('+')]));
-  assert.deepEqual(keys, { pan: 'H', select: 'V', box: 'B', polygon: 'P', split: '/', brush: 'R', rotate: 'Shift+R', smart: 'S', assist: 'L', outline: 'O', refine: 'F',
+  assert.deepEqual(keys, { pan: 'H', select: 'V', box: 'B', polygon: 'P', split: '/', brush: 'R', rotate: 'Shift+R', smart: 'S', assist: 'L', outline: 'O', find: 'M', refine: 'F',
     comments: 'C', undo: 'Ctrl+Z', redo: 'Ctrl+Y', empty: 'N', labels: '' });
   for (const t of RAIL) { assert.equal(t.lines.length, 2, `${t.id} has two lines`); assert.ok(t.name && t.lines.every(Boolean)); }
   assert.equal(railEntry('smart').name, 'Smart Select');
@@ -62,7 +62,7 @@ test('every Help Center link is built by one helper, to the article page', () =>
   assert.equal(helpArticle(''), '');
   const slugs = new Set(RAIL.map(t => t.slug).filter(Boolean));
   for (const slug of ['label-editor-pan', 'label-editor-box', 'label-editor-polygon', 'label-editor-brush', 'label-editor-rotate', 'label-editor-smart-select',
-    'label-editor-label-assist', 'label-editor-box-to-outline', 'label-editor-ai-refine', 'label-editor-comments', 'label-editor-undo-redo', 'label-editor-no-objects'])
+    'label-editor-label-assist', 'label-editor-box-to-outline', 'label-editor-text-prompting', 'label-editor-ai-refine', 'label-editor-comments', 'label-editor-undo-redo', 'label-editor-no-objects'])
     assert.ok(slugs.has(slug), slug);
   assert.equal(MASKS_POLYGONS_SLUG, 'label-editor-masks-polygons');
   for (const [name, text] of [['editor', editor], ['card', card], ['assist', assist]]) assert.doesNotMatch(text, /help-center\/article/, `${name} builds no link itself`);
@@ -215,4 +215,23 @@ test('AI refine on a mask: the answer of the same class with the best pixel over
   assert.equal(bestMaskMatch(mine, [{ kind: 'sofa', mask: far }, { kind: 'lamp', mask: mine }], 'sofa'), null);
   assert.equal(bestMaskMatch(mine, [{ kind: 'sofa', mask: rect(12, 5, 22, 15) }], 'sofa'), null);   // 30 of 170: below 0.3
   assert.equal(bestMaskMatch(mine, [{ kind: 'sofa', mask: encode(new Uint8Array(20 * 10).fill(1), 10, 20) }], 'sofa'), null);   // another size
+});
+
+test('the Smart Select, Box to outline and Brush card floats over the photo and folds its details away', () => {
+  // The owner, 2026-11-25: the card pushed the photo down and was too wide; it floats over the photo now (it takes no
+  // room of the page), at most 380 px wide, and its details fold away so it covers less of the photo.
+  assert.match(editor, /\.sam-selection-panel\{position:absolute;top:24px;left:18px;z-index:6;width:min\(380px,calc\(100% - 110px\)\)/);
+  assert.doesNotMatch(editor, /\.sam-selection-panel\{width:100%;max-width:920px/);
+  assert.match(editor, /class="icon-button sam-panel-toggle" :aria-expanded="samPanelOpen"/);
+  assert.match(editor, /<template v-if="samPanelOpen"><p v-if="tool==='smart'">/);
+  assert.match(editor, /const samPanelOpen=ref\(true\);/);
+});
+
+test('Text Prompting is on the rail: M, the Find Objects with AI card, its own picture and Help article', () => {
+  // The owner, 2026-11-25 (as Roboflow's Text Prompting): name a thing, the model finds every one of it in the photo.
+  assert.equal(railEntry('find').name, 'Text Prompting');
+  assert.equal(railEntry('find').slug, 'label-editor-text-prompting');
+  assert.match(editor, /find:TextSearch,/);
+  assert.match(editor, /assist:\(\)=>openAssist\(\),find:openDetect,refine:refineSelected/);
+  assert.match(read('../src/components/ToolArt.vue'), /v-else-if="id==='find'"/);
 });

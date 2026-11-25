@@ -69,6 +69,12 @@ const chairPoints = '142,67 150,52 164,44 192,44 206,52 214,67 214,96 142,96';
       <rect x="136" y="38" width="84" height="66" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5 4"/>
       <polygon class="art-draw" :points="chairPoints" fill="#2563eb" fill-opacity=".18" stroke="#2563eb" stroke-width="2"/>
     </g>
+    <g v-else-if="id==='find'" class="art-overlay">
+      <rect x="8" y="8" width="84" height="22" rx="11" fill="#fff" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="20" y="23" font-size="11" font-family="inherit" fill="#1e3a8a">armchair</text>
+      <path class="art-spark" d="M80 13 l2 5 l5 2 l-5 2 l-2 5 l-2-5 l-5-2 l5-2 z" fill="#2563eb"/>
+      <path :d="chair" fill="#2563eb" fill-opacity=".45" stroke="#2563eb" stroke-width="1.5"/>
+    </g>
     <g v-else-if="id==='refine'" class="art-overlay">
       <polygon points="138,70 152,46 200,40 218,64 212,100 146,100" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5 4"/>
       <polygon class="art-draw" :points="chairPoints" fill="#2563eb" fill-opacity=".16" stroke="#2563eb" stroke-width="2"/>
