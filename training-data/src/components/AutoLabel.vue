@@ -53,7 +53,7 @@ const stateWords = computed(() => {
   if (generating.value) return ['Generating the preview', 'The model is looking at the preview photos.'];
   // The reason itself, not a pointer to it (live, 2026-11-16: the refusal sat below the photo, out of view).
   if (previews.value.some(p => p.state === 'refused')) return ['Preview needs attention', (shown.value?.state === 'refused' && shown.value.error) || previews.value.find(p => p.state === 'refused').error];
-  // Live, 2026-11-23 (ADM-1344): the geometry detector drew nothing and the bar still said "Ready to label".
+  // Live, 2026-11-23 (ADM-1344): a model drew nothing and the bar still said "Ready to label".
   if (nothingDrawn.value) return ['Nothing to label', previews.value.find(p => p.note)?.note || 'The model found nothing in the preview photos.'];
   if (previews.value.length) return ['Ready to label', 'Preview ready. Review the results, then label your batch.'];
   return ['Ready to preview', 'Generate a preview to see what the model finds.'];

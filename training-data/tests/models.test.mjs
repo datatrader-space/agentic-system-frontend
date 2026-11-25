@@ -31,13 +31,13 @@ test('the catalogue is the backend rows, filtered by words, task and family', ()
 });
 
 test('the Use model code calls the SDK in Python and the address otherwise, never with a key', () => {
-  const url = 'https://aadml.com/api/training-data/v1/models/fmw-geometry/predict';
+  const url = 'https://aadml.com/api/training-data/v1/models/segformer-b0/predict';
   assert.deepEqual(USE_LANGUAGES, ['Python SDK', 'JavaScript', 'cURL']);
-  const python = useSnippet('Python SDK', url, 'fmw-geometry');
-  assert.ok(python.includes('from aadml_training import Client') && python.includes('client.run("fmw-geometry", "room.jpg")'));
+  const python = useSnippet('Python SDK', url, 'segformer-b0');
+  assert.ok(python.includes('from aadml_training import Client') && python.includes('client.run("segformer-b0", "room.jpg")'));
   assert.ok(!python.includes('requests'));
-  for (const language of ['JavaScript', 'cURL']) assert.ok(useSnippet(language, url, 'fmw-geometry').includes(url), language);
-  for (const language of USE_LANGUAGES) assert.ok(useSnippet(language, url, 'fmw-geometry').includes('<your app key>'), language);
+  for (const language of ['JavaScript', 'cURL']) assert.ok(useSnippet(language, url, 'segformer-b0').includes(url), language);
+  for (const language of USE_LANGUAGES) assert.ok(useSnippet(language, url, 'segformer-b0').includes('<your app key>'), language);
   assert.equal(SDK_INSTALL, 'pip install aadml-training');
 });
 

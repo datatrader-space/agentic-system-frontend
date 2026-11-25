@@ -65,7 +65,7 @@
             <dd data-test="rm-files">{{ m.files_ready ? 'Ready' : 'Being fetched by AADML' }}
               <template v-for="p in m.camera_model.parts" :key="p.repo"> · {{ p.repo }} @ {{ p.revision }}</template>
             </dd></div>
-          <!-- A published model AADML hosts (kind walls: Aadml-Vision-seg-A0, the FitMyWall geometry detector): its files
+          <!-- A published model AADML hosts (kind walls: Aadml-Vision-seg-A0): its files
                are made once by its preparation job; the server says where they stand (files_text). -->
           <div v-else-if="m.kind === 'walls'"><dt>Files</dt>
             <dd data-test="rm-files">{{ m.files_ready ? 'Ready' : (m.files_text || 'Not made ready yet') }}</dd></div>
