@@ -154,6 +154,7 @@ const when = (iso) => { if (!iso) return ''; const d = new Date(iso); return Num
 const tables = ref([])
 const workspace = ref(null)
 const canCreate = ref(false)
+const createOpen = ref(false)
 const usage = ref(null)
 const listLoading = ref(false)
 const listError = ref('')
