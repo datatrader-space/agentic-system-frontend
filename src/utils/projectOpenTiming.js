@@ -155,16 +155,21 @@ export function noteLanguageServer(url) {
 // project per PREFETCH_EVERY_MS from this page; the backend keeps one wake per project and limits each person.
 export const HOVER_DWELL_MS = 250
 export const PREFETCH_EVERY_MS = 5 * 60 * 1000
+// THE CHAT WARMS IT TOO (turn-start work, 2026-11-25): opening a project chat, and the person's first focus or key in
+// its message box, ask for the same wake, so the turn they are about to send finds the sandbox awake. At most once a
+// minute per project from this page (one map for both: a card just hovered counts), fire and forget.
+export const CHAT_WARM_EVERY_MS = 60 * 1000
 const prefetched = new Map()
 
-/** Ask for `project`'s wake (once per PREFETCH_EVERY_MS). Returns whether a request was sent. */
-export function prefetchWake(project, api, now = Date.now()) {
+/** Ask for `project`'s wake (once per `every` ms, PREFETCH_EVERY_MS by default). Returns whether a request was sent. */
+export function prefetchWake(project, api, now = Date.now(), every = PREFETCH_EVERY_MS) {
   const id = Number(project && project.repo_id)
   if (!id) return false
   const last = prefetched.get(id)
-  if (last !== undefined && now - last < PREFETCH_EVERY_MS) return false
+  if (last !== undefined && now - last < every) return false
   prefetched.set(id, now)
-  api.wakeProject(id).catch(() => { /* a hint only: opening the project still starts it */ })
+  // A hint only: opening the project, or the turn, still starts it. Nothing it does or throws reaches the caller.
+  try { const sent = api.wakeProject(id); if (sent && typeof sent.catch === 'function') sent.catch(() => {}) } catch { /* ignored */ }
   return true
 }
 

@@ -3,7 +3,7 @@
 // Claude Code's footer: "2 background tasks · 1 running" above the composer, hidden at zero; it opens the list (a
 // popover, a bottom sheet on a phone). The socket's `background_task` frames upsert by the task's UUID; the list is read
 // from the (mocked) API when a chat opens and when the socket comes back.
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
 import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -23,6 +23,7 @@ const chat = reactive({
 vi.mock('@/stores/useChatStore', () => ({ useChatStore: () => chat }))
 vi.mock('@/services/api', () => ({
   default: {
+    wakeProject: vi.fn(() => Promise.resolve({ data: { state: 'waking' } })),
     unifiedConfig: vi.fn(() => Promise.resolve({ data: { agent_id: 3527 } })),
     getProjectPreview: vi.fn(() => Promise.resolve({ data: { url: 'https://3000-abcdefgh12345678.proxy.x' } })),
     getConversations: vi.fn(() => Promise.resolve({ data: [] })),
@@ -50,14 +51,14 @@ const stubs = { Icon: true, HITLModal: true, PermissionCard: true, AgentModelPic
 let ctl = null
 let bg = null
 let bgApi = null
-async function mountChat(tasks = []) {
+async function mountChat(tasks = [], props = {}) {
   const Chat = (await import('./UnifiedAgentChat.vue')).default
   const { CODING_CHAT_TABS, createCodingChatTabs } = await import('@/stores/useCodingChatTabs')
   const { BACKGROUND_TASKS, createBackgroundTasks } = await import('@/stores/useBackgroundTasks')
   ctl = createCodingChatTabs()
   bgApi = { list: vi.fn(() => Promise.resolve({ data: { tasks } })), stop: vi.fn() }
   bg = createBackgroundTasks({ api: bgApi })
-  const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, attachTo: document.body,
+  const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true, ...props }, attachTo: document.body,
                           global: { stubs, provide: { [CODING_CHAT_TABS]: ctl, [BACKGROUND_TASKS]: bg } } })
   await flushPromises()
   return w
@@ -87,7 +88,7 @@ describe('the background-tasks pill above the composer (ADM-1360 release)', () =
     await settle()
     expect(bgApi.list).toHaveBeenCalledWith('77')
     const pill = w.find('[data-test="uac-bg-pill"]')
-    expect(pill.text()).toBe('2 background tasks · 1 running')
+    expect(pill.text()).toBe('1 background task running')        // the finished one is not counted
     expect(pill.attributes('aria-expanded')).toBe('false')
     w.unmount()
   })
@@ -99,12 +100,13 @@ describe('the background-tasks pill above the composer (ADM-1360 release)', () =
     expect(w.find('[data-test="uac-bg-pill"]').exists()).toBe(false)
     expect(chat.surfaceHandler({ type: 'background_task', conversation_id: 77, event: 'started', task: running })).toBe(true)
     await settle()
-    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('1 background task · 1 running')
+    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('1 background task running')
     expect(w.find('[data-test="uac-bg-live"]').text()).toBe('npm test started.')
     chat.surfaceHandler({ type: 'background_task', conversation_id: 77, event: 'ended',
       task: { ...running, state: 'finished', status: 'failed', exit_code: 1 } })
     await settle()
-    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('1 background task')
+    expect(w.find('[data-test="uac-bg-pill"]').exists()).toBe(false)   // the last one ended: the pill goes
+    expect(bg.listFor('77')).toHaveLength(1)                             // still listed (the Background tab)
     expect(w.find('[data-test="uac-bg-live"]').text()).toBe('npm test failed.')
     expect(w.find('[data-test="uac-bg-live"]').attributes('aria-live')).toBe('polite')
     // A chat left running in its tab: its frame goes to its own list, not the one on screen.
@@ -226,6 +228,197 @@ describe('the background-tasks pill above the composer (ADM-1360 release)', () =
     chat.connectionLost = false
     await settle()
     expect(bgApi.list).toHaveBeenCalledTimes(2)
+    w.unmount()
+  })
+})
+
+// A phone (ADM-1330, live at 375 px 2026-11-25): the pill took 40 px above the message box, which then left the pane.
+// At 640 px and less it sits in the pane's top row beside History; the light phone view, which hides that row, keeps it
+// above the box; a wide screen is unchanged. The connection line under the box shows on a phone only while reconnecting.
+describe('the pill on a phone', () => {
+  const screen = (narrow) => {
+    window.matchMedia = vi.fn((q) => ({ matches: narrow && q === '(max-width: 640px)', addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  }
+  afterEach(() => { delete window.matchMedia })
+
+  it("sits in the chat's top row, before History, at phone width", async () => {
+    screen(true)
+    const w = await mountChat([running, ended])
+    chat.conversationId = 77
+    await settle()
+    const pill = document.querySelector('.uac-head [data-test="uac-bg-pill"]')
+    expect(pill).not.toBeNull()
+    expect(w.find('.uac-composer [data-test="uac-bg-pill"]').exists()).toBe(false)
+    const head = [...document.querySelector('.uac-head').querySelectorAll('button')]
+    expect(head.indexOf(pill)).toBeLessThan(head.findIndex((b) => b.getAttribute('aria-label') === 'Chat history'))
+    w.unmount()
+  })
+
+  it('stays above the message box in a host that hides that row, and on a wide screen', async () => {
+    screen(true)
+    let w = await mountChat([running], { pillTo: '' })
+    chat.conversationId = 77
+    await settle()
+    expect(w.find('.uac-composer [data-test="uac-bg-pill"]').exists()).toBe(true)
+    expect(document.querySelector('.uac-head [data-test="uac-bg-pill"]')).toBeNull()
+    w.unmount()
+    chat.conversationId = null
+    screen(false)
+    w = await mountChat([running])
+    chat.conversationId = 78
+    await settle()
+    expect(w.find('.uac-composer [data-test="uac-bg-pill"]').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it("the task list starts closed to its one-line summary on a phone, open on a wide screen", async () => {
+    chat.todos = [{ content: 'Build the page', status: 'completed' }, { content: 'Test it', status: 'pending' }]
+    screen(true)
+    let w = await mountChat([])
+    expect(w.find('.uac-tasks .ctl-head').attributes('aria-expanded')).toBe('false')
+    w.unmount()
+    screen(false)
+    w = await mountChat([])
+    expect(w.find('.uac-tasks .ctl-head').attributes('aria-expanded')).toBe('true')
+    w.unmount()
+    chat.todos = []
+  })
+
+  it('the editor gives its header row for the pill (`pill-to`)', async () => {
+    screen(true)
+    const slot = document.createElement('span')
+    slot.id = 'lc-phone-pill'
+    document.body.appendChild(slot)
+    const w = await mountChat([running], { pillTo: '#lc-phone-pill' })
+    chat.conversationId = 79
+    await settle()
+    const pill = slot.querySelector('[data-test="uac-bg-pill"]')
+    expect(pill).not.toBeNull()
+    expect(pill.getAttribute('data-count')).toBe('1')                  // the header shows the count; the words stay inside
+    expect(pill.textContent).toContain('1 background task')
+    w.unmount()
+    slot.remove()
+  })
+
+  it('the connection line is quiet while connected (hidden by the phone CSS) and speaks while reconnecting', async () => {
+    const w = await mountChat([])
+    expect(w.find('.uac-hint').classes()).toContain('quiet')
+    chat.connectionLost = true
+    await flushPromises()
+    expect(w.find('.uac-hint').classes()).not.toContain('quiet')
+    w.unmount()
+  })
+})
+
+// THE PILL SHOWS ONLY WHILE SOMETHING RUNS (owner, 2026-11-25, chat 3511: "once finished it should disappear"), like
+// Claude Code's footer. Running counts a subagent waiting for an approval; a wake-up or schedule waiting for its time
+// is "scheduled". Finished tasks stay in the bottom panel's Background tab.
+describe('the pill shows only while something runs', () => {
+  const wake = { id: U(6), kind: 'wakeup', name: 'Check the build', state: 'running', status: '', started_at: '2026-11-24T10:05:00Z' }
+  const asks = { id: U(7), kind: 'subagent', name: 'Explore', state: 'running', status: 'needs_approval', started_at: '2026-11-24T10:06:00Z' }
+  const done = (n) => ({ ...ended, id: U(n + 7), name: `Done ${n}` })
+  async function pillFor(tasks, conv) {
+    const w = await mountChat(tasks)
+    chat.conversationId = conv
+    await settle()
+    return w
+  }
+
+  it('is hidden when every task has finished', async () => {
+    const w = await pillFor([done(1), done(2), done(3), done(4)], 81)
+    expect(bg.listFor('81')).toHaveLength(4)
+    expect(w.find('[data-test="uac-bg-pill"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('says how many run', async () => {
+    const w = await pillFor([running, { ...running, id: U(3), name: 'npm run dev' }, { ...running, id: U(4), name: 'watch' }, done(1)], 82)
+    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('3 background tasks running')
+    expect(w.find('[data-test="uac-bg-pill"]').attributes('data-count')).toBe('3')
+    w.unmount()
+  })
+
+  it('says what runs and what waits for its time', async () => {
+    const w = await pillFor([running, { ...running, id: U(3) }, wake, done(1)], 83)
+    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('2 running · 1 scheduled')
+    w.unmount()
+  })
+
+  it('shows a wake-up or a schedule still waiting, alone', async () => {
+    const w = await pillFor([wake, done(1)], 84)
+    expect(w.find('[data-test="uac-bg-pill"]').text()).toBe('1 background task scheduled')
+    w.unmount()
+  })
+
+  it('stays while a task waits for the person, and says so', async () => {
+    const w = await pillFor([asks], 85)
+    const pill = w.find('[data-test="uac-bg-pill"]')
+    expect(pill.text()).toBe('1 background task running · 1 needs you')
+    expect(pill.classes()).toContain('needs')
+    w.unmount()
+  })
+
+  it('goes when the last one ends while the list is open; closing the list puts the focus in the message box', { timeout: 60000 }, async () => {
+    const w = await pillFor([running], 86)
+    await w.find('[data-test="uac-bg-pill"]').trigger('click')
+    await vi.waitFor(() => expect(w.find('[data-test="bgs"]').exists()).toBe(true), { timeout: 20000 })
+    chat.surfaceHandler({ type: 'background_task', conversation_id: 86, event: 'ended', task: { ...running, state: 'finished', status: 'succeeded' } })
+    await settle()
+    expect(w.find('[data-test="uac-bg-pill"]').exists()).toBe(false)
+    expect(w.find('[data-test="bgs"]').exists()).toBe(true)              // the open list stays, with Finished 1
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await settle()
+    expect(document.activeElement).toBe(w.find('#uac-input').element)
+    w.unmount()
+  })
+})
+
+// PRE-WARM (turn-start work, 2026-11-25): opening a chat, and the person's first focus or key in the message box, ask
+// the project's sandbox to wake, through the card hover's own helper: at most once a minute per project.
+describe('the project is warmed before the person sends', () => {
+  let api
+  let timing
+  beforeEach(async () => {
+    api = (await import('@/services/api')).default
+    timing = await import('@/utils/projectOpenTiming')
+    timing._resetPrefetch()
+    api.wakeProject.mockClear()
+  })
+
+  it('opening the chat asks once; focus and keys within the minute ask nothing more; after it, the next key asks', async () => {
+    const now = vi.spyOn(Date, 'now')
+    now.mockReturnValue(1_000_000)
+    const w = await mountChat([])
+    expect(api.wakeProject).toHaveBeenCalledTimes(1)
+    expect(api.wakeProject).toHaveBeenCalledWith(14)
+    const box = w.find('#uac-input')
+    await box.trigger('focus')
+    for (const ch of 'hello') { await box.setValue(ch); await box.trigger('input') }
+    expect(api.wakeProject).toHaveBeenCalledTimes(1)
+    now.mockReturnValue(1_000_000 + timing.CHAT_WARM_EVERY_MS)
+    await box.setValue('hello!')
+    await box.trigger('input')
+    expect(api.wakeProject).toHaveBeenCalledTimes(2)
+    now.mockRestore()
+    w.unmount()
+  })
+
+  it('a project still being prepared is not woken from the chat', async () => {
+    const Chat = (await import('./UnifiedAgentChat.vue')).default
+    const { CODING_CHAT_TABS, createCodingChatTabs } = await import('@/stores/useCodingChatTabs')
+    const w = mount(Chat, { props: { systemId: 5, repoId: 15, crsReady: false }, attachTo: document.body,
+                            global: { stubs, provide: { [CODING_CHAT_TABS]: createCodingChatTabs() } } })
+    await flushPromises()
+    await w.find('#uac-input').trigger('focus')
+    expect(api.wakeProject).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('a failed wake changes nothing for the chat', async () => {
+    api.wakeProject.mockImplementationOnce(() => Promise.reject(new Error('429')))
+    const w = await mountChat([])
+    await flushPromises()
+    expect(w.find('#uac-input').exists()).toBe(true)
     w.unmount()
   })
 })

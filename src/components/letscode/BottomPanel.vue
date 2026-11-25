@@ -1,12 +1,19 @@
 <template>
-  <div ref="root" class="bp">
+  <div ref="root" class="bp" :class="{ 'bp-pane': paneOpen }">
+    <!-- On a phone the open panel is its own pane, one pane at a time (ADM-1330): its first row goes back. -->
+    <div v-if="paneOpen" class="bp-pane-head">
+      <button type="button" class="bp-back" data-test="bp-back" @click="back">
+        <Icon icon="lucide:arrow-left" aria-hidden="true" /><span>{{ backLabel }}</span>
+      </button>
+      <span class="bp-pane-t">{{ tabLabel }}</span>
+    </div>
     <div class="bp-tabs" role="tablist" aria-label="Workspace output">
       <button
         v-for="t in tabs" :key="t.id" type="button" role="tab" class="bp-tab" :class="{ on: tab === t.id }"
         :aria-selected="tab === t.id ? 'true' : 'false'" :title="t.label" @click="selectTab(t.id)"
       ><Icon :icon="t.icon" class="bp-tab-ic" aria-hidden="true" /><span class="bp-tab-t">{{ t.label }}</span><span
         v-if="t.count" class="bp-tab-n" aria-hidden="true">{{ t.count }}</span></button>
-      <button type="button" class="bp-collapse" :title="collapsed ? 'Expand' : 'Collapse'" :aria-label="collapsed ? 'Expand the output panel' : 'Collapse the output panel'" :aria-expanded="collapsed ? 'false' : 'true'" @click="$emit('toggle')">
+      <button v-if="!paneOpen" type="button" class="bp-collapse" :title="collapsed ? 'Expand' : 'Collapse'" :aria-label="collapsed ? 'Expand the output panel' : 'Collapse the output panel'" :aria-expanded="collapsed ? 'false' : 'true'" @click="$emit('toggle')">
         <Icon :icon="collapsed ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
     </div>
@@ -64,6 +71,9 @@ const props = defineProps({
   agentCommands: { type: Array, default: () => [] },
   // The panel fills the editor's column (the terminal's Maximize, ADM-1211).
   maximized: { type: Boolean, default: false },
+  // A phone (ADM-1330): the open panel is shown as its own pane in place of the editor, with a way back to it.
+  pane: { type: Boolean, default: false },
+  backLabel: { type: String, default: 'Back to the editor' },
 })
 // `ask-agent`: the Preview tab's "Ask the agent" about an element (ADM-1318), one chat message: LetsCode.vue sends it.
 // `open-file` { path, line, column }: a place the Preview tab found the element at, opened in the editor by LetsCode.vue.
@@ -112,7 +122,8 @@ async function openPreview(port) {
   await nextTick()
   previewPanel.value?.openPort(port)
 }
-defineExpose({ openPreview })
+// `tabs` and `selectTab`: the editor's phone header lists the tabs in its More menu and opens one (ADM-1330).
+defineExpose({ openPreview, tabs, selectTab })
 
 // ── The Terminal's shortcuts, as in VS Code (ADM-1325) ─────────────────────────────────────────────────────────
 // Ctrl+`: the panel opens on the Terminal, or, when it already shows the Terminal, closes. Ctrl+Shift+`: a new shell
@@ -148,6 +159,16 @@ if (languages) watch(() => languages.panel.value.at, () => { if (languages.panel
 // Starting a debug session shows its console.
 if (dbg) watch(() => dbg.panel.value.at, () => { if (dbg.panel.value.tab) selectTab(dbg.panel.value.tab) })
 
+// The pane's way back: the panel closes to its tab row and the editor (the chat) shows again; the focus stays on the tab
+// that was open, which is still on screen.
+const paneOpen = computed(() => props.pane && !props.collapsed)
+const tabLabel = computed(() => tabs.value.find((x) => x.id === tab.value)?.label || '')
+async function back() {
+  emit('toggle')
+  await nextTick()
+  root.value?.querySelector('.bp-tab.on')?.focus()
+}
+
 const lines = computed(() => (tab.value === 'activity' ? props.activity : props.pipelineLog))
 function lineClass(l) {
   if (/\[error\]|error|failed/i.test(l)) return 'err'
@@ -166,6 +187,13 @@ watch(lines, () => nextTick(() => { const e = body.value; if (e) e.scrollTop = e
 .bp-collapse { margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; background: transparent; border: none; border-radius: 6px; color: var(--vm-ink-soft); cursor: pointer; }
 .bp-collapse:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
 .bp-collapse :deep(svg) { width: 16px; height: 16px; }
+.bp-tab:focus-visible, .bp-collapse:focus-visible, .bp-back:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: -2px; }
+/* The phone pane's first row: back, and the tab it shows. */
+.bp-pane-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 2px 12px 2px 4px; border-bottom: 1px solid var(--vm-line); }
+.bp-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 12px 0 10px; border: none; border-radius: 8px; background: transparent; color: var(--vm-ink); font: 600 14px var(--vm-font-sans); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color .15s; }
+.bp-back:hover { background: var(--vm-surface-soft); }
+.bp-back :deep(svg) { width: 18px; height: 18px; flex: 0 0 auto; }
+.bp-pane-t { margin-left: auto; min-width: 0; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; }
 .bp-body pre { margin: 0; font: 12px/1.6 var(--vm-font-mono); white-space: pre-wrap; word-break: break-word; }
 .ln { display: block; }

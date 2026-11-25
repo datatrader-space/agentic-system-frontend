@@ -13,8 +13,9 @@
 
     <!-- Center column -->
     <div class="center-col">
-      <!-- Compact top bar — only below xl (<1280px), since the global header is hidden here -->
-      <div class="compact-bar">
+      <!-- Compact top bar — only below xl (<1280px), since the global header is hidden here. Not drawn while a page
+           with its own one header row is open on a phone (`layout.immersive`: Let's Code's editor, ADM-1330). -->
+      <div v-if="!layout.immersive" class="compact-bar">
         <button class="bar-btn nav-toggle" title="Menu" aria-label="Open navigation menu" @click="layout.openMobileNav()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" /></svg>
         </button>
@@ -28,7 +29,7 @@
       </div>
 
       <main class="center-main" :class="{ 'is-full-bleed': fullBleed }">
-        <AppBreadcrumbs v-if="!fullBleed" />
+        <AppBreadcrumbs v-if="!fullBleed && !layout.immersive" />
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
             <!-- timeout 150: a page that takes longer than that to resolve shows the skeleton below

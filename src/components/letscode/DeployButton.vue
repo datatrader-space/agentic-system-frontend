@@ -144,6 +144,7 @@
 // connect once, deploy a preview, watch it build, open it live, publish to production after confirming, and set the
 // project's domains and environment variables. The Vercel token never reaches the browser.
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { returnFocus } from './returnFocus'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
@@ -364,7 +365,7 @@ async function openPanel() {
 function close() {
   if (!open.value) return
   open.value = false
-  nextTick(() => triggerEl.value?.focus())
+  nextTick(() => returnFocus(triggerEl.value))
 }
 function trapTab(e) {
   const items = [...(dialogEl.value?.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"], summary, iframe') || [])]
@@ -381,7 +382,14 @@ watch(open, (v) => { document.documentElement.style.overflow = v ? 'hidden' : ''
 onMounted(load)                // a deploy started from the chat shows as running on the button too
 onBeforeUnmount(() => { poller.stop(); document.documentElement.style.overflow = '' })
 
-defineExpose({ load, openPanel })
+// The latest deploy's state, the one this button shows (busy / ok / failed): the editor's phone header shows it in its
+// More menu and on its button (ADM-1330), read from here, never kept twice. null before the first deploy.
+const status = computed(() => {
+  const d = current.value
+  if (!d) return null
+  return { state: d.state, active: !!d.active, label: stateLabel(d.state), tone: d.active ? 'run' : toneOf(d.state) }
+})
+defineExpose({ load, openPanel, status })
 </script>
 
 <style scoped>

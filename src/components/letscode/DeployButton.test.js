@@ -216,3 +216,20 @@ describe('DeployButton', () => {
     expect($('.state-pill').textContent).toContain('Deleted')
   })
 })
+
+describe('DeployButton for the phone header', () => {
+  afterEach(() => { w?.unmount(); document.body.innerHTML = '' })
+  it("exposes the latest deploy's state its button shows: running, live, failed, or none", async () => {
+    await openWindow([dep({ state: 'BUILDING', active: true, url: '' })])
+    expect(w.vm.status).toEqual({ state: 'BUILDING', active: true, label: 'Building', tone: 'run' })
+    w.unmount()
+    await openWindow([dep()])
+    expect(w.vm.status).toMatchObject({ state: 'READY', active: false, label: 'Ready', tone: 'ok' })
+    w.unmount()
+    await openWindow([dep({ state: 'ERROR', active: false, error: 'boom' })])
+    expect(w.vm.status).toMatchObject({ label: 'Build failed', tone: 'bad' })
+    w.unmount()
+    await openWindow([])
+    expect(w.vm.status).toBeNull()
+  })
+})

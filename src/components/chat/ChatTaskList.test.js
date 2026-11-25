@@ -95,3 +95,24 @@ describe('ChatTaskList', () => {
     expect(w.get('[data-test="task-live"]').text()).toBe('1 of 3 tasks done. Add the route: Paused — balance ran out')
   })
 })
+
+// A phone (ADM-1330, live at 375 px 2026-11-25): the list starts closed to its one-line summary, so the conversation
+// keeps the room; a tap opens it.
+describe('ChatTaskList closed at first (start-closed)', () => {
+  it('shows only its summary and count, and opens on a tap', async () => {
+    const w = mountList(TODOS, { startClosed: true, compact: true })
+    const head = w.find('.ctl-head')
+    expect(head.attributes('aria-expanded')).toBe('false')
+    expect(w.find('.ctl').classes()).not.toContain('open')
+    expect(w.find('.ctl-list').attributes('style') || '').toContain('display: none')
+    expect(w.find('[data-test="task-count"]').exists()).toBe(true)
+    await head.trigger('click')
+    expect(head.attributes('aria-expanded')).toBe('true')
+    expect(w.find('.ctl-list').attributes('style') || '').not.toContain('display: none')
+  })
+
+  it('is open at first by default (a wide screen, the main chat)', () => {
+    const w = mountList(TODOS)
+    expect(w.find('.ctl-head').attributes('aria-expanded')).toBe('true')
+  })
+})

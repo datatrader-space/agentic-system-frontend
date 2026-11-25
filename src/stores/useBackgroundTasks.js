@@ -235,8 +235,15 @@ export function startCardsByMessage(ctl, messages) {
 // A wake-up or a schedule that is `running` is waiting for its time: it is "Scheduled", not running.
 export const isScheduledKind = (task) => !!task && (task.kind === 'wakeup' || task.kind === 'schedule')
 
-// The tasks of the chat on screen and how many still run, for the pill and the tab.
+// The tasks of the chat on screen, for the pill and the tab: all of them, how many still run, how many wait for their
+// time (a wake-up or a schedule), and how many of the running ones wait for the person (an approval).
 export function counts(ctl) {
   const list = ctl ? ctl.listFor(ctl.conversationId) : []
-  return { total: list.length, running: list.filter((x) => isActive(x) && !isScheduledKind(x)).length }
+  const active = list.filter(isActive)
+  return {
+    total: list.length,
+    running: active.filter((x) => !isScheduledKind(x)).length,
+    scheduled: active.filter(isScheduledKind).length,
+    needsYou: active.filter((x) => x.status === 'needs_approval').length,
+  }
 }

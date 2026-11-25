@@ -80,6 +80,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { returnFocus } from './returnFocus'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
@@ -225,7 +226,7 @@ async function close() {
     if (!discard) return
   }
   open.value = false
-  nextTick(() => triggerEl.value?.focus())
+  nextTick(() => returnFocus(triggerEl.value))
 }
 function trapTab(e) {
   const items = [...(dialogEl.value?.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]') || [])]

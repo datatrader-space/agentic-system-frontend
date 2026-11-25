@@ -165,6 +165,18 @@
 
     <!-- ============================ WORKSPACE ============================ -->
     <div v-else class="lc-ide" :data-theme="ideTheme">
+      <!-- A phone (640 px and less, ADM-1330): ONE header row in place of the app's bar, the editor's bar, the sidebar's
+           tab row and the editor's tab strip; what they hold is in its Files, Chats and More. Hidden above 640 px. -->
+      <LetsCodePhoneBar :project="active" :ready="ready" :open-label="openLabel" :open-seconds="openProgress ? openProgress.seconds : 0"
+                        :view="phonePane" :branches="branches" :switching-branch="switchingBranch" :panel-tabs="panelTabs"
+                        :history="phoneHistory" :history-loading="!!agentChat?.historyLoading"
+                        :github-url="active.github_url ? githubWebUrl(active.github_url) : ''" :dark="ideDark" :theme="ideTheme"
+                        :tasks-waiting="projTasks?.waitingCount || 0" :deploy="deployBtn?.status || null"
+                        @back="onBackToProjects" @files="onPhoneFiles" @chat="onPhoneChat" @new-chat="onPhoneNewChat"
+                        @open-conversation="onPhoneConversation" @load-history="agentChat?.loadHistory?.()"
+                        @branch="onSwitchBranch" @commands="projCommands?.openPanel()" @variables="projEnv?.openPanel()"
+                        @tasks="projTasks?.openPanel()" @deploy="deployBtn?.openPanel()" @side="onPhoneSide" @panel="onPhonePanel"
+                        @theme="toggleIdeTheme" @phone-view="toPhoneView" @app-menu="layout.openMobileNav()" />
       <div class="ide-bar">
         <button type="button" class="ide-back" :title="t('ide.projects')" @click="onBackToProjects"><Icon icon="lucide:chevron-left" aria-hidden="true" /> <span class="ide-back-t">{{ t('ide.projects') }}</span></button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
@@ -194,20 +206,27 @@
           <Icon icon="lucide:github" aria-hidden="true" /> <span class="ide-gh-t">{{ t('ide.openOnGithub') }}</span> <Icon icon="lucide:external-link" class="ext" aria-hidden="true" />
         </a>
         <!-- How the project is installed, built, tested and run: the agent fills these in, the person corrects them. -->
-        <ProjectCommands :repo-id="Number(active.repo_id)" :ready="ready" />
+        <ProjectCommands ref="projCommands" :repo-id="Number(active.repo_id)" :ready="ready" />
         <!-- The project's environment variables, for the Terminal and the Coding Agent's commands (ADM-1205 phase D). -->
-        <ProjectEnv :repo-id="Number(active.repo_id)" />
+        <ProjectEnv ref="projEnv" :repo-id="Number(active.repo_id)" />
         <!-- Background tasks that end in a pull request, and GitHub's checks and reviews coming back as fixes (ADM-1328). -->
-        <ProjectTasks :repo-id="Number(active.repo_id)" @open-chat="onOpenTaskChat" />
-        <DeployButton :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
+        <ProjectTasks ref="projTasks" :repo-id="Number(active.repo_id)" @open-chat="onOpenTaskChat" />
+        <DeployButton ref="deployBtn" :repo-id="Number(active.repo_id)" :project-name="active.name" :branch="active.branch || ''" :ready="ready" />
       </div>
 
       <div class="ide-main">
-        <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomMax && !bottomCollapsed && ready }">
-          <div class="ide-editor">
+        <div ref="ideLeftEl" class="ide-left" :class="{ 'bottom-max': bottomPane }">
+          <!-- A phone's files and editor are their own pane (ADM-1330): its first row goes back to the chat. -->
+          <div v-if="phonePane === 'files' && isPhone && ready" class="ide-pane-head" data-test="ide-files-head">
+            <button type="button" class="ide-pane-back" data-test="ide-files-back" @click="phoneBackToChat">
+              <Icon icon="lucide:arrow-left" aria-hidden="true" /><span>{{ t('phone.backToChat') }}</span>
+            </button>
+            <span class="ide-pane-t">{{ t('phone.filesPane') }}</span>
+          </div>
+          <div class="ide-editor" :class="{ 'phone-chat': phonePane === 'chat' && isPhone }">
             <!-- While the project opens: what it is waiting for, and for how long (ADM-1326). Floats, so the editor
-                 does not move when it goes. -->
-            <p v-if="openLabel" class="ide-open" role="status" aria-live="polite">
+                 does not move when it goes. A phone says it in its header row instead, never over the chat. -->
+            <p v-if="openLabel && !isPhone" class="ide-open" role="status" aria-live="polite">
               <Icon icon="lucide:loader-2" class="spin" aria-hidden="true" />
               <span>{{ openLabel }}</span>
               <span class="ide-open-s" aria-hidden="true">{{ openProgress.seconds }}&nbsp;s</span>
@@ -220,21 +239,21 @@
                   ref="agentChat"
                   :key="active.repo_id"
                   :system-id="active.system_id" :repo-id="active.repo_id" :crs-ready="ready"
-                  :chat-id="linkedChatId" @chat-opened="onChatOpened"
+                  :chat-id="linkedChatId" pill-to="#lc-phone-pill" @chat-opened="onChatOpened"
                   @changes="onChanges" @activity="onActivity" @view-changes="onViewChanges" @review-changes="onReviewChanges"
                   @open-preview="onOpenPreview"
                 />
               </template>
             </CodeBrowser>
           </div>
-          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomMax && !bottomCollapsed }"
+          <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed, max: bottomPane, pane: isPhone }"
                :style="{ '--bp-h': bottomHeight + 'px' }">
             <!-- Drag the top border to resize the panel (arrow keys when focused; a double click restores it). -->
-            <div v-if="!bottomCollapsed && !bottomMax" class="bp-resize" :class="{ active: bottomResizing }"
+            <div v-if="!bottomCollapsed && !bottomPane" class="bp-resize" :class="{ active: bottomResizing }"
                  role="separator" aria-orientation="horizontal" :aria-label="t('ide.resizeBottom')" tabindex="0"
                  :aria-valuenow="bottomHeight" @mousedown="startBottomResize" @keydown="onBottomResizeKey"
                  @dblclick="setBottomHeight(BP_DEFAULT)"></div>
-            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomMax && !bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" @open-file="onOpenFromPreview" />
+            <BottomPanel ref="bottomPanel" :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" :repo-id="Number(active.repo_id)" :ready="ready" :agent-commands="agentCommands" :maximized="bottomPane" :pane="isPhone" :back-label="chatTabs.front ? t('ide.backToChat') : t('ide.backToEditor')" @toggle="bottomCollapsed = !bottomCollapsed" @maximize="toggleBottomMax" @ask-agent="onAskFromPreview" @open-file="onOpenFromPreview" />
           </div>
         </div>
       </div>
@@ -266,6 +285,8 @@ import { LANGUAGE_SERVERS, createLanguageServers } from '@/stores/useLanguageSer
 import { DEBUGGER, createDebugger } from '@/stores/useDebugger'
 import { BACKGROUND_TASKS, createBackgroundTasks } from '@/stores/useBackgroundTasks'
 import BottomPanel from '../components/letscode/BottomPanel.vue'
+import LetsCodePhoneBar from '../components/letscode/LetsCodePhoneBar.vue'
+import { useLayoutStore } from '@/stores/useLayoutStore'
 import DeployButton from '../components/letscode/DeployButton.vue'
 import ProjectCommands from '../components/letscode/ProjectCommands.vue'
 import ProjectEnv from '../components/letscode/ProjectEnv.vue'
@@ -307,7 +328,7 @@ const debuggerStore = createDebugger({ systemId: () => Number(active.value?.syst
   repoId: () => Number(active.value?.repo_id) })
 provide(DEBUGGER, debuggerStore)
 watch(() => active.value && active.value.repo_id, () => debuggerStore.reset())
-function onAskSelection(sel) { chatTabs.showChat(); agentChat.value?.addSelection(sel) }
+function onAskSelection(sel) { phoneView.value = 'chat'; chatTabs.showChat(); agentChat.value?.addSelection(sel) }
 // The plan under review (plan mode, PLAN_REVIEW_LIKE_CLAUDE_PLAN.md) is read beside the chat as the editor's rendered
 // preview of the project's `docs/plans/<date>-<request>-<run>.md`. The chat and the editor share one pane here, so a plan that opens by itself is
 // added as a tab behind the chat (its card stays in view); "Open the plan" brings it to the front. The editor's tab is
@@ -345,9 +366,14 @@ function onOpenPreview(port) {
 // The terminal's Maximize (ADM-1211): the bottom panel fills the editor's column; the editor stays open underneath.
 const bottomMax = ref(false)
 function toggleBottomMax() {
+  // A phone shows the open panel as its own pane already: its Restore goes back to the editor.
+  if (isPhone.value) { bottomCollapsed.value = !bottomCollapsed.value; return }
   if (bottomCollapsed.value) bottomCollapsed.value = false
   bottomMax.value = !bottomMax.value
 }
+// The panel fills the editor's column: maximized, or open at all on a phone (one pane at a time, ADM-1330), where it
+// never shares the column with the editor and its chat.
+const bottomPane = computed(() => ready.value && !bottomCollapsed.value && (bottomMax.value || isPhone.value))
 const pipelineLog = ref([])
 const activity = ref([])
 // The commands the Coding Agent ran in this project, for the Terminal tab's "Coding Agent" entry (ADM-1196).
@@ -737,6 +763,16 @@ const isPhone = ref(!!phoneQuery?.matches)
 function onPhoneChange(e) { isPhone.value = !!e.matches }
 phoneQuery?.addEventListener?.('change', onPhoneChange)
 onBeforeUnmount(() => phoneQuery?.removeEventListener?.('change', onPhoneChange))
+// The full editor at phone width starts on the editor (its chat), the bottom panel closed to its tab row, whatever it
+// was on a wide screen: open, it covered the chat's message box (live at 375 px, 2026-11-25). A tab opens it as its own
+// pane. Back on a wide screen the panel is as the person last left it there.
+let wideCollapsed = bottomCollapsed.value
+watch(isPhone, (phone, was) => {
+  if (phone) {
+    if (was === false) wideCollapsed = bottomCollapsed.value
+    bottomCollapsed.value = true
+  } else if (was) bottomCollapsed.value = wideCollapsed
+}, { immediate: true })
 function readViewPref() {
   try { const v = localStorage.getItem(VIEW_KEY); return v === 'light' || v === 'editor' ? v : '' } catch { return '' }
 }
@@ -760,6 +796,54 @@ async function toPhoneView() {
   if (await unsavedGuard.mayLeave()) setView('light')
 }
 watch(lightView, () => { if (active.value) sendWatch() })
+
+// ── The full editor on a phone: one header row and one pane at a time (ADM-1330, live at 375 px 2026-11-25) ──
+// Panes: the chat (the conversation and its message box, nothing else), the files and the editor (CodeBrowser with
+// its tab row and tab strip, under a Back row), or the bottom panel (its own Back row). The header switches them.
+const layout = useLayoutStore()
+const projCommands = ref(null)
+const projEnv = ref(null)
+const projTasks = ref(null)
+const deployBtn = ref(null)
+const phoneView = ref('chat')                         // 'chat' | 'files'
+const phonePane = computed(() => {
+  if (bottomPane.value && isPhone.value) return 'panel'
+  return phoneView.value === 'chat' && chatTabs.front ? 'chat' : 'files'
+})
+// A chat brought to the front (its tab, the agent, a task's chat) shows the chat; a file, a diff or a review the files.
+watch(() => chatTabs.front, (front) => { phoneView.value = front ? 'chat' : 'files' })
+watch(() => phonePane.value === 'chat' && isPhone.value, (chatPane) => { if (chatPane) codeBrowser.value?.showEditor?.() })
+function phoneShowChat() {
+  bottomCollapsed.value = true
+  phoneView.value = 'chat'
+  codeBrowser.value?.showEditor?.()
+}
+function phoneBackToChat() { phoneShowChat(); chatTabs.showChat() }
+function onPhoneFiles() {
+  if (phonePane.value === 'files') { phoneBackToChat(); return }
+  bottomCollapsed.value = true
+  phoneView.value = 'files'
+  codeBrowser.value?.showSide?.('files')
+}
+function onPhoneSide(tab) {
+  bottomCollapsed.value = true
+  phoneView.value = 'files'
+  codeBrowser.value?.showSide?.(tab)
+}
+function onPhoneChat(tab) { phoneShowChat(); chatTabs.select(tab) }
+function onPhoneNewChat() { phoneShowChat(); chatTabs.newChat() }
+function onPhoneConversation(c) { phoneShowChat(); agentChat.value?.openConversation?.(c) }
+function onPhonePanel(id) { bottomPanel.value?.selectTab?.(id) }
+// The bottom panel's tabs and the project's other chats, for the header's menus.
+const panelTabs = computed(() => bottomPanel.value?.tabs || [])
+const phoneHistory = computed(() => {
+  const c = agentChat.value
+  return c && Array.isArray(c.history) ? c.history.map((x) => ({ id: x.id, title: c.convTitle(x) })) : []
+})
+// The app's own top bar is not drawn while the editor is open on a phone (its header row has Back, and More has the
+// app's menu); the projects list, the light view and a wide screen show it as before.
+watch(() => isPhone.value && !!active.value && !lightView.value, (on) => layout.setImmersive(on), { immediate: true })
+onBeforeUnmount(() => layout.setImmersive(false))
 
 // Unsaved edits are never lost without a question: leaving the project, another page, closing the tab (ADM-1200).
 const unsavedGuard = useUnsavedGuard(() => codeBrowser.value?.unsavedCount)
@@ -838,7 +922,7 @@ function onBranchSeen(branch) {
 // A turn changed files: the tree, Source control and open tabs reload in place.
 function onChanges() { codeBrowser.value?.refresh?.() }
 // "View changes" under an answer: the Source control list, where each file opens its diff.
-function onViewChanges() { codeBrowser.value?.showSourceControl?.() }
+function onViewChanges() { phoneView.value = 'files'; codeBrowser.value?.showSourceControl?.() }
 // "Review changes" under an answer (ADM-1314): that turn's changes, one at a time, in the editor's Review tab.
 function onReviewChanges(p) { codeBrowser.value?.openReview?.(p) }
 function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
@@ -862,6 +946,7 @@ function openLinkedProject() {
 const linkedChatId = computed(() => (route.query.chat ? String(route.query.chat) : null))
 // A background task's chat, opened from the Tasks panel: its tab in the chat panel (ADM-1328).
 function onOpenTaskChat(id) {
+  phoneView.value = 'chat'
   agentChat.value?.openChat?.(id)
 }
 // The chat panel opened a chat (or gave a new one its id): the address names it.
@@ -1108,6 +1193,27 @@ onBeforeUnmount(() => {
   .ide-bar > .pc { order: 8; }
   .ide-bar > .pe { order: 9; }
   .ide-bar > .dp { order: 10; }
+  /* ONE PANE AT A TIME (ADM-1330), the editor's column exactly the screen's height: no page scroll, so the chat's
+     message box sits at the foot of its pane. Above, the column was 70 % of the screen at least and the page scrolled,
+     and the open bottom panel took its height from the chat: the box was off screen (2026-11-25). Closed, the panel is
+     its tab row; open, it is its own pane in place of the editor (`.max`, set by `bottomPane`). */
+  .lc-ide { height: 100%; min-height: 0; }
+  .ide-left { min-height: 0; }
+  .ide-bottom.pane { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  /* ONE HEADER ROW (LetsCodePhoneBar) instead of the editor's bar: its controls are in the row's menus (the bar stays
+     mounted, so their dialogs open from there). The chat pane is the conversation and its message box alone: the
+     sidebar's tab row, the editor's tab strip and the chat's own top row are reached from the header. The bottom
+     panel is reached from the header's More menu and shows only as its own pane. */
+  .ide-bar { display: none; }
+  .ide-editor.phone-chat :deep(.cb-sidebar), .ide-editor.phone-chat :deep(.editor-group > .tab-bar) { display: none; }
+  .ide-editor :deep(.uac-head) { display: none; }
+  .ide-bottom.pane.collapsed { display: none; }
+  .ide-pane-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 2px 12px 2px 4px; border-bottom: 1px solid var(--vm-line); background: var(--vm-surface); }
+  .ide-pane-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px 0 10px; border: none; border-radius: 8px; background: transparent; color: var(--vm-ink); font: 600 14px var(--vm-font-sans); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color .15s; }
+  .ide-pane-back:hover { background: var(--vm-surface-soft); }
+  .ide-pane-back:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; }
+  .ide-pane-back :deep(svg) { width: 18px; height: 18px; }
+  .ide-pane-t { margin-left: auto; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); }
 }
 @media (prefers-reduced-motion: reduce) {
   .spin, .lc-skel::after { animation: none; }

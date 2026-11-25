@@ -45,3 +45,59 @@ describe('the bottom panel tabs', () => {
     w.unmount()
   })
 })
+
+// A phone (ADM-1330, live at 375 px 2026-11-25): the open panel is its own pane in place of the editor, one pane at a
+// time, and its first row goes back to the editor (the chat). A wide screen has no such row.
+describe('the panel as a phone pane', () => {
+  function phonePanel(props = {}) {
+    return mount(BottomPanel, {
+      attachTo: document.body,
+      props: { repoId: 16, ready: true, pane: true, collapsed: false, backLabel: 'Back to the chat', ...props },
+      global: {
+        stubs: { TerminalPanel: true, PreviewPanel: true, ProblemsPanel: true, DebugConsole: true },
+        provide: { [LANGUAGE_SERVERS]: { problems: ref([]), panel: ref({}) }, [DEBUGGER]: { panel: ref({}) } },
+      },
+    })
+  }
+
+  it('open, its first row is Back with the label it is given and the tab it shows; Collapse is not offered twice', async () => {
+    const w = phonePanel()
+    await w.findAll('.bp-tab').find((t) => t.attributes('title') === 'Log').trigger('click')
+    const back = w.find('[data-test="bp-back"]')
+    expect(back.exists()).toBe(true)
+    expect(back.text()).toBe('Back to the chat')
+    expect(back.element.tagName).toBe('BUTTON')
+    expect(w.find('.bp-pane-t').text()).toBe('Log')
+    expect(w.find('.bp-collapse').exists()).toBe(false)
+    expect(w.find('.bp').classes()).toContain('bp-pane')
+    w.unmount()
+  })
+
+  it('Back asks to close the panel and keeps the focus on the tab that was open', async () => {
+    const w = phonePanel()
+    await w.findAll('.bp-tab').find((t) => t.attributes('title') === 'Activity').trigger('click')
+    await w.find('[data-test="bp-back"]').trigger('click')
+    expect(w.emitted('toggle')).toHaveLength(1)
+    await w.setProps({ collapsed: true })
+    expect(w.find('[data-test="bp-back"]').exists()).toBe(false)
+    expect(w.find('.bp-collapse').exists()).toBe(true)                       // closed: the tab row and Expand
+    expect(document.activeElement?.getAttribute('title')).toBe('Activity')
+    w.unmount()
+  })
+
+  it('closed to its tab row, a tab asks to open it (as its own pane)', async () => {
+    const w = phonePanel({ collapsed: true })
+    expect(w.find('[data-test="bp-back"]').exists()).toBe(false)
+    await w.findAll('.bp-tab').find((t) => t.attributes('title') === 'Problems').trigger('click')
+    expect(w.emitted('toggle')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('a wide screen (no pane) has no Back row, and keeps Collapse', () => {
+    const w = phonePanel({ pane: false })
+    expect(w.find('[data-test="bp-back"]').exists()).toBe(false)
+    expect(w.find('.bp-collapse').exists()).toBe(true)
+    expect(w.find('.bp').classes()).not.toContain('bp-pane')
+    w.unmount()
+  })
+})

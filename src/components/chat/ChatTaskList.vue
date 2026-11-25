@@ -59,12 +59,14 @@ const props = defineProps({
   running: { type: Boolean, default: false },
   // A narrow panel (Let's Code's chat): tighter spacing, same content.
   compact: { type: Boolean, default: false },
+  // Shown closed to its one-line summary at first (a phone: the conversation keeps the room); a tap opens it.
+  startClosed: { type: Boolean, default: false },
 })
 
 const STATUS_WORDS = { completed: '(done)', in_progress: '(in progress)', pending: '(not started)', stopped: '(stopped)' }
 const listId = `ctl-list-${useId()}`
 
-const open = ref(true)
+const open = ref(!props.startClosed)
 const items = computed(() => (props.todos || []).filter((t) => t && t.content))
 const done = computed(() => items.value.filter((t) => t.status === 'completed').length)
 const allDone = computed(() => items.value.length > 0 && done.value === items.value.length)

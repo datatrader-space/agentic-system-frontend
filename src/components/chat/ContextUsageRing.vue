@@ -9,9 +9,12 @@
           :aria-valuenow="usage.percent" aria-valuemin="0" aria-valuemax="100"
           :aria-valuetext="summary" :aria-label="'Context window: ' + summary"
           data-test="context-usage-ring">
+      <!-- A filled pie in a closed ring, as a gauge: a thin open arc beside Send read as a loading spinner while
+           nothing ran (owner, 2026-11-25). The wedge is a circle of half the radius whose stroke is as wide as the
+           radius, cut by its dash: the share used, from twelve o'clock. -->
       <svg viewBox="0 0 20 20" class="cur-svg" aria-hidden="true">
-        <circle cx="10" cy="10" r="7.5" class="cur-track" />
-        <circle cx="10" cy="10" r="7.5" class="cur-arc" :stroke-dasharray="dash" transform="rotate(-90 10 10)" />
+        <circle cx="10" cy="10" r="8" class="cur-track" />
+        <circle cx="10" cy="10" r="3.5" class="cur-arc" :stroke-dasharray="dash" transform="rotate(-90 10 10)" />
       </svg>
     </span>
     <span class="cur-tip">
@@ -49,7 +52,7 @@ const FOCUS_MAX = 2000
 const WARN_SHARE = 0.85
 const focus = ref('')
 
-const CIRC = 2 * Math.PI * 7.5
+const CIRC = 2 * Math.PI * 3.5
 const dash = computed(() => {
   const p = usage.value ? usage.value.percent : 0
   const on = (Math.max(p, p > 0 ? 3 : 0) / 100) * CIRC   // a sliver stays visible at 1-2%
@@ -114,8 +117,8 @@ const statusLine = computed(() => {
 }
 .cur-meter:focus-visible { box-shadow: 0 0 0 2px var(--vm-focus); }
 .cur-svg { width: 18px; height: 18px; }
-.cur-track { fill: none; stroke: var(--vm-line-2); stroke-width: 2.5; }
-.cur-arc { fill: none; stroke: var(--vm-ink-faint); stroke-width: 2.5; stroke-linecap: round;
+.cur-track { fill: var(--vm-surface-soft); stroke: var(--vm-line-2); stroke-width: 1.5; }
+.cur-arc { fill: none; stroke: var(--vm-ink-faint); stroke-width: 7; stroke-linecap: butt;
   transition: stroke-dasharray .3s ease, stroke .2s ease; }
 .cur.is-near .cur-arc { stroke: var(--vm-amber-ink); }
 .cur.is-full .cur-arc { stroke: var(--vm-red-ink); }

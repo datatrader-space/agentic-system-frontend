@@ -126,3 +126,21 @@ describe('ContextUsageRing', () => {
     expect(w.text()).toContain('Available when the reply has finished.')
   })
 })
+
+// Beside Send it read as a loading spinner while nothing ran (owner, 2026-11-25): a thin open arc. It is a gauge: a
+// closed, filled ring with a wedge for the share used, and nothing on it moves.
+describe('the ring is a gauge, not a spinner', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+  it('is a closed filled ring with a wedge from twelve o\'clock, and has no animation', () => {
+    useChatStore().contextUsage = normalizeContextUsage({ used_tokens: 6000, window_tokens: 200000, compact_at_percent: 85 })
+    const w = mount(ContextUsageRing)
+    const [track, wedge] = w.findAll('circle')
+    expect(track.attributes('r')).toBe('8')
+    expect(wedge.attributes('r')).toBe('3.5')
+    expect(wedge.attributes('transform')).toBe('rotate(-90 10 10)')
+    const on = Number(wedge.attributes('stroke-dasharray').split(' ')[0])
+    expect(on).toBeGreaterThan(0)
+    expect(on).toBeLessThan(2 * Math.PI * 3.5 * 0.05)                   // 3% of the wedge's circle
+    expect(w.findAll('[class*="spin"], animate, animateTransform')).toHaveLength(0)
+  })
+})

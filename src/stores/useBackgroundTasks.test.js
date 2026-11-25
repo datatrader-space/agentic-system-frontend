@@ -33,7 +33,7 @@ describe('the background-tasks controller', () => {
     ctl.setConversation('77')                       // the same chat: not read again
     expect(api.list).toHaveBeenCalledTimes(1)
     ctl.setConversation('')
-    expect(counts(ctl)).toEqual({ total: 0, running: 0 })
+    expect(counts(ctl)).toEqual({ total: 0, running: 0, scheduled: 0, needsYou: 0 })
   })
 
   it('a background_task frame upserts by the task UUID: replaced in place, or added', async () => {
@@ -66,7 +66,16 @@ describe('the background-tasks controller', () => {
       task({ id: 'c', state: 'finished', status: 'succeeded' })] } })) })
     ctl.setConversation('5')
     await flush()
-    expect(counts(ctl)).toEqual({ total: 3, running: 1 })
+    expect(counts(ctl)).toEqual({ total: 3, running: 1, scheduled: 1, needsYou: 0 })
+  })
+
+  it('a running task waiting for an approval is running, and counted as needing the person', async () => {
+    const { ctl } = make({ list: vi.fn(() => Promise.resolve({ data: { tasks: [
+      task({ kind: 'subagent', state: 'running', status: 'needs_approval' }),
+      task({ id: 'c', state: 'finished', status: 'needs_approval' })] } })) })
+    ctl.setConversation('5')
+    await flush()
+    expect(counts(ctl)).toEqual({ total: 2, running: 1, scheduled: 0, needsYou: 1 })
   })
 
   it('says state changes in the live region', async () => {

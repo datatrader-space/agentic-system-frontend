@@ -151,7 +151,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { returnFocus } from './returnFocus'
 import { Icon } from '@iconify/vue'
 import tasksApi from '@/services/projectTasksApi'
 import { notify } from '@/composables/useNotify'
@@ -309,7 +310,7 @@ function close() {
   poller.stop()
   reveal.value = null                     // the secret is never kept on the page
   showSecret.value = false
-  nextTick(() => triggerEl.value?.focus())
+  nextTick(() => returnFocus(triggerEl.value))
 }
 function trapTab(e) {
   const items = [...(dialogEl.value?.querySelectorAll('a[href], button:not(:disabled), input:not(:disabled), textarea:not(:disabled)') || [])]
@@ -324,8 +325,12 @@ function trapTab(e) {
 watch(() => props.repoId, () => { close(); tasks.value = []; loaded.value = false; webhook.value = { set_up: false, events: [] } })
 watch(open, (v) => { document.documentElement.style.overflow = v ? 'hidden' : '' })
 onBeforeUnmount(() => { document.documentElement.style.overflow = ''; poller.stop() })
+// Read once when the project opens, so the badge (and the phone header's More, ADM-1330) says what waits for the person
+// before the list is first opened; the list polls only while it is open.
+onMounted(() => { load().catch(() => {}) })
 
-defineExpose({ openPanel, load })
+// `waitingCount`: the badge on this button; the editor's phone header shows it in its More menu (ADM-1330).
+defineExpose({ openPanel, load, waitingCount })
 </script>
 
 <style scoped>

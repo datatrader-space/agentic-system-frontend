@@ -24,6 +24,9 @@ export const useLayoutStore = defineStore('layout', {
     // Mobile/tablet (transient overlays)
     mobileNavOpen: false,
     mobileRightOpen: false,
+    // A page that draws its own one header row on a phone (Let's Code's editor, ADM-1330) hides the app's top bar
+    // while it is open; its back control returns to where the app's bar is shown again. Not saved.
+    immersive: false,
   }),
   actions: {
     _persist() {
@@ -63,6 +66,9 @@ export const useLayoutStore = defineStore('layout', {
     },
     closeMobileRight() {
       this.mobileRightOpen = false
+    },
+    setImmersive(on) {
+      this.immersive = !!on
     },
     closeAllOverlays() {
       this.mobileNavOpen = false

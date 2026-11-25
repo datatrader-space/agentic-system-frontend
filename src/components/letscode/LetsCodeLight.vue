@@ -122,7 +122,7 @@
     <div v-show="screen === 'chat'" class="lcl-chat" data-test="lcl-chat">
       <div class="lcl-chat-body">
         <UnifiedAgentChat
-          :system-id="project.system_id" :repo-id="project.repo_id" :crs-ready="ready" :chat-id="chatId"
+          :system-id="project.system_id" :repo-id="project.repo_id" :crs-ready="ready" :chat-id="chatId" pill-to=""
           @chat-opened="(id) => emit('chat-opened', id)"
           @open-preview="openPreview" @view-changes="emit('full-editor')" @review-changes="emit('full-editor')"
         />

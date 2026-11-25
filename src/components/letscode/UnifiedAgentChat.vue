@@ -9,6 +9,8 @@
   <div class="uac">
     <div class="uac-head">
       <span class="uac-title"><Icon icon="lucide:sparkles" aria-hidden="true" /> {{ t('chat.title') }}</span>
+      <!-- On a phone the background-tasks pill sits here, in the pane's top row, so the message box keeps the room. -->
+      <span id="uac-head-slot" class="uac-head-slot"></span>
       <div class="uac-head-actions">
         <div class="uac-hwrap">
           <button type="button" class="uac-hbtn" :class="{ on: historyOpen }" :title="t('chat.history')" :aria-label="t('chat.history')" :aria-expanded="historyOpen ? 'true' : 'false'" @click="toggleHistory">
@@ -104,7 +106,7 @@
     <PermissionCard v-if="!onRail" :requests="permissionRequests" @respond="onPermissionRespond" />
 
     <!-- The agent's task list for this chat, the same list the main chat shows (the shared store's `todos`). -->
-    <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" compact /></div>
+    <div v-if="chat.todos && chat.todos.length" class="uac-tasks"><ChatTaskList :todos="chat.todos" :running="chat.isStreaming" compact :start-closed="narrow" /></div>
 
     <!-- ADM-1327: the branch this chat works on (its own copy), its pull request and its Vercel preview. -->
     <ChatBranchBar v-if="chat.conversationId && tabsStore.branches[String(chat.conversationId)]"
@@ -112,16 +114,22 @@
                    @branch="(b) => tabsStore.setBranch(b.chatId, b.branch)" />
 
     <div class="uac-composer">
-      <!-- The chat's background work (ADM-1360 release), like Claude Code's footer: "2 background tasks · 1 running".
-           Hidden when there is none. Opens the list: a popover here, a bottom sheet on a phone. -->
-      <div v-if="bgCounts.total" class="uac-bg">
-        <button ref="bgPillEl" type="button" class="uac-bg-pill" :class="{ on: bg.sheetOpen, live: bgCounts.running }"
-                aria-haspopup="dialog" :aria-expanded="bg.sheetOpen ? 'true' : 'false'" :title="t('chat.bgOpen')"
+      <!-- The chat's background work (ADM-1360 release), like Claude Code's footer: "2 background tasks running". Shown
+           ONLY while something runs or waits for its time (owner, 2026-11-25): when the last one ends it fades out; the
+           finished ones stay in the bottom panel's Background tab. Opens the list: a popover here, a bottom sheet on a
+           phone. -->
+      <Teleport defer :to="pillTo || 'body'" :disabled="!narrow || !pillTo">
+      <Transition name="uac-bg-fade">
+      <div v-if="bgShown" class="uac-bg">
+        <button ref="bgPillEl" type="button" class="uac-bg-pill" :class="{ on: bg.sheetOpen, live: bgCounts.running, needs: bgCounts.needsYou }"
+                aria-haspopup="dialog" :aria-expanded="bg.sheetOpen ? 'true' : 'false'" :title="t('chat.bgOpen')" :data-count="bgActive"
                 data-test="uac-bg-pill" @click="toggleBgSheet">
-          <Icon :icon="bgCounts.running ? 'lucide:loader-2' : 'lucide:layers'" :class="{ spin: bgCounts.running }" aria-hidden="true" />
+          <Icon :icon="bgCounts.running ? 'lucide:loader-2' : 'lucide:alarm-clock'" :class="{ spin: bgCounts.running }" aria-hidden="true" />
           <span>{{ bgPillText }}</span>
         </button>
       </div>
+      </Transition>
+      </Teleport>
       <BackgroundTasksSheet v-if="bg.sheetOpen" @close="closeBgSheet" />
       <!-- @ mentions a project file: Go to file's own search and list (useFileSearch, FileResultList). -->
       <div v-if="mention" class="uac-mention" data-test="uac-mention">
@@ -150,7 +158,7 @@
             :placeholder="crsReady ? t('chat.placeholder') : t('chat.preparing')"
             rows="1" :aria-controls="mention ? 'uac-mention-list' : undefined" :aria-expanded="mention ? 'true' : 'false'"
             :aria-activedescendant="mention && mentionItems.length ? `uac-mention-list-${mentionActive}` : undefined"
-            @input="onInput" @keydown="onKeydown" @paste="onPaste" @click="findMention" @focus="focused = true" @blur="onBlur"
+            @input="onInput" @keydown="onKeydown" @paste="onPaste" @click="findMention" @focus="onFocusBox" @blur="onBlur"
           ></textarea>
           <!-- Mic: records a voice note (VOICE_NOTES_PLAN.md); off and explains why without a transcription model. -->
           <VoiceNoteMic :agent-id="agentId || null" data-test="uac-mic"
@@ -194,7 +202,7 @@
       </div>
       <!-- A background task's state changes, said to a screen reader (the list itself may be closed). -->
       <p class="sr-only" role="status" aria-live="polite" data-test="uac-bg-live">{{ bg.announcement }}</p>
-      <div class="uac-hint">
+      <div class="uac-hint" :class="{ quiet: !chat.connectionLost }">
         <span class="uac-conn" :class="{ on: !chat.connectionLost }"><span class="uac-conn-dot" aria-hidden="true"></span>{{ chat.connectionLost ? t('chat.reconnecting') : t('chat.connected') }}</span>
         <span>{{ t('chat.keys') }}</span>
       </div>
@@ -209,6 +217,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, inject } fr
 import { Icon } from '@iconify/vue'
 import VoiceNoteMic from '@/components/chat/VoiceNoteMic.vue'
 import api from '@/services/api'
+import { prefetchWake, CHAT_WARM_EVERY_MS } from '@/utils/projectOpenTiming'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { usePermission } from '@/composables/usePermission'
@@ -241,6 +250,9 @@ const props = defineProps({
   crsReady: { type: Boolean, default: false },
   // The chat the page's address names (`?chat=<id>`): opened first, so a reload comes back to it.
   chatId: { type: [String, Number], default: null },
+  // On a phone the background-tasks pill goes to a header row: by default the chat's own top row; the editor gives its
+  // one header row (`#lc-phone-pill`); '' keeps it above the message box (the light phone view, which hides that row).
+  pillTo: { type: String, default: '#uac-head-slot' },
 })
 // `chat-opened`: the chat on screen changed (opened, or a new one given its id), for the page's address.
 const emit = defineEmits(['changes', 'activity', 'view-changes', 'review-changes', 'open-preview', 'chat-opened'])
@@ -385,7 +397,7 @@ function findMention() {
   if (next && !mention.value) resetMentionSearch()
   mention.value = next
 }
-function onInput() { autoGrow(); findMention() }
+function onInput() { autoGrow(); findMention(); warmProject() }   // at most once a minute (the helper)
 function onBlur() { focused.value = false; setTimeout(() => { mention.value = null }, 150) }
 function pickMention(f) {
   const m = mention.value
@@ -486,12 +498,35 @@ const bgCounts = computed(() => bgCountsOf(bg))
 // Each task's start card, under the answer of the run that started it (`started_in`, kept after a reload), else under
 // the message its live `started` frame found; each task once.
 const bgStartCards = computed(() => startCardsByMessage(bg, chat.messages))
+// The pill: what still runs (a subagent waiting for an approval is running) and what waits for its time. Finished
+// tasks are not counted: the pill goes when nothing is left running.
+const bgActive = computed(() => bgCounts.value.running + bgCounts.value.scheduled)
+const bgShown = computed(() => bgActive.value > 0)
 const bgPillText = computed(() => {
-  const { total, running } = bgCounts.value
-  const head = tn('chat.bgTasks', total)
-  return running ? `${head} · ${t('chat.bgRunning', { n: running })}` : head
+  const { running, scheduled, needsYou } = bgCounts.value
+  let text
+  if (running && scheduled) text = t('chat.bgRunningScheduled', { running, scheduled })
+  else if (running) text = tn('chat.bgRunningTasks', running)
+  else text = tn('chat.bgScheduledTasks', scheduled)
+  return needsYou ? `${text} · ${t('chat.bgNeedsYou', { n: needsYou })}` : text
 })
 const bgPillEl = ref(null)
+// PRE-WARM (turn-start work, 2026-11-25): the project's sandbox is asked to wake when a chat opens here and at the
+// person's first focus or key in the message box, so their turn does not wait for it. The card hover's own helper, at
+// most once a minute per project; errors are ignored (the turn starts the sandbox anyway).
+function warmProject() {
+  if (props.crsReady && props.repoId) prefetchWake({ repo_id: props.repoId }, api, Date.now(), CHAT_WARM_EVERY_MS)
+}
+function onFocusBox() { focused.value = true; warmProject() }
+// A chat opened here (on mounting, from a tab, history or a task), or the project turning ready: warm it.
+watch(() => [chat.conversationId, props.crsReady], () => warmProject())
+onMounted(warmProject)
+// A phone (640 px and less, ADM-1330): the pill moves to the pane's top row (above, the Teleport).
+const narrowQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 640px)') : null
+const narrow = ref(!!narrowQuery?.matches)
+function onNarrowChange(e) { narrow.value = !!e.matches }
+narrowQuery?.addEventListener?.('change', onNarrowChange)
+onBeforeUnmount(() => narrowQuery?.removeEventListener?.('change', onNarrowChange))
 // The message a task that just started belongs to: the turn's answer on screen, else the newest message.
 function anchorStarted(d) {
   const task = d.task || d
@@ -503,7 +538,8 @@ function anchorStarted(d) {
 function toggleBgSheet() { if (bg.sheetOpen) closeBgSheet(); else bg.openSheet() }
 function closeBgSheet() {
   bg.closeSheet()
-  nextTick(() => bgPillEl.value?.focus())
+  // The pill is gone when the last task ended while the list was open: the message box takes the focus then.
+  nextTick(() => (bgPillEl.value || inputEl.value)?.focus())
 }
 watch(() => chat.conversationId, (id) => bg.setConversation(id || ''))
 watch(() => chat.connectionLost, (lost, was) => { if (was && !lost && bg.conversationId) bg.load() })
@@ -858,7 +894,9 @@ async function openChat(id) {
   return true
 }
 
-defineExpose({ send, addSelection, sendReview, openChat })
+// The editor's phone header lists the project's chats in its Chats menu (ADM-1330): the same list as Chat history.
+defineExpose({ send, addSelection, sendReview, openChat, loadHistory, openConversation, convTitle,
+  history: conversations, historyLoading: loadingHistory })
 </script>
 
 <style scoped>
@@ -933,6 +971,10 @@ defineExpose({ send, addSelection, sendReview, openChat })
 .uac-bg-pill:hover, .uac-bg-pill.on { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-ink); }
 .uac-bg-pill:focus-visible { outline: 2px solid var(--vm-focus, var(--vm-violet)); outline-offset: 2px; }
 .uac-bg-pill .spin { animation: uacspin 1s linear infinite; }
+.uac-bg-pill.needs { border-color: var(--vm-amber); }
+/* The pill fades out when the last task ends (and in when one starts). */
+.uac-bg-fade-enter-active, .uac-bg-fade-leave-active { transition: opacity .2s ease; }
+.uac-bg-fade-enter-from, .uac-bg-fade-leave-to { opacity: 0; }
 
 /* The live card of a background task this turn started. */
 .uac-bgstart { display: flex; flex-direction: column; gap: 8px; margin: -6px 0 14px 30px; }
@@ -1007,12 +1049,41 @@ defineExpose({ send, addSelection, sendReview, openChat })
   .ai-changes-open, .ai-preview-open, .uac-restore-btn, .uac-bg-pill { min-height: 44px; }
   .uac-box-top textarea { font-size: 16px; }
   /* WRAP, never overlap (ADM-1330, live at 375 px 2026-11-23): the attach button, the model picker and the Chat/Work
-     switch at their 44 px size do not fit one row beside Send/Stop, which then covered the switch. The left group
-     wraps onto a second line and Send/Stop stays at the bottom right, as in ChatComposer. */
-  .uac-box-bar { align-items: flex-end; }
-  .uac-bar-left { flex: 1 1 auto; flex-wrap: wrap; row-gap: 6px; }
+     switch at their 44 px size do not fit one row beside Send/Stop, which then covered the switch. Send/Stop stays at
+     the bottom right, as in ChatComposer (the two rows are set below). */
+  /* THE MESSAGE BOX IS ALWAYS IN VIEW (live at 375 px, 2026-11-25: the task list and the background-tasks pill pushed
+     the whole box, or its bottom row, out of the pane). The box never shrinks; the conversation scrolls, and the task
+     list, a permission card and the branch bar shrink and scroll on their own before the box would move. */
+  .uac-composer { flex: 0 0 auto; }
+  .uac-head { padding: 2px 6px 2px 10px; }   /* its 44 px History button sets the height: 48 px, not 58 */
+  .uac-tasks { flex: 0 1 auto; min-height: 0; max-height: 25%; overflow-y: auto; overscroll-behavior: contain; }
+  /* The task list starts closed on a phone (ChatTaskList `start-closed`): closed, it is its one-line summary. */
+  .uac-tasks :deep(.ctl:not(.open) .ctl-rail) { display: none; }
+  .uac > :deep(.pc), .uac > :deep(.cbb) { flex-shrink: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  /* A long message grows the box only so far; it scrolls inside after that. */
+  .uac-box-top textarea { max-height: min(200px, 15dvh); }
+  /* The pill took 40 px above the box: here it is in the pane's top row, beside History (its list opens as a bottom
+     sheet), and the connection line under the box shows only while the chat is reconnecting. */
+  .uac-head-slot { flex: 1 1 auto; min-width: 0; display: flex; justify-content: flex-end; }
+  .uac-head-slot .uac-bg { min-width: 0; }
+  .uac-composer { padding: 8px 10px; }
+  .uac-hint.quiet { display: none; }
+  /* The box's controls in TWO rows, never three, and never overlapping (ADM-1330): attach, a new branch and the model
+     on the first, the model's name shortened to fit; Chat/Work and Send/Stop on the second. The zero-height item is
+     the break between them. */
+  .uac-box-bar { flex-wrap: wrap; align-items: center; gap: 6px; }
+  .uac-box-bar::before { content: ''; order: 2; flex: 0 0 100%; height: 0; }
+  .uac-bar-left { display: contents; }
+  .uac-bar-left > :deep(*) { order: 1; }
+  .uac-bar-left > :deep(.amp) { flex: 1 1 0; min-width: 0; }
+  .uac-bar-left :deep(.amp-btn) { min-height: 44px; max-width: 100%; }
+  .uac-bar-left :deep(.amp-label) { min-width: 0; }
+  .uac-bar-left > :deep(.uac-turnmode) { order: 3; margin-right: auto; }
+  .uac-bar-left :deep([role="radiogroup"] > button) { min-height: 44px; }
+  .uac-send { order: 3; }
 }
 @media (prefers-reduced-motion: reduce) {
   .uac-restore-btn .spin, .uac-bg-pill .spin { animation: none; }
+  .uac-bg-fade-enter-active, .uac-bg-fade-leave-active { transition: none; }
 }
 </style>

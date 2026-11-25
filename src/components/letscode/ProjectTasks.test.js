@@ -130,3 +130,18 @@ describe('ProjectTasks', () => {
     expect(notify.success).toHaveBeenCalled()
   })
 })
+
+describe('ProjectTasks for the phone header', () => {
+  it('reads the tasks once when the project opens, so the waiting count shows before the list is opened', async () => {
+    w = mount(ProjectTasks, { props: { repoId: 14 }, attachTo: document.body, global: { stubs: { Icon: true } } })
+    await flushPromises()
+    expect(tasksApi.list).toHaveBeenCalledTimes(1)
+    expect(w.vm.waitingCount).toBe(1)
+    expect(w.get('[data-test="tasks-open"]').attributes('aria-label')).toContain('1 waiting for you')
+  })
+
+  it('exposes the waiting count its badge shows (the phone header reads it, no second copy)', async () => {
+    await openDialog()
+    expect(w.vm.waitingCount).toBe(1)
+  })
+})

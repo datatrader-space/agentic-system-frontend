@@ -2260,6 +2260,15 @@ export const useChatStore = defineStore('chat', {
           WORK_FORWARDED_TYPES.has(t) && String(msg.conversation_id) !== String(this.conversationId)) {
         return
       }
+      // THE TURN'S FIRST STATUS, AT ONCE (turn-start work, 2026-11-25): the server says `agent_status` phase `analyzing`
+      // ("Analyzing your request") on the sending socket as soon as the message is saved, before the run host picks
+      // the turn up; the host later says the same phase, and the timeline relabels that SAME row (useAgentTimeline:
+      // a running row of the same phase is never repeated). A status that names a conversation is this chat's only:
+      // with no conversation open here (a new chat not sent yet) it is another chat's, and it never draws a row.
+      if (t === 'agent_status' && msg?.conversation_id != null && msg.conversation_id !== ''
+          && String(msg.conversation_id) !== String(this.conversationId ?? '')) {
+        return
+      }
       if (TURN_ALIVE_TYPES.has(t) && this.isStreaming) this._turnAliveAt = Date.now()
       // The task list of a conversation, replaced whole by each update. Another conversation's list (the frame can
       // reach every socket of this person) never lands on the one on screen.

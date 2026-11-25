@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   startOpen, endOpen, noteApiResponse, noteApiError, noteLanguageServer, openProgress, progressLabel,
-  prefetchWake, _setClock, _current, _resetPrefetch, PREFETCH_EVERY_MS, EDITOR_WINDOW_MS,
+  prefetchWake, _setClock, _current, _resetPrefetch, PREFETCH_EVERY_MS, CHAT_WARM_EVERY_MS, EDITOR_WINDOW_MS,
 } from './projectOpenTiming'
 
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve() }   // microtasks only (timers are fake)
@@ -95,5 +95,20 @@ describe('projectOpenTiming', () => {
     expect(prefetchWake({ repo_id: 7 }, api, 1000 + PREFETCH_EVERY_MS)).toBe(true)
     expect(api.wakeProject.mock.calls).toEqual([[7], [9], [7]])
     expect(prefetchWake({}, api)).toBe(false)
+  })
+
+  it('the chat warms with the same helper, at most once a minute per project; a hover just before counts', () => {
+    const api = fakeApi()
+    expect(prefetchWake({ repo_id: 7 }, api, 1000, CHAT_WARM_EVERY_MS)).toBe(true)
+    expect(prefetchWake({ repo_id: 7 }, api, 1000 + CHAT_WARM_EVERY_MS - 1, CHAT_WARM_EVERY_MS)).toBe(false)
+    expect(prefetchWake({ repo_id: 7 }, api, 1000 + CHAT_WARM_EVERY_MS, CHAT_WARM_EVERY_MS)).toBe(true)
+    expect(api.wakeProject).toHaveBeenCalledTimes(2)
+  })
+
+  it('a wake that fails or throws never reaches the page', () => {
+    const throws = { wakeProject: vi.fn(() => { throw new Error('offline') }) }
+    expect(() => prefetchWake({ repo_id: 11 }, throws, 1)).not.toThrow()
+    const rejects = { wakeProject: vi.fn(() => Promise.reject(new Error('429'))) }
+    expect(prefetchWake({ repo_id: 12 }, rejects, 1)).toBe(true)
   })
 })
