@@ -268,7 +268,7 @@
         <form class="rm-add-form" novalidate @submit.prevent="addCamera">
           <div class="rm-field"><label for="rm-add-kind">What it does</label>
             <select id="rm-add-kind" v-model="addForm.kind" data-test="rm-add-kind">
-              <option v-for="k in kinds" :key="k.key" :value="k.key">{{ k.label }}</option>
+              <option v-for="k in addKinds" :key="k.key" :value="k.key">{{ k.label }}</option>
             </select></div>
           <div class="rm-field"><label for="rm-add-repo">Hugging Face model</label>
             <input id="rm-add-repo" v-model.trim="addForm.repo" placeholder="owner/name" autocomplete="off"
@@ -288,6 +288,11 @@
             <select id="rm-add-task" v-model="addForm.task" data-test="rm-add-task">
               <option value="" disabled>Choose its task</option>
               <option v-for="t in PHOTO_TASKS" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select></div>
+          <div v-if="MEDIA_TASKS[addForm.kind]" class="rm-field"><label for="rm-add-media-task">What it makes from</label>
+            <select id="rm-add-media-task" v-model="addForm.task" data-test="rm-add-media-task">
+              <option value="" disabled>Choose its task</option>
+              <option v-for="t in MEDIA_TASKS[addForm.kind]" :key="t.value" :value="t.value">{{ t.label }}</option>
             </select></div>
           <div v-if="TUNING[addForm.kind]" class="rm-field"><label for="rm-add-tuning">{{ TUNING[addForm.kind].label }}</label>
             <input id="rm-add-tuning" v-model.trim="addForm.tuning" inputmode="decimal"
@@ -384,6 +389,23 @@ const PHOTO_TASKS = [
   { value: 'image-classification', label: 'Names what a photo shows (classification)' },
   { value: 'depth-estimation', label: 'Estimates depth' },
 ]
+// Image and video generation models (ADM-1365 phase 2c) are served for one of these tasks (backend media serving).
+const MEDIA_TASKS = {
+  image_gen: [{ value: 'text-to-image', label: 'Words (text to image)' }, { value: 'image-to-image', label: 'A photo and words (image to image)' }],
+  video_gen: [{ value: 'text-to-video', label: 'Words (text to video)' }, { value: 'image-to-video', label: 'A photo and words (image to video)' }],
+}
+// A Hugging Face task the form is filled from: its kind here (a video-understanding model is a chat model with vision).
+const TASK_KINDS = { 'text-to-image': 'image_gen', 'image-to-image': 'image_gen', 'text-to-video': 'video_gen', 'image-to-video': 'video_gen',
+  'video-text-to-text': 'chat' }
+// The kinds the server lists, and always the two generation kinds (named as the backend names them).
+const MEDIA_KIND_LABELS = [{ key: 'image_gen', label: 'Image generation' }, { key: 'video_gen', label: 'Video generation' }]
+const addKinds = computed(() => [...kinds.value, ...MEDIA_KIND_LABELS.filter(m => !kinds.value.some(k => k.key === m.key))])
+// A task belongs to its kind: another kind chosen by hand drops a task it does not offer.
+// A chat model keeps the Hub task it was chosen with (no menu): text, images and text, or video and text (video
+// understanding, served on chat-serve; backend camera_models.CHAT_TASKS).
+const CHAT_TASKS = ['text-generation', 'image-text-to-text', 'video-text-to-text'].map(value => ({ value }))
+const tasksOf = kind => (kind === 'photo' ? PHOTO_TASKS : kind === 'chat' ? CHAT_TASKS : MEDIA_TASKS[kind] || [])
+watch(() => addForm.kind, kind => { if (addForm.task && !tasksOf(kind).some(t => t.value === addForm.task)) addForm.task = '' })
 const searchForm = reactive({ q: '', kind: 'all' })
 // What the admin may look for (backend open_models.ADMIN_KINDS): every model on Hugging Face, none hidden; each result
 // says whether AADML can serve it now and, if not, why (no server for its kind yet, pickle weights, code of its own).
@@ -439,9 +461,10 @@ const searchSaid = computed(() => {
 function useFound(r) {
   const name = String(r.repo || '').split('/').pop() || ''
   if (!r.addable) return
-  Object.assign(addForm, { repo: r.repo, kind: r.kind || 'chat', name: r.name || name,
+  const kind = TASK_KINDS[r.task] || r.kind || 'chat'
+  Object.assign(addForm, { repo: r.repo, kind, name: r.name || name,
     key: name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40),
-    task: r.kind === 'photo' ? (r.task || '') : '' })
+    task: kind === 'photo' || kind === 'chat' || MEDIA_TASKS[kind] ? (r.task || '') : '' })
   listOpen.value = false
   nextTick(() => document.getElementById('rm-add-key')?.focus())
 }
@@ -664,9 +687,11 @@ async function addCamera() {
   const gpu = addForm.gpu_gb === '' ? 0 : Number(addForm.gpu_gb)
   if (!Number.isInteger(gpu) || gpu < 0 || gpu > 192) { addError.value = 'The GPU memory is a whole number of GB, 0 to 192.'; return }
   if (addForm.kind === 'photo' && !addForm.task) { addError.value = 'Choose what the photo model does.'; return }
+  const mediaTasks = MEDIA_TASKS[addForm.kind]
+  if (mediaTasks && !mediaTasks.some(t => t.value === addForm.task)) { addError.value = 'Choose what the model makes its result from.'; return }
   const body = { key: addForm.key, name: addForm.name || addForm.key, kind: addForm.kind, gpu_gb: gpu,
     parts: [{ repo: addForm.repo, ...(addForm.revision ? { revision: addForm.revision } : {}) }],
-    ...(addForm.kind === 'photo' ? { task: addForm.task } : {}) }
+    ...(addForm.kind === 'photo' || mediaTasks || (addForm.kind === 'chat' && addForm.task) ? { task: addForm.task } : {}) }
   const tune = TUNING[addForm.kind]
   if (tune && addForm.tuning !== '') {
     const value = Number(addForm.tuning)

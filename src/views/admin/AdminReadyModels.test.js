@@ -464,4 +464,62 @@ describe('AdminReadyModels', () => {
     expect(box.attributes('disabled')).toBeDefined()
     expect(w.get('[data-test="rm-admin-only-help"]').text()).toContain('stays admin only')
   })
+
+  // ADM-1365 phase 2c: image and video generation models are added from the same form.
+  it('offers Image generation and Video generation, and sends a generation model with its task', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    api.readyModelCameraAdd.mockResolvedValue({ data: qwen({ key: 'sdxl-turbo', kind: 'image_gen', price_unit: 'an image' }) })
+    await render()
+    const form = w.get('[data-test="rm-add"]')
+    const options = form.get('[data-test="rm-add-kind"]').findAll('option')
+    expect(options.map(o => [o.element.value, o.text()])).toEqual(expect.arrayContaining([['image_gen', 'Image generation'], ['video_gen', 'Video generation']]))
+    await form.get('[data-test="rm-add-kind"]').setValue('image_gen')
+    expect(form.get('[data-test="rm-add-media-task"]').findAll('option').map(o => o.element.value)).toEqual(['', 'text-to-image', 'image-to-image'])
+    await form.get('[data-test="rm-add-repo"]').setValue('stabilityai/sdxl-turbo')
+    await form.get('[data-test="rm-add-key"]').setValue('sdxl-turbo')
+    await form.get('form.rm-add-form').trigger('submit')
+    expect(form.get('[data-test="rm-add-error"]').text()).toContain('Choose what the model makes its result from')
+    expect(api.readyModelCameraAdd).not.toHaveBeenCalled()
+    await form.get('[data-test="rm-add-media-task"]').setValue('text-to-image')
+    await form.get('form.rm-add-form').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelCameraAdd.mock.calls[0][0]).toMatchObject({ kind: 'image_gen', task: 'text-to-image', key: 'sdxl-turbo' })
+    await form.get('[data-test="rm-add-kind"]').setValue('video_gen')
+    expect(form.get('[data-test="rm-add-media-task"]').findAll('option').map(o => o.element.value)).toEqual(['', 'text-to-video', 'image-to-video'])
+  })
+
+  it('fills the kind and task from a generation or video understanding search result', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    api.readyModelSearch.mockResolvedValue({ data: { results: [
+      { repo: 'stabilityai/sdxl-turbo', name: 'sdxl-turbo', task: 'text-to-image', kind: 'image_generation', addable: true },
+      { repo: 'timbrooks/instruct-pix2pix', name: 'instruct-pix2pix', task: 'image-to-image', kind: 'image_generation', addable: true },
+      { repo: 'Wan-AI/Wan2.1-T2V-1.3B', name: 'Wan2.1-T2V-1.3B', task: 'text-to-video', kind: 'video_generation', addable: true },
+      { repo: 'Wan-AI/Wan2.1-I2V-14B', name: 'Wan2.1-I2V-14B', task: 'image-to-video', kind: 'video_generation', addable: true },
+      { repo: 'llava-hf/LLaVA-NeXT-Video-7B-hf', name: 'LLaVA-NeXT-Video-7B-hf', task: 'video-text-to-text', kind: 'video_understanding', addable: true },
+    ] } })
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    const pick = async repo => {
+      await add.get('[data-test="rm-search-q"]').setValue(`find ${repo}`)
+      await add.get('form.rm-search').trigger('submit')
+      await flushPromises()
+      await add.get(`[data-test="rm-found-use-${repo}"]`).trigger('click')
+      const task = add.find('[data-test="rm-add-media-task"]')
+      return [add.get('[data-test="rm-add-kind"]').element.value, task.exists() ? task.element.value : '']
+    }
+    expect(await pick('stabilityai/sdxl-turbo')).toEqual(['image_gen', 'text-to-image'])
+    expect(await pick('timbrooks/instruct-pix2pix')).toEqual(['image_gen', 'image-to-image'])
+    expect(await pick('Wan-AI/Wan2.1-T2V-1.3B')).toEqual(['video_gen', 'text-to-video'])
+    expect(await pick('Wan-AI/Wan2.1-I2V-14B')).toEqual(['video_gen', 'image-to-video'])
+    expect(await pick('llava-hf/LLaVA-NeXT-Video-7B-hf')).toEqual(['chat', ''])
+  })
+
+  it('prices a generation model as the backend says: an image, or a second of video', async () => {
+    const image = qwen({ key: 'sdxl-turbo', kind: 'image_gen', kind_label: 'Image generation', price_unit: 'an image', for_sale: true })
+    const video = qwen({ key: 'wan-t2v', kind: 'video_gen', kind_label: 'Video generation', price_unit: 'a second of video', for_sale: true })
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [image, video], machines: fitted, kinds: allKinds } })
+    await render()
+    expect((await showModel('sdxl-turbo')).text()).toContain('Price an image (USD)')
+    expect((await showModel('wan-t2v')).text()).toContain('Price a second of video (USD)')
+  })
 })

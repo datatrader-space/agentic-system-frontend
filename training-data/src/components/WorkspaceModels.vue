@@ -3,7 +3,7 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
-import { Activity, RefreshCw, ShieldCheck, Rocket, Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet } from 'lucide-vue-next';
+import { Activity, RefreshCw, ShieldCheck, Rocket, Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet, Download, ImageIcon, Film } from 'lucide-vue-next';
 import '../models-workspace.css';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
@@ -18,7 +18,8 @@ import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent, confidenceFloor } from '../api/trial.js';
-import { workspaceApi, publishedApi, modelKeysApi, projectLink, trySteps, modelName, timeAgo, hostedTry, freeLeftAfter, freeTriesUsed } from '../api/workspace.js';
+import { workspaceApi, publishedApi, modelKeysApi, projectLink, trySteps, modelName, timeAgo, hostedTry, freeLeftAfter, freeTriesUsed,
+  mediaKindName, makesVideo, needsPhoto, SIZE_PRESETS, VIDEO_SECONDS, VIDEO_FPS, generateBody } from '../api/workspace.js';
 
 const emit = defineEmits(['create', 'navigate']);
 // "Ready-to-use models" are AADML's own: used as they are, never trained here (a base model a run trains from is in
@@ -99,6 +100,78 @@ const findsByName = computed(() => onPlatform.value && state.value?.call === 'se
 // The admin's chat and photo models hosted for everyone (ADM-1365 phase 2b): Try is free up to its tries a day too.
 const readyChat = computed(() => onPlatform.value && state.value?.call === 'chat');
 const readyPipeline = computed(() => onPlatform.value && state.value?.call === 'pipeline');
+// A hosted image or video generation model (ADM-1365 phase 2c): its Try is a form of words (and a photo for an
+// image-to-* task) and the image or video it makes. Its row says so before the state is read.
+const readyMedia = computed(() => (state.value?.call || trying.value?.call) === 'media');
+const mediaTask = computed(() => state.value?.media_task || trying.value?.media_task || '');
+const isVideo = computed(() => makesVideo(mediaTask.value));
+const sizes = computed(() => SIZE_PRESETS[isVideo.value ? 'video' : 'image']);
+const gen = ref(emptyGen());
+const genPhotoUrl = ref(''); const generating = ref(false); const genResult = ref(null); const genError = ref(''); const genField = ref('');
+const genSeconds = ref(0); let genTimer = null; const genPrompt = ref('');
+function emptyGen() { return { prompt: '', negative: '', size: makesVideo(mediaTask.value) ? 'landscape' : 'square', seconds: VIDEO_SECONDS.start, fps: VIDEO_FPS.start, seed: '', photo: null }; }
+function forgetGen() {
+  if (genPhotoUrl.value) URL.revokeObjectURL(genPhotoUrl.value);
+  genPhotoUrl.value = ''; genResult.value = null; genError.value = ''; genField.value = ''; gen.value = emptyGen();
+  clearInterval(genTimer); generating.value = false;
+}
+watch(isVideo, video => { gen.value.size = video ? 'landscape' : 'square'; }, { immediate: true });
+function chooseGenPhoto(event) {
+  const picked = event.target.files?.[0]; event.target.value = '';
+  genError.value = ''; genField.value = '';
+  if (!picked) return;
+  if (!PHOTO_TYPES.includes(picked.type)) { genError.value = 'Choose a JPEG, PNG or WebP photo.'; genField.value = 'image'; return; }
+  if (picked.size > 15 * 1024 * 1024) { genError.value = 'The photo is larger than 15 MB.'; genField.value = 'image'; return; }
+  if (genPhotoUrl.value) URL.revokeObjectURL(genPhotoUrl.value);
+  gen.value.photo = picked; genPhotoUrl.value = URL.createObjectURL(picked);
+}
+function removeGenPhoto() {
+  if (genPhotoUrl.value) URL.revokeObjectURL(genPhotoUrl.value);
+  genPhotoUrl.value = ''; gen.value.photo = null; nextTick(() => document.getElementById('gen-photo')?.focus());
+}
+// The photo as base64 without its data: prefix, as the server takes it.
+const photoBase64 = picked => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = () => reject(new Error('The photo could not be read. Choose it again.'));
+  reader.readAsDataURL(picked);
+});
+const GEN_FIELDS = { prompt: 'gen-prompt', negative_prompt: 'gen-negative', image: 'gen-photo', seconds: 'gen-seconds', fps: 'gen-fps', seed: 'gen-seed', width: 'gen-size-0', height: 'gen-size-0' };
+function showGenError(words, field) {
+  genError.value = words; genField.value = field || '';
+  if (GEN_FIELDS[field]) nextTick(() => document.getElementById(GEN_FIELDS[field])?.focus());
+}
+async function generate() {
+  if (generating.value || !trying.value) return;
+  genError.value = ''; genField.value = ''; freeUsed.value = '';
+  let image = '';
+  try { if (needsPhoto(mediaTask.value) && gen.value.photo) image = await photoBase64(gen.value.photo); }
+  catch (e) { showGenError(e.message, 'image'); return; }
+  const size = sizes.value.find(item => item.id === gen.value.size) || null;
+  const made = generateBody({ ...gen.value, image, size }, mediaTask.value);
+  if (made.error) { showGenError(made.error, made.field); return; }
+  const key = trying.value.key;
+  generating.value = true; genSeconds.value = 0; clearInterval(genTimer);
+  genTimer = setInterval(() => { genSeconds.value += 1; }, 1000);
+  try {
+    const body = await publishedApi.generate(key, made.body);
+    if (trying.value?.key !== key) return;
+    genResult.value = body; genPrompt.value = made.body.prompt;
+    if (hosted.value) state.value = { ...state.value, free_left: freeLeftAfter(body, state.value.free_left) };
+    nextTick(() => document.getElementById('gen-result')?.focus());
+  } catch (e) {
+    if (trying.value?.key !== key) return;
+    // Today's free tries used: the server's words, where the free tries are said.
+    if (freeTriesUsed(e)) { freeUsed.value = e.message; if (state.value) state.value = { ...state.value, free_left: 0 }; }
+    else showGenError(e.message, e.field);
+    await loadState();
+  } finally { clearInterval(genTimer); if (trying.value?.key === key) generating.value = false; }
+}
+const genWaiting = computed(() => (isVideo.value
+  ? `Generating the video… this can take a few minutes (${genSeconds.value} s so far).`
+  : `Generating the image… (${genSeconds.value} s so far)`));
+const resultName = (kind, i = 0) => `${(trying.value?.key || 'generated').replace(/[^a-z0-9-]+/gi, '-')}-${genResult.value?.seed ?? 'result'}${i ? `-${i + 1}` : ''}.${kind}`;
+onUnmounted(() => { clearInterval(genTimer); if (genPhotoUrl.value) URL.revokeObjectURL(genPhotoUrl.value); });
 function addClass() {
   const name = classText.value.replace(/,/g, ' ').trim().toLowerCase().slice(0, 60);
   classText.value = '';
@@ -136,14 +209,14 @@ function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); pho
 onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
   forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; freeUsed.value = ''; least.value = 0;
-  classes.value = []; classText.value = ''; chatLines.value = []; chatText.value = ''; openAnswer.value = null; loadState();
+  classes.value = []; classText.value = ''; chatLines.value = []; chatText.value = ''; openAnswer.value = null; forgetGen(); loadState();
   // A published model's Try opens in the side panel (ADM-1365): focus moves into it, Escape or the backdrop closes it.
   if (!row.repo) { opener = document.activeElement; nextTick(() => document.getElementById('try-close')?.focus()); }
 }
 let opener = null;
 function close() {
   const panel = trying.value && !trying.value.repo;
-  trying.value = null; state.value = null; clearTimeout(timer); forget(); load();
+  trying.value = null; state.value = null; clearTimeout(timer); forget(); forgetGen(); load();
   if (panel) nextTick(() => opener?.focus?.());
 }
 function onPanelKey(event) { if (event.key === 'Escape') { event.stopPropagation(); close(); } }
@@ -352,7 +425,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <div v-if="trying&&!trying.repo" class="try-backdrop" aria-hidden="true" @click="close"></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel try-side" :class="{ 'try-side--chat': readyChat }"
                role="dialog" aria-modal="true" aria-labelledby="try-title" @keydown="onPanelKey">
-        <header class="try-head"><div><h2 id="try-title">Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&readyChat">{{ trying.name }} answers your messages, and sees the photos you add when it reads images. It runs on AADML, which alone starts and stops it; each message is a free try.</p><p v-else-if="onPlatform">{{ readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+        <header class="try-head"><div><h2 id="try-title">Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&readyChat">{{ trying.name }} answers your messages, and sees the photos you add when it reads images. It runs on AADML, which alone starts and stops it; each message is a free try.</p><p v-else-if="readyMedia">{{ trying.name }} makes {{ isVideo ? 'a short video' : 'an image' }} from your words{{ needsPhoto(mediaTask) ? ' and a photo you choose' : '' }}. It runs on AADML, which alone starts and stops it.</p><p v-else-if="onPlatform">{{ readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button id="try-close" class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -389,6 +462,48 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <!-- A hosted chat or vision model: the existing chat, run as every agent's conversation (ADM-1365 step 4). -->
             <AssistantChat v-if="state && readyChat" class="try-chat" :key="trying.key" :start-conversation="openTryChat"
                            :assistant-name="trying.name" :message-placeholder="`Message ${trying.name}…`" @settled="loadState"/>
+            <!-- A hosted image or video generation model (ADM-1365 phase 2c): words (and a photo) in, an image or a video out. -->
+            <form v-else-if="state && readyMedia" class="gen-form" novalidate :aria-busy="generating" data-test="gen-form" @submit.prevent="generate">
+              <label class="field-label" for="gen-prompt">Describe {{ isVideo ? 'the video' : 'the image' }}</label>
+              <textarea id="gen-prompt" v-model="gen.prompt" class="text-input gen-prompt" rows="4" maxlength="2000" :disabled="generating"
+                        :placeholder="isVideo ? 'A paper boat drifting down a rainy street, slow camera pan' : 'A sunlit reading corner with a green armchair and plants'"
+                        :aria-invalid="genField==='prompt'" :aria-describedby="genField==='prompt' ? 'gen-error' : undefined"></textarea>
+              <label class="field-label" for="gen-negative">What to leave out <span class="muted">(optional)</span></label>
+              <input id="gen-negative" v-model="gen.negative" class="text-input" maxlength="1000" autocomplete="off" :disabled="generating"
+                     placeholder="blurry, text, watermark" :aria-invalid="genField==='negative_prompt'">
+              <template v-if="needsPhoto(mediaTask)">
+                <span id="gen-photo-label" class="field-label">The photo to start from</span>
+                <div v-if="genPhotoUrl" class="gen-photo">
+                  <img :src="genPhotoUrl" :alt="`The photo chosen: ${gen.photo?.name || 'photo'}`">
+                  <UiButton id="gen-photo" :disabled="generating" :aria-label="`Remove the photo ${gen.photo?.name || ''}`" @click="removeGenPhoto"><X :size="14" aria-hidden="true"/> Remove</UiButton>
+                </div>
+                <label v-else class="test-input" :class="{off:generating}"><Upload :size="26" aria-hidden="true"/><strong>Choose a photo</strong><span>JPEG, PNG or WebP, up to 15 MB. The photo is not kept.</span>
+                  <input id="gen-photo" type="file" accept="image/jpeg,image/png,image/webp" :disabled="generating" aria-labelledby="gen-photo-label"
+                         :aria-invalid="genField==='image'" @change="chooseGenPhoto"></label>
+              </template>
+              <fieldset class="gen-sizes" :disabled="generating">
+                <legend class="field-label">Size</legend>
+                <label v-for="(item, i) in sizes" :key="item.id" class="gen-size" :class="{ on: gen.size===item.id }">
+                  <input :id="`gen-size-${i}`" v-model="gen.size" type="radio" name="gen-size" :value="item.id">
+                  <span><strong>{{ item.label }}</strong><small>{{ item.width }} × {{ item.height }}</small></span>
+                </label>
+              </fieldset>
+              <div class="gen-numbers">
+                <template v-if="isVideo">
+                  <label class="field-label" for="gen-seconds">Seconds<input id="gen-seconds" v-model.number="gen.seconds" class="text-input" type="number" inputmode="numeric"
+                         :min="VIDEO_SECONDS.min" :max="VIDEO_SECONDS.max" step="1" :disabled="generating" :aria-invalid="genField==='seconds'"></label>
+                  <label class="field-label" for="gen-fps">Frames a second<input id="gen-fps" v-model.number="gen.fps" class="text-input" type="number" inputmode="numeric"
+                         :min="VIDEO_FPS.min" :max="VIDEO_FPS.max" step="1" :disabled="generating" :aria-invalid="genField==='fps'"></label>
+                </template>
+                <label class="field-label" for="gen-seed">Seed <span class="muted">(optional)</span><input id="gen-seed" v-model="gen.seed" class="text-input" type="number" inputmode="numeric"
+                       min="0" step="1" placeholder="Any" :disabled="generating" aria-describedby="gen-seed-hint" :aria-invalid="genField==='seed'"></label>
+              </div>
+              <p id="gen-seed-hint" class="muted gen-hint">The same words, size and seed make the same {{ isVideo ? 'video' : 'image' }} again.</p>
+              <p v-if="genError" id="gen-error" class="field-error" role="alert" data-test="gen-error">{{ genError }}</p>
+              <UiButton type="submit" variant="primary" class="gen-go" :disabled="!ready||generating||!gen.prompt.trim()" data-test="gen-go">
+                <component :is="isVideo ? Film : ImageIcon" :size="16" aria-hidden="true"/>{{ generating ? 'Generating…' : isVideo ? 'Generate the video' : 'Generate the image' }}</UiButton>
+              <p class="gen-status" role="status" aria-live="polite"><template v-if="generating"><span class="spinner" aria-hidden="true"></span>{{ genWaiting }}</template></p>
+            </form>
             <template v-else-if="state && readyPipeline">
               <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
                 <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
@@ -414,7 +529,25 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-if="floor" class="muted">The model sends back only what reaches {{ percent(floor) }}, so the slider starts there.</p>
             </template>
           </div>
-          <div v-if="readyPipeline"><PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/></div>
+          <div v-if="readyMedia">
+            <section v-if="genResult" id="gen-result" class="gen-result" tabindex="-1" aria-labelledby="gen-result-title" data-test="gen-result">
+              <h3 id="gen-result-title">{{ genResult.video ? 'The video' : genResult.images?.length > 1 ? 'The images' : 'The image' }}</h3>
+              <figure v-if="genResult.video" class="gen-media">
+                <video :src="genResult.video.url" controls playsinline preload="metadata" :width="genResult.video.width" :height="genResult.video.height"
+                       :aria-label="`The video ${genResult.model?.name || trying.name} made`"></video>
+                <figcaption>{{ genResult.video.seconds }} s at {{ genResult.video.fps }} frames a second, {{ genResult.video.width }} × {{ genResult.video.height }}
+                  <a class="button" :href="genResult.video.url" :download="resultName('mp4')" target="_blank" rel="noopener"><Download :size="15" aria-hidden="true"/> Download the video</a></figcaption>
+              </figure>
+              <figure v-for="(img, i) in genResult.images || []" :key="img.url" class="gen-media">
+                <img :src="img.url" :width="img.width" :height="img.height" :alt="`Image ${i + 1} made from: ${genPrompt}`">
+                <figcaption>{{ img.width }} × {{ img.height }}
+                  <a class="button" :href="img.url" :download="resultName('png', i)" target="_blank" rel="noopener"><Download :size="15" aria-hidden="true"/> {{ genResult.images.length > 1 ? `Download image ${i + 1}` : 'Download the image' }}</a></figcaption>
+              </figure>
+              <p class="muted" data-test="gen-charged">Seed {{ genResult.seed }}<template v-if="genResult.charged">. {{ genResult.charged }}</template></p>
+            </section>
+            <div v-else class="gen-empty" data-test="gen-empty"><component :is="isVideo ? Film : ImageIcon" :size="28" aria-hidden="true"/><p>{{ generating ? genWaiting : `Describe ${isVideo ? 'a video' : 'an image'}, then generate it: what ${trying.name} makes is shown here.` }}</p></div>
+          </div>
+          <div v-else-if="readyPipeline"><PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/></div>
           <div v-else-if="!readyChat"><PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)" :waiting-text="onPlatform ? `Choose a photo: what ${trying.name} finds is drawn on it.` : 'Once its test server is ready, choose a photo: what the model finds is drawn on it.'"/></div>
         </div>
       </section>
@@ -430,7 +563,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
           <h2 id="ready-now">Ready now <span class="count">{{ readyRows.length }}</span></h2>
           <div class="model-catalog">
             <article v-for="row in readyRows" :key="row.name" class="panel catalog-card" :class="{ 'catalog-card--off': row.usable === false }" :data-test="`ready-card-${row.key}`">
-              <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ familyName(row) }}</UiBadge><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge><UiBadge v-if="row.admin_only" tone="amber">Admin only</UiBadge></div>
+              <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge v-if="row.call === 'media'" tone="purple">{{ mediaKindName(row.media_task) || 'Generation' }}</UiBadge><UiBadge v-else>{{ familyName(row) }}</UiBadge><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge><UiBadge v-if="row.admin_only" tone="amber">Admin only</UiBadge></div>
               <h3>{{ row.name }}</h3>
               <p class="model-meta">{{ row.publisher }}</p>
               <p>{{ row.description }}</p>
@@ -767,6 +900,40 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .test-input.off{opacity:.5;cursor:not-allowed}
 .test-input input{position:absolute;inset:0;opacity:0;cursor:inherit}
 .test-input span{font-size:11px;color:#5f6d82}
+/* A generation model's Try (ADM-1365 phase 2c). */
+.gen-form .field-label:first-child{margin-top:4px}
+.gen-prompt{resize:vertical;min-height:96px;line-height:1.5}
+.gen-form textarea:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:3px}
+.gen-photo{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.gen-photo img{max-width:min(100%,240px);max-height:180px;border-radius:8px;border:1px solid #e0e2ea;object-fit:contain;background:#f8f9fb}
+.gen-sizes{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.gen-sizes legend{padding:0;width:100%}
+.gen-size{position:relative;display:flex;align-items:center;min-height:44px;padding:8px 14px;border:1px solid #d9dce5;border-radius:8px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s}
+.gen-size input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.gen-size span{display:flex;flex-direction:column;line-height:1.3}
+.gen-size strong{font-size:13px;font-weight:600}
+.gen-size small{font-size:11px;color:#5f6d82}
+.gen-size:hover{border-color:var(--aadml-focus)}
+.gen-size.on{border-color:var(--aadml-primary);background:var(--aadml-tint);color:var(--aadml-primary)}
+.gen-size:focus-within{outline:3px solid var(--aadml-outline);outline-offset:2px}
+.gen-sizes:disabled .gen-size{opacity:.55;cursor:not-allowed}
+.gen-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0 12px}
+.gen-numbers .text-input{margin-top:8px;font-weight:400}
+.gen-form .text-input{min-height:44px}
+.gen-hint{font-size:11px!important;margin:6px 0 12px!important}
+.gen-go{min-height:44px;width:100%}
+.gen-status{display:flex;align-items:center;gap:8px;min-height:20px;margin:10px 0 0!important;font-size:13px!important;color:var(--aadml-primary)!important}
+.gen-result{outline:0}
+.gen-result:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:4px;border-radius:8px}
+.gen-result h3{margin:0 0 10px}
+.gen-media{margin:0 0 14px}
+.gen-media img,.gen-media video{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:10px;border:1px solid #e0e2ea;background:#0f172a}
+.gen-media img{background:#f8f9fb}
+.gen-media figcaption{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#5f6d82}
+.gen-media .button{min-height:44px}
+.gen-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;min-height:200px;padding:24px;border:1px dashed var(--aadml-outline);border-radius:10px;color:var(--aadml-primary);background:var(--aadml-tint)}
+.gen-empty p{font-size:13px;max-width:36ch}
+@media(prefers-reduced-motion:reduce){.gen-size{transition:none}}
 .json summary{cursor:pointer;font-size:12px;color:var(--aadml-primary);margin-top:8px}
 .json pre{max-height:240px;overflow:auto;background:#f8f9fb;border-radius:7px;padding:12px}
 @media(max-width:1000px){.try-layout{grid-template-columns:1fr}}

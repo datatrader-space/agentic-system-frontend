@@ -351,7 +351,48 @@ export const publishedApi = {
   // A hosted chat or vision model tried in the existing chat (ADM-1365): the person's own conversation with the Try
   // agent, bound to this model -> { conversation_id, agent_id, model }.
   tryConversation: key => apiFetch(`${APP}/published/${enc(key)}/try-conversation/`, { method: 'POST', body: {} }),
+  // A hosted image or video generation model (ADM-1365 phase 2c): one image or one short video from the person's words
+  // (and a photo for an image-to-* task). A video can take minutes, so the call waits up to 15 minutes.
+  generate: (key, body) => apiFetch(`${APP}/published/${enc(key)}/generate/`, { method: 'POST', body, timeoutMs: GENERATE_MS }),
 };
+const GENERATE_MS = 15 * 60 * 1000;
+
+// ── a generation model's Try (ADM-1365 phase 2c): the backend's media_task names what it makes ──
+const MEDIA_KINDS = { 'text-to-image': 'Image generation', 'image-to-image': 'Image generation', 'text-to-video': 'Video generation', 'image-to-video': 'Video generation' };
+export const mediaKindName = task => MEDIA_KINDS[task] || '';
+export const makesVideo = task => /-to-video$/.test(task || '');
+export const needsPhoto = task => /^image-to-/.test(task || '');
+// Sizes offered (the server takes 256 to 2048, a multiple of 8, and reads them again).
+export const SIZE_PRESETS = {
+  image: [{ id: 'square', label: 'Square', width: 1024, height: 1024 }, { id: 'portrait', label: 'Portrait', width: 768, height: 1024 }, { id: 'landscape', label: 'Landscape', width: 1024, height: 768 }],
+  video: [{ id: 'landscape', label: 'Landscape', width: 768, height: 512 }, { id: 'portrait', label: 'Portrait', width: 512, height: 768 }, { id: 'square', label: 'Square', width: 512, height: 512 }],
+};
+export const VIDEO_SECONDS = { min: 1, max: 10, start: 4 };
+export const VIDEO_FPS = { min: 8, max: 30, start: 16 };
+const whole = value => (value === '' || value === null || value === undefined ? null : Number(value));
+// The body of one generate call, or the field to fix and why: { body } | { error, field }. ``image`` is the photo's
+// base64 (no data: prefix). The server checks every value again; this only saves a call that would be refused.
+export function generateBody({ prompt = '', negative = '', image = '', size = null, seconds = '', fps = '', seed = '' }, task) {
+  const words = String(prompt).trim();
+  if (!words) return { error: 'Describe what to make.', field: 'prompt' };
+  if (needsPhoto(task) && !image) return { error: 'Choose the photo to start from.', field: 'image' };
+  const body = { prompt: words };
+  if (String(negative).trim()) body.negative_prompt = String(negative).trim();
+  if (needsPhoto(task)) body.image = image;
+  if (size) { body.width = size.width; body.height = size.height; }
+  if (makesVideo(task)) {
+    const s = whole(seconds) ?? VIDEO_SECONDS.start; const f = whole(fps) ?? VIDEO_FPS.start;
+    if (!Number.isInteger(s) || s < VIDEO_SECONDS.min || s > VIDEO_SECONDS.max) return { error: 'A video is 1 to 10 seconds long.', field: 'seconds' };
+    if (!Number.isInteger(f) || f < VIDEO_FPS.min || f > VIDEO_FPS.max) return { error: 'Frames a second: 8 to 30.', field: 'fps' };
+    body.seconds = s; body.fps = f;
+  }
+  const n = whole(seed);
+  if (n !== null) {
+    if (!Number.isInteger(n) || n < 0 || n > 4294967295) return { error: 'A seed is a whole number from 0 to 4294967295.', field: 'seed' };
+    body.seed = n;
+  }
+  return { body };
+}
 
 // API keys made in a model's Use dialog (backend model_keys.py): an app named by the person, with one key for that
 // model. The key itself comes back once, from ``make``; the list holds its hint only.
