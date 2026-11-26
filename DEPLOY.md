@@ -216,9 +216,17 @@ upstream aadml_frontend {
 }
 # in both `location /ws/` and `location /`:
     proxy_pass http://aadml_frontend;
-    proxy_next_upstream error http_502;
+    proxy_next_upstream error;
     proxy_connect_timeout 3s;
 ```
+
+**Never `http_502` in `proxy_next_upstream` either (ADM-1378, 26 Nov 2026).** A 502 here is almost always the BACKEND's
+502 relayed through a healthy frontend container (a backend replica restarting cut a request), not a dead container:
+a dead or stopped colour refuses the connection, which `error` covers. With `http_502` listed and `max_fails=1`, one
+relayed 502 took the only live colour out for `fail_timeout`, the other colour was stopped, and every aadml.com
+request answered 502 ("no live upstreams") for 5-10 s (backend deploy 3f4298ed, 14:46:46-14:46:59 UTC). Retrying on
+the other colour could not have helped anyway: both colours send to the same backend. Changed live on 26 Nov
+(backup `/etc/nginx/sztax.bak-adm1378-20261126T160845Z`).
 
 **Never `http_503` in `proxy_next_upstream` (ADM-1181, 9 Nov 2026).** A 503 here is the backend's own answer
 (for example "the project's sandbox is starting, retry after N seconds"), not a dead container. With `http_503`
