@@ -1462,6 +1462,9 @@ export default {
   updateDatabaseConnection: (id, payload) => api.patch(`/database-connections/${id}/`, payload),
   deleteDatabaseConnection: (id) => api.delete(`/database-connections/${id}/`),
   testDatabaseConnection: (id) => api.post(`/database-connections/${id}/test/`),
+  // "Trust this server's certificate" (ADM-1374): the owner pins the certificate whose fingerprint they checked.
+  trustDatabaseCertificate: (id, fingerprint) => api.post(`/database-connections/${id}/trusted-certificate/`, { fingerprint }),
+  untrustDatabaseCertificate: (id) => api.delete(`/database-connections/${id}/trusted-certificate/`),
   getDatabaseConnectionSchema: (id, { fresh = false } = {}) =>
     api.get(`/database-connections/${id}/schema/`, { params: fresh ? { fresh: 1 } : {} }),
   getDatabaseConnectionShares: (id) => api.get(`/database-connections/${id}/shares/`),

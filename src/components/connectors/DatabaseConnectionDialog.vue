@@ -65,6 +65,20 @@
       <fieldset class="dcd-set">
         <legend class="dcd-label">Encryption</legend>
         <p class="dcd-note"><Icon icon="lucide:shield-check" aria-hidden="true" /><span>{{ props.meta.encryption_note || ENCRYPTION_NOTE }}</span></p>
+        <!-- A certificate the owner trusted from a failed test (ADM-1374): while it is set, it is the only authority. -->
+        <div v-if="trusted" class="dcd-trusted" role="group" aria-label="Trusted certificate">
+          <p class="dcd-trusted-head"><Icon icon="lucide:shield-check" aria-hidden="true" /><strong>Trusted certificate</strong></p>
+          <dl class="dcd-trusted-rows">
+            <dt>Issued to</dt><dd>{{ trusted.issued_to || trusted.subject || '—' }}</dd>
+            <dt>Fingerprint</dt><dd><code translate="no">{{ trusted.fingerprint }}</code></dd>
+            <dt>Valid until</dt><dd>{{ trusted.not_after ? when(trusted.not_after) : '—' }}{{ trusted.expired ? ' (expired)' : '' }}</dd>
+            <dt>Trusted</dt><dd>{{ trusted.trusted_at ? when(trusted.trusted_at) : '' }}{{ trusted.trusted_by ? ` by ${trusted.trusted_by.name || trusted.trusted_by.email}` : '' }}</dd>
+          </dl>
+          <p class="dcd-sub">Only this certificate is accepted for this server{{ trusted.checks_name ? ', for its name' : '' }}; the public authorities and a CA certificate below are not used. Changing the host or port removes it.</p>
+          <button type="button" class="tp-btn" :disabled="untrusting" @click="untrust">
+            <Icon :icon="untrusting ? 'lucide:loader-circle' : 'lucide:shield-off'" aria-hidden="true" />Remove trust
+          </button>
+        </div>
         <Field :id="`${formId}-ca`" label="CA certificate (optional)" class="dcd-wide"
                help="Not needed for AWS RDS or Aurora, or for a server with a public certificate. Only when your server's certificate is signed by your own authority: Google Cloud SQL, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
           <textarea :id="`${formId}-ca`" v-model="form.ca_certificate" class="dcd-in mono" rows="4" spellcheck="false" autocomplete="off" placeholder="-----BEGIN CERTIFICATE-----" :aria-invalid="ariaInvalid('ca_certificate')" />
@@ -144,6 +158,9 @@
         <Icon :icon="testResult.ok ? 'lucide:circle-check' : 'lucide:circle-alert'" aria-hidden="true" />
         <span><strong>{{ testResult.ok ? 'Connected.' : 'The test failed.' }}</strong> {{ testResult.message }}<template v-if="testResult.host_key_fingerprint"> Host key: <code translate="no">{{ testResult.host_key_fingerprint }}</code></template></span>
       </div>
+      <DatabaseCertificateOffer v-if="testResult?.certificate && savedId != null" :connection-id="savedId" :name="form.name || 'this connection'"
+                                :certificate="testResult.certificate" @trusted="onTrusted" @changed="(cert) => { testResult = { ...testResult, certificate: cert } }"
+                                @dismiss="testResult = { ...testResult, certificate: null }" />
       <p v-if="saveError" class="dcd-err" role="alert">{{ saveError }}</p>
     </form>
     <template #footer>
@@ -161,6 +178,8 @@ import { computed, defineComponent, h, onMounted, onUpdated, ref, useId, watch }
 import { Icon } from '@iconify/vue'
 import AppDialog from '../common/AppDialog.vue'
 import PageLoader from '../common/PageLoader.vue'
+import DatabaseCertificateOffer from './DatabaseCertificateOffer.vue'
+import { confirm } from '@/composables/useConfirm'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import {
@@ -228,6 +247,8 @@ const advice = computed(() => props.meta.read_only_advice?.[form.value.engine] |
 const problems = computed(() => formProblems(form.value, { editing: editing.value }))
 const err = (key) => (tried.value ? problems.value[key] || '' : '')
 const ariaInvalid = (key) => (err(key) ? 'true' : 'false')
+const trusted = computed(() => original.value?.trusted_certificate || null)
+const untrusting = ref(false)
 const when = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString() }
 
 async function start() {
@@ -269,6 +290,47 @@ async function onKeyFile(ev) {
   form.value.ssh.private_key = await file.text()
   form.value.ssh.clear_private_key = false
   keyFileName.value = file.name
+}
+
+function savedConnection(conn) {
+  if (!conn?.id) return
+  original.value = { ...(original.value || {}), ...conn }
+  emit('saved', conn)
+}
+
+// Trusted from the test's card: test again, so the answer shown is the real one.
+async function onTrusted(conn) {
+  savedConnection(conn)
+  testing.value = true
+  try {
+    const { data } = await api.testDatabaseConnection(savedId.value)
+    testResult.value = data
+    emit('saved', { ...(original.value || {}), last_test: { at: new Date().toISOString(), ok: !!data?.ok, message: data?.message || '' } })
+  } catch (e) {
+    saveError.value = connectionErrorText(e, 'The test could not run')
+  } finally {
+    testing.value = false
+  }
+}
+
+async function untrust() {
+  const ok = await confirm({
+    title: 'Remove the trusted certificate?',
+    message: 'This connection goes back to the public authorities, the AWS RDS authorities and its CA certificate. A self-signed server is refused until you trust its certificate again.',
+    confirmText: 'Remove trust',
+    danger: true,
+  })
+  if (!ok) return
+  untrusting.value = true
+  try {
+    const { data } = await api.untrustDatabaseCertificate(savedId.value)
+    savedConnection(data?.connection)
+    notify.success('The trusted certificate was removed')
+  } catch (e) {
+    saveError.value = connectionErrorText(e, 'The trusted certificate was not removed')
+  } finally {
+    untrusting.value = false
+  }
 }
 
 async function save(andTest) {
@@ -343,6 +405,13 @@ async function save(andTest) {
 .dcd-note { background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .dcd-test.is-ok { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .dcd-test.is-bad { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.dcd-trusted { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--vm-line); border-radius: 8px; background: var(--vm-surface-soft); font-size: 12px; min-width: 0; }
+.dcd-trusted-head { display: flex; gap: 6px; align-items: center; margin: 0; color: var(--vm-green-ink); }
+.dcd-trusted-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+.dcd-trusted-rows dt { color: var(--vm-ink-faint); }
+.dcd-trusted-rows dd { margin: 0; color: var(--vm-ink); overflow-wrap: anywhere; }
+.dcd-trusted-rows code { font: 11px var(--vm-font-mono, ui-monospace, monospace); }
+.dcd-trusted .tp-btn { justify-self: start; }
 .dcd :deep(svg) { width: 14px; height: 14px; flex-shrink: 0; }
 .dcd-warn :deep(svg), .dcd-note :deep(svg), .dcd-test :deep(svg) { margin-top: 2px; }
 .dcd-ip { margin: 0 3px; padding: 1px 5px; border-radius: 4px; background: var(--vm-surface); font: 12px var(--vm-font-mono, ui-monospace, monospace); color: var(--vm-ink); }

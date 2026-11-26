@@ -39,7 +39,7 @@
               <Icon :icon="TEST_ICON[lastTestState(c.last_test).tone]" aria-hidden="true" />{{ lastTestState(c.last_test).text }}
             </span>
             <span v-if="c.ssh_enabled" class="tp-chip tp-chip--muted"><Icon icon="lucide:key-round" aria-hidden="true" />SSH tunnel</span>
-            <span class="tp-chip" :title="c.has_ca_certificate ? 'Encrypted; the certificate is checked against your own CA and the public authorities' : 'Encrypted; the certificate and name are checked'"><Icon icon="lucide:shield-check" aria-hidden="true" />Encrypted{{ c.has_ca_certificate ? ' · own CA' : '' }}</span>
+            <span class="tp-chip" :title="encryptionTitle(c)"><Icon icon="lucide:shield-check" aria-hidden="true" />Encrypted{{ c.has_trusted_certificate ? ' · trusted certificate' : c.has_ca_certificate ? ' · own CA' : '' }}</span>
             <span v-if="!c.mine && c.owner" class="dcs-owner">Shared by {{ c.owner.name || c.owner.email }}</span>
           </span>
           <span v-if="c.last_test && c.last_test.ok === false && c.last_test.message" class="dcs-fail">{{ c.last_test.message }}</span>
@@ -54,6 +54,8 @@
             <button type="button" class="tp-btn tp-btn--icon tp-btn--danger" :aria-label="`Delete ${c.name}`" title="Delete" @click="remove(c)"><Icon icon="lucide:trash-2" aria-hidden="true" /></button>
           </template>
         </div>
+        <DatabaseCertificateOffer v-if="offers[c.id]" class="dcs-offer" :connection-id="c.id" :name="c.name" :certificate="offers[c.id]"
+                                  @trusted="(conn) => onTrusted(c, conn)" @changed="(cert) => setOffer(c.id, cert)" @dismiss="setOffer(c.id, null)" />
       </li>
     </ul>
 
@@ -73,6 +75,7 @@ import { Icon } from '@iconify/vue'
 import PageLoader from '../common/PageLoader.vue'
 import DatabaseConnectionDialog from './DatabaseConnectionDialog.vue'
 import DatabaseShareDialog from './DatabaseShareDialog.vue'
+import DatabaseCertificateOffer from './DatabaseCertificateOffer.vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -91,6 +94,19 @@ const meta = ref({})
 const loading = ref(false)
 const error = ref('')
 const testingId = ref(null)
+// A failed test's certificate, per connection, for its owner (ADM-1374): what "Trust this certificate" shows.
+const offers = ref({})
+function setOffer(id, certificate) {
+  const next = { ...offers.value }
+  if (certificate) next[id] = certificate
+  else delete next[id]
+  offers.value = next
+}
+function encryptionTitle(c) {
+  if (c.has_trusted_certificate) return 'Encrypted; only the certificate you trusted for this server is accepted'
+  if (c.has_ca_certificate) return 'Encrypted; the certificate is checked against your own CA and the public authorities'
+  return 'Encrypted; the certificate and name are checked'
+}
 const outboundIps = computed(() => (Array.isArray(meta.value.outbound_ips) ? meta.value.outbound_ips : []))
 
 async function load() {
@@ -119,6 +135,7 @@ async function test(c) {
   testingId.value = c.id
   try {
     const { data } = await api.testDatabaseConnection(c.id)
+    setOffer(c.id, data?.certificate || null)
     if (data?.ok) notify.success(`${c.name}: connected`)
     else notify.error(`${c.name}: ${data?.message || 'the test failed'}`)
     replace({ ...c, last_test: { at: new Date().toISOString(), ok: !!data?.ok, message: data?.message || '' } })
@@ -127,6 +144,13 @@ async function test(c) {
   } finally {
     testingId.value = null
   }
+}
+
+// Trusted: the connection now trusts only that certificate; test again so the card shows the real answer.
+async function onTrusted(c, conn) {
+  setOffer(c.id, null)
+  if (conn?.id != null) replace(conn)
+  await test(connections.value.find((x) => x.id === c.id) || c)
 }
 
 function replace(next) {
@@ -139,7 +163,11 @@ const formOpen = ref(false)
 const editingConn = ref(null)
 function openAdd() { editingConn.value = null; formOpen.value = true }
 function openEdit(c) { editingConn.value = c; formOpen.value = true }
-function onSaved(saved) { if (saved?.id != null) replace(saved) }
+function onSaved(saved) {
+  if (saved?.id == null) return
+  replace(saved)
+  if (saved.has_trusted_certificate || saved.last_test?.ok) setOffer(saved.id, null)
+}
 
 const shareOpen = ref(false)
 const sharingConn = ref(null)
@@ -186,6 +214,7 @@ defineExpose({ load })
 .dcs-owner { font-size: 12px; color: var(--vm-ink-faint); }
 .dcs-fail { font-size: 12px; color: var(--vm-red-ink); overflow-wrap: anywhere; }
 .dcs-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.dcs-offer { flex: 1 1 100%; }
 .dcs-ips { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--vm-surface-soft); font-size: 12px; line-height: 1.6; color: var(--vm-ink-soft); }
 .dcs-ips :deep(svg) { margin-top: 3px; }
 .dcs-ips code { margin: 0 3px; padding: 1px 5px; border-radius: 4px; background: var(--vm-surface); font: 12px var(--vm-font-mono, ui-monospace, monospace); color: var(--vm-ink); }

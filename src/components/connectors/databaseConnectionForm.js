@@ -178,3 +178,31 @@ export function connectionErrorText(err, fallback) {
   if (status) return `${fallback} (error ${status}).`
   return `${fallback}. Check your connection.`
 }
+
+// "Trust this server's certificate" (ADM-1374). A failed test carries `certificate` for the owner: the chain the
+// server presented (its own first), the one that can be pinned (`pin`, `fingerprint`) or why none can (`reason`), and
+// `scope`, what trusting it will accept, in words.
+
+/** The rows shown for one described certificate ({ issued_to, issued_by, not_after, names, ... }). */
+export function certificateRows(cert) {
+  if (!cert || typeof cert !== 'object') return []
+  const rows = [
+    { label: 'Issued to', value: cert.issued_to || cert.subject || '' },
+    { label: 'Issued by', value: cert.self_signed ? 'itself (self-signed)' : (cert.issued_by || cert.issuer || '') },
+    { label: 'Valid until', value: shortDate(cert.not_after) + (cert.expired ? ' (expired)' : '') },
+  ]
+  if (Array.isArray(cert.names) && cert.names.length) rows.push({ label: 'For', value: cert.names.join(', ') })
+  return rows.filter((r) => r.value)
+}
+
+/** Whether the certificate to pin is the server's own one (else it is the authority the server sends). */
+export function pinsServerCertificate(certificate) {
+  const own = certificate?.chain?.[0]?.fingerprint_sha256
+  return !!own && own === certificate?.fingerprint
+}
+
+function shortDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
