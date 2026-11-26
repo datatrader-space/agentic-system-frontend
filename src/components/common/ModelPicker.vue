@@ -80,9 +80,12 @@
               role="option"
               tabindex="-1"
               :aria-selected="m.id === modelValue ? 'true' : 'false'"
+              :aria-disabled="notRunning(m) ? 'true' : null"
+              :disabled="notRunning(m) && m.id !== modelValue"
+              :title="notRunning(m) ? m.metadata?.why_not : null"
               :data-test="`model-option-${m.id}`"
               class="mp-opt"
-              :class="{ 'is-selected': m.id === modelValue, 'is-active': m.id !== modelValue && m.id === activeId }"
+              :class="{ 'is-selected': m.id === modelValue, 'is-active': m.id !== modelValue && m.id === activeId, 'is-off': notRunning(m) }"
               @click="select(m)"
               @mouseenter="activeId = m.id"
             >
@@ -95,6 +98,9 @@
                 <span v-for="cap in modelCaps(m)" :key="cap" class="mp-cap" :class="`mp-cap--${capTone(cap)}`">
                   <component :is="capIcon(cap)" class="mp-cap-ic" aria-hidden="true" />{{ capLabel(cap) }}
                 </span>
+              </div>
+              <div v-if="notRunning(m)" class="mp-opt-off" :data-test="`model-off-${m.id}`">
+                Not running now{{ m.metadata?.why_not ? ': ' + m.metadata.why_not : '' }}
               </div>
             </button>
           </div>
@@ -144,6 +150,7 @@ const filterChips = [
 
 // ---- vendor parsing ----
 const VENDOR_LABELS = {
+  aadml: 'AADML',
   anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', 'meta-llama': 'Meta',
   meta: 'Meta', mistralai: 'Mistral', mistral: 'Mistral', deepseek: 'DeepSeek',
   'x-ai': 'xAI', qwen: 'Qwen', cohere: 'Cohere', perplexity: 'Perplexity',
@@ -155,6 +162,7 @@ const VENDOR_LABELS = {
 const ROUTE_PREFIXES = new Set(['fal-ai', 'fal', 'openrouter', 'elevenlabs']);
 const vendorKey = (m) => {
   const id = m.model_id || '';
+  if (m.metadata?.ready_model) return 'aadml';           // AADML's own hosted models (aadml_provider.py)
   const raw = (id.includes('/') ? id.split('/')[0] : (m.metadata?.vendor || 'other')).toLowerCase();
   return ROUTE_PREFIXES.has(raw) ? 'other' : raw;
 };
@@ -168,6 +176,7 @@ const modelCaps = (m) => {
   const caps = [...(m.metadata?.capabilities || [])];
   const params = m.metadata?.supported_parameters || [];
   if ((m.supports_tools || params.includes('tools')) && !caps.includes('tools')) caps.push('tools');
+  if ((m.supports_vision || m.metadata?.vision) && !caps.includes('image_input')) caps.push('image_input');
   return caps;
 };
 // Each capability's colour (a pair of --vm-* tokens, light and dark) and Lucide icon; never an emoji.
@@ -189,7 +198,10 @@ const formatContext = (m) => {
   if (c >= 1000) return `${Math.round(c / 1000)}K ctx`;
   return `${c} ctx`;
 };
+// An AADML hosted model says whether it runs (metadata.running); one that does not cannot be chosen.
+const notRunning = (m) => m?.metadata?.running === false;
 const formatPrice = (m) => {
+  if (m.metadata?.price_per_1000_tokens != null) return `$${Number(m.metadata.price_per_1000_tokens)} per 1K tokens`;
   const inp = parseFloat(m.metadata?.pricing_input ?? '');
   const out = parseFloat(m.metadata?.pricing_output ?? '');
   if (Number.isNaN(inp) || Number.isNaN(out)) return '';
@@ -254,6 +266,7 @@ const toggleFilter = (key) => {
 };
 
 const select = (m) => {
+  if (notRunning(m) && m.id !== props.modelValue) return;
   emit('update:modelValue', m.id);
   close(true);
 };
@@ -355,6 +368,9 @@ watch(search, () => { activeId.value = null; });
 }
 .mp-opt:hover, .mp-opt.is-active { background: var(--vm-surface-soft); }
 .mp-opt.is-selected { background: var(--vm-primary-soft); }
+.mp-opt.is-off:disabled { cursor: not-allowed; }
+.mp-opt.is-off .mp-opt-name { color: var(--vm-ink-faint); }
+.mp-opt-off { font-size: 11px; line-height: 1.3; color: var(--vm-amber-ink); }
 .mp-opt-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mp-opt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--vm-ink); }
 .mp-opt.is-selected .mp-opt-name { font-weight: 600; color: var(--vm-link); }

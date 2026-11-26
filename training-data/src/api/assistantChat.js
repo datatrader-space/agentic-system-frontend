@@ -205,6 +205,19 @@ export function fromHistory(rows) {
 
 const listOf = body => (Array.isArray(body) ? body : body?.results || []);
 
+// A reasoning model's answer split into its thinking and its answer (Qwen3 and others write their reasoning first,
+// between <think> and </think>): the chat folds the thinking away under "Thinking". An answer still thinking (no closing
+// tag) is all thinking; an answer with no tag is all answer.
+export function splitThinking(text) {
+  const raw = String(text ?? '');
+  const start = raw.search(/<think>/i);
+  if (start < 0) return { thinking: '', answer: raw.trim() };
+  const after = raw.slice(start + '<think>'.length);
+  const end = after.search(/<\/think>/i);
+  if (end < 0) return { thinking: after.trim(), answer: raw.slice(0, start).trim() };
+  return { thinking: after.slice(0, end).trim(), answer: (raw.slice(0, start) + after.slice(end + '</think>'.length)).trim() };
+}
+
 // A new conversation is named after the person's first message, as AADML's chat lets a person rename one: the first
 // line, cut at a word near 60 characters.
 export function titleFrom(text) {

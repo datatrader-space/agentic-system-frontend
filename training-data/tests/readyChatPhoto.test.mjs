@@ -7,12 +7,26 @@ import { useSnippet } from '../src/api/models.js';
 
 const vue = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
 
-test('a ready chat or photo model is tried with the chat box or the photo answer, not the outline finder', () => {
+test('a ready chat or photo model is tried with the chat or the photo answer, not the outline finder', () => {
   assert.match(vue, /const readyChat = computed\(\(\) => onPlatform\.value && state\.value\?\.call === 'chat'\)/);
   assert.match(vue, /const readyPipeline = computed\(\(\) => onPlatform\.value && state\.value\?\.call === 'pipeline'\)/);
-  assert.match(vue, /<template v-if="state && readyChat">/);
   assert.match(vue, /<template v-else-if="state && readyPipeline">/);
   assert.match(vue, /<div v-else-if="!readyChat"><PredictionResult/);
+});
+
+// ADM-1365 step 4: a hosted chat or vision model is tried in the existing chat, run as every agent runs (the Try agent
+// bound to the model); every published model's Try opens in a side panel.
+test('a ready chat model is tried in the existing chat, started as its own Try conversation', () => {
+  assert.match(vue, /<AssistantChat v-if="state && readyChat"[^>]*:start-conversation="openTryChat"/);
+  assert.match(vue, /const openTryChat = \(\) => publishedApi\.tryConversation\(trying\.value\.key\)/);
+  assert.doesNotMatch(vue, /ModelChatWidget/);
+});
+
+test('every published model is tried in a side panel that closes on Escape and gives focus back', () => {
+  assert.match(vue, /id="try-published" class="panel try-panel try-side"[\s\S]*?role="dialog" aria-modal="true" aria-labelledby="try-title"/);
+  assert.match(vue, /function onPanelKey\(event\) \{ if \(event\.key === 'Escape'\)/);
+  assert.match(vue, /nextTick\(\(\) => opener\?\.focus\?\.\(\)\)/);
+  assert.match(vue, /\.try-side\{position:fixed/);
 });
 
 test('its free tries left follow each answer, and today\'s used are said in the server\'s words', () => {

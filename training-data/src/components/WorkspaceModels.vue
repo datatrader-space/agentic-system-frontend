@@ -2,7 +2,7 @@
 // The workspace's Models page: the models trained in its projects (a Labeller's projects are left out), the published
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { Activity, RefreshCw, ShieldCheck, Rocket, Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet } from 'lucide-vue-next';
 import '../models-workspace.css';
 import DeploymentHeader from './DeploymentHeader.vue';
@@ -13,6 +13,7 @@ import DownloadBar from './DownloadBar.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PipelineResult from './PipelineResult.vue';
+import AssistantChat from './AssistantChat.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
@@ -136,10 +137,19 @@ onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
   forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; freeUsed.value = ''; least.value = 0;
   classes.value = []; classText.value = ''; chatLines.value = []; chatText.value = ''; openAnswer.value = null; loadState();
-  const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  requestAnimationFrame(() => document.getElementById('try-published')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }));
+  // A published model's Try opens in the side panel (ADM-1365): focus moves into it, Escape or the backdrop closes it.
+  if (!row.repo) { opener = document.activeElement; nextTick(() => document.getElementById('try-close')?.focus()); }
 }
-function close() { trying.value = null; state.value = null; clearTimeout(timer); forget(); load(); }
+let opener = null;
+function close() {
+  const panel = trying.value && !trying.value.repo;
+  trying.value = null; state.value = null; clearTimeout(timer); forget(); load();
+  if (panel) nextTick(() => opener?.focus?.());
+}
+function onPanelKey(event) { if (event.key === 'Escape') { event.stopPropagation(); close(); } }
+// A hosted chat or vision model is tried in the existing chat, as every agent runs (ADM-1365): its own conversation with
+// the plain Try agent, made when the first message is sent.
+const openTryChat = () => publishedApi.tryConversation(trying.value.key);
 async function act(action) {
   busy.value = true; tryError.value = ''; said.value = '';
   try { const now = await publishedApi.act(trying.value.key, action, action === 'start' ? machine.value : ''); said.value = now.said; saidFor = now.phase; state.value = now; }
@@ -337,9 +347,13 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentHeader title="Ready-to-use Models" heading-id="catalog-heading" eyebrow="EXPLORE. TRY. INTEGRATE." :icon="WandSparkles" description="Explore AADML's published models. Try supported models or connect them to your apps."/>
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
-      <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ readyChat ? `${trying.name} answers your messages.` : readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
-          <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
+      <!-- Every published model's Try opens in a side panel (ADM-1365, the owner, 2026-11-26): a chat or vision model's is
+           the existing chat; every other model keeps its own Try (a photo, what to find, the answer drawn on it). -->
+      <div v-if="trying&&!trying.repo" class="try-backdrop" aria-hidden="true" @click="close"></div>
+      <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel try-side" :class="{ 'try-side--chat': readyChat }"
+               role="dialog" aria-modal="true" aria-labelledby="try-title" @keydown="onPanelKey">
+        <header class="try-head"><div><h2 id="try-title">Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&readyChat">{{ trying.name }} answers your messages, and sees the photos you add when it reads images. It runs on AADML, which alone starts and stops it; each message is a free try.</p><p v-else-if="onPlatform">{{ readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+          <button id="try-close" class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
         <div class="try-layout">
@@ -372,11 +386,9 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
                 <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its test server</UiButton>
               </div>
             </template>
-            <!-- The admin's chat and photo models (ADM-1365 phase 2b): the same chat box and photo answer as an open model's. -->
-            <template v-if="state && readyChat">
-              <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
-              <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
-            </template>
+            <!-- A hosted chat or vision model: the existing chat, run as every agent's conversation (ADM-1365 step 4). -->
+            <AssistantChat v-if="state && readyChat" class="try-chat" :key="trying.key" :start-conversation="openTryChat"
+                           :assistant-name="trying.name" :message-placeholder="`Message ${trying.name}…`" @settled="loadState"/>
             <template v-else-if="state && readyPipeline">
               <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
                 <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
@@ -703,6 +715,18 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .models-workspace.models-redesigned .catalog-card .storage-line.unpaid{color:#93610b!important;font-weight:600}
 .badge--amber{color:#93610b;background:#fff4dc}
 .try-panel{margin-bottom:26px;border-color:var(--aadml-outline)}
+/* The Try side panel: over the page, from the right; a chat model's holds the chat, the rest their own Try. */
+.try-backdrop{position:fixed;inset:0;z-index:40;background:#0f172a40}
+.try-side{position:fixed;top:0;right:0;bottom:0;z-index:41;margin:0;width:min(760px,100vw);border-radius:14px 0 0 14px;overflow-y:auto;
+  box-shadow:-18px 0 48px #0f172a26;display:flex;flex-direction:column}
+.try-side--chat{width:min(560px,100vw)}
+.try-side .try-layout{grid-template-columns:1fr;gap:20px}
+.try-side--chat .try-layout{flex:1;min-height:0}
+.try-side--chat .try-layout>div:first-child{display:flex;flex-direction:column;min-height:0;height:100%}
+.try-chat{flex:1;min-height:420px}
+@media(max-width:700px){.try-side,.try-side--chat{width:100vw;border-radius:0;padding:18px 16px}}
+@media(prefers-reduced-motion:no-preference){.try-side{animation:try-in .2s ease-out}}
+@keyframes try-in{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
 .try-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}
 .try-head h2{margin:0 0 6px!important}
 .try-head p{margin:0;font-size:13px}

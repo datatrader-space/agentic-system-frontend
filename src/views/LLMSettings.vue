@@ -65,10 +65,14 @@
                <div>
                   <div class="flex items-center gap-2 mb-0.5">
                       <p class="font-semibold text-slate-900 text-[14px]">{{ provider.name }}</p>
-                      <span v-if="provider.has_api_key" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Key Set</span>
+                      <span v-if="isBuiltIn(provider)" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100" data-test="provider-built-in">Built in</span>
+                      <span v-else-if="provider.has_api_key" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Key Set</span>
                       <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>No Key</span>
                   </div>
-                  <label class="mt-1 mb-1 flex items-center gap-2 text-[12px] text-slate-600" data-test="provider-available-to">
+                  <p v-if="isBuiltIn(provider)" class="mt-1 text-[12px] text-slate-600" data-test="provider-built-in-note">
+                    AADML's own hosted chat and vision models, for everyone. Start, stop and price them on Ready-to-use models.
+                  </p>
+                  <label v-if="!isBuiltIn(provider)" class="mt-1 mb-1 flex items-center gap-2 text-[12px] text-slate-600" data-test="provider-available-to">
                     <span class="font-semibold">Available to</span>
                     <select :value="provider.partner_account || ''" class="bg-white border border-slate-200 rounded-[6px] px-2 py-1 text-[12px]"
                             :aria-label="`Who can use ${provider.name}`" @change="setAvailableTo(provider, $event.target.value)">
@@ -115,8 +119,12 @@
                </div>
             </div>
             
-            <!-- Actions -->
-            <div class="flex items-center gap-3">
+            <!-- Actions (none for the built-in AADML provider: it is never changed here) -->
+            <router-link v-if="isBuiltIn(provider)" to="/admin-dashboard/ready-models" data-test="provider-built-in-link"
+                         class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap">
+              Ready-to-use models
+            </router-link>
+            <div v-else class="flex items-center gap-3">
               <!-- Custom Toggle -->
               <label class="relative inline-flex items-center cursor-pointer mr-2">
                 <input type="checkbox" v-model="provider.is_active" @change="toggleProvider(provider)" class="sr-only peer">
@@ -1092,8 +1100,10 @@ const loadProviderTypes = async () => {
     providerTypesError.value = apiError(e, "Couldn't load the provider types. Reload the page to try again.")
   }
 }
+// The built-in AADML provider (aadml_provider.py) is always there and never added here.
+const isBuiltIn = (provider) => provider?.provider_type === 'aadml'
 const providerTypeGroups = computed(() => [
-  { kind: 'chat', label: 'Chat models', types: providerTypes.value.filter((t) => t.kind === 'chat') },
+  { kind: 'chat', label: 'Chat models', types: providerTypes.value.filter((t) => t.kind === 'chat' && !t.built_in) },
   { kind: 'media', label: 'Images, video and audio', types: providerTypes.value.filter((t) => t.kind === 'media') },
 ].filter((g) => g.types.length))
 const selectedProviderType = computed(() => providerTypes.value.find((t) => t.type === newProvider.value.provider_type))

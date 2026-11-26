@@ -134,3 +134,30 @@ describe('ModelPicker theming and capability chips', () => {
     expect(style.replace(/color: #fff;/g, '')).not.toMatch(/#[0-9a-f]{3,6}\b/i)
   })
 })
+
+
+describe('ModelPicker lists AADML hosted models whether they run or not (ADM-1365)', () => {
+  const HOSTED = [
+    { id: 30, name: 'Qwen3 0.6B (AADML)', model_id: 'qwen3-0-6b', supports_tools: true,
+      metadata: { ready_model: 'qwen3-0-6b', running: false, why_not: 'Qwen3 0.6B is not running now. AADML starts it.',
+                  price_per_1000_tokens: '0.0005' } },
+    { id: 31, name: 'Qwen3-VL (AADML)', model_id: 'qwen3-vl', supports_vision: true,
+      metadata: { ready_model: 'qwen3-vl', running: true, vision: true, price_per_1000_tokens: '0.001' } },
+  ]
+
+  it('groups them under AADML, says why one is not running, and never chooses it', async () => {
+    const w = mount(ModelPicker, { props: { models: HOSTED }, attachTo: document.body })
+    await w.find('button').trigger('click')
+    await nextTick()
+    expect(w.text()).toContain('AADML')
+    const off = w.get('[data-test="model-option-30"]')
+    expect(off.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="model-off-30"]').text()).toContain('not running now')
+    expect(off.text()).toContain('$0.0005 per 1K tokens')
+    w.vm.select(HOSTED[0])
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+    await w.get('[data-test="model-option-31"]').trigger('click')
+    expect(w.emitted('update:modelValue')[0]).toEqual([31])
+    w.unmount()
+  })
+})

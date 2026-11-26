@@ -348,6 +348,9 @@ export const publishedApi = {
   },
   // A workspace's open chat model: the conversation so far, its answer back (app_api.published_try_chat).
   chat: (key, body) => apiFetch(`${APP}/published/${enc(key)}/chat/`, { method: 'POST', body, timeoutMs: 180000 }),
+  // A hosted chat or vision model tried in the existing chat (ADM-1365): the person's own conversation with the Try
+  // agent, bound to this model -> { conversation_id, agent_id, model }.
+  tryConversation: key => apiFetch(`${APP}/published/${enc(key)}/try-conversation/`, { method: 'POST', body: {} }),
 };
 
 // API keys made in a model's Use dialog (backend model_keys.py): an app named by the person, with one key for that

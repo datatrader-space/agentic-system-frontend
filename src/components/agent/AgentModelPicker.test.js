@@ -252,3 +252,26 @@ describe('AgentModelPicker — the Mode section', () => {
     expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
   })
 })
+
+
+describe('AgentModelPicker: an AADML hosted model that is not running (ADM-1365)', () => {
+  it('is listed with the reason and cannot be chosen', async () => {
+    const hosted = [
+      { id: 40, name: 'Qwen3 0.6B (AADML)', model_id: 'qwen3-0-6b', running: false,
+        why_not: 'Qwen3 0.6B is not running now. AADML starts it.', price_per_1000_tokens: '0.0005' },
+      ...MODELS,
+    ]
+    api.getAgentModelOptions.mockImplementation((_id, params) =>
+      Promise.resolve({ data: params?.models ? withModels(hosted) : payload }))
+    const wrapper = mountPicker()
+    await flushPromises()
+    const flyout = await openModels(wrapper)
+    const off = flyout.get('[data-test="model-option-40"]')
+    expect(off.attributes('disabled')).toBeDefined()
+    expect(off.attributes('aria-disabled')).toBe('true')
+    expect(flyout.get('[data-test="model-off-40"]').text()).toContain('not running now')
+    expect(off.text()).toContain('$0.0005 per 1K tokens')
+    await off.trigger('click')
+    expect(api.selectAgentModel).not.toHaveBeenCalled()
+  })
+})

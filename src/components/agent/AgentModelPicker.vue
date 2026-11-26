@@ -120,16 +120,21 @@
               :key="m.id"
               type="button"
               class="amp-model"
-              :class="{ active: current && current.id === m.id }"
-              :disabled="saving"
+              :class="{ active: current && current.id === m.id, 'is-off': notRunning(m) }"
+              :disabled="saving || notRunning(m)"
               role="option"
               :aria-selected="current?.id === m.id ? 'true' : 'false'"
+              :aria-disabled="notRunning(m) ? 'true' : null"
+              :title="notRunning(m) ? m.why_not : null"
               :data-test="'model-option-' + m.id"
               @click="pick(m)"
             >
               <span class="amp-model-text">
                 <span class="amp-model-name">{{ m.name }}</span>
                 <span v-if="modelMeta(m)" class="amp-model-meta">{{ modelMeta(m) }}</span>
+                <span v-if="notRunning(m)" class="amp-model-off" :data-test="'model-off-' + m.id">
+                  Not running now{{ m.why_not ? ': ' + m.why_not : '' }}
+                </span>
               </span>
               <svg v-if="current && current.id === m.id" class="amp-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -233,7 +238,10 @@ function formatContext(m) {
   if (c >= 1000) return `${Math.round(c / 1000)}K ctx`
   return `${c} ctx`
 }
+// An AADML hosted model (running is sent for these only): listed whether it runs or not, chosen only while it runs.
+function notRunning(m) { return m?.running === false }
 function formatPrice(m) {
+  if (m.price_per_1000_tokens != null) return `$${Number(m.price_per_1000_tokens)} per 1K tokens`
   const inp = parseFloat(m.pricing_input ?? '')
   const out = parseFloat(m.pricing_output ?? '')
   if (Number.isNaN(inp) || Number.isNaN(out)) return ''
@@ -339,7 +347,7 @@ function onSearchEscape() {
 }
 
 function pickFirstFilteredModel() {
-  const first = filteredModels.value[0]
+  const first = filteredModels.value.find(m => !notRunning(m))
   if (first && !saving.value) pick(first)
 }
 
@@ -434,6 +442,9 @@ watch(() => props.agentId, () => {
   border: 0; border-radius: 8px; background: transparent; color: var(--vm-ink); text-align: left; cursor: pointer; transition: background .12s ease; }
 .amp-model:hover, .amp-model.active { background: var(--vm-surface-soft); }
 .amp-model:disabled { opacity: .55; cursor: wait; }
+.amp-model.is-off:disabled { opacity: 1; cursor: not-allowed; }
+.amp-model.is-off .amp-model-name { color: var(--vm-ink-faint); }
+.amp-model-off { color: var(--vm-amber-ink); font-size: 10.5px; line-height: 1.3; white-space: normal; }
 /* Two-line row: model name over its context-window + per-1M price (same info the agent editor's
    ModelPicker shows). min-width:0 on the flex child is what lets the ellipsis actually kick in. */
 .amp-model-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }

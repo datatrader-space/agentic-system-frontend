@@ -362,3 +362,24 @@ describe('LLMSettings: an admin sets what a model is (its kind)', () => {
     expect(sel.element.value).toBe('chat')
   })
 })
+
+describe('LLMSettings shows the built-in AADML provider as built in (ADM-1365)', () => {
+  it('has no key badge, switch, Test, Sync or Delete, and is not in the add menu', async () => {
+    const aadml = { id: 9, name: 'AADML', provider_type: 'aadml', base_url: '', has_api_key: false, model_count: 1,
+                    metadata: { built_in: true }, is_active: true }
+    api.getLlmProviders.mockResolvedValue({ data: { count: 1, results: [aadml] } })
+    api.getLlmProviderTypes.mockResolvedValue({ data: { types: [
+      ...providerTypes, { type: 'aadml', label: 'AADML', kind: 'chat', built_in: true, syncable: false, makes: [] }] } })
+    await mountPage()
+    expect(wrapper.get('[data-test="provider-built-in"]').text()).toBe('Built in')
+    expect(wrapper.find('[data-test="provider-built-in-note"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('No Key')
+    expect(wrapper.find('[data-test="provider-available-to"]').exists()).toBe(false)
+    const labels = wrapper.findAll('button').map((b) => b.text())
+    expect(labels).not.toContain('Test')
+    expect(labels).not.toContain('Sync Models')
+    expect(wrapper.find('[title="Delete Provider"]').exists()).toBe(false)
+    const options = wrapper.findAll('[data-test="provider-type"] option').map((o) => o.attributes('value'))
+    expect(options).not.toContain('aadml')
+  })
+})
