@@ -175,30 +175,38 @@
           whose licence does not allow commercial use is yours to test only: people never see it and it is never sold.
           Chat and photo models are offered to everyone in Ready to use once you start and price them.
         </p>
+        <!-- Search as you type (ADM-1365 phase 2b; the owner, 2026-11-26): results come a moment after typing stops,
+             most downloaded first; Enter searches at once; an older answer never replaces a newer one. -->
         <form class="rm-search" role="search" @submit.prevent="searchHub" data-test="rm-search">
-          <div class="rm-field"><label for="rm-search-q">Search Hugging Face</label>
-            <input id="rm-search-q" v-model.trim="searchForm.q" type="search" placeholder="qwen, llama, segformer…"
-                   autocomplete="off" data-test="rm-search-q" /></div>
-          <div class="rm-field"><label for="rm-search-kind">Kind</label>
+          <div class="rm-field rm-search-box"><label for="rm-search-q">Search Hugging Face</label>
+            <div class="rm-search-input">
+              <Search :size="16" aria-hidden="true" />
+              <input id="rm-search-q" v-model.trim="searchForm.q" type="search" placeholder="Type a model name: qwen, llama, segformer…"
+                     autocomplete="off" aria-describedby="rm-search-said" data-test="rm-search-q" />
+              <LoaderCircle v-if="searching" :size="16" class="rm-spin" aria-hidden="true" />
+            </div></div>
+          <div class="rm-field rm-search-kind"><label for="rm-search-kind">Kind</label>
             <select id="rm-search-kind" v-model="searchForm.kind" data-test="rm-search-kind">
-              <option value="chat">Chat models</option>
-              <option value="photo">Photo models</option>
+              <option v-for="k in SEARCH_KINDS" :key="k.key" :value="k.key">{{ k.label }}</option>
             </select></div>
-          <button class="btn" type="submit" :disabled="searching" data-test="rm-search-go">
-            <Search :size="15" aria-hidden="true" />{{ searching ? 'Searching…' : 'Search' }}
-          </button>
         </form>
+        <p id="rm-search-said" class="rm-muted rm-search-said" aria-live="polite" data-test="rm-search-said">{{ searchSaid }}</p>
         <p v-if="searchError" class="rm-error rm-banner" role="alert">{{ searchError }}</p>
         <ul v-if="found.length" class="rm-found" data-test="rm-found">
-          <li v-for="r in found" :key="r.repo">
-            <div class="rm-found-main">
-              <strong>{{ r.repo }}</strong>
-              <span class="rm-muted">{{ r.licence_name || r.licence }}<template v-if="r.size"> · {{ r.size }}</template></span>
-              <span v-if="r.commercial === false" class="rm-tag is-warn">Not for commercial use: yours to test only</span>
-              <span v-if="r.gated" class="rm-tag">Gated</span>
-              <small v-if="r.gated && r.gated_note" class="rm-muted">{{ r.gated_note }}</small>
-            </div>
-            <button class="btn" type="button" @click="useFound(r)" :data-test="`rm-found-use-${r.repo}`">Use this</button>
+          <li v-for="r in found" :key="r.repo" :class="{ 'is-picked': addForm.repo === r.repo, 'is-off': !r.addable }">
+            <button type="button" class="rm-found-pick" :disabled="!r.addable" :aria-describedby="r.why_not ? `rm-why-${r.repo}` : undefined"
+                    @click="useFound(r)" :data-test="`rm-found-use-${r.repo}`">
+              <span class="rm-found-main">
+                <strong>{{ r.repo }}</strong>
+                <span class="rm-muted">{{ r.licence_name || r.licence }}<template v-if="r.size"> · {{ r.size }} parameters</template><template v-if="r.downloads"> · {{ r.downloads.toLocaleString() }} downloads</template></span>
+                <span v-if="r.commercial === false" class="rm-tag is-warn">Not for commercial use: yours to test only</span>
+                <span v-if="r.gated" class="rm-tag">Gated</span>
+                <span v-if="r.task" class="rm-tag is-plain">{{ r.task }}</span>
+              </span>
+              <small v-if="r.why_not" :id="`rm-why-${r.repo}`" class="rm-found-note rm-found-why">{{ r.why_not }}</small>
+              <small v-else-if="r.gated && r.gated_note" class="rm-muted rm-found-note">{{ r.gated_note }}</small>
+              <span class="rm-found-cta">{{ !r.addable ? 'Cannot be added yet' : addForm.repo === r.repo ? 'Chosen' : 'Use this' }}</span>
+            </button>
           </li>
         </ul>
         <form class="rm-add-form" novalidate @submit.prevent="addCamera">
@@ -320,25 +328,58 @@ const PHOTO_TASKS = [
   { value: 'image-classification', label: 'Names what a photo shows (classification)' },
   { value: 'depth-estimation', label: 'Estimates depth' },
 ]
-const searchForm = reactive({ q: '', kind: 'chat' })
+const searchForm = reactive({ q: '', kind: 'all' })
+// What the admin may look for (backend open_models.ADMIN_KINDS): every model on Hugging Face, none hidden; each result
+// says whether AADML can serve it now and, if not, why (no server for its kind yet, pickle weights, code of its own).
+const SEARCH_KINDS = [
+  { key: 'all', label: 'All models' }, { key: 'chat', label: 'Chat models' }, { key: 'photo', label: 'Photo models' },
+  { key: 'image_generation', label: 'Image generation' }, { key: 'video_generation', label: 'Video generation' },
+  { key: 'video_understanding', label: 'Video understanding' },
+]
 const searching = ref(false)
 const searchError = ref('')
 const found = ref([])
+const searchedFor = ref('')
+// Search as you type: a moment after typing stops (SEARCH_WAIT_MS), from SEARCH_MIN letters; each search is numbered
+// and only the newest answer is shown, so a slow older answer never replaces a newer one.
+const SEARCH_WAIT_MS = 400
+const SEARCH_MIN = 2
+let searchTimer = null
+let asked = 0
 async function searchHub() {
+  clearTimeout(searchTimer)
+  const q = searchForm.q
+  if (q.length < SEARCH_MIN) { asked++; found.value = []; searchedFor.value = ''; searching.value = false; return }
+  const mine = ++asked
   searching.value = true; searchError.value = ''
   try {
-    const { data } = await api.readyModelSearch({ q: searchForm.q, kind: searchForm.kind })
-    if (!disposed) found.value = data?.results || []
+    const { data } = await api.readyModelSearch({ q, kind: searchForm.kind })
+    if (disposed || mine !== asked) return
+    found.value = data?.results || []
+    searchedFor.value = q
   } catch (e) {
-    if (!disposed) { searchError.value = words(e, 'Hugging Face could not be searched now.'); found.value = [] }
-  } finally { searching.value = false }
+    if (!disposed && mine === asked) { searchError.value = words(e, 'Hugging Face could not be searched now.'); found.value = [] }
+  } finally { if (mine === asked) searching.value = false }
 }
+watch(() => [searchForm.q, searchForm.kind], () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(searchHub, SEARCH_WAIT_MS)
+})
+const searchSaid = computed(() => {
+  if (searching.value) return 'Searching Hugging Face…'
+  if (searchForm.q.length < SEARCH_MIN) return 'Type at least 2 letters: the most downloaded models that match show here.'
+  if (!searchedFor.value) return ''
+  const n = found.value.length
+  return n ? `${n} model${n === 1 ? '' : 's'} for "${searchedFor.value}", most downloaded first. Choose one to fill the form below.`
+    : `No model on Hugging Face matches "${searchedFor.value}" for this kind. Try other words, or All models.`
+})
 // A result fills the form: its repository and kind; the key and name are the admin's to check.
 function useFound(r) {
   const name = String(r.repo || '').split('/').pop() || ''
-  Object.assign(addForm, { repo: r.repo, kind: searchForm.kind, name: r.name || name,
+  if (!r.addable) return
+  Object.assign(addForm, { repo: r.repo, kind: r.kind || 'chat', name: r.name || name,
     key: name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40),
-    task: searchForm.kind === 'photo' ? (r.task || '') : '' })
+    task: r.kind === 'photo' ? (r.task || '') : '' })
 }
 // The one number a model of each kind carries (backend camera_models.TUNING); empty: the platform's own.
 const TUNING = {
@@ -577,7 +618,7 @@ watch(anyStarting, (on) => {
 })
 
 onMounted(load)
-onBeforeUnmount(() => { disposed = true; stopPolling() })
+onBeforeUnmount(() => { disposed = true; stopPolling(); clearTimeout(searchTimer) })
 </script>
 
 <style scoped>
@@ -621,18 +662,36 @@ onBeforeUnmount(() => { disposed = true; stopPolling() })
 .rm-money { display: flex; align-items: center; gap: 6px; }
 .rm-money span { color: var(--admin-muted, #667085); font-weight: 600; }
 .rm-run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.rm-add-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
-.rm-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
-.rm-search .rm-field { flex: 1 1 220px; }
-.rm-found { list-style: none; margin: 12px 0 4px; padding: 0; display: grid; gap: 8px; }
-.rm-found li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; }
+.rm-add-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-items: start; gap: 14px 12px;
+  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--admin-line, #e3e7ee); }
+.rm-search { display: grid; grid-template-columns: minmax(0, 1fr) 200px; align-items: end; gap: 12px; margin-top: 10px; }
+.rm-search-input { position: relative; display: flex; align-items: center; }
+.rm-search-input > svg:first-child { position: absolute; left: 12px; color: var(--admin-muted, #667085); pointer-events: none; }
+.rm-search-input input { padding-left: 36px; padding-right: 36px; min-height: 42px; }
+.rm-search-input .rm-spin { position: absolute; right: 12px; color: var(--admin-primary, #4f46e5); }
+.rm-spin { animation: rm-spin 0.9s linear infinite; }
+@keyframes rm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rm-spin { animation: none; } }
+.rm-search-said { margin: 6px 0 0; min-height: 18px; }
+.rm-found { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
+.rm-found-pick { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+  padding: 10px 12px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; min-height: 44px; transition: border-color 150ms, background-color 150ms; }
+.rm-found-pick:hover:not(:disabled) { border-color: var(--admin-primary, #4f46e5); background: #f8f9ff; }
+.rm-found-pick:focus-visible { outline: 2px solid var(--admin-primary, #4f46e5); outline-offset: 2px; }
+.rm-found li.is-picked .rm-found-pick { border-color: var(--admin-primary, #4f46e5); background: #eef2ff; }
 .rm-found-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .rm-found-main strong { overflow-wrap: anywhere; }
+.rm-found-note { grid-column: 1; }
+.rm-found li.is-off .rm-found-pick { cursor: not-allowed; background: #fafafa; }
+.rm-found li.is-off .rm-found-cta { color: var(--admin-muted, #667085); }
+.rm-found-why { color: #92400e; font-size: 12px; }
+.rm-tag.is-plain { background: #f2f4f7; color: #344054; font-weight: 500; }
+.rm-found-cta { grid-row: 1; grid-column: 2; font-size: 12.5px; font-weight: 600; color: var(--admin-primary, #4f46e5); white-space: nowrap; }
 .rm-tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; }
 .rm-tag.is-warn { background: #fffbeb; color: #92400e; }
-@media (max-width: 640px) { .rm-found li { flex-direction: column; align-items: stretch; } }
-.rm-add-form .rm-field { flex: 1 1 220px; }
-.rm-add-actions { display: flex; gap: 8px; }
+@media (max-width: 640px) { .rm-search { grid-template-columns: minmax(0, 1fr); } }
+.rm-add-actions { display: flex; gap: 8px; align-self: end; }
 
 .rm-confirm { margin-top: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--admin-line, #e3e7ee);
   background: var(--admin-soft, #f4f6fa); }

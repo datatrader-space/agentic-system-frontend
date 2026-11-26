@@ -317,18 +317,22 @@ describe('AdminReadyModels', () => {
   it('searches Hugging Face, says a non-commercial or gated model plainly, and fills the form from a result', async () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
     api.readyModelSearch.mockResolvedValue({ data: { results: [
-      { repo: 'acme/research-lm', name: 'research-lm', licence_name: 'CC BY-NC 4.0', commercial: false, gated: false },
+      { repo: 'acme/research-lm', name: 'research-lm', licence_name: 'CC BY-NC 4.0', commercial: false, gated: false, kind: 'chat', addable: true },
+      { repo: 'black-forest-labs/FLUX.1-dev', name: 'FLUX.1-dev', task: 'text-to-image', addable: false, kind: '',
+        why_not: 'AADML has no server for text-to-image models yet, so it cannot be added now.' },
       { repo: 'meta-llama/Llama-3.2-1B-Instruct', name: 'Llama-3.2-1B-Instruct', licence_name: 'Llama 3.2', commercial: true,
-        gated: true, gated_note: "Accept its terms on AADML's Hugging Face account first." }] } })
+        kind: 'chat', addable: true, gated: true, gated_note: "Accept its terms on AADML's Hugging Face account first." }] } })
     await render()
     const add = w.get('[data-test="rm-add"]')
     await add.get('[data-test="rm-search-q"]').setValue('llama')
     await add.get('form.rm-search').trigger('submit')
     await flushPromises()
-    expect(api.readyModelSearch).toHaveBeenCalledWith({ q: 'llama', kind: 'chat' })
+    expect(api.readyModelSearch).toHaveBeenCalledWith({ q: 'llama', kind: 'all' })
     const found = add.get('[data-test="rm-found"]').text()
     expect(found).toContain('Not for commercial use: yours to test only')
     expect(found).toContain("Accept its terms on AADML's Hugging Face account first.")
+    expect(found).toContain('no server for text-to-image models yet')
+    expect(add.get('[data-test="rm-found-use-black-forest-labs/FLUX.1-dev"]').attributes('disabled')).toBeDefined()
     await add.get('[data-test="rm-found-use-meta-llama/Llama-3.2-1B-Instruct"]').trigger('click')
     expect(add.get('[data-test="rm-add-repo"]').element.value).toBe('meta-llama/Llama-3.2-1B-Instruct')
     expect(add.get('[data-test="rm-add-kind"]').element.value).toBe('chat')
@@ -361,5 +365,38 @@ describe('AdminReadyModels', () => {
     const mine = w.get('[data-test="rm-model-research-lm"]')
     expect(mine.get('[data-test="rm-price"]').attributes('disabled')).toBeDefined()
     expect(mine.get('[data-test="rm-price-now"]').text()).toContain('never offered to people or sold')
+  })
+
+  it('searches as the admin types, after a short pause, and shows only the newest answer', async () => {
+    vi.useFakeTimers()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    let answerOld
+    api.readyModelSearch
+      .mockImplementationOnce(() => new Promise(resolve => { answerOld = resolve }))
+      .mockResolvedValueOnce({ data: { results: [{ repo: 'Qwen/Qwen3-0.6B', name: 'Qwen3-0.6B', licence_name: 'Apache 2.0',
+        commercial: true, gated: false, size: '0.6B', downloads: 1200, kind: 'chat', addable: true }] } })
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    await add.get('[data-test="rm-search-q"]').setValue('q')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(api.readyModelSearch).not.toHaveBeenCalled()                     // one letter: nothing asked
+    expect(add.get('[data-test="rm-search-said"]').text()).toContain('Type at least 2 letters')
+    await add.get('[data-test="rm-search-q"]').setValue('qw')
+    await vi.advanceTimersByTimeAsync(200)
+    expect(api.readyModelSearch).not.toHaveBeenCalled()                     // still typing
+    await vi.advanceTimersByTimeAsync(300)
+    expect(api.readyModelSearch).toHaveBeenLastCalledWith({ q: 'qw', kind: 'all' })
+    await add.get('[data-test="rm-search-q"]').setValue('qwen3 0.6b')
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+    expect(api.readyModelSearch).toHaveBeenLastCalledWith({ q: 'qwen3 0.6b', kind: 'all' })
+    answerOld({ data: { results: [{ repo: 'old/answer', name: 'old' }] } })   // the older answer arrives last
+    await flushPromises()
+    const found = add.get('[data-test="rm-found"]').text()
+    expect(found).toContain('Qwen/Qwen3-0.6B')
+    expect(found).not.toContain('old/answer')
+    expect(add.get('[data-test="rm-search-said"]').text()).toContain('1 model for "qwen3 0.6b"')
+    await add.get('[data-test="rm-found-use-Qwen/Qwen3-0.6B"]').trigger('click')
+    expect(add.get('[data-test="rm-add-key"]').element.value).toBe('qwen3-0-6b')
   })
 })
