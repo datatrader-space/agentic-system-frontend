@@ -233,8 +233,8 @@
         </form>
         <p id="rm-search-said" class="rm-muted rm-search-said" aria-live="polite" data-test="rm-search-said">{{ searchSaid }}</p>
         <p v-if="searchError" class="rm-error rm-banner" role="alert">{{ searchError }}</p>
-        <ul v-if="found.length" class="rm-found" data-test="rm-found">
-          <li v-for="r in found" :key="r.repo" :class="{ 'is-picked': addForm.repo === r.repo, 'is-off': !r.addable }">
+        <ul v-if="listOpen && found.length" class="rm-found" data-test="rm-found">
+          <li v-for="r in shownFound" :key="r.repo" :class="{ 'is-picked': addForm.repo === r.repo, 'is-off': !r.addable }">
             <button type="button" class="rm-found-pick" :disabled="!r.addable" :aria-describedby="r.why_not ? `rm-why-${r.repo}` : undefined"
                     @click="useFound(r)" :data-test="`rm-found-use-${r.repo}`">
               <span class="rm-found-main">
@@ -402,7 +402,12 @@ async function searchHub() {
     if (!disposed && mine === asked) { searchError.value = words(e, 'Hugging Face could not be searched now.'); found.value = [] }
   } finally { if (mine === asked) searching.value = false }
 }
+// The owner, 2026-11-26: at most 10 results, and the list closes once one is chosen; typing again opens it.
+const SEARCH_SHOWN = 10
+const listOpen = ref(true)
+const shownFound = computed(() => found.value.slice(0, SEARCH_SHOWN))
 watch(() => [searchForm.q, searchForm.kind], () => {
+  listOpen.value = true
   clearTimeout(searchTimer)
   searchTimer = setTimeout(searchHub, SEARCH_WAIT_MS)
 })
@@ -410,8 +415,9 @@ const searchSaid = computed(() => {
   if (searching.value) return 'Searching Hugging Face…'
   if (searchForm.q.length < SEARCH_MIN) return 'Type at least 2 letters: the most downloaded models that match show here.'
   if (!searchedFor.value) return ''
-  const n = found.value.length
-  return n ? `${n} model${n === 1 ? '' : 's'} for "${searchedFor.value}", most downloaded first. Choose one to fill the form below.`
+  if (!listOpen.value && addForm.repo) return `${addForm.repo} is chosen: check the form below. Type again to search again.`
+  const n = shownFound.value.length
+  return n ? `The ${n === 1 ? 'model' : `${n} most downloaded models`} for "${searchedFor.value}". Choose one to fill the form below.`
     : `No model on Hugging Face matches "${searchedFor.value}" for this kind. Try other words, or All models.`
 })
 // A result fills the form: its repository and kind; the key and name are the admin's to check.
@@ -421,6 +427,8 @@ function useFound(r) {
   Object.assign(addForm, { repo: r.repo, kind: r.kind || 'chat', name: r.name || name,
     key: name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40),
     task: r.kind === 'photo' ? (r.task || '') : '' })
+  listOpen.value = false
+  nextTick(() => document.getElementById('rm-add-key')?.focus())
 }
 // The one number a model of each kind carries (backend camera_models.TUNING); empty: the platform's own.
 const TUNING = {

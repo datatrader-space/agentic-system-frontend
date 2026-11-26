@@ -400,9 +400,11 @@ describe('AdminReadyModels', () => {
     const found = add.get('[data-test="rm-found"]').text()
     expect(found).toContain('Qwen/Qwen3-0.6B')
     expect(found).not.toContain('old/answer')
-    expect(add.get('[data-test="rm-search-said"]').text()).toContain('1 model for "qwen3 0.6b"')
+    expect(add.get('[data-test="rm-search-said"]').text()).toContain('The model for "qwen3 0.6b"')
     await add.get('[data-test="rm-found-use-Qwen/Qwen3-0.6B"]').trigger('click')
     expect(add.get('[data-test="rm-add-key"]').element.value).toBe('qwen3-0-6b')
+    expect(add.find('[data-test="rm-found"]').exists()).toBe(false)                  // closed once one is chosen
+    expect(add.get('[data-test="rm-search-said"]').text()).toContain('Qwen/Qwen3-0.6B is chosen')
   })
 
   // The owner, 2026-11-26: one card for the model chosen, and a table of every model.
@@ -419,5 +421,24 @@ describe('AdminReadyModels', () => {
     expect(w.get('[data-test="rm-choose"]').element.value).toBe('sam3')
     expect(w.find('[data-test="rm-model-sam3"]').exists()).toBe(true)
     expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(false)
+  })
+
+  it('shows at most 10 results, and opens the list again when the admin types', async () => {
+    vi.useFakeTimers()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    const many = Array.from({ length: 50 }, (_, i) => ({ repo: `org/model-${i}`, name: `model-${i}`, kind: 'chat', addable: true }))
+    api.readyModelSearch.mockResolvedValue({ data: { results: many } })
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    await add.get('[data-test="rm-search-q"]').setValue('model')
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+    expect(add.get('[data-test="rm-found"]').findAll('li').length).toBe(10)
+    await add.get('[data-test="rm-found-use-org/model-3"]').trigger('click')
+    expect(add.find('[data-test="rm-found"]').exists()).toBe(false)
+    await add.get('[data-test="rm-search-q"]').setValue('model x')
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+    expect(add.find('[data-test="rm-found"]').exists()).toBe(true)
   })
 })
