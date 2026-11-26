@@ -173,13 +173,22 @@
                 <p class="text-[13px] font-semibold text-ink-soft mt-2">Syncing tools…</p>
                 <p class="text-[11px] text-ink-faint mt-1">Signed in — loading {{ detailItem.name }}'s tools. This connector will show as connected once they're all synced.</p>
               </div>
-              <div v-else-if="mcpSyncError" class="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-center py-5">
+              <div v-else-if="mcpSyncError" role="alert" class="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-center py-5">
                 <Icon icon="lucide:alert-triangle" class="w-6 h-6 text-amber-500 mx-auto" />
-                <p class="text-[13px] font-semibold text-amber-800 mt-2">Couldn’t load tools</p>
-                <p class="text-[11px] text-amber-700/80 mt-1">{{ mcpSyncError }} You’re signed in — no need to re-authorize.</p>
-                <button @click="retryMcpSync" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 inline-flex items-center gap-2">
-                  <Icon icon="lucide:refresh-cw" class="w-4 h-4" /> Retry sync
-                </button>
+                <template v-if="mcpNeedsSignIn">
+                  <p class="text-[13px] font-semibold text-amber-800 mt-2">Sign in again</p>
+                  <p class="text-[11px] text-amber-700/80 mt-1">{{ detailItem.name }} refused this sign-in, so its tools could not load. Sign in again to connect.</p>
+                  <button @click="connectMcpOAuth" :disabled="busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-2">
+                    <Icon icon="lucide:log-in" class="w-4 h-4" /> Sign in again
+                  </button>
+                </template>
+                <template v-else>
+                  <p class="text-[13px] font-semibold text-amber-800 mt-2">Couldn’t load tools</p>
+                  <p class="text-[11px] text-amber-700/80 mt-1">{{ mcpSyncError }} You’re signed in — no need to re-authorize.</p>
+                  <button @click="retryMcpSync" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 inline-flex items-center gap-2">
+                    <Icon icon="lucide:refresh-cw" class="w-4 h-4" /> Retry sync
+                  </button>
+                </template>
               </div>
               <div v-else-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
                 <div class="flex items-center gap-2">
@@ -700,6 +709,7 @@ let _oauthPollIv = null
 let _oauthDone = false
 const syncingTools = ref(false)                              // true while the backend is discovering tools
 const mcpSyncError = ref('')                                 // set when the tool sync failed → show Retry
+const mcpNeedsSignIn = ref(false)                            // the server refused the sign-in: only a new one mends it
 const mcpConnId = ref(null)                                  // the connection we're waiting on (for Retry)
 
 function _stopMcpPoll() { if (_oauthPollIv) { clearInterval(_oauthPollIv); _oauthPollIv = null } }
@@ -726,6 +736,7 @@ function _startMcpStatusPoll(connId) {
   mcpConnId.value = connId
   _oauthDone = false
   mcpSyncError.value = ''
+  mcpNeedsSignIn.value = false
   _stopMcpPoll()
   let tries = 0
   _oauthPollIv = setInterval(async () => {
@@ -736,7 +747,10 @@ function _startMcpStatusPoll(connId) {
       if (st?.status === 'error') {
         _stopMcpPoll(); busy.value = false; syncingTools.value = false
         mcpSyncError.value = st.error || 'Could not load this connector’s tools.'
-        notify.error(mcpSyncError.value)
+        mcpNeedsSignIn.value = !!st.reconnect_required      // a refused sign-in: offer "Sign in again", not Retry
+        notify.error(mcpNeedsSignIn.value
+          ? `${detailItem.value?.name || 'The server'} refused this sign-in. Sign in again.`
+          : mcpSyncError.value)
         return
       }
       if (st?.status === 'syncing') { busy.value = false; syncingTools.value = true }   // token in, tools loading
@@ -761,6 +775,7 @@ async function connectMcpOAuth() {
   if (busy.value) return
   busy.value = true
   mcpSyncError.value = ''
+  mcpNeedsSignIn.value = false
   let connId = null
   try {
     const result = await mcpPopup.run(async () => {
