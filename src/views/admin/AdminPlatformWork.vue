@@ -38,7 +38,7 @@
           <select id="pw-machine-pick" v-model="machinePick" class="pw-select" :disabled="saving === 'machine'">
             <option value="" disabled>Choose a machine</option>
             <option v-for="m in machines" :key="m.id" :value="String(m.id)">
-              {{ m.name }} · {{ m.workspace }}{{ m.online ? '' : ' (offline)' }}
+              {{ m.specs ? `${m.specs} · ` : '' }}{{ m.name }} · {{ m.workspace }}{{ m.online ? '' : ' (offline)' }}
             </option>
           </select>
           <button class="btn btn-primary" type="button" data-test="pw-machine-save"
@@ -50,7 +50,7 @@
         <p v-if="!machines.length" class="pw-help">You have no machine yet. Add one under Your machines in Training Data.</p>
         <p class="pw-state" :class="settings.machine_refusal ? 'is-bad' : 'is-good'" role="status" data-test="pw-machine-state">
           <component :is="settings.machine_refusal ? TriangleAlert : CircleCheck" :size="15" aria-hidden="true" />
-          {{ settings.machine_refusal || `${settings.machine?.name} is online and can run platform work.` }}
+          {{ settings.machine_refusal || `${settings.machine?.name}${settings.machine?.specs ? ` (${settings.machine.specs})` : ''} is online and can run platform work.` }}
         </p>
       </section>
 

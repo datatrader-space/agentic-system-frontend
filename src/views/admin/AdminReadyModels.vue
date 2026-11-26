@@ -36,7 +36,20 @@
         No ready-to-use model is in the catalogue yet.
       </p>
 
-      <section v-for="m in models" :key="m.key" class="rm-card admin-surface" :data-test="`rm-model-${m.key}`"
+      <!-- One card for the model chosen (owner, 2026-11-26): choose it here, or click it in the table below; its
+           details, where it runs, Start and Stop and its price are all in this card. -->
+      <div v-if="models.length" class="rm-chooser admin-surface" data-test="rm-chooser">
+        <div class="rm-field rm-chooser-field">
+          <label for="rm-choose">Model</label>
+          <select id="rm-choose" v-model="selectedKey" data-test="rm-choose">
+            <optgroup v-for="g in modelGroups" :key="g.label" :label="g.label">
+              <option v-for="mm in g.models" :key="mm.key" :value="mm.key">{{ mm.name || mm.key }} · {{ stateWord(mm.state) }}</option>
+            </optgroup>
+          </select>
+        </div>
+        <p class="rm-muted rm-chooser-count">{{ runningCount }} of {{ models.length }} running</p>
+      </div>
+      <section v-for="m in shownModels" :key="m.key" class="rm-card rm-card-chosen admin-surface" :data-test="`rm-model-${m.key}`"
                :aria-labelledby="`rm-name-${m.key}`">
         <div class="rm-card-head">
           <h2 :id="`rm-name-${m.key}`" class="admin-section-title">{{ m.name || m.key }}</h2>
@@ -163,6 +176,34 @@
         </form>
 
         <p v-if="modelErrors[m.key]" class="rm-error rm-banner" role="alert" data-test="rm-error">{{ modelErrors[m.key] }}</p>
+      </section>
+
+      <!-- Every model at a glance: which run, where, at what price. A name opens that model in the card above. -->
+      <section v-if="models.length" class="rm-card admin-surface" aria-labelledby="rm-table-title" data-test="rm-table">
+        <h2 id="rm-table-title" class="admin-section-title">All models</h2>
+        <table class="rm-table">
+          <caption class="admin-sr-only">Every ready-to-use model, its state, where it runs and its price</caption>
+          <thead>
+            <tr><th scope="col">Model</th><th scope="col">What it does</th><th scope="col">State</th>
+              <th scope="col">Where it runs</th><th scope="col">Price</th><th scope="col">Started</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in tableModels" :key="row.key" :class="{ 'is-chosen': row.key === selectedKey }"
+                :data-test="`rm-row-${row.key}`">
+              <th scope="row" data-label="Model">
+                <button type="button" class="rm-row-pick" :aria-current="row.key === selectedKey ? 'true' : undefined"
+                        @click="choose(row.key)">{{ row.name || row.key }}</button>
+              </th>
+              <td data-label="What it does">{{ row.kind_label || '—' }}</td>
+              <td data-label="State"><span class="rm-state" :class="`is-${row.state || 'off'}`">
+                <component :is="STATE_ICON[row.state] || CircleOff" :size="13" aria-hidden="true"
+                           :class="{ 'rm-spin': row.state === 'starting' }" />{{ stateWord(row.state) }}</span></td>
+              <td data-label="Where it runs">{{ row.state === 'off' ? '—' : whereWords(row) }}</td>
+              <td data-label="Price">{{ row.for_sale === false ? 'Not for sale (your own)' : row.price_text || 'Not for sale yet' }}</td>
+              <td data-label="Started">{{ row.state !== 'off' && (row.started_by || row.started_at) ? startedWords(row) : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <!-- A camera model from Hugging Face (backend camera_models.py): a row, never a constant in code. -->
@@ -408,7 +449,8 @@ function who(by) {
   if (!by) return ''
   return typeof by === 'object' ? (by.name || by.username || by.email || '') : String(by)
 }
-function machineWords(mc) { return [mc.name, mc.gpu].filter(Boolean).join(' · ') }
+// A machine by what it has, then its short name (the server's words, machines.specs; owner, 2026-11-26).
+function machineWords(mc) { return mc.specs ? `${mc.specs} · ${mc.name}` : [mc.name, mc.gpu].filter(Boolean).join(' · ') }
 // Why ``m`` cannot start on ``mc`` now ('' when it can): the machine's own judgement of each model, else SAM 3's.
 function fitWords(mc, m) {
   if (mc.fits && Object.prototype.hasOwnProperty.call(mc.fits, m.key)) return mc.fits[m.key] || ''
@@ -455,6 +497,34 @@ function take(data) {
   for (const row of rows) takeModel(row)
   models.value.sort((a, b) => rows.findIndex(r => r.key === a.key) - rows.findIndex(r => r.key === b.key))
 }
+
+// The model shown in the card (owner, 2026-11-26): the one the admin chose, else the first running one, else the first.
+const selectedKey = ref('')
+const KIND_ORDER = ['segment', 'walls', 'chat', 'photo']
+const modelGroups = computed(() => {
+  const groups = new Map()
+  for (const m of models.value) {
+    const label = m.kind_label || 'Other'
+    if (!groups.has(label)) groups.set(label, { label, kind: m.kind, models: [] })
+    groups.get(label).models.push(m)
+  }
+  const rank = g => { const i = KIND_ORDER.indexOf(g.kind); return i < 0 ? KIND_ORDER.length : i }
+  return [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label))
+})
+const shownModels = computed(() => models.value.filter(m => m.key === selectedKey.value))
+const runningCount = computed(() => models.value.filter(m => m.state === 'on').length)
+// The table: running ones first, then starting, failed, off; by name within each.
+const STATE_RANK = { on: 0, starting: 1, failed: 2, off: 3 }
+const tableModels = computed(() => [...models.value].sort((a, b) =>
+  (STATE_RANK[a.state] ?? 3) - (STATE_RANK[b.state] ?? 3) || String(a.name || a.key).localeCompare(String(b.name || b.key))))
+function choose(key) {
+  selectedKey.value = key
+  nextTick(() => document.getElementById('rm-choose')?.scrollIntoView?.({ block: 'nearest' }))
+}
+watch(models, now => {
+  if (!now.length) { selectedKey.value = ''; return }
+  if (!now.some(m => m.key === selectedKey.value)) selectedKey.value = (now.find(m => m.state === 'on') || now[0]).key
+}, { deep: false })
 
 async function load() {
   loading.value = true
@@ -662,6 +732,26 @@ onBeforeUnmount(() => { disposed = true; stopPolling(); clearTimeout(searchTimer
 .rm-money { display: flex; align-items: center; gap: 6px; }
 .rm-money span { color: var(--admin-muted, #667085); font-weight: 600; }
 .rm-run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rm-chooser { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; padding: 16px 18px; margin-top: 16px;
+  border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.rm-chooser-field { flex: 1 1 360px; max-width: 560px; }
+.rm-chooser-field select { min-height: 44px; font-weight: 600; }
+.rm-chooser-count { margin: 0 0 10px; }
+.rm-card-chosen { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
+.rm-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.rm-table th, .rm-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--admin-line, #e3e7ee); vertical-align: middle; }
+.rm-table thead th { font-size: 12px; font-weight: 600; color: var(--admin-muted, #667085); background: var(--admin-soft, #f4f6fa); }
+.rm-table tbody tr.is-chosen { background: #eef2ff; }
+.rm-row-pick { all: unset; cursor: pointer; font-weight: 600; color: var(--admin-primary, #4f46e5); min-height: 32px; }
+.rm-row-pick:hover { text-decoration: underline; }
+.rm-row-pick:focus-visible { outline: 2px solid var(--admin-primary, #4f46e5); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 720px) {
+  .rm-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .rm-table, .rm-table tbody, .rm-table tr, .rm-table th, .rm-table td { display: block; width: 100%; }
+  .rm-table tr { padding: 8px 0; border-bottom: 1px solid var(--admin-line, #e3e7ee); }
+  .rm-table th, .rm-table td { border: 0; padding: 4px 4px; display: flex; gap: 12px; justify-content: space-between; }
+  .rm-table [data-label]::before { content: attr(data-label); font-size: 12px; color: var(--admin-muted, #667085); font-weight: 600; }
+}
 .rm-add-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-items: start; gap: 14px 12px;
   margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--admin-line, #e3e7ee); }
 .rm-search { display: grid; grid-template-columns: minmax(0, 1fr) 200px; align-items: end; gap: 12px; margin-top: 10px; }

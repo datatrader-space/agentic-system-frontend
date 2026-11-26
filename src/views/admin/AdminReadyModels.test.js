@@ -36,6 +36,11 @@ beforeEach(() => {
 })
 afterEach(() => { w?.unmount(); vi.useRealTimers() })
 
+// Only the model chosen is shown in the card (owner, 2026-11-26): choose it as the admin does, then read its card.
+async function showModel(key) {
+  await w.get('[data-test="rm-choose"]').setValue(key)
+  return w.get(`[data-test="rm-model-${key}"]`)
+}
 async function render() { w = mount(AdminReadyModels, { attachTo: document.body }); await flushPromises(); return w }
 
 describe('AdminReadyModels', () => {
@@ -46,14 +51,14 @@ describe('AdminReadyModels', () => {
       sam({ key: 'other', name: 'Other model', state: 'failed', failure_reason: 'RunPod has no GPU free.' }),
     ] } })
     await render()
-    const card = w.get('[data-test="rm-model-sam3"]')
+    const card = (await showModel('sam3'))
     expect(card.get('[data-test="rm-state"]').text()).toBe('On')
     expect(card.get('[data-test="rm-where"]').text()).toBe('Studio PC · RTX 4090 24 GB')
     expect(card.get('[data-test="rm-started"]').text()).toContain('by sajid')
     expect(card.get('[data-test="rm-free"]').text()).toBe('20 a person a day')
     expect(card.get('[data-test="rm-price-now"]').text()).toContain('$0.002 an image')
     expect(card.find('[data-test="rm-stop"]').exists()).toBe(true)
-    const failed = w.get('[data-test="rm-model-other"]')
+    const failed = (await showModel('other'))
     expect(failed.get('[data-test="rm-state"]').text()).toBe('Failed')
     expect(failed.get('[data-test="rm-failure"]').text()).toBe('RunPod has no GPU free.')
     expect(failed.get('[data-test="rm-price-now"]').text()).toContain('Every paid call is refused until a price is set')
@@ -205,7 +210,7 @@ describe('AdminReadyModels', () => {
   it('says what a camera model does, its licence and GPU memory, and judges each machine for that model', async () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
     await render()
-    const card = w.get('[data-test="rm-model-qwen3-vl-8b"]')
+    const card = (await showModel('qwen3-vl-8b'))
     expect(card.get('[data-test="rm-kind"]').text()).toBe('Vision assistant')
     expect(card.get('[data-test="rm-licence"]').text()).toBe('Apache 2.0')
     expect(card.get('[data-test="rm-gpu"]').text()).toBe('22 GB')
@@ -214,7 +219,7 @@ describe('AdminReadyModels', () => {
     expect(opts[3].text()).toContain('no NVIDIA GPU with 22 GB')
     expect(opts[3].attributes('disabled')).toBeDefined()
     expect(card.find('[data-test="rm-remove"]').exists()).toBe(true)
-    expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-remove"]').exists()).toBe(false)
+    expect((await showModel('sam3')).find('[data-test="rm-remove"]').exists()).toBe(false)
   })
 
   // ADM-1344 part F: the two published models AADML hosts (kind walls) say where their files stand and can have them
@@ -226,16 +231,16 @@ describe('AdminReadyModels', () => {
       files_text: 'Its files are being made ready by AADML.', ...over })
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), walls()], machines: fitted, kinds } })
     await render()
-    const card = w.get('[data-test="rm-model-segformer-b0"]')
+    const card = (await showModel('segformer-b0'))
     expect(card.get('[data-test="rm-files"]').text()).toBe('Its files are being made ready by AADML.')
     expect(card.get('[data-test="rm-gpu"]').text()).toBe('None: it runs on a CPU too')
     expect(card.find('[data-test="rm-fetch"]').exists()).toBe(true)
     expect(card.find('[data-test="rm-remove"]').exists()).toBe(false)
-    expect(w.get('[data-test="rm-model-sam3"]').find('[data-test="rm-files"]').exists()).toBe(false)
+    expect((await showModel('sam3')).find('[data-test="rm-files"]').exists()).toBe(false)
     w.unmount()
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [walls({ files_ready: true, files_text: '' })], machines: fitted, kinds } })
     await render()
-    const ready = w.get('[data-test="rm-model-segformer-b0"]')
+    const ready = (await showModel('segformer-b0'))
     expect(ready.get('[data-test="rm-files"]').text()).toBe('Ready')
     expect(ready.find('[data-test="rm-fetch"]').exists()).toBe(false)
   })
@@ -264,7 +269,7 @@ describe('AdminReadyModels', () => {
     await flushPromises()
     expect(api.readyModelCameraAdd).toHaveBeenLastCalledWith({ key: 'qwen3-vl-8b', name: 'Qwen3-VL 8B', kind: 'vision',
       gpu_gb: 22, parts: [{ repo: 'Qwen/Qwen3-VL-8B-Instruct' }] })
-    expect(w.get('[data-test="rm-model-qwen3-vl-8b"]').get('[data-test="rm-files"]').text()).toContain('Being fetched')
+    expect((await showModel('qwen3-vl-8b')).get('[data-test="rm-files"]').text()).toContain('Being fetched')
     expect(w.find('[data-test="rm-fetch"]').exists()).toBe(true)
   })
 
@@ -302,7 +307,7 @@ describe('AdminReadyModels', () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
     api.readyModelCameraRemove.mockResolvedValue({ status: 204 })
     await render()
-    await w.get('[data-test="rm-remove"]').trigger('click')
+    await (await showModel('qwen3-vl-8b')).get('[data-test="rm-remove"]').trigger('click')
     expect(w.get('[data-test="rm-remove-confirm"]').text()).toContain('Remove Qwen3-VL 8B from the list?')
     expect(api.readyModelCameraRemove).not.toHaveBeenCalled()
     await w.get('[data-test="rm-remove-yes"]').trigger('click')
@@ -361,8 +366,8 @@ describe('AdminReadyModels', () => {
     const own = qwen({ key: 'research-lm', kind: 'chat', price_unit: 'per 1,000 tokens', for_sale: false })
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [chat, own], machines: fitted, kinds: allKinds } })
     await render()
-    expect(w.get('[data-test="rm-model-qwen3-small"]').text()).toContain('Price per 1,000 tokens (USD)')
-    const mine = w.get('[data-test="rm-model-research-lm"]')
+    expect((await showModel('qwen3-small')).text()).toContain('Price per 1,000 tokens (USD)')
+    const mine = (await showModel('research-lm'))
     expect(mine.get('[data-test="rm-price"]').attributes('disabled')).toBeDefined()
     expect(mine.get('[data-test="rm-price-now"]').text()).toContain('never offered to people or sold')
   })
@@ -398,5 +403,21 @@ describe('AdminReadyModels', () => {
     expect(add.get('[data-test="rm-search-said"]').text()).toContain('1 model for "qwen3 0.6b"')
     await add.get('[data-test="rm-found-use-Qwen/Qwen3-0.6B"]').trigger('click')
     expect(add.get('[data-test="rm-add-key"]').element.value).toBe('qwen3-0-6b')
+  })
+
+  // The owner, 2026-11-26: one card for the model chosen, and a table of every model.
+  it('shows one card for the model chosen, a running one first, and a table of every model that opens a model', async () => {
+    const on = qwen({ state: 'on', host: 'machine', machine: { id: 4, name: 'Studio PC' }, price_text: '$0.002 an image' })
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), on], machines: fitted, kinds } })
+    await render()
+    expect(w.findAll('[data-test^="rm-model-"]').length).toBe(1)
+    expect(w.get('[data-test="rm-choose"]').element.value).toBe('qwen3-vl-8b')          // the running one first
+    const rows = w.get('[data-test="rm-table"]').findAll('tbody tr')
+    expect(rows.map(r => r.attributes('data-test'))).toEqual(['rm-row-qwen3-vl-8b', 'rm-row-sam3'])
+    expect(rows[0].text()).toContain('$0.002 an image')
+    await w.get('[data-test="rm-row-sam3"] button').trigger('click')
+    expect(w.get('[data-test="rm-choose"]').element.value).toBe('sam3')
+    expect(w.find('[data-test="rm-model-sam3"]').exists()).toBe(true)
+    expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(false)
   })
 })

@@ -107,8 +107,9 @@ function cancel() { pending.value = null; said.value = 'Nothing was started, and
 const describe = m => `${m.gpu_name} (${m.kind === 'cpu' ? 'CPU' : 'GPU'}, ${m.memory_gb} GB) in ${m.data_center}, ${m.soc2 ? 'SOC 2' : 'not SOC 2'}, ${money(m.usd_per_hour)} an hour ($${Number(m.usd_per_second).toFixed(6)} a second), ${m.files_here ? 'its files are already there' : 'its files are copied there first'}`;
 
 function money(value) { return `$${Number(value).toFixed(2)}`; }
+// One of the person's machines by what it has, then its short name (the server's machines.specs; owner, 2026-11-26).
 const optionText = m => (m.kind === 'own_machine'
-  ? `${m.name}, ${m.gpu_name || 'CPU'}${m.memory_gb ? `, ${m.memory_gb} GB` : ''}${fits(m) ? '' : `: ${m.why_not}`}`
+  ? `${m.specs || `${m.gpu_name || 'CPU'}${m.memory_gb ? `, ${m.memory_gb} GB` : ''}`} · ${m.name}${fits(m) ? '' : `: ${m.why_not}`}`
   : `${m.gpu_name}, ${m.memory_gb} GB, ${m.data_center}${m.soc2 ? ' (SOC 2)' : ' (not SOC 2)'}, ${money(m.usd_per_hour)} an hour`);
 const own = computed(() => chosen.value?.kind === 'own_machine');
 const byKind = k => (machines.value || []).filter(m => (m.kind || 'gpu') === k);
@@ -185,7 +186,8 @@ defineExpose({ read, confirm });
 
       <p v-if="chosen && own" class="machine-chosen">
         <span><HardDrive :size="14" aria-hidden="true"/>{{ chosen.stock_text || 'Online' }}</span>
-        <span>{{ chosen.gpu_name || 'CPU only' }}<template v-if="chosen.memory_gb">, {{ chosen.memory_gb }} GB</template></span>
+        <span v-if="chosen.specs">{{ chosen.specs }}</span>
+        <span v-else>{{ chosen.gpu_name || 'CPU only' }}<template v-if="chosen.memory_gb">, {{ chosen.memory_gb }} GB</template></span>
         <strong>{{ chosen.price_text }}, charged by the second</strong>
         <span>What it needs goes to this machine. If the machine is offline it says so; nothing moves to RunPod.</span>
       </p>

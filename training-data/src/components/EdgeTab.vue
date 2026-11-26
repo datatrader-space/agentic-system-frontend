@@ -242,7 +242,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
               <label class="field-label">Machine
                 <select v-model="machineId" class="text-input" :disabled="!machines.length">
                   <option v-if="!machines.length" value="">{{ chosen ? 'No online machine may run this project' : 'Choose a model first' }}</option>
-                  <option v-for="m in machines" :key="m.id" :value="m.id">{{ m.name }}</option>
+                  <option v-for="m in machines" :key="m.id" :value="m.id">{{ m.specs ? `${m.specs} · ${m.name}` : m.name }}</option>
                 </select>
               </label>
               <label class="field-label">Inference port
