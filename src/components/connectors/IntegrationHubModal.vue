@@ -738,9 +738,20 @@ function _startMcpStatusPoll(connId) {
   mcpSyncError.value = ''
   mcpNeedsSignIn.value = false
   _stopMcpPoll()
+  _pollMcpStatus(connId, 2000)
+}
+
+// The sync can outlast the spinner: the job waits out a deploy, or retries a slow server (production 2026-11-26:
+// Kurumera synced at 14:00:06, after the page had given up at "taking longer than expected"). So after ~4 min the
+// spinner becomes the "taking longer" notice with Retry, and the page keeps asking every 10 s for up to 30 min more:
+// the moment the job finishes it shows Connected (or the real error) instead of a stale warning.
+const MCP_FAST_TRIES = 120          // every 2 s, ~4 min
+const MCP_SLOW_TRIES = 180          // then every 10 s, ~30 min
+function _pollMcpStatus(connId, everyMs) {
   let tries = 0
   _oauthPollIv = setInterval(async () => {
     tries++
+    const slow = everyMs > 2000
     try {
       const { data: st } = await api.mcpOauthStatus(connId)
       if (st?.status === 'connected') return _finishMcpOauth(st.tools_count)
@@ -753,13 +764,18 @@ function _startMcpStatusPoll(connId) {
           : mcpSyncError.value)
         return
       }
-      if (st?.status === 'syncing') { busy.value = false; syncingTools.value = true }   // token in, tools loading
+      // token in, tools loading; once the notice is up it stays up until the job ends
+      if (st?.status === 'syncing' && !slow) { busy.value = false; syncingTools.value = true }
     } catch { /* transient — keep polling */ }
-    if (tries >= 120) {   // ~4 min — treat a stuck sync as retryable, don't leave a dead spinner
+    if (!slow && tries >= MCP_FAST_TRIES) {
       _stopMcpPoll(); busy.value = false; syncingTools.value = false
+      mcpSyncError.value = 'Syncing tools is taking longer than expected. This page will update when it finishes.'
+      _pollMcpStatus(connId, 10000)                          // keep asking, more slowly
+    } else if (slow && tries >= MCP_SLOW_TRIES) {
+      _stopMcpPoll()                                         // ~34 min in all: leave the notice and its Retry
       mcpSyncError.value = 'Syncing tools is taking longer than expected.'
     }
-  }, 2000)
+  }, everyMs)
 }
 
 onBeforeUnmount(() => _stopMcpPoll())
