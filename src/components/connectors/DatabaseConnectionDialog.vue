@@ -80,7 +80,7 @@
           </button>
         </div>
         <Field :id="`${formId}-ca`" label="CA certificate (optional)" class="dcd-wide"
-               help="Not needed for AWS RDS or Aurora, or for a server with a public certificate. Only when your server's certificate is signed by your own authority: Google Cloud SQL, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
+               help="Not needed for AWS RDS, Aurora or Supabase, or for a server with a public certificate. Only when your server's certificate is signed by your own authority: Google Cloud SQL, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
           <textarea :id="`${formId}-ca`" v-model="form.ca_certificate" class="dcd-in mono" rows="4" spellcheck="false" autocomplete="off" placeholder="-----BEGIN CERTIFICATE-----" :aria-invalid="ariaInvalid('ca_certificate')" />
         </Field>
       </fieldset>
@@ -316,7 +316,7 @@ async function onTrusted(conn) {
 async function untrust() {
   const ok = await confirm({
     title: 'Remove the trusted certificate?',
-    message: 'This connection goes back to the public authorities, the AWS RDS authorities and its CA certificate. A self-signed server is refused until you trust its certificate again.',
+    message: 'This connection goes back to the public authorities, the AWS RDS and Supabase authorities and its CA certificate. A self-signed server is refused until you trust its certificate again.',
     confirmText: 'Remove trust',
     danger: true,
   })

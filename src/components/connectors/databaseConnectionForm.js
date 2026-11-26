@@ -18,7 +18,7 @@ export const ACCESS_FALLBACK = Object.freeze([
 ])
 
 // Every connection is encrypted and checks the server's certificate and name (ADM-1369); there is no mode to choose.
-export const ENCRYPTION_NOTE = 'Always encrypted (TLS 1.2 or later). The server\'s certificate and name are checked against the public authorities, the AWS RDS authorities and, when you add one, your own CA certificate.'
+export const ENCRYPTION_NOTE = 'Always encrypted (TLS 1.2 or later). The server\'s certificate and name are checked against the public authorities, the AWS RDS and Supabase authorities and, when you add one, your own CA certificate.'
 
 /** The server's option list (strings, [value, label] pairs or { value, label }) as [{ value, label, ... }]. */
 export function normalizeOptions(list, fallback = []) {
