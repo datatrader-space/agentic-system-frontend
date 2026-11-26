@@ -142,16 +142,17 @@
         <!-- Price per image -->
         <form class="rm-price" novalidate @submit.prevent="savePrice(m)">
           <div class="rm-field">
-            <label :for="`rm-price-${m.key}`">Price per image (USD)</label>
+            <label :for="`rm-price-${m.key}`">Price {{ m.price_unit || 'an image' }} (USD)</label>
             <div class="rm-money">
               <span aria-hidden="true">$</span>
               <input :id="`rm-price-${m.key}`" v-model.trim="pricePick[m.key]" inputmode="decimal" autocomplete="off"
-                     placeholder="Not for sale" :disabled="isBusy(m.key)"
+                     placeholder="Not for sale" :disabled="isBusy(m.key) || m.for_sale === false"
                      :aria-invalid="priceErrors[m.key] ? 'true' : 'false'"
                      :aria-describedby="`rm-price-help-${m.key}`" data-test="rm-price" />
             </div>
             <small :id="`rm-price-help-${m.key}`" data-test="rm-price-now">
-              <template v-if="m.usd_per_image == null">Not for sale. Every paid call is refused until a price is set.</template>
+              <template v-if="m.for_sale === false">Its licence does not allow commercial use: it is yours to test, never offered to people or sold.</template>
+              <template v-else-if="m.usd_per_image == null">Not for sale. Every paid call is refused until a price is set.</template>
               <template v-else>Now {{ m.price_text || `$${m.usd_per_image} an image` }}. Empty it to stop selling.</template>
             </small>
             <em v-if="priceErrors[m.key]" class="rm-error" role="alert" data-test="rm-price-error">{{ priceErrors[m.key] }}</em>
@@ -166,12 +167,40 @@
 
       <!-- A camera model from Hugging Face (backend camera_models.py): a row, never a constant in code. -->
       <section class="rm-card admin-surface" aria-labelledby="rm-add-title" data-test="rm-add">
-        <h2 id="rm-add-title" class="admin-section-title">Add a camera model</h2>
+        <h2 id="rm-add-title" class="admin-section-title">Add a ready-to-use model</h2>
         <p class="rm-muted">
-          Name a model on Hugging Face. AADML reads it at its newest commit (or the one you give) and pins it, keeps it
-          only with a licence that allows commercial use, refuses one with code of its own, and fetches its files once.
-          Then start and price it here.
+          Name a model on Hugging Face, or search for one. AADML reads it at its newest commit (or the one you give) and
+          pins it, refuses one with code of its own, and fetches its files once on the platform machine. A gated model is
+          fetched with AADML's own Hugging Face token: accept its terms on AADML's Hugging Face account first. A model
+          whose licence does not allow commercial use is yours to test only: people never see it and it is never sold.
+          Chat and photo models are offered to everyone in Ready to use once you start and price them.
         </p>
+        <form class="rm-search" role="search" @submit.prevent="searchHub" data-test="rm-search">
+          <div class="rm-field"><label for="rm-search-q">Search Hugging Face</label>
+            <input id="rm-search-q" v-model.trim="searchForm.q" type="search" placeholder="qwen, llama, segformer…"
+                   autocomplete="off" data-test="rm-search-q" /></div>
+          <div class="rm-field"><label for="rm-search-kind">Kind</label>
+            <select id="rm-search-kind" v-model="searchForm.kind" data-test="rm-search-kind">
+              <option value="chat">Chat models</option>
+              <option value="photo">Photo models</option>
+            </select></div>
+          <button class="btn" type="submit" :disabled="searching" data-test="rm-search-go">
+            <Search :size="15" aria-hidden="true" />{{ searching ? 'Searching…' : 'Search' }}
+          </button>
+        </form>
+        <p v-if="searchError" class="rm-error rm-banner" role="alert">{{ searchError }}</p>
+        <ul v-if="found.length" class="rm-found" data-test="rm-found">
+          <li v-for="r in found" :key="r.repo">
+            <div class="rm-found-main">
+              <strong>{{ r.repo }}</strong>
+              <span class="rm-muted">{{ r.licence_name || r.licence }}<template v-if="r.size"> · {{ r.size }}</template></span>
+              <span v-if="r.commercial === false" class="rm-tag is-warn">Not for commercial use: yours to test only</span>
+              <span v-if="r.gated" class="rm-tag">Gated</span>
+              <small v-if="r.gated && r.gated_note" class="rm-muted">{{ r.gated_note }}</small>
+            </div>
+            <button class="btn" type="button" @click="useFound(r)" :data-test="`rm-found-use-${r.repo}`">Use this</button>
+          </li>
+        </ul>
         <form class="rm-add-form" novalidate @submit.prevent="addCamera">
           <div class="rm-field"><label for="rm-add-kind">What it does</label>
             <select id="rm-add-kind" v-model="addForm.kind" data-test="rm-add-kind">
@@ -191,6 +220,11 @@
           <div class="rm-field"><label for="rm-add-revision">Commit (optional)</label>
             <input id="rm-add-revision" v-model.trim="addForm.revision" placeholder="the newest" autocomplete="off"
                    data-test="rm-add-revision" /></div>
+          <div v-if="addForm.kind === 'photo'" class="rm-field"><label for="rm-add-task">What the photo model does</label>
+            <select id="rm-add-task" v-model="addForm.task" data-test="rm-add-task">
+              <option value="" disabled>Choose its task</option>
+              <option v-for="t in PHOTO_TASKS" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select></div>
           <div v-if="TUNING[addForm.kind]" class="rm-field"><label for="rm-add-tuning">{{ TUNING[addForm.kind].label }}</label>
             <input id="rm-add-tuning" v-model.trim="addForm.tuning" inputmode="decimal"
                    :placeholder="TUNING[addForm.kind].hint" data-test="rm-add-tuning" /></div>
@@ -250,7 +284,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Boxes, CircleCheck, CircleOff, Cpu, LoaderCircle, Play, Plus, RefreshCw, Save, ShieldCheck, Square, Trash2, TriangleAlert } from 'lucide-vue-next'
+import { Boxes, CircleCheck, CircleOff, Cpu, LoaderCircle, Play, Plus, RefreshCw, Save, Search, ShieldCheck, Square, Trash2, TriangleAlert } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 
@@ -278,7 +312,34 @@ const kinds = ref([])
 const removeAsk = ref(null)
 const adding = ref(false)
 const addError = ref('')
-const addForm = reactive({ kind: 'detector', repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '' })
+const addForm = reactive({ kind: 'detector', repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '', task: '' })
+// A photo model is served for one of these tasks (backend open_models.DEPLOY_TASKS['photo']).
+const PHOTO_TASKS = [
+  { value: 'image-segmentation', label: 'Outlines areas (segmentation)' },
+  { value: 'object-detection', label: 'Finds objects (detection)' },
+  { value: 'image-classification', label: 'Names what a photo shows (classification)' },
+  { value: 'depth-estimation', label: 'Estimates depth' },
+]
+const searchForm = reactive({ q: '', kind: 'chat' })
+const searching = ref(false)
+const searchError = ref('')
+const found = ref([])
+async function searchHub() {
+  searching.value = true; searchError.value = ''
+  try {
+    const { data } = await api.readyModelSearch({ q: searchForm.q, kind: searchForm.kind })
+    if (!disposed) found.value = data?.results || []
+  } catch (e) {
+    if (!disposed) { searchError.value = words(e, 'Hugging Face could not be searched now.'); found.value = [] }
+  } finally { searching.value = false }
+}
+// A result fills the form: its repository and kind; the key and name are the admin's to check.
+function useFound(r) {
+  const name = String(r.repo || '').split('/').pop() || ''
+  Object.assign(addForm, { repo: r.repo, kind: searchForm.kind, name: r.name || name,
+    key: name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40),
+    task: searchForm.kind === 'photo' ? (r.task || '') : '' })
+}
 // The one number a model of each kind carries (backend camera_models.TUNING); empty: the platform's own.
 const TUNING = {
   detector: { name: 'threshold', label: 'How sure an object must be (0.05 to 0.99)', hint: '0.5' },
@@ -463,8 +524,10 @@ async function addCamera() {
   }
   const gpu = addForm.gpu_gb === '' ? 0 : Number(addForm.gpu_gb)
   if (!Number.isInteger(gpu) || gpu < 0 || gpu > 192) { addError.value = 'The GPU memory is a whole number of GB, 0 to 192.'; return }
+  if (addForm.kind === 'photo' && !addForm.task) { addError.value = 'Choose what the photo model does.'; return }
   const body = { key: addForm.key, name: addForm.name || addForm.key, kind: addForm.kind, gpu_gb: gpu,
-    parts: [{ repo: addForm.repo, ...(addForm.revision ? { revision: addForm.revision } : {}) }] }
+    parts: [{ repo: addForm.repo, ...(addForm.revision ? { revision: addForm.revision } : {}) }],
+    ...(addForm.kind === 'photo' ? { task: addForm.task } : {}) }
   const tune = TUNING[addForm.kind]
   if (tune && addForm.tuning !== '') {
     const value = Number(addForm.tuning)
@@ -476,7 +539,7 @@ async function addCamera() {
     const { data } = await api.readyModelCameraAdd(body)
     if (disposed) return
     if (data && data.key) takeModel(data)
-    Object.assign(addForm, { repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '' })
+    Object.assign(addForm, { repo: '', key: '', name: '', gpu_gb: '', revision: '', tuning: '', task: '' })
     notify.success(`${data?.name || body.name} is added; AADML fetches its files now.`)
   } catch (e) {
     if (!disposed) addError.value = words(e, 'The model could not be added.')
@@ -559,6 +622,15 @@ onBeforeUnmount(() => { disposed = true; stopPolling() })
 .rm-money span { color: var(--admin-muted, #667085); font-weight: 600; }
 .rm-run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .rm-add-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
+.rm-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
+.rm-search .rm-field { flex: 1 1 220px; }
+.rm-found { list-style: none; margin: 12px 0 4px; padding: 0; display: grid; gap: 8px; }
+.rm-found li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; }
+.rm-found-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.rm-found-main strong { overflow-wrap: anywhere; }
+.rm-tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; }
+.rm-tag.is-warn { background: #fffbeb; color: #92400e; }
+@media (max-width: 640px) { .rm-found li { flex-direction: column; align-items: stretch; } }
 .rm-add-form .rm-field { flex: 1 1 220px; }
 .rm-add-actions { display: flex; gap: 8px; }
 

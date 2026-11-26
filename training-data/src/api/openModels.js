@@ -26,7 +26,10 @@ export const openModelsApi = {
   list: () => apiFetch(`${APP}/workspace/open-models/`, { timeoutMs: SLOW }),
   // What adding a model costs, as the person pays it: worked out on the server (open_model_charges.py), never here.
   quote: repo => apiFetch(`${APP}/open-models/quote/?${query({ repo })}`, { timeoutMs: SLOW }),
-  add: repo => apiFetch(`${APP}/workspace/open-models/`, { method: 'POST', body: { repo }, timeoutMs: SLOW }),
+  // ``place``: where the person chose to download it (machines | platform | runpod; open_models.PLACES): never chosen here.
+  add: (repo, place) => apiFetch(`${APP}/workspace/open-models/`, { method: 'POST', body: { repo, place }, timeoutMs: SLOW }),
+  // A full copy of a model kept for the person's own machines, on AADML's platform machine or RunPod, so RunPod can use it.
+  copy: (id, place) => apiFetch(`${APP}/workspace/open-models/${enc(id)}/copy/`, { method: 'POST', body: { place }, timeoutMs: SLOW }),
   remove: id => apiFetch(`${APP}/workspace/open-models/${enc(id)}/remove/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
 };
 
@@ -113,6 +116,35 @@ export function mergePage(shown = [], page = []) {
 export function resultsSaid(count, more) {
   if (!count) return 'No model matches. Try other words, or switch between Photo and Chat.';
   return `${count} model${count === 1 ? '' : 's'} shown${more ? '; more can be loaded' : ''}.`;
+}
+
+// Where a model can be downloaded, as the backend offers it for this workspace (quote.places): each with its price or why
+// it cannot be chosen now. Nothing is picked here: the person chooses (the owner, 2026-11-26).
+export const PLACE_HELP = {
+  machines: 'Each of your machines downloads it from Hugging Face the first time it uses it. AADML keeps only its small files. It cannot run on RunPod until you make a copy.',
+  platform: "Downloaded once on AADML's platform machine and kept in AADML's storage: it runs anywhere, RunPod too.",
+  runpod: "Downloaded once on RunPod and kept in AADML's storage: it runs anywhere, RunPod too.",
+};
+
+export function placeChoices(quote, { only = null } = {}) {
+  return (quote?.places || [])
+    .filter(p => !only || only.includes(p.value))
+    .map(p => ({ value: p.value, label: p.label, help: PLACE_HELP[p.value] || '', refused: p.refused || '',
+      price: p.price?.paid ? `About ${p.price.fetch?.about}${p.price.storage?.per_day ? `, then ${p.price.storage.per_day} a day` : ''}`
+        : p.price?.paid === false ? 'Not charged on this server' : '' }));
+}
+
+// The quote with the price of the place chosen (the lines and the note follow the person's choice); the quote as it is
+// when nothing is chosen yet.
+export function quoteFor(quote, place) {
+  const chosen = (quote?.places || []).find(p => p.value === place);
+  return chosen?.price ? { ...quote, price: chosen.price } : quote;
+}
+
+// What an added model kept for the person's own machines says, '' for one with a full copy.
+export function placeLine(model) {
+  if (!model || model.complete !== false || model.state !== 'ready') return '';
+  return 'Kept for your own machines: each one downloads its weights the first time. Make a copy to use it on RunPod.';
 }
 
 // The Add dialog's lines, from the quote the backend gave (GET open-models/quote/): every price is the backend's text,

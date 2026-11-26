@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   openModelsApi, cleanQuery, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge, anyFetching,
   hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, KINDS, USES, QUERY_LIMIT, quoteLines, quoteNote, modelBadge,
-  storageLine,
+  storageLine, placeChoices, quoteFor, placeLine,
 } from '../src/api/openModels.js';
 
 function fakeStore() {
@@ -25,15 +25,18 @@ test('the API helpers call the backend paths, with the query and the body the ba
     await openModelsApi.search({ q: '  small   qwen ', kind: 'chat', use: 'train', cursor: 'abc=' });
     await openModelsApi.search();
     await openModelsApi.list();
-    await openModelsApi.add('Qwen/Qwen2.5-0.5B-Instruct');
+    await openModelsApi.add('Qwen/Qwen2.5-0.5B-Instruct', 'machines');
     await openModelsApi.remove(12);
+    await openModelsApi.copy(12, 'platform');
   });
   assert.equal(seen[0].url, '/api/training-data/app/open-models/?q=small+qwen&kind=chat&use=train&cursor=abc%3D');
   assert.equal(seen[1].url, '/api/training-data/app/open-models/?kind=chat&use=train');
   assert.equal(seen[2].url, '/api/training-data/app/workspace/open-models/');
   assert.equal(seen[3].url, '/api/training-data/app/workspace/open-models/');
   assert.equal(seen[3].init.method, 'POST');
-  assert.deepEqual(JSON.parse(seen[3].init.body), { repo: 'Qwen/Qwen2.5-0.5B-Instruct' });
+  assert.deepEqual(JSON.parse(seen[3].init.body), { repo: 'Qwen/Qwen2.5-0.5B-Instruct', place: 'machines' });
+  assert.equal(seen[5].url, '/api/training-data/app/workspace/open-models/12/copy/');
+  assert.deepEqual(JSON.parse(seen[5].init.body), { place: 'platform' });
   assert.equal(seen[4].url, '/api/training-data/app/workspace/open-models/12/remove/');
   assert.equal(seen[4].init.method, 'POST');
   for (const call of seen) {
@@ -205,7 +208,7 @@ test('Add opens the app\'s own dialog with the backend\'s numbers, and the works
   assert.match(component, /@click="askAdd\(row\)"/, 'Add on a card opens the dialog, it does not add');
   assert.match(component, /openModelsApi\.quote\(row\.repo\)/);
   assert.match(component, /<UiDialog :open="!!confirming"/);
-  assert.match(component, /v-for="line in quoteLines\(quote\)"/);
+  assert.match(component, /v-for="line in quoteLines\(shownQuote\)"/);        // the chosen place's price (phase 2b)
   assert.match(component, />Cancel</);
   assert.equal(/\$\{?\s*\(?\s*Number\(|toFixed\(/.test(component.replace(/<style[\s\S]*<\/style>/, '')), false, 'no price is worked out on the page');
   assert.match(component, /storageLine\(m\)/);
@@ -220,4 +223,32 @@ test('an added model whose fetch failed offers Fetch again, through the same pri
   const page = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
   assert.match(page, /v-if="mayAdd && m\.state==='failed'"[^>]*@click="askAdd\(m\)"/);
   assert.match(page, /'Fetch again'/);
+});
+
+// ADM-1365 phase 2b: the person chooses where a model is downloaded; nothing is picked for them.
+test("the places are the backend's, each with its price or why not, and the chosen price is what the dialog shows", () => {
+  const paid = (about, day) => ({ paid: true, fetch: { about, at_most: '$1.00' }, storage: { per_day: day }, note: `note ${about}` });
+  const quote = { repo: 'a/b', places: [
+    { value: 'machines', label: 'Your own machines', price: paid('$0.01', '$0.0001') },
+    { value: 'platform', label: "AADML's platform machine", refused: 'The platform machine is offline.' },
+    { value: 'runpod', label: 'RunPod', price: paid('$0.20', '$0.03') }], price: paid('$0.20', '$0.03') };
+  const shown = placeChoices(quote);
+  assert.deepEqual(shown.map(c => c.value), ['machines', 'platform', 'runpod']);
+  assert.equal(shown[0].price, 'About $0.01, then $0.0001 a day');
+  assert.equal(shown[1].refused, 'The platform machine is offline.');
+  assert.match(shown[0].help, /cannot run on RunPod until you make a copy/);
+  assert.deepEqual(placeChoices(quote, { only: ['platform', 'runpod'] }).map(c => c.value), ['platform', 'runpod']);
+  assert.equal(quoteFor(quote, 'machines').price.fetch.about, '$0.01');
+  assert.equal(quoteFor(quote, '').price.fetch.about, '$0.20');
+  assert.match(placeLine({ state: 'ready', complete: false }), /Make a copy to use it on RunPod/);
+  assert.equal(placeLine({ state: 'ready', complete: true }), '');
+  assert.equal(placeLine({ state: 'fetching', complete: false }), '');
+});
+
+test('the Add dialog waits for a place and sends it; Make a copy offers the two full-copy places', () => {
+  const vue = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
+  assert.match(vue, /openModelsApi\.add\(row\.repo, place\.value\)/);
+  assert.match(vue, /:disabled="!quote \|\| quoting \|\| !!adding \|\| !place"/);
+  assert.match(vue, /place\.value = '';/);                         // nothing picked when the dialog opens
+  assert.match(vue, /placeChoices\(copyQuote\.value, \{ only: \['platform', 'runpod'\] \}\)/);
 });

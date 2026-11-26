@@ -95,6 +95,9 @@ const MAX_CLASSES = 8;
 const classes = ref([]);
 const classText = ref('');
 const findsByName = computed(() => onPlatform.value && state.value?.call === 'segment');
+// The admin's chat and photo models hosted for everyone (ADM-1365 phase 2b): Try is free up to its tries a day too.
+const readyChat = computed(() => onPlatform.value && state.value?.call === 'chat');
+const readyPipeline = computed(() => onPlatform.value && state.value?.call === 'pipeline');
 function addClass() {
   const name = classText.value.replace(/,/g, ' ').trim().toLowerCase().slice(0, 60);
   classText.value = '';
@@ -132,7 +135,7 @@ function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); pho
 onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
   forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; freeUsed.value = ''; least.value = 0;
-  classes.value = []; classText.value = ''; loadState();
+  classes.value = []; classText.value = ''; chatLines.value = []; chatText.value = ''; openAnswer.value = null; loadState();
   const calm = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   requestAnimationFrame(() => document.getElementById('try-published')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }));
 }
@@ -238,7 +241,12 @@ async function sendChat() {
   try {
     const body = await publishedApi.chat(trying.value.key, { messages: chatLines.value.map(({ role, content }) => ({ role, content })) });
     chatLines.value.push({ role: 'assistant', content: body.choices?.[0]?.message?.content || '' });
-  } catch (e) { tryError.value = e.message; chatLines.value.pop(); chatText.value = text; await loadState(); } finally { chatting.value = false; }
+    if (hosted.value) state.value = { ...state.value, free_left: freeLeftAfter(body, state.value.free_left) };
+  } catch (e) {
+    if (hosted.value && freeTriesUsed(e)) { freeUsed.value = e.message; state.value = { ...state.value, free_left: 0 }; }
+    else tryError.value = e.message;
+    chatLines.value.pop(); chatText.value = text; await loadState();
+  } finally { chatting.value = false; }
 }
 async function chooseOpen(event) {
   const picked = event.target.files?.[0]; event.target.value = '';
@@ -248,8 +256,14 @@ async function chooseOpen(event) {
   if (openPhotoUrl.value) URL.revokeObjectURL(openPhotoUrl.value);
   openAnswer.value = null; openPhotoUrl.value = URL.createObjectURL(picked);
   asking.value = true;
-  try { openAnswer.value = await publishedApi.predict(trying.value.key, picked); }
-  catch (e) { tryError.value = e.message; await loadState(); } finally { asking.value = false; }
+  try {
+    openAnswer.value = await publishedApi.predict(trying.value.key, picked);
+    if (hosted.value) state.value = { ...state.value, free_left: freeLeftAfter(openAnswer.value, state.value.free_left) };
+  } catch (e) {
+    if (hosted.value && freeTriesUsed(e)) { freeUsed.value = e.message; state.value = { ...state.value, free_left: 0 }; }
+    else tryError.value = e.message;
+    await loadState();
+  } finally { asking.value = false; }
 }
 
 // ── usage of the deployed models ─────────────────────────────────────────────────────────────────
@@ -324,7 +338,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ readyChat ? `${trying.name} answers your messages.` : readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -358,7 +372,16 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
                 <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its test server</UiButton>
               </div>
             </template>
-            <template v-if="state">
+            <!-- The admin's chat and photo models (ADM-1365 phase 2b): the same chat box and photo answer as an open model's. -->
+            <template v-if="state && readyChat">
+              <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
+              <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
+            </template>
+            <template v-else-if="state && readyPipeline">
+              <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
+            </template>
+            <template v-else-if="state">
               <div v-if="findsByName" class="find-classes">
                 <label class="field-label" for="find-class-input">What to find <span class="muted">({{ classes.length }} of {{ MAX_CLASSES }})</span></label>
                 <div class="class-chips" @click="$refs.classInput?.focus()">
@@ -379,7 +402,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-if="floor" class="muted">The model sends back only what reaches {{ percent(floor) }}, so the slider starts there.</p>
             </template>
           </div>
-          <div><PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)" :waiting-text="onPlatform ? `Choose a photo: what ${trying.name} finds is drawn on it.` : 'Once its test server is ready, choose a photo: what the model finds is drawn on it.'"/></div>
+          <div v-if="readyPipeline"><PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/></div>
+          <div v-else-if="!readyChat"><PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)" :waiting-text="onPlatform ? `Choose a photo: what ${trying.name} finds is drawn on it.` : 'Once its test server is ready, choose a photo: what the model finds is drawn on it.'"/></div>
         </div>
       </section>
       <div class="studio-actions models-filterbar">

@@ -6,7 +6,7 @@
 // open models (``usable``, app_api.open_model_rows, with their ``may`` flags), and its Try panel goes in the ``trying``
 // slot under this list.
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Code, Play, RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale, Wallet } from 'lucide-vue-next';
+import { Code, Play, RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale, Wallet, Copy } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
@@ -15,6 +15,7 @@ import UiDialog from './UiDialog.vue';
 import {
   openModelsApi, KINDS, USES, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
   anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
+  placeChoices, quoteFor, placeLine,
 } from '../api/openModels.js';
 
 const props = defineProps({ usable: { type: Array, default: () => [] } });
@@ -76,12 +77,17 @@ watch(added, now => {
 onUnmounted(() => { alive = false; clearTimeout(timer); });
 
 // Add opens a dialog with what adding costs: the backend's quote (the fetch, about and at most, and the storage a day,
-// with the markup in), never a price worked out here. Add in the dialog adds; Cancel adds nothing.
+// with the markup in), never a price worked out here. Add in the dialog adds; Cancel adds nothing. The person chooses
+// where it is downloaded (their machines, AADML's platform machine or RunPod; ADM-1365 phase 2b): nothing is picked
+// for them, and Add waits for the choice.
 const adding = ref(''); const cardError = ref({});
 const confirming = ref(null); const quote = ref(null); const quoting = ref(false); const quoteError = ref(''); const addError = ref('');
+const place = ref('');
+const choices = computed(() => placeChoices(quote.value));
+const shownQuote = computed(() => quoteFor(quote.value, place.value));
 let quoted = 0;
 async function askAdd(row) {
-  confirming.value = row; quote.value = null; quoteError.value = ''; addError.value = ''; quoting.value = true;
+  confirming.value = row; quote.value = null; quoteError.value = ''; addError.value = ''; quoting.value = true; place.value = '';
   const mine = ++quoted;
   try { const body = await openModelsApi.quote(row.repo); if (mine === quoted) quote.value = body; }
   catch (e) { if (mine === quoted) quoteError.value = e.message; }
@@ -90,16 +96,35 @@ async function askAdd(row) {
 function cancelAdd() { if (adding.value) return; quoted++; confirming.value = null; quote.value = null; quoting.value = false; }
 async function add() {
   const row = confirming.value;
-  if (!row || !quote.value) return;
+  if (!row || !quote.value || !place.value) return;
   adding.value = row.repo; addError.value = ''; cardError.value = { ...cardError.value, [row.repo]: '' };
   try {
-    const body = await openModelsApi.add(row.repo);
+    const body = await openModelsApi.add(row.repo, place.value);
     row.added = { id: body.model.id, state: body.model.state, state_label: body.model.state_label };
     said.value = `${row.name} was added. ${body.model.state === 'fetching' ? 'Its files are being fetched.' : stateBadge(body.model.state)[1]}.`;
     confirming.value = null; quote.value = null;
     await loadAdded();
   } catch (e) { addError.value = e.message; said.value = e.message; }
   finally { adding.value = ''; }
+}
+
+// Make a copy of a model kept for the person's own machines, so RunPod can use it: the same quote, the full copy's
+// two places only (AADML's platform machine or RunPod), chosen by the person.
+const copying = ref(null); const copyQuote = ref(null); const copyPlace = ref(''); const copyBusy = ref(false); const copyError = ref('');
+const copyChoices = computed(() => placeChoices(copyQuote.value, { only: ['platform', 'runpod'] }));
+async function askCopy(model) {
+  copying.value = model; copyQuote.value = null; copyPlace.value = ''; copyError.value = '';
+  try { copyQuote.value = await openModelsApi.quote(model.repo); } catch (e) { copyError.value = e.message; }
+}
+async function makeCopy() {
+  if (!copying.value || !copyPlace.value) return;
+  copyBusy.value = true; copyError.value = '';
+  try {
+    await openModelsApi.copy(copying.value.id, copyPlace.value);
+    said.value = `A copy of ${copying.value.name} is being made.`;
+    copying.value = null; await loadAdded();
+  } catch (e) { copyError.value = e.message; said.value = e.message; }
+  finally { copyBusy.value = false; }
 }
 
 const removing = ref(null); const removeBusy = ref(false); const removeError = ref('');
@@ -153,6 +178,8 @@ function moveChoice(event, name, options) {
             <p v-if="m.failure" class="om-failure">{{ m.failure }}</p>
             <p v-if="storageLine(m)" :class="['om-note', 'om-storage', { unpaid: m.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(m) }}</p>
             <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
+            <p v-if="placeLine(m)" class="om-note om-place-note">{{ placeLine(m) }}</p>
+            <p v-if="m.copy_failure" class="om-failure">The copy failed: {{ m.copy_failure }}</p>
             <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
           </div>
           <div class="om-added-actions">
@@ -161,6 +188,7 @@ function moveChoice(event, name, options) {
               <!-- A failed fetch is fetched again from its row (live, 2026-11-12: Remove was the only way out, then Add again). The
                    same dialog as Add: its price first; the backend pins it anew (open_models.add). -->
               <UiButton v-if="mayAdd && m.state==='failed'" variant="primary" :disabled="adding===m.repo" @click="askAdd(m)"><RefreshCw :size="14" aria-hidden="true"/>{{ adding===m.repo ? 'Fetching…' : 'Fetch again' }}</UiButton>
+              <UiButton v-if="mayAdd && placeLine(m)" @click="askCopy(m)"><Copy :size="14" aria-hidden="true"/>Make a copy</UiButton>
               <UiButton v-if="mayAdd" :disabled="m.state==='fetching'" :title="m.state==='fetching' ? 'It can be removed once its fetch has ended.' : ''" @click="askRemove(m)"><Trash2 :size="14" aria-hidden="true"/>Remove</UiButton>
             </div>
             <div class="om-row-use">
@@ -233,20 +261,48 @@ function moveChoice(event, name, options) {
 
     <UiDialog :open="!!confirming" :title="confirming ? `Add ${confirming.name}?` : ''" @close="cancelAdd">
       <template v-if="confirming">
-        <p class="dialog-description">Adding it fetches its files into AADML's storage and keeps them for this workspace. It is charged to your balance.</p>
+        <p class="dialog-description">Choose where it is downloaded. It is charged to your balance.</p>
         <p v-if="quoting" class="muted" role="status"><span class="om-spinner" aria-hidden="true"></span> Reading what it costs…</p>
         <p v-else-if="quoteError" class="field-error" role="alert">{{ quoteError }}</p>
         <template v-else-if="quote">
+          <fieldset class="om-places">
+            <legend>Download it on</legend>
+            <label v-for="c in choices" :key="c.value" :class="['om-place', { on: place === c.value, off: !!c.refused }]">
+              <input v-model="place" type="radio" name="om-place" :value="c.value" :disabled="!!c.refused || !!adding">
+              <span class="om-place-text"><strong>{{ c.label }}</strong><small>{{ c.refused || c.help }}</small></span>
+              <span v-if="c.price && !c.refused" class="om-place-price">{{ c.price }}</span>
+            </label>
+          </fieldset>
           <dl class="om-quote">
-            <div v-for="line in quoteLines(quote)" :key="line.label"><dt>{{ line.label }}</dt><dd>{{ line.value }}</dd></div>
+            <div v-for="line in quoteLines(shownQuote)" :key="line.label"><dt>{{ line.label }}</dt><dd>{{ line.value }}</dd></div>
           </dl>
           <p v-if="quote.licence_terms" class="om-quote-terms"><Scale :size="14" aria-hidden="true"/>{{ quote.licence_terms }}</p>
-          <p v-if="quoteNote(quote)" class="om-quote-note"><Wallet :size="15" aria-hidden="true"/><span>{{ quoteNote(quote) }}</span></p>
+          <p v-if="place && quoteNote(shownQuote)" class="om-quote-note"><Wallet :size="15" aria-hidden="true"/><span>{{ quoteNote(shownQuote) }}</span></p>
         </template>
         <p v-if="addError" class="field-error" role="alert">{{ addError }}</p>
         <div class="om-dialog-actions">
           <UiButton :disabled="!!adding" @click="cancelAdd">Cancel</UiButton>
-          <UiButton variant="primary" :disabled="!quote || quoting || !!adding" @click="add"><span v-if="adding" class="om-spinner on-primary" aria-hidden="true"></span>{{ adding ? 'Adding…' : 'Add' }}</UiButton>
+          <UiButton variant="primary" :disabled="!quote || quoting || !!adding || !place" :title="!place ? 'Choose where it is downloaded first.' : ''" @click="add"><span v-if="adding" class="om-spinner on-primary" aria-hidden="true"></span>{{ adding ? 'Adding…' : 'Add' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
+
+    <UiDialog :open="!!copying" :title="copying ? `Make a copy of ${copying.name}?` : ''" @close="copying=null">
+      <template v-if="copying">
+        <p class="dialog-description">A full copy is kept in AADML's storage, so it can also run on RunPod. While it is made the model waits; if it fails, it keeps working on your machines.</p>
+        <p v-if="!copyQuote && !copyError" class="muted" role="status"><span class="om-spinner" aria-hidden="true"></span> Reading what it costs…</p>
+        <fieldset v-if="copyQuote" class="om-places">
+          <legend>Make the copy on</legend>
+          <label v-for="c in copyChoices" :key="c.value" :class="['om-place', { on: copyPlace === c.value, off: !!c.refused }]">
+            <input v-model="copyPlace" type="radio" name="om-copy-place" :value="c.value" :disabled="!!c.refused || copyBusy">
+            <span class="om-place-text"><strong>{{ c.label }}</strong><small>{{ c.refused || c.help }}</small></span>
+            <span v-if="c.price && !c.refused" class="om-place-price">{{ c.price }}</span>
+          </label>
+        </fieldset>
+        <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
+        <div class="om-dialog-actions">
+          <UiButton :disabled="copyBusy" @click="copying=null">Cancel</UiButton>
+          <UiButton variant="primary" :disabled="!copyPlace || copyBusy" @click="makeCopy"><span v-if="copyBusy" class="om-spinner on-primary" aria-hidden="true"></span>{{ copyBusy ? 'Starting…' : 'Make a copy' }}</UiButton>
         </div>
       </template>
     </UiDialog>
@@ -319,6 +375,17 @@ function moveChoice(event, name, options) {
 .om-empty p{margin:0;font-size:13px}
 .om-more{display:flex;justify-content:center;margin-top:20px}
 .om-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap}
+.om-places{display:grid;gap:8px;margin:14px 0 0;padding:0;border:0;min-width:0}
+.om-places legend{font-size:13px;font-weight:600;color:#1d2a42;margin-bottom:6px;padding:0}
+.om-place{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 12px;border:1px solid #d5dbe5;border-radius:10px;background:#fff;cursor:pointer;min-height:44px}
+.om-place.on{border-color:var(--aadml-primary);background:var(--aadml-soft)}
+.om-place.off{cursor:not-allowed;opacity:.7}
+.om-place input{margin-top:3px}
+.om-place input:focus-visible{outline:2px solid var(--aadml-primary);outline-offset:2px}
+.om-place-text{display:grid;gap:2px;min-width:0}
+.om-place-text strong{font-size:13px;color:#1d2a42}
+.om-place-text small{font-size:12px;line-height:1.5;color:#4a5872}
+.om-place-price{font-size:12px;font-weight:600;color:#1d2a42;white-space:nowrap}
 .om-quote{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:8px 16px;margin:14px 0 0;padding:12px 14px;border:1px solid #e3e6ed;border-radius:10px;background:#fafbfc}
 .om-quote div{display:contents}
 .om-quote dt{font-size:12px;color:#5f6d82}
@@ -352,6 +419,8 @@ function moveChoice(event, name, options) {
   .om-row-manage{width:100%}
   .om-grid{grid-template-columns:minmax(0,1fr)}
   .om-quote{grid-template-columns:minmax(0,1fr)}
+  .om-place{grid-template-columns:auto minmax(0,1fr)}
+  .om-place-price{grid-column:2;white-space:normal}
   .om-dialog-actions > *{flex:1 1 auto;justify-content:center;min-height:44px}
 }
 </style>

@@ -1060,6 +1060,8 @@ export default {
   // A camera model from Hugging Face (backend camera_models.py): {key, name, kind, gpu_gb, parts: [{repo, revision?,
   // files?}], tuning?}. Its files are fetched in the background; it is hosted and priced like SAM 3.
   readyModelCameraAdd: (body) => api.post('/training-data/admin/ready-models/camera/', body),
+  // The admin's Hugging Face search for a ready-to-use model (ADM-1365 phase 2b): non-commercial ones shown, said so.
+  readyModelSearch: (params) => api.get('/training-data/admin/ready-models/search/', { params, noCache: true }),
   readyModelCameraFetch: (key) => api.post(`/training-data/admin/ready-models/${encodeURIComponent(key)}/fetch/`, {}),
   readyModelCameraRemove: (key) => api.delete(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`),
   // Where the platform's own work runs (backend platform_work.py, ADM-1365). body: {machine: <id>} or {builds_on: 'machine' | 'runpod'}.

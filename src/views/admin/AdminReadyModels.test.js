@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   readyModelCameraAdd: vi.fn(),
   readyModelCameraFetch: vi.fn(),
   readyModelCameraRemove: vi.fn(),
+  readyModelSearch: vi.fn(),
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 const notifyMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
@@ -245,13 +246,13 @@ describe('AdminReadyModels', () => {
       error: 'Qwen/Qwen2.5-VL-3B-Instruct has no licence that allows commercial use (other).' } } })
     await render()
     const form = w.get('[data-test="rm-add"]')
-    await form.get('form').trigger('submit')
+    await form.get('form.rm-add-form').trigger('submit')
     expect(form.get('[data-test="rm-add-error"]').text()).toContain('owner/name')
     expect(api.readyModelCameraAdd).not.toHaveBeenCalled()
     await form.get('[data-test="rm-add-kind"]').setValue('vision')
     await form.get('[data-test="rm-add-repo"]').setValue('Qwen/Qwen2.5-VL-3B-Instruct')
     await form.get('[data-test="rm-add-key"]').setValue('qwen-3b')
-    await form.get('form').trigger('submit')
+    await form.get('form.rm-add-form').trigger('submit')
     await flushPromises()
     expect(form.get('[data-test="rm-add-error"]').text()).toContain('no licence that allows commercial use')
     api.readyModelCameraAdd.mockResolvedValueOnce({ data: qwen({ files_ready: false }) })
@@ -259,7 +260,7 @@ describe('AdminReadyModels', () => {
     await form.get('[data-test="rm-add-key"]').setValue('qwen3-vl-8b')
     await form.get('[data-test="rm-add-name"]').setValue('Qwen3-VL 8B')
     await form.get('[data-test="rm-add-gpu"]').setValue('22')
-    await form.get('form').trigger('submit')
+    await form.get('form.rm-add-form').trigger('submit')
     await flushPromises()
     expect(api.readyModelCameraAdd).toHaveBeenLastCalledWith({ key: 'qwen3-vl-8b', name: 'Qwen3-VL 8B', kind: 'vision',
       gpu_gb: 22, parts: [{ repo: 'Qwen/Qwen3-VL-8B-Instruct' }] })
@@ -276,7 +277,7 @@ describe('AdminReadyModels', () => {
     await form.get('[data-test="rm-add-repo"]').setValue('BAAI/bge-small-en-v1.5')
     await form.get('[data-test="rm-add-key"]').setValue('bge')
     await form.get('[data-test="rm-add-tuning"]').setValue('0.7')
-    await form.get('form').trigger('submit')
+    await form.get('form.rm-add-form').trigger('submit')
     await flushPromises()
     expect(api.readyModelCameraAdd.mock.calls[0][0].tuning).toEqual({ near: 0.7 })
   })
@@ -308,5 +309,57 @@ describe('AdminReadyModels', () => {
     await flushPromises()
     expect(api.readyModelCameraRemove).toHaveBeenCalledExactlyOnceWith('qwen3-vl-8b')
     expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(false)
+  })
+
+  // ADM-1365 phase 2b: the admin's chat and photo models, gated and non-commercial ones too.
+  const allKinds = [...kinds, { key: 'chat', label: 'Chat model' }, { key: 'photo', label: 'Photo model' }]
+
+  it('searches Hugging Face, says a non-commercial or gated model plainly, and fills the form from a result', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    api.readyModelSearch.mockResolvedValue({ data: { results: [
+      { repo: 'acme/research-lm', name: 'research-lm', licence_name: 'CC BY-NC 4.0', commercial: false, gated: false },
+      { repo: 'meta-llama/Llama-3.2-1B-Instruct', name: 'Llama-3.2-1B-Instruct', licence_name: 'Llama 3.2', commercial: true,
+        gated: true, gated_note: "Accept its terms on AADML's Hugging Face account first." }] } })
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    await add.get('[data-test="rm-search-q"]').setValue('llama')
+    await add.get('form.rm-search').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelSearch).toHaveBeenCalledWith({ q: 'llama', kind: 'chat' })
+    const found = add.get('[data-test="rm-found"]').text()
+    expect(found).toContain('Not for commercial use: yours to test only')
+    expect(found).toContain("Accept its terms on AADML's Hugging Face account first.")
+    await add.get('[data-test="rm-found-use-meta-llama/Llama-3.2-1B-Instruct"]').trigger('click')
+    expect(add.get('[data-test="rm-add-repo"]').element.value).toBe('meta-llama/Llama-3.2-1B-Instruct')
+    expect(add.get('[data-test="rm-add-kind"]').element.value).toBe('chat')
+    expect(add.get('[data-test="rm-add-key"]').element.value).toBe('llama-3-2-1b-instruct')
+  })
+
+  it('asks a photo model for its task before adding it, and sends it', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    api.readyModelCameraAdd.mockResolvedValue({ data: qwen({ key: 'segformer-x', kind: 'photo' }) })
+    await render()
+    const form = w.get('[data-test="rm-add"]')
+    await form.get('[data-test="rm-add-kind"]').setValue('photo')
+    await form.get('[data-test="rm-add-repo"]').setValue('nvidia/segformer-x')
+    await form.get('[data-test="rm-add-key"]').setValue('segformer-x')
+    await form.get('form.rm-add-form').trigger('submit')
+    expect(form.get('[data-test="rm-add-error"]').text()).toContain('Choose what the photo model does')
+    expect(api.readyModelCameraAdd).not.toHaveBeenCalled()
+    await form.get('[data-test="rm-add-task"]').setValue('image-segmentation')
+    await form.get('form.rm-add-form').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelCameraAdd.mock.calls[0][0].task).toBe('image-segmentation')
+  })
+
+  it('prices a chat model per 1,000 tokens and never prices a non-commercial one', async () => {
+    const chat = qwen({ key: 'qwen3-small', kind: 'chat', price_unit: 'per 1,000 tokens', for_sale: true })
+    const own = qwen({ key: 'research-lm', kind: 'chat', price_unit: 'per 1,000 tokens', for_sale: false })
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [chat, own], machines: fitted, kinds: allKinds } })
+    await render()
+    expect(w.get('[data-test="rm-model-qwen3-small"]').text()).toContain('Price per 1,000 tokens (USD)')
+    const mine = w.get('[data-test="rm-model-research-lm"]')
+    expect(mine.get('[data-test="rm-price"]').attributes('disabled')).toBeDefined()
+    expect(mine.get('[data-test="rm-price-now"]').text()).toContain('never offered to people or sold')
   })
 })
