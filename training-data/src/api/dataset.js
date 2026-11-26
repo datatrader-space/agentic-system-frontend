@@ -29,10 +29,12 @@ export async function loadDataset(store, { q = '', status = 'All', filters = FIL
   store.images = [...store.images.filter(i => i.batchId !== 'dataset'), ...body.photos.map(p => ({
     id: p.id, batchId: 'dataset', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height, state: p.status,
     labels: p.labels, label: p.label, golden: p.golden, split: p.split, group: p.group, origin: p.origin,
-    tags: p.tags || [], shapes: [], noObjects: false, labelled: p.label_state === 'done', labelState: p.label_state || '',
+    tags: p.tags || [], caption: p.caption || '', shapes: [], noObjects: false, labelled: p.label_state === 'done', labelState: p.label_state || '',
   }))];
   // ``waiting``: records sent by the project's app that are not training photos yet (0 for who may not take them in).
-  store.dataset = { total: body.total, page: body.page, pages: body.pages, splitCounts: body.split_counts, may: body.may, waiting: Number(body.waiting) || 0 };
+  // ``captioned``: an image generation project, whose photos are labelled with a caption (a hook: said once the list sends it;
+  // a photo's own caption is shown whenever it has one).
+  store.dataset = { total: body.total, page: body.page, pages: body.pages, splitCounts: body.split_counts, may: body.may, waiting: Number(body.waiting) || 0, captioned: !!body.captioned };
   // The editor asks the store what this person may do; the Dataset page knows it from the same rights.
   store.can = { ...(store.can || {}), batch: !!body.may?.golden, upload: !!body.may?.delete };
   return store.dataset;

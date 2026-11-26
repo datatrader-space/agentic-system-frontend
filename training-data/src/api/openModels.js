@@ -191,3 +191,22 @@ export function storageLine(model) {
   const storage = model?.storage;
   return storage?.charged ? storage.said || '' : '';
 }
+
+// What an added photo model trains for on a project's Train tab (open_models.TRAIN_TASK_WORDS, ``train_task_label``;
+// ANY_MODEL_RUN_AND_TRAIN_PLAN.md P1b): every photo model whose head says its task trains there, by hf-train.
+export function trainNote(model) {
+  if (!model) return '';
+  const gb = model.need_gb_train ? ` Training it needs about ${model.need_gb_train} GB of GPU memory (estimated).` : '';
+  return model.train_task_label
+    ? `Trains on a project's Train tab for ${model.train_task_label.charAt(0).toLowerCase()}${model.train_task_label.slice(1)}.${gb}`
+    : `Trains on a project's Train tab for the task its head is made for.${gb}`;
+}
+
+// The GPU memory a model needs, as a card's facts: [[term, value]] for what the server said, nothing guessed.
+export function gpuFacts(row) {
+  const facts = [];
+  if (row?.train_task_label) facts.push(['Trains for', row.train_task_label.split(':')[0]]);
+  if (row?.need_gb_run) facts.push(['To run', `about ${row.need_gb_run} GB GPU`]);
+  if (row?.need_gb_train) facts.push(['To train', `about ${row.need_gb_train} GB GPU`]);
+  return facts;
+}

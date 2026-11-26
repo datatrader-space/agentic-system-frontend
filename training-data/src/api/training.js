@@ -88,6 +88,8 @@ export const TYPE_KIND = {
   'Object Detection': 'object_detection', Classification: 'classification', 'Instance Segmentation': 'instance_segmentation',
   'Action Recognition': 'action_recognition', 'Keypoint Detection': 'keypoint_detection', Multimodal: 'multimodal',
   'Semantic Segmentation': 'semantic_segmentation', 'Data Collection': 'data_only',
+  // A generation model's LoRA from captioned photos (families.KINDS image_generation; ADM-1365).
+  'Image generation': 'image_generation',
   // The language-model kinds (families.LLM_KINDS), shown when the first answer is "Language model".
   'Chat assistant': 'llm_chat_assistant', 'Questions and answers': 'llm_qa', 'Document knowledge': 'llm_documents',
   Preference: 'llm_preference',

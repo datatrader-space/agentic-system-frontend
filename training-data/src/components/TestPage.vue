@@ -9,6 +9,9 @@ import UiButton from './UiButton.vue';
 import MachinePicker from './MachinePicker.vue';
 import DownloadBar from './DownloadBar.vue';
 import PredictionResult from './PredictionResult.vue';
+import PipelineResult from './PipelineResult.vue';
+import { isLoraModel, loraBody, loraMedia, LORA_SCALE, tryGenerateApi } from '../api/anyModel.js';
+import { generateBody, makesVideo, needsPhoto, SIZE_PRESETS, VIDEO_SECONDS, VIDEO_FPS } from '../api/workspace.js';
 import { trialApi, PHOTO_TYPES, percent, confidenceFloor } from '../api/trial.js';
 import { unanswered } from '../api/models.js';
 
@@ -77,6 +80,47 @@ async function choose(event) {
   catch (e) { photoError.value = e.message; await loadState(); } finally { asking.value = false; }
 }
 
+// ── a generation model's LoRA (served_form diffusers-lora; ADM-1365): asked with a prompt on the person's own machine,
+// with how strongly the LoRA counts (``lora_scale``, 0 to 2). The answer is the machine's own (base64 PNG or MP4),
+// shown as it came (anyModel.loraMedia); nothing asked or made is kept. ``served_form`` and ``task`` on the test/ list or
+// the try state are hooks the backend fills; a model without them is tried with a photo as before.
+const lora = computed(() => isLoraModel(model.value) || isLoraModel(state.value));
+const loraTask = computed(() => model.value?.task || state.value?.task || 'text-to-image');
+const isVideo = computed(() => makesVideo(loraTask.value));
+const gen = ref({ prompt: '', negative: '', size: 'square', seconds: VIDEO_SECONDS.start, fps: VIDEO_FPS.start, seed: '', scale: LORA_SCALE.start, photo: null });
+const sizes = computed(() => SIZE_PRESETS[isVideo.value ? 'video' : 'image']);
+watch(isVideo, () => { gen.value.size = sizes.value[0].id; });
+const genError = ref(''); const generating = ref(false); const made = ref(null); const genPrompt = ref(''); const genSeconds = ref(0); let genTimer = null;
+onUnmounted(() => clearInterval(genTimer));
+watch(chosen, () => { made.value = null; genError.value = ''; });
+function photoBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!PHOTO_TYPES.includes(file.type)) { reject(new Error('Choose a JPEG, PNG or WebP photo.')); return; }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('The photo could not be read.'));
+    reader.readAsDataURL(file);
+  });
+}
+async function generate() {
+  if (generating.value || !ready.value) return;
+  genError.value = '';
+  let image = '';
+  try { if (needsPhoto(loraTask.value) && gen.value.photo) image = await photoBase64(gen.value.photo); } catch (e) { genError.value = e.message; return; }
+  const size = sizes.value.find(item => item.id === gen.value.size) || null;
+  const asked = loraBody(generateBody({ ...gen.value, image, size }, loraTask.value), gen.value.scale);
+  if (asked.error) { genError.value = asked.error; document.getElementById(`lora-${asked.field}`)?.focus(); return; }
+  generating.value = true; genSeconds.value = 0; clearInterval(genTimer); genTimer = setInterval(() => { genSeconds.value += 1; }, 1000);
+  const number = chosen.value;
+  try {
+    const answer = await tryGenerateApi.generate(props.projectRef, number, asked.body);
+    if (number !== chosen.value) return;
+    made.value = loraMedia(answer); genPrompt.value = asked.body.prompt;
+    loadState();
+  } catch (e) { if (number === chosen.value) { genError.value = e.message; await loadState(); } }
+  finally { clearInterval(genTimer); generating.value = false; }
+}
+
 const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '');
 </script>
 
@@ -126,6 +170,25 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
           <p v-if="state?.staging_down" class="test-meta">Its staging endpoint is not answering and is being started again.</p>
         </div>
 
+        <form v-if="lora" class="lora-form" novalidate :aria-busy="generating" data-test="lora-form" @submit.prevent="generate">
+          <p class="test-meta">A LoRA of a generation model is tried on one of your own machines with an NVIDIA GPU: choose Your machine above. What you ask and what it makes are not kept.</p>
+          <label class="field-label" for="lora-prompt">Prompt<textarea id="lora-prompt" v-model="gen.prompt" class="text-input" rows="3" maxlength="2000" :disabled="!ready" placeholder="Use the trigger words it learnt, e.g. sks mug on a beach at sunset"/></label>
+          <label class="field-label" for="lora-negative_prompt">Leave out (optional)<input id="lora-negative_prompt" v-model="gen.negative" class="text-input" maxlength="2000" :disabled="!ready"></label>
+          <label v-if="needsPhoto(loraTask)" class="field-label" for="lora-image">Photo to start from<input id="lora-image" type="file" class="text-input" accept="image/jpeg,image/png,image/webp" :disabled="!ready" @change="gen.photo=$event.target.files?.[0]||null"></label>
+          <label class="field-label" for="lora-size">Shape<select id="lora-size" v-model="gen.size" class="text-input" :disabled="!ready"><option v-for="z in sizes" :key="z.id" :value="z.id">{{ z.label }}, {{ z.width }} × {{ z.height }}</option></select></label>
+          <div v-if="isVideo" class="lora-pair">
+            <label class="field-label" for="lora-seconds">Seconds<input id="lora-seconds" v-model.number="gen.seconds" class="text-input" type="number" :min="VIDEO_SECONDS.min" :max="VIDEO_SECONDS.max" :disabled="!ready"></label>
+            <label class="field-label" for="lora-fps">Frames a second<input id="lora-fps" v-model.number="gen.fps" class="text-input" type="number" :min="VIDEO_FPS.min" :max="VIDEO_FPS.max" :disabled="!ready"></label>
+          </div>
+          <label class="field-label" for="lora-seed">Seed (optional)<input id="lora-seed" v-model="gen.seed" class="text-input" type="number" min="0" inputmode="numeric" :disabled="!ready"></label>
+          <label class="field-label" for="lora-lora_scale">How strongly the LoRA counts: {{ Number(gen.scale).toFixed(2) }}
+            <input id="lora-lora_scale" v-model.number="gen.scale" type="range" :min="LORA_SCALE.min" :max="LORA_SCALE.max" :step="LORA_SCALE.step" :disabled="!ready" :aria-valuetext="`${Number(gen.scale).toFixed(2)}: 0 is the base model alone, 1 the LoRA as trained, 2 twice as strong`"></label>
+          <p class="test-meta">0 is the base model alone, 1 the LoRA as it was trained, 2 twice as strong.</p>
+          <p v-if="genError" class="field-error" role="alert">{{ genError }}</p>
+          <UiButton type="submit" variant="primary" :disabled="!ready||generating"><Play :size="14" aria-hidden="true"/> {{ generating ? 'Making it…' : isVideo ? 'Make the video' : 'Make the image' }}</UiButton>
+          <p v-if="!ready&&state" class="test-meta">Start the test server first.</p>
+        </form>
+        <template v-else>
         <label class="test-input" :class="{off:!ready}">
           <Upload :size="28"/>
           <strong>{{ asking ? 'Asking the model…' : file ? 'Choose another photo' : 'Choose a photo' }}</strong>
@@ -138,11 +201,24 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
         <label class="field-label">Show what reaches {{ percent(Number(least)) }} confidence
           <input v-model="least" type="range" :min="floor" max="1" step="0.05" aria-label="Confidence threshold"></label>
         <p class="test-meta">This filters the answer on this page; the model is not asked again.<template v-if="floor"> The model sends back only what reaches {{ percent(floor) }}, so the slider starts there.</template></p>
+        </template>
       </section>
 
       <section class="panel">
-        <h2>Prediction results</h2>
-        <PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)"/>
+        <h2>{{ lora ? 'What it made' : 'Prediction results' }}</h2>
+        <div v-if="lora" class="lora-result" aria-live="polite" data-test="lora-result">
+          <p v-if="generating" class="test-meta" role="status">{{ isVideo ? `Making the video on your machine… this can take a few minutes (${genSeconds} s so far).` : `Making the image on your machine… (${genSeconds} s so far)` }}</p>
+          <template v-else-if="made && (made.images.length || made.video)">
+            <figure v-if="made.video" class="lora-media"><video :src="made.video.url" controls playsinline preload="metadata" :width="made.video.width" :height="made.video.height" :aria-label="`The video made from: ${genPrompt}`"></video>
+              <figcaption>{{ made.video.seconds ? `${made.video.seconds} s` : '' }}{{ made.video.fps ? ` at ${made.video.fps} frames a second` : '' }}</figcaption></figure>
+            <figure v-for="(img, i) in made.images" :key="i" class="lora-media"><img :src="img.url" :width="img.width" :height="img.height" :alt="`Image ${i + 1} made from: ${genPrompt}`"></figure>
+            <p v-if="made.seed !== null" class="test-meta">Seed {{ made.seed }}</p>
+          </template>
+          <p v-else-if="made" class="test-error">The machine answered, but with no image or video this page can show.</p>
+          <p v-else class="test-meta">Write a prompt and make {{ isVideo ? 'a video' : 'an image' }}: what the LoRA makes is shown here.</p>
+        </div>
+        <PipelineResult v-else-if="answer?.hf_task" :answer="answer" :photo-url="photoUrl"/>
+        <PredictionResult v-else :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)"/>
       </section>
     </div>
   </div>
@@ -164,4 +240,13 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
 .test-input input{position:absolute;inset:0;opacity:0;cursor:inherit}
 .test-input span{font-size:11px;color:#6d7c92}
 @media(max-width:900px){.test-layout{grid-template-columns:1fr}}
+.lora-form{display:grid;gap:4px;margin-top:10px}
+.lora-form .text-input{min-height:44px}
+.lora-form :deep(.button){min-height:44px;justify-self:start}
+.lora-form input[type=range]{width:100%;min-height:44px;accent-color:var(--aadml-focus)}
+.lora-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lora-media{margin:0 0 12px}
+.lora-media img,.lora-media video{width:100%;height:auto;border-radius:8px;background:#f6f7f9;display:block}
+.lora-media figcaption{font-size:12px;color:#4b5565;margin-top:4px}
+@media(max-width:550px){.lora-pair{grid-template-columns:1fr}}
 </style>

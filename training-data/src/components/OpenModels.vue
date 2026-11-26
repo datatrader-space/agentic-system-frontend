@@ -16,6 +16,7 @@ import {
   openModelsApi, SEARCH_KINDS, SHOWN, TYPE_PAUSE_MS, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
   anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
   placeChoices, quoteFor, placeLine,
+  trainNote, gpuFacts,
 } from '../api/openModels.js';
 
 const props = defineProps({ usable: { type: Array, default: () => [] } });
@@ -179,7 +180,7 @@ function searchNow() { clearTimeout(pause); search(); }
             <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
             <p v-if="placeLine(m)" class="om-note om-place-note">{{ placeLine(m) }}</p>
             <p v-if="m.copy_failure" class="om-failure">The copy failed: {{ m.copy_failure }}</p>
-            <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
+            <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note" data-test="om-train-note">{{ trainNote(m) }}</p>
           </div>
           <div class="om-added-actions">
             <div class="om-row-manage">
@@ -236,6 +237,7 @@ function searchNow() { clearTimeout(pause); search(); }
             <div><dt><Download :size="12" aria-hidden="true"/>Downloads</dt><dd>{{ shortCount(row.downloads) }}</dd></div>
             <div><dt><Heart :size="12" aria-hidden="true"/>Likes</dt><dd>{{ shortCount(row.likes) }}</dd></div>
             <div v-if="day(row.updated)"><dt>Updated</dt><dd>{{ day(row.updated) }}</dd></div>
+            <div v-for="[term, value] in gpuFacts(row)" :key="term"><dt>{{ term }}</dt><dd>{{ value }}</dd></div>
           </dl>
           <div class="om-licence">
             <p><Scale :size="14" aria-hidden="true"/><strong>{{ row.licence_name }}</strong></p>

@@ -15,6 +15,7 @@ import { useBrush, stageToPhoto, MAX_BRUSH } from '../useBrush.js';
 import { useSamSelection } from '../useSamSelection.js';
 import { aboutOf, fillOpacityOf, labelsOfId, reasonOnly, startsServer } from '../sourceFamilies.js';
 import { batchColumn } from '../previewState.js';
+import { captionApi, cleanCaption, CAPTION_MAX } from '../api/anyModel.js';
 import { api as liveApi, fromBackend, toBackend, toUnits, toPixels, classesOf, askedClasses, keepAskedClasses, takenBackWords, rolesOf, geometryOf, nextClassColor } from '../api/annotate.js';
 import { split as splitShape, contains, crosses, box as boxCorners, tidyUp, whole, corners as cornersOf, bestMatch } from '../geometry.js';
 import { RAIL, KEY_GROUPS, CROSSHAIR_TOOLS, helpArticle, keyAction, unrotate, viewSize, clampZoom, wheelZoom, zoomAt, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, classUse, moveLayer, pickWay, appliedWords, isMask, maskHas, bestMaskMatch, maskRefusal, polygonToMask, maskToRegions } from '../editorTools.js';
@@ -38,7 +39,15 @@ const panelItems=[{name:'Labels',icon:Tags},{name:'Attributes',icon:List},{name:
 // Live (a real project): the photo, its label and what this person may do come from the backend (api/annotate.js).
 // The drawing stays in 600 × 300 units; it is converted to photo pixels exactly when it is saved. A mask (contract C2)
 // stays in photo pixels.
-const live=computed(()=>!!props.state.live);const meta=ref(null);const reasonOpen=ref(false);const reason=ref('');const busy=ref(false);
+const live=computed(()=>!!props.state.live);const meta=ref(null);
+// An image generation project labels a photo with its caption, the words a prompt uses (backend photos/<id>/caption/,
+// ``captioned`` on the editor's answer; ADM-1365). A dataset version freezes it: a later change changes no version.
+const captionDraft=ref('');const captionSaid=ref('');const captionError=ref('');const captionBusy=ref(false);
+watch(()=>meta.value,m=>{captionDraft.value=m?.caption||'';captionSaid.value='';captionError.value='';});
+const captionChanged=computed(()=>!!meta.value?.captioned&&(cleanCaption(captionDraft.value).caption??captionDraft.value)!==(meta.value.caption||''));
+async function saveCaption(){const made=cleanCaption(captionDraft.value);captionError.value='';captionSaid.value='';if(made.error){captionError.value=made.error;return;}
+  const it=item.value;captionBusy.value=true;try{const body=await captionApi.save(props.state.ref,it.id,made.caption);if(meta.value)meta.value.caption=body.caption;it.caption=body.caption;captionDraft.value=body.caption;captionSaid.value=body.caption?'Caption saved.':'Caption taken off.';}
+  catch(e){captionError.value=e.message;}finally{captionBusy.value=false;}}const reasonOpen=ref(false);const reason=ref('');const busy=ref(false);
 // SAM 3 is a ready-to-use model AADML hosts (FIND_OBJECTS_AND_OWN_CLASSES_PLAN.md section 10): nobody chooses where it
 // runs, and each answer is charged as one image. While AADML is not running it, its ``unavailable`` says so. Its two
 // ways (Polygons, Masks) are one family: the switch under the picker chooses which part of the answer is kept.
@@ -567,7 +576,7 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
         <section class="class-use" aria-labelledby="class-unused"><h4 id="class-unused">Unused classes</h4><p v-if="!state.classes.length" class="class-empty">No classes yet. Add what you want to label.</p><p v-else-if="!use.unused.length" class="class-empty">Every class of the project is in this photo.</p>
           <ul v-else><li v-for="c in use.unused" :key="c.name"><button type="button" class="class-pick" :aria-pressed="kind===c.name" :title="`Draw ${c.name} next`" @click="kind=c.name"><i :style="{background:c.color}" aria-hidden="true"/><span>{{ c.name }}</span></button><button type="button" class="icon-button class-ai" :aria-label="`Label ${c.name} with AI`" :title="assistOff||`Label every ${c.name} in this photo with a model`" :aria-disabled="!!assistOff" @click="openAssist(c.name)"><WandSparkles :size="15" aria-hidden="true"/></button></li></ul>
           <UiButton v-if="live&&state.canChangeClasses&&!state.classesLocked&&!meta?.readonly&&!meta?.approving" class="class-add" @click="editorClassOpen=true"><Plus :size="14"/>Add class</UiButton></section>
-        <label class="field-label">Tags</label><div class="component-row"><UiBadge v-for="t in item.tags" :key="t">{{ t }}</UiBadge></div><form @submit.prevent="addTag"><input v-model="tag" class="text-input" aria-label="Image tag" placeholder="Add a tag"><UiButton type="submit">Add tag</UiButton></form>
+        <form v-if="live&&meta?.captioned" class="caption-editor" @submit.prevent="saveCaption"><label class="field-label" for="photo-caption">Caption</label><textarea id="photo-caption" v-model="captionDraft" class="text-input" rows="4" :maxlength="CAPTION_MAX" placeholder="What the photo shows, in the words a prompt uses: a photo of sks mug on a wooden table" aria-describedby="photo-caption-help photo-caption-said"/><small id="photo-caption-help" class="field-help">{{ captionDraft.length }} of {{ CAPTION_MAX }} characters. A dataset version keeps the caption it was made with.</small><p id="photo-caption-said" class="caption-said" role="status" aria-live="polite">{{ captionSaid }}</p><p v-if="captionError" class="field-error" role="alert">{{ captionError }}</p><UiButton type="submit" variant="primary" :disabled="captionBusy||!captionChanged">{{ captionBusy?'Saving…':'Save caption' }}</UiButton></form><label class="field-label">Tags</label><div class="component-row"><UiBadge v-for="t in item.tags" :key="t">{{ t }}</UiBadge></div><form @submit.prevent="addTag"><input v-model="tag" class="text-input" aria-label="Image tag" placeholder="Add a tag"><UiButton type="submit">Add tag</UiButton></form>
       </template>
       <template v-else>
         <p v-if="!shapes.length" class="class-empty">No layers yet. Draw a shape, or let a model label the photo.</p>
@@ -722,4 +731,5 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
 @media(max-width:700px){.keys-groups{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:no-preference){.canvas-stage{transition:transform .2s ease}}
 @media(prefers-reduced-motion:reduce){.editor-toolbar .icon-button{transition:none}}
+.caption-editor{display:grid;gap:6px;margin:0 0 12px}.caption-editor .field-label{margin:12px 0 0}.caption-editor textarea{min-height:88px;resize:vertical}.caption-editor .button{min-height:44px;justify-self:start}.caption-said{font-size:12px;color:#067647;margin:0;min-height:1em}
 </style>

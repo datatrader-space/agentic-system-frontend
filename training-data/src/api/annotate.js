@@ -155,7 +155,7 @@ function keepImages(store, batchId, rows) {
 export async function loadSource(store, batch) {
   const body = await json(`${base(store.ref)}/sources/${enc(batch.source)}/photos/`);
   keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
-    state: 'Unlabeled', tags: p.tags || [], shapes: [], noObjects: false, labelled: false })));
+    state: 'Unlabeled', tags: p.tags || [], caption: p.caption || '', shapes: [], noObjects: false, labelled: false })));
 }
 
 // One assignment: its photos with where each stands, its timeline, and what this person may do.
@@ -166,7 +166,7 @@ export async function loadAssignment(store, batch) {
     timeline: body.timeline.map(e => ({ text: `${e.by ? `${e.by}: ` : ''}${e.detail || e.kind}`, time: new Date(e.at).toLocaleString() })),
   });
   keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
-    state: photoState(p.state, p.label_state), label: p.label, labelled: p.state === 'labelled', fix: p.fix, tags: p.tags || [], shapes: [], noObjects: false })));
+    state: photoState(p.state, p.label_state), label: p.label, labelled: p.state === 'labelled', fix: p.fix, tags: p.tags || [], caption: p.caption || '', shapes: [], noObjects: false })));
   return batch;
 }
 
@@ -182,7 +182,7 @@ export function applyStep(batch, row) {
 export async function loadReview(store) {
   const body = await json(`${base(store.ref)}/review/`);
   keepImages(store, 'review', body.photos.map(p => ({ id: p.id, batchId: 'review', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
-    state: 'In review', label: p.label, author: p.author, labelled: true, tags: p.tags || [], shapes: [], noObjects: false })));
+    state: 'In review', label: p.label, author: p.author, labelled: true, tags: p.tags || [], caption: p.caption || '', shapes: [], noObjects: false })));
   // Why approving is refused in this project ('' when it is not): "Approve selected" is off from the start (ADM-1210).
   store.approveRefused = typeof body.approve_refused === 'string' ? body.approve_refused : '';
 }

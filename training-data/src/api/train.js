@@ -1,6 +1,7 @@
 // The Train page's data (backend: training_models_data/app_api.py — training/, runs/, runs/<n>/, runs/<n>/<action>/).
 // Runs train on the server's CPU through the app's own run path (runs.launch, the local provider).
 import { apiFetch } from './client.js';
+import { stepsLine } from './anyModel.js';
 
 const enc = encodeURIComponent;
 const base = ref => `/training-data/app/projects/${enc(ref)}`;
@@ -70,6 +71,8 @@ export function progressLine(progress) {
   if (!progress) return null;
   const ready = readyText(progress);
   if (ready) return { share: progress.total_bytes ? progress.done_bytes / progress.total_bytes : 0, text: ready };
+  // An open photo model's or a generation model's run counts steps of a batch, not rounds (hf_runs / diffusion_runs).
+  if (progress.steps !== undefined && progress.rounds === undefined) return stepsLine(progress);
   const share = progress.rounds ? progress.rounds_done / progress.rounds : 0;
   const phase = { preparing: 'Preparing', training: 'Training', exporting: 'Exporting the model', done: 'Done' }[progress.phase] || progress.phase;
   return { share, text: `${phase} · round ${progress.current_round} of ${progress.rounds} · ${progress.passes_done} of ${progress.passes} photo passes` };
