@@ -12,21 +12,13 @@ export const ENGINE_FALLBACK = Object.freeze([
   { value: 'mongodb', label: 'MongoDB', default_port: 27017 },
   { value: 'redis', label: 'Redis', default_port: 6379 },
 ])
-export const TLS_FALLBACK = Object.freeze([
-  { value: 'require', label: 'Require a verified certificate' },
-  { value: 'skip_verify', label: 'Encrypt, but skip the certificate check' },
-  { value: 'disable', label: 'No encryption' },
-])
 export const ACCESS_FALLBACK = Object.freeze([
   { value: 'read_only', label: 'Read only' },
   { value: 'read_write', label: 'Read and write' },
 ])
 
-// What a weaker TLS mode means, said where it is chosen (the server records who opted in, and when).
-export const TLS_WARNINGS = Object.freeze({
-  skip_verify: 'The connection is encrypted, but the server\'s certificate is not checked, so a machine in the middle could pretend to be your database. Use it only for a database with a self-signed certificate you trust. Your choice is recorded.',
-  disable: 'Nothing is encrypted: the password and every row cross the internet as plain text. Use it only on a network you control. Your choice is recorded.',
-})
+// Every connection is encrypted and checks the server's certificate and name (ADM-1369); there is no mode to choose.
+export const ENCRYPTION_NOTE = 'Always encrypted (TLS 1.2 or later). The server\'s certificate and name are checked against the public authorities and, when you add one, your own CA certificate.'
 
 /** The server's option list (strings, [value, label] pairs or { value, label }) as [{ value, label, ... }]. */
 export function normalizeOptions(list, fallback = []) {
@@ -64,7 +56,7 @@ export function emptyForm(engine = 'postgres', engines = ENGINE_FALLBACK) {
     name: '', engine, host: '', port: defaultPort(engine, engines), database: '', username: '',
     password: '', clear_password: false, has_password: false,
     mongo_mode: 'uri', uri: '', clear_uri: false, has_uri: false,
-    tls_mode: 'require', access: 'read_only',
+    ca_certificate: '', access: 'read_only',
     ssh: blankSsh(),
   }
 }
@@ -77,7 +69,7 @@ export function formFromProjection(p, engines = ENGINE_FALLBACK) {
     database: p.database ?? '', username: p.username || '',
     has_password: !!p.has_password, has_uri: !!p.has_uri,
     mongo_mode: p.engine === 'mongodb' && !p.has_uri && p.host ? 'host' : 'uri',
-    tls_mode: p.tls_mode || 'require', access: p.access || 'read_only',
+    ca_certificate: p.ca_certificate || '', access: p.access || 'read_only',
   })
   const s = p.ssh || {}
   Object.assign(f.ssh, {
@@ -127,7 +119,7 @@ export function formProblems(f, { editing = false } = {}) {
 
 /** The request body for create (`editing` false) or update. The engine is never sent on an update (it cannot change). */
 export function buildPayload(f, { editing = false, workspace = null } = {}) {
-  const out = { name: String(f.name || '').trim(), tls_mode: f.tls_mode, access: f.access }
+  const out = { name: String(f.name || '').trim(), ca_certificate: String(f.ca_certificate || '').trim(), access: f.access }
   if (!editing) {
     out.engine = f.engine
     if (workspace !== null && workspace !== undefined && workspace !== '') out.workspace = workspace

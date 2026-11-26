@@ -1,22 +1,23 @@
 // ADM-1363: the database connection form. Secrets are write-only: the form never starts with one, an empty field
-// keeps what is stored (it is not sent), "clear" sends null; the engine is not sent on an update; a weaker TLS mode
+// keeps what is stored (it is not sent), "clear" sends null; the engine is not sent on an update; encryption is always on (ADM-1369)
 // has its warning; a form without what the engine needs says so.
 import { describe, expect, it } from 'vitest'
 import {
-  TLS_WARNINGS, buildPayload, connectionErrorText, defaultPort, emptyForm, formFromProjection, formProblems, lastTestState, normalizeOptions,
+  ENCRYPTION_NOTE, buildPayload, connectionErrorText, defaultPort, emptyForm, formFromProjection, formProblems, lastTestState, normalizeOptions,
 } from './databaseConnectionForm'
 
 const ownerProjection = {
-  id: 7, name: 'Orders', engine: 'postgres', engine_label: 'PostgreSQL', access: 'read_only', tls_mode: 'require',
+  id: 7, name: 'Orders', engine: 'postgres', engine_label: 'PostgreSQL', access: 'read_only', encryption: 'verified',
   host: 'db.example.com', port: 5432, database: 'shop', username: 'reader', has_password: true, has_uri: false,
   ssh: { enabled: true, host: 'bastion.example.com', port: 22, username: 'ops', has_private_key: true, has_key_passphrase: false, has_password: false,
     host_key_fingerprint: 'SHA256:abc', host_key_type: 'ssh-ed25519', host_key_pinned_at: '2026-11-25T08:00:00Z' },
 }
 
 describe('a new connection', () => {
-  it('starts with the engine default port, require TLS and read only', () => {
+  it('starts with the engine default port, no CA certificate and read only', () => {
     const f = emptyForm('mysql')
-    expect(f).toMatchObject({ engine: 'mysql', port: 3306, tls_mode: 'require', access: 'read_only', password: '' })
+    expect(f).toMatchObject({ engine: 'mysql', port: 3306, ca_certificate: '', access: 'read_only', password: '' })
+    expect(f).not.toHaveProperty('tls_mode')
     expect(defaultPort('redis')).toBe(6379)
     expect(defaultPort('mssql', [{ value: 'mssql', default_port: 11433 }])).toBe(11433)
   })
@@ -24,7 +25,7 @@ describe('a new connection', () => {
   it('sends the engine, the workspace and a typed password', () => {
     const f = { ...emptyForm('postgres'), name: ' Orders ', host: 'db.example.com', database: 'shop', username: 'reader', password: 's3cret' }
     expect(buildPayload(f, { workspace: 4 })).toEqual({
-      name: 'Orders', engine: 'postgres', workspace: 4, tls_mode: 'require', access: 'read_only',
+      name: 'Orders', engine: 'postgres', workspace: 4, ca_certificate: '', access: 'read_only',
       host: 'db.example.com', port: 5432, database: 'shop', username: 'reader', password: 's3cret',
     })
   })
@@ -84,10 +85,9 @@ describe('an existing connection', () => {
 })
 
 describe('what the page says', () => {
-  it('has a warning for each weaker TLS mode', () => {
-    expect(TLS_WARNINGS.skip_verify).toMatch(/certificate is not checked/)
-    expect(TLS_WARNINGS.disable).toMatch(/plain text/)
-    expect(TLS_WARNINGS.require).toBeUndefined()
+  it('says encryption is always on and checked (ADM-1369)', () => {
+    expect(ENCRYPTION_NOTE).toMatch(/Always encrypted/)
+    expect(ENCRYPTION_NOTE).toMatch(/certificate and name are checked/)
   })
 
   it('reads the server\'s option lists in any of their shapes', () => {

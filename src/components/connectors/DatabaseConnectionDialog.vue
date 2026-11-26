@@ -1,10 +1,10 @@
 <!--
   Add or change a database connection (ADM-1363): the engine (fixed once saved), where it is (host, port with the
-  engine's default, database, user, or a MongoDB connection string), the password, TLS, Access and an optional SSH
+  engine's default, database, user, or a MongoDB connection string), the password, an optional CA certificate (encryption is always on), Access and an optional SSH
   tunnel (bastion host, user, a private key file or a password, and the pinned host key).
 
   No secret is ever shown back: every secret field starts empty and says "Leave empty to keep" when one is saved; a
-  "Clear" box removes it (databaseConnectionForm.js decides what is sent). A weaker TLS mode shows what it means. The
+  "Clear" box removes it (databaseConnectionForm.js decides what is sent). The
   Access choice shows the server's advice for the engine (a database user with only read rights).
 -->
 <template>
@@ -61,11 +61,14 @@
         </template>
       </div>
 
-      <!-- TLS -->
+      <!-- Encryption: always on and verified (ADM-1369); the one choice is an own CA certificate -->
       <fieldset class="dcd-set">
-        <legend class="dcd-label">Encryption (TLS)</legend>
-        <label v-for="m in tlsModes" :key="m.value" class="dcd-radio"><input v-model="form.tls_mode" type="radio" :name="`${formId}-tls`" :value="m.value"> {{ m.label }}</label>
-        <p v-if="TLS_WARNINGS[form.tls_mode]" class="dcd-warn" role="alert"><Icon icon="lucide:shield-alert" aria-hidden="true" /><span>{{ TLS_WARNINGS[form.tls_mode] }}</span></p>
+        <legend class="dcd-label">Encryption</legend>
+        <p class="dcd-note"><Icon icon="lucide:shield-check" aria-hidden="true" /><span>{{ props.meta.encryption_note || ENCRYPTION_NOTE }}</span></p>
+        <Field :id="`${formId}-ca`" label="CA certificate (optional)" class="dcd-wide"
+               help="Only when your server's certificate is signed by your own authority: AWS RDS, Google Cloud SQL, Azure, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
+          <textarea :id="`${formId}-ca`" v-model="form.ca_certificate" class="dcd-in mono" rows="4" spellcheck="false" autocomplete="off" placeholder="-----BEGIN CERTIFICATE-----" :aria-invalid="ariaInvalid('ca_certificate')" />
+        </Field>
       </fieldset>
 
       <!-- Access -->
@@ -161,7 +164,7 @@ import PageLoader from '../common/PageLoader.vue'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import {
-  ACCESS_FALLBACK, ENGINE_FALLBACK, TLS_FALLBACK, TLS_WARNINGS, buildPayload, connectionErrorText, defaultPort, emptyForm,
+  ACCESS_FALLBACK, ENGINE_FALLBACK, ENCRYPTION_NOTE, buildPayload, connectionErrorText, defaultPort, emptyForm,
   formFromProjection, formProblems, normalizeOptions,
 } from './databaseConnectionForm'
 import '../workflow-tables/workflow-tables.css'
@@ -192,7 +195,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   // The connection to edit ({ id, ... } projection), or null to add one.
   connection: { type: Object, default: null },
-  // The list response's reference data: { engines, tls_modes, access, read_only_advice, outbound_ips, outbound_ips_note }.
+  // The list response's reference data: { engines, encryption_note, access, read_only_advice, outbound_ips, outbound_ips_note }.
   meta: { type: Object, default: () => ({}) },
   workspace: { type: [String, Number], default: null },
 })
@@ -200,7 +203,6 @@ const emit = defineEmits(['update:open', 'saved'])
 
 const formId = `dcd-${useId()}`
 const engines = computed(() => normalizeOptions(props.meta.engines, ENGINE_FALLBACK))
-const tlsModes = computed(() => normalizeOptions(props.meta.tls_modes, TLS_FALLBACK))
 const accessModes = computed(() => normalizeOptions(props.meta.access, ACCESS_FALLBACK))
 const outboundIps = computed(() => (Array.isArray(props.meta.outbound_ips) ? props.meta.outbound_ips : []))
 const outboundNote = computed(() => props.meta.outbound_ips_note || 'An address does not prove which customer is calling: the database user does.')

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // ADM-1363: Settings > Connectors > Databases. The list says each connection's engine, access and last test, and
 // only its owner gets Edit, Share and Delete. The form never shows a secret back, keeps a saved one when its field is
-// left empty, warns on a weaker TLS mode, shows the server's read-only advice, and tests after saving.
+// left empty, says encryption is always on (ADM-1369), shows the server's read-only advice, and tests after saving.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DatabaseConnectionsSection from './DatabaseConnectionsSection.vue'
@@ -21,12 +21,12 @@ vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn(async () => true) })
 
 const META = {
   engines: [{ value: 'postgres', label: 'PostgreSQL', default_port: 5432 }, { value: 'mysql', label: 'MySQL / MariaDB', default_port: 3306 }],
-  tls_modes: ['require', 'skip_verify', 'disable'], access: ['read_only', 'read_write'],
+  encryption_note: 'Always encrypted (TLS 1.2 or later).', access: ['read_only', 'read_write'],
   read_only_advice: { postgres: 'Use a role with only SELECT: GRANT SELECT ON ALL TABLES …', mysql: 'GRANT SELECT …' },
   outbound_ips: ['203.0.113.7'], outbound_ips_note: 'An IP does not prove the tenant.',
 }
-const MINE = { id: 1, name: 'Orders', engine: 'postgres', engine_label: 'PostgreSQL', access: 'read_only', tls_mode: 'require', mine: true, can_manage: true, last_test: { at: '2026-11-25T08:00:00Z', ok: true }, ssh_enabled: false }
-const SHARED = { id: 2, name: 'Their DB', engine: 'mysql', engine_label: 'MySQL', access: 'read_write', tls_mode: 'skip_verify', mine: false, can_manage: false, owner: { id: 9, email: 'o@x.com', name: 'Olu' }, last_test: null }
+const MINE = { id: 1, name: 'Orders', engine: 'postgres', engine_label: 'PostgreSQL', access: 'read_only', encryption: 'verified', has_ca_certificate: false, mine: true, can_manage: true, last_test: { at: '2026-11-25T08:00:00Z', ok: true }, ssh_enabled: false }
+const SHARED = { id: 2, name: 'Their DB', engine: 'mysql', engine_label: 'MySQL', access: 'read_write', encryption: 'verified', has_ca_certificate: true, mine: false, can_manage: false, owner: { id: 9, email: 'o@x.com', name: 'Olu' }, last_test: null }
 
 let wrapper
 beforeEach(() => { api.getDatabaseConnections.mockResolvedValue({ data: { connections: [MINE, SHARED], ...META } }) })
@@ -42,7 +42,9 @@ describe('the Databases section', () => {
     expect(items[0].text()).toContain('Test passed')
     expect(items[0].find('button[aria-label="Delete Orders"]').exists()).toBe(true)
     expect(items[1].text()).toContain('Read and write')
-    expect(items[1].text()).toContain('Certificate not checked')
+    expect(items[1].text()).toContain('Encrypted · own CA')
+    expect(items[0].text()).toContain('Encrypted')
+    expect(wrapper.text()).not.toMatch(/Not encrypted|Certificate not checked/)
     expect(items[1].text()).toContain('Shared by Olu')
     expect(items[1].find('button[aria-label="Edit Their DB"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('203.0.113.7')
@@ -70,18 +72,22 @@ describe('the connection form', () => {
   const input = async (sel, value) => { const el = q(sel); el.value = value; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); await flushPromises() }
   const footButton = (text) => [...document.body.querySelectorAll('.app-dialog__foot button')].find((b) => b.textContent.includes(text))
 
-  it('adds a connection: the default port, the TLS warning, the advice, and Save and test', async () => {
+  it('adds a connection: the default port, always-on encryption with no weaker choice, a CA certificate, the advice, and Save and test', async () => {
     api.createDatabaseConnection.mockResolvedValue({ data: { id: 5, name: 'Shop', engine: 'postgres', host: 'db.example.com', has_password: true } })
     api.testDatabaseConnection.mockResolvedValue({ data: { ok: true, message: 'Connected in 40 ms.' } })
     wrapper = mount(DatabaseConnectionDialog, { props: { open: true, connection: null, meta: META, workspace: 3 }, attachTo: document.body })
     await flushPromises()
     expect(q('input[type="number"]').value).toBe('5432')
     expect(document.body.textContent).toContain('Use a role with only SELECT')
-    const skip = [...document.body.querySelectorAll('input[type="radio"]')].find((r) => r.value === 'skip_verify')
-    skip.checked = true
-    skip.dispatchEvent(new Event('change'))
+    // ADM-1369: no way to turn encryption off or skip the certificate check; the note says it is always on.
+    const radios = [...document.body.querySelectorAll('input[type="radio"]')].map((r) => r.value)
+    expect(radios).not.toContain('skip_verify')
+    expect(radios).not.toContain('disable')
+    expect(document.body.textContent).toContain('Always encrypted')
+    const ca = document.body.querySelector('textarea[id$="-ca"]')
+    ca.value = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----'
+    ca.dispatchEvent(new Event('input'))
     await flushPromises()
-    expect(document.body.textContent).toContain('certificate is not checked')
 
     const ids = [...document.body.querySelectorAll('.app-dialog input[id]')].map((el) => el.id)
     await input(`#${ids.find((i) => i.endsWith('-name'))}`, 'Shop')
@@ -91,7 +97,7 @@ describe('the connection form', () => {
     footButton('Save and test').click()
     await flushPromises()
     expect(api.createDatabaseConnection).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Shop', engine: 'postgres', workspace: 3, host: 'db.example.com', port: 5432, database: 'shop', password: 's3cret', tls_mode: 'skip_verify', access: 'read_only',
+      name: 'Shop', engine: 'postgres', workspace: 3, host: 'db.example.com', port: 5432, database: 'shop', password: 's3cret', ca_certificate: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----', access: 'read_only',
     }))
     expect(api.testDatabaseConnection).toHaveBeenCalledWith(5)
     expect(document.body.textContent).toContain('Connected in 40 ms.')

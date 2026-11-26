@@ -39,7 +39,7 @@
               <Icon :icon="TEST_ICON[lastTestState(c.last_test).tone]" aria-hidden="true" />{{ lastTestState(c.last_test).text }}
             </span>
             <span v-if="c.ssh_enabled" class="tp-chip tp-chip--muted"><Icon icon="lucide:key-round" aria-hidden="true" />SSH tunnel</span>
-            <span v-if="c.tls_mode && c.tls_mode !== 'require'" class="tp-chip tp-chip--warn"><Icon icon="lucide:shield-alert" aria-hidden="true" />{{ c.tls_mode === 'disable' ? 'Not encrypted' : 'Certificate not checked' }}</span>
+            <span class="tp-chip" :title="c.has_ca_certificate ? 'Encrypted; the certificate is checked against your own CA and the public authorities' : 'Encrypted; the certificate and name are checked'"><Icon icon="lucide:shield-check" aria-hidden="true" />Encrypted{{ c.has_ca_certificate ? ' · own CA' : '' }}</span>
             <span v-if="!c.mine && c.owner" class="dcs-owner">Shared by {{ c.owner.name || c.owner.email }}</span>
           </span>
           <span v-if="c.last_test && c.last_test.ok === false && c.last_test.message" class="dcs-fail">{{ c.last_test.message }}</span>
