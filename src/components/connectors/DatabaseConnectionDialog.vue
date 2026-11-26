@@ -66,7 +66,7 @@
         <legend class="dcd-label">Encryption</legend>
         <p class="dcd-note"><Icon icon="lucide:shield-check" aria-hidden="true" /><span>{{ props.meta.encryption_note || ENCRYPTION_NOTE }}</span></p>
         <Field :id="`${formId}-ca`" label="CA certificate (optional)" class="dcd-wide"
-               help="Only when your server's certificate is signed by your own authority: AWS RDS, Google Cloud SQL, Azure, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
+               help="Not needed for AWS RDS or Aurora, or for a server with a public certificate. Only when your server's certificate is signed by your own authority: Google Cloud SQL, a company CA, or a self-signed server. Paste the authority's certificate (it starts with -----BEGIN CERTIFICATE-----). It is public, not a secret; never paste a private key.">
           <textarea :id="`${formId}-ca`" v-model="form.ca_certificate" class="dcd-in mono" rows="4" spellcheck="false" autocomplete="off" placeholder="-----BEGIN CERTIFICATE-----" :aria-invalid="ariaInvalid('ca_certificate')" />
         </Field>
       </fieldset>
