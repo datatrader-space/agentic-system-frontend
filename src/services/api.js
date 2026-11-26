@@ -1056,6 +1056,9 @@ export default {
   // usdPerImage: '0.002', or null for not for sale (every paid call refused).
   readyModelSetPrice: (key, usdPerImage) =>
     api.patch(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`, { usd_per_image: usdPerImage }),
+  // Admin only (owner, 2026-11-26): listed for everyone in Ready to use, used by platform administrators alone.
+  readyModelSetAdminOnly: (key, adminOnly) =>
+    api.patch(`/training-data/admin/ready-models/${encodeURIComponent(key)}/`, { admin_only: !!adminOnly }),
   readyModelAcceptLicence: (machineId) => api.post('/training-data/admin/ready-models/licence/', { machine: machineId }),
   // A camera model from Hugging Face (backend camera_models.py): {key, name, kind, gpu_gb, parts: [{repo, revision?,
   // files?}], tuning?}. Its files are fetched in the background; it is hosted and priced like SAM 3.

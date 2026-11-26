@@ -429,17 +429,19 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         <section v-if="readyRows.length" class="catalog-section" aria-labelledby="ready-now">
           <h2 id="ready-now">Ready now <span class="count">{{ readyRows.length }}</span></h2>
           <div class="model-catalog">
-            <article v-for="row in readyRows" :key="row.name" class="panel catalog-card">
-              <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ familyName(row) }}</UiBadge><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge></div>
+            <article v-for="row in readyRows" :key="row.name" class="panel catalog-card" :class="{ 'catalog-card--off': row.usable === false }" :data-test="`ready-card-${row.key}`">
+              <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ familyName(row) }}</UiBadge><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge><UiBadge v-if="row.admin_only" tone="amber">Admin only</UiBadge></div>
               <h3>{{ row.name }}</h3>
               <p class="model-meta">{{ row.publisher }}</p>
               <p>{{ row.description }}</p>
               <p class="licence-line"><span>Licence</span>{{ row.licence }}</p>
               <div v-if="row.research_only" class="catalog-tags"><UiBadge>Research or evaluation use only</UiBadge></div>
               <p v-if="row.not_tried" class="model-meta">{{ row.not_tried }}</p>
+              <!-- Admin only (owner, 2026-11-26): listed for everyone, used by platform administrators alone. -->
+              <p v-if="row.usable === false" class="model-meta admin-only-said" :id="`admin-only-${row.key}`">{{ row.admin_only_said }}</p>
               <div class="catalog-buttons">
-                <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
-                <UiButton :disabled="!data.may.try||!!row.not_tried" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="startTrying(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
+                <UiButton v-if="row.use" variant="primary" :disabled="row.usable === false" :aria-describedby="row.usable === false ? `admin-only-${row.key}` : undefined" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
+                <UiButton :disabled="!data.may.try||!!row.not_tried||row.usable === false" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : row.usable === false ? row.admin_only_said : ''" @click="startTrying(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
               </div>
             </article>
           </div>
@@ -704,6 +706,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .row-actions .button{min-height:32px;padding:6px 12px;margin-left:6px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .catalog-card{display:flex;flex-direction:column;gap:6px}
+.catalog-card--off h3,.catalog-card--off>p{opacity:.72}
+.admin-only-said{color:#92400e!important}
 .catalog-card h3{margin:6px 0 0}
 .catalog-card>p{min-height:0!important;margin:0!important}
 .catalog-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}

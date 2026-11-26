@@ -13,7 +13,7 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import {
-  openModelsApi, KINDS, USES, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
+  openModelsApi, SEARCH_KINDS, SHOWN, TYPE_PAUSE_MS, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
   anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
   placeChoices, quoteFor, placeLine,
 } from '../api/openModels.js';
@@ -24,7 +24,13 @@ const emit = defineEmits(['use', 'try', 'changed']);
 const usableById = computed(() => new Map(props.usable.map(row => [row.id, row])));
 const usableOf = m => usableById.value.get(m.id) || null;
 
-const kind = ref('chat'); const use = ref('train'); const words = ref('');
+const kind = ref('all'); const words = ref('');
+// Search as you type (owner, 2026-11-26): the search is asked a moment after the last key, or at once on Enter.
+const shown = ref(SHOWN);
+let pause = null;
+watch(words, () => { clearTimeout(pause); pause = setTimeout(() => search(), TYPE_PAUSE_MS); });
+watch(kind, () => { clearTimeout(pause); search(); });
+const visible = computed(() => results.value.slice(0, shown.value));
 const results = ref([]); const next = ref(''); const hidden = ref({}); const reasons = ref({});
 const mayAdd = ref(false); const gatedEnabled = ref(false); const searching = ref(false); const more = ref(false); const searched = ref(false);
 const error = ref(''); const said = ref('');
@@ -38,9 +44,9 @@ async function search({ again = false } = {}) {
   if (problem.value) { error.value = problem.value; return; }
   error.value = '';
   const mine = ++asked;
-  if (again) more.value = true; else searching.value = true;
+  if (again) more.value = true; else { searching.value = true; shown.value = SHOWN; }
   try {
-    const page = await openModelsApi.search({ q: words.value, kind: kind.value, use: use.value, cursor: again ? next.value : '' });
+    const page = await openModelsApi.search({ q: words.value, kind: kind.value, cursor: again ? next.value : '' });
     if (mine !== asked) return;
     results.value = again ? mergePage(results.value, page.results) : page.results;
     hidden.value = again ? sumHidden(hidden.value, page.hidden) : page.hidden || {};
@@ -50,8 +56,9 @@ async function search({ again = false } = {}) {
   finally { if (mine === asked) { searching.value = false; more.value = false; } }
 }
 function sumHidden(a, b) { const out = { ...a }; for (const [k, n] of Object.entries(b || {})) out[k] = (out[k] || 0) + n; return out; }
-const filters = { kind, use };
-function choose(name, value) { const which = filters[name]; if (which.value === value) return; which.value = value; search(); }
+// Show more: the next results already read, else the Hub's next page.
+function showMore() { if (results.value.length > shown.value) shown.value += SHOWN; else { shown.value += SHOWN; search({ again: true }); } }
+const hasMore = computed(() => results.value.length > shown.value || !!next.value);
 search();
 
 // ── the workspace's added models ─────────────────────────────────────────────────────────────────
@@ -74,7 +81,7 @@ watch(added, now => {
   if (readySeen !== null && ready !== readySeen) emit('changed');
   readySeen = ready;
 });
-onUnmounted(() => { alive = false; clearTimeout(timer); });
+onUnmounted(() => { alive = false; clearTimeout(timer); clearTimeout(pause); });
 
 // Add opens a dialog with what adding costs: the backend's quote (the fetch, about and at most, and the storage a day,
 // with the markup in), never a price worked out here. Add in the dialog adds; Cancel adds nothing. The person chooses
@@ -144,16 +151,8 @@ const openMetrics = computed(() => [
   { label: 'Files ready', value: (added.value || []).filter(m => m.state === 'ready').length, hint: 'Fetched and available', icon: Check },
   { label: 'Fetching', value: (added.value || []).filter(m => m.state === 'fetching').length, hint: 'Preparing model files', icon: Download },
 ]);
-function moveChoice(event, name, options) {
-  let index = options.findIndex(item => item.value === filters[name].value);
-  if (event.key === 'Home') index = 0;
-  else if (event.key === 'End') index = options.length - 1;
-  else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') index = (index + 1) % options.length;
-  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') index = (index - 1 + options.length) % options.length;
-  else return;
-  event.preventDefault(); choose(name, options[index].value);
-  event.currentTarget.parentElement.children[index]?.focus();
-}
+// Enter searches at once instead of after the pause.
+function searchNow() { clearTimeout(pause); search(); }
 </script>
 
 <template>
@@ -202,22 +201,20 @@ function moveChoice(event, name, options) {
     <slot name="trying"/>
 
     <div class="models-list-head"><div><h3>Discover models</h3><p>Search the Hub by name, model family, and intended use.</p></div><span class="models-source-label"><Globe :size="13" aria-hidden="true"/> Hugging Face Hub</span></div>
-    <form class="om-toolbar" role="search" @submit.prevent="search()">
+    <form class="om-toolbar" role="search" @submit.prevent="searchNow">
       <label class="om-search">
         <span class="sr-only">Search Hugging Face models</span>
         <Search :size="16" aria-hidden="true"/>
-        <input v-model="words" type="search" :maxlength="QUERY_LIMIT + 20" :placeholder="kind==='photo' ? 'Search photo models, e.g. segformer' : 'Search chat models, e.g. qwen or llama'" :aria-invalid="!!problem" aria-describedby="om-query-help">
+        <input v-model="words" type="search" :maxlength="QUERY_LIMIT + 20" placeholder="Search Hugging Face models, e.g. qwen, segformer or flux" :aria-invalid="!!problem" aria-describedby="om-query-help" data-test="om-words">
+        <span v-if="searching" class="om-spinner" aria-hidden="true"></span>
       </label>
-      <div class="om-segmented" role="radiogroup" aria-label="Kind of model">
-        <button v-for="k in KINDS" :key="k.value" type="button" role="radio" :aria-checked="kind===k.value" :tabindex="kind===k.value ? 0 : -1" @keydown="moveChoice($event, 'kind', KINDS)" :class="{on: kind===k.value}" @click="choose('kind', k.value)">
-          <MessageSquareText v-if="k.value==='chat'" :size="15" aria-hidden="true"/><ImageIcon v-else :size="15" aria-hidden="true"/>{{ k.label }}</button>
-      </div>
-      <div class="om-segmented" role="radiogroup" aria-label="What it is for">
-        <button v-for="u in USES" :key="u.value" type="button" role="radio" :aria-checked="use===u.value" :tabindex="use===u.value ? 0 : -1" @keydown="moveChoice($event, 'use', USES)" :class="{on: use===u.value}" @click="choose('use', u.value)">{{ u.label }}</button>
-      </div>
-      <UiButton type="submit" variant="primary" :disabled="searching"><span v-if="searching" class="om-spinner" aria-hidden="true"></span><Search v-else :size="15" aria-hidden="true"/>{{ searching ? 'Searching…' : 'Search' }}</UiButton>
+      <label class="om-kind"><span class="sr-only">Kind of model</span>
+        <select v-model="kind" class="compact-select" aria-label="Kind of model" data-test="om-kind">
+          <option v-for="k in SEARCH_KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
+        </select>
+      </label>
     </form>
-    <p id="om-query-help" class="om-help">{{ problem || 'Most downloaded first. Add a model to train from it in this workspace\'s projects, or to deploy it as is.' }}</p>
+    <p id="om-query-help" class="om-help">{{ problem || 'The most downloaded first, as you type. A model that cannot be added here says why.' }}</p>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <p class="sr-only" aria-live="polite">{{ said }}</p>
 
@@ -227,11 +224,11 @@ function moveChoice(event, name, options) {
       <p v-if="searching && !results.length" class="muted">Searching Hugging Face…</p>
       <div v-else-if="searched && !results.length && !error" class="om-empty">
         <Box :size="28" aria-hidden="true"/>
-        <p>No model on this page can be {{ use === 'train' ? 'trained' : 'deployed' }} here. Try other words, or switch between Photo and Chat.</p>
+        <p>No model on Hugging Face matches. Try other words, or another kind.</p>
       </div>
       <div class="om-grid">
-        <article v-for="row in results" :key="row.repo" class="panel om-card">
-          <div class="om-card-head"><UiBadge>{{ row.kind === 'chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge v-if="row.added" :tone="stateBadge(row.added.state)[0]">{{ stateBadge(row.added.state)[1] }}</UiBadge></div>
+        <article v-for="row in visible" :key="row.repo" class="panel om-card" :class="{ 'om-card--off': !row.added && !!cannotAdd(row) }" :data-test="`om-card-${row.repo}`">
+          <div class="om-card-head"><UiBadge v-if="row.kind">{{ row.kind === 'chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.commercial === false" tone="amber">Not for commercial use</UiBadge><UiBadge v-if="row.gated" tone="amber">Gated</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge v-if="row.added" :tone="stateBadge(row.added.state)[0]">{{ stateBadge(row.added.state)[1] }}</UiBadge></div>
           <h3>{{ row.name }}</h3>
           <p class="om-publisher">{{ row.publisher }}</p>
           <dl class="om-facts">
@@ -252,11 +249,11 @@ function moveChoice(event, name, options) {
             <span v-else class="om-added-mark"><Check :size="15" aria-hidden="true"/>Added</span>
             <a class="button" :href="hubLink(row.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${row.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/>Hugging Face</a>
           </div>
-          <p v-if="cannotAdd(row) && !row.added" :id="`why-${row.repo}`" class="sr-only">{{ cannotAdd(row) }}</p>
+          <p v-if="cannotAdd(row) && !row.added" :id="`why-${row.repo}`" class="om-why-not" data-test="om-why-not">{{ cannotAdd(row) }}</p>
           <p v-if="cardError[row.repo]" class="field-error" role="alert">{{ cardError[row.repo] }}</p>
         </article>
       </div>
-      <div v-if="next" class="om-more"><UiButton :disabled="more" @click="search({ again: true })"><span v-if="more" class="om-spinner" aria-hidden="true"></span>{{ more ? 'Loading…' : 'Show more results' }}</UiButton></div>
+      <div v-if="hasMore" class="om-more"><UiButton :disabled="more" @click="showMore"><span v-if="more" class="om-spinner" aria-hidden="true"></span>{{ more ? 'Loading…' : 'Show more results' }}</UiButton></div>
     </section>
 
     <UiDialog :open="!!confirming" :title="confirming ? `Add ${confirming.name}?` : ''" @close="cancelAdd">
@@ -324,13 +321,13 @@ function moveChoice(event, name, options) {
 .om-page{color:#152237}
 .om-intro{max-width:72ch;font-size:13px;color:#4d5a70;margin:0 0 18px}
 .om-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.om-kind{flex:0 0 auto}
+.om-kind select{min-height:44px}
+.om-why-not{color:#92400e;font-size:12px;margin:4px 0 0}
+.om-card--off h3,.om-card--off .om-publisher{opacity:.72}
 .om-search{display:flex;align-items:center;gap:9px;flex:1 1 280px;min-width:0;max-width:440px;min-height:44px;padding:0 12px;border:1px solid #dfe1e9;border-radius:9px;background:#fff;color:#6b778c}
 .om-search:focus-within{outline:3px solid var(--aadml-outline);outline-offset:2px;border-color:var(--aadml-focus)}
 .om-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:14px;color:#152237;padding:10px 0}
-.om-segmented{display:inline-flex;padding:3px;border-radius:9px;background:#f1f3f7;gap:2px}
-.om-segmented button{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 14px;border:0;border-radius:7px;background:transparent;color:#4d5a70;font-size:13px;font-weight:550;transition:background-color .15s,color .15s}
-.om-segmented button.on{background:#fff;color:var(--aadml-primary);box-shadow:0 1px 3px #1d2a4224}
-.om-segmented button:hover:not(.on){color:#1d2a42}
 .om-help{margin:8px 0 0;font-size:12px;color:#5f6d82}
 .om-section{margin-top:28px}
 .om-section > h2{display:flex;align-items:center;gap:10px;font-size:16px;margin:0 0 12px}
@@ -403,12 +400,10 @@ function moveChoice(event, name, options) {
 .muted{font-size:12px;color:#5f6d82}
 .count{font-size:12px;font-weight:500;color:#5f6d82}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-@media (prefers-reduced-motion: reduce){.om-spinner{animation:none}.om-segmented button{transition:none}}
+@media (prefers-reduced-motion: reduce){.om-spinner{animation:none}}
 @media (max-width:640px){
   .om-toolbar{align-items:stretch}
   .om-search{flex-basis:100%;max-width:none}
-  .om-segmented{display:flex;flex:1 1 100%}
-  .om-segmented button{flex:1 1 0;justify-content:center;min-width:0;padding:7px 6px}
   .om-toolbar > .button{flex:1 1 100%;justify-content:center;min-height:44px}
   .om-added li{padding:16px}
   .om-row-head{flex-wrap:wrap}

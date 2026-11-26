@@ -175,6 +175,21 @@
           </button>
         </form>
 
+        <!-- Admin only (owner, 2026-11-26): everyone sees it in Ready to use; only platform administrators use it. -->
+        <div class="rm-admin-only">
+          <label class="rm-check" :for="`rm-admin-only-${m.key}`">
+            <input :id="`rm-admin-only-${m.key}`" type="checkbox" :checked="!!m.admin_only"
+                   :disabled="isBusy(m.key) || m.admin_only_locked" :aria-describedby="`rm-admin-only-help-${m.key}`"
+                   data-test="rm-admin-only" @change="saveAdminOnly(m, $event.target.checked)" />
+            <span>Admin only</span>
+          </label>
+          <small :id="`rm-admin-only-help-${m.key}`" data-test="rm-admin-only-help">
+            <template v-if="m.admin_only_locked">Its licence does not allow commercial use, so it stays admin only: people see it in Ready to use, disabled.</template>
+            <template v-else-if="m.admin_only">People see it in Ready to use, disabled; only platform administrators try it, use it and choose it for agents.</template>
+            <template v-else>Everyone may try it, use it and choose it for agents. Tick it to keep it for platform administrators.</template>
+          </small>
+        </div>
+
         <p v-if="modelErrors[m.key]" class="rm-error rm-banner" role="alert" data-test="rm-error">{{ modelErrors[m.key] }}</p>
       </section>
 
@@ -199,7 +214,7 @@
                 <component :is="STATE_ICON[row.state] || CircleOff" :size="13" aria-hidden="true"
                            :class="{ 'rm-spin': row.state === 'starting' }" />{{ stateWord(row.state) }}</span></td>
               <td data-label="Where it runs">{{ row.state === 'off' ? '—' : whereWords(row) }}</td>
-              <td data-label="Price">{{ row.for_sale === false ? 'Not for sale (your own)' : row.price_text || 'Not for sale yet' }}</td>
+              <td data-label="Price">{{ row.for_sale === false ? 'Not for sale (your own)' : row.price_text || 'Not for sale yet' }}<span v-if="row.admin_only" class="rm-admin-tag" data-test="rm-admin-tag">Admin only</span></td>
               <td data-label="Started">{{ row.state !== 'off' && (row.started_by || row.started_at) ? startedWords(row) : '—' }}</td>
             </tr>
           </tbody>
@@ -609,6 +624,11 @@ function savePrice(m) {
     { resetPrice: true })
 }
 
+function saveAdminOnly(m, value) {
+  return act(m, 'admin-only', () => api.readyModelSetAdminOnly(m.key, value),
+    value ? `${m.name || m.key} is for platform administrators only now.` : `${m.name || m.key} is for everyone now.`)
+}
+
 function fetchAgain(m) {
   return act(m, 'fetch', () => api.readyModelCameraFetch(m.key), `AADML fetches the files of ${m.name || m.key}.`)
 }
@@ -745,6 +765,12 @@ onBeforeUnmount(() => { disposed = true; stopPolling(); clearTimeout(searchTimer
 .rm-chooser-field { flex: 1 1 360px; max-width: 560px; }
 .rm-chooser-field select { min-height: 44px; font-weight: 600; }
 .rm-chooser-count { margin: 0 0 10px; }
+.rm-admin-only { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--admin-line, #e5e7eb); }
+.rm-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; min-height: 32px; }
+.rm-check input { width: 16px; height: 16px; cursor: pointer; }
+.rm-check input:disabled { cursor: not-allowed; }
+.rm-admin-only small { color: var(--admin-muted, #475569); }
+.rm-admin-tag { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 600; }
 .rm-card-chosen { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
 .rm-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
 .rm-table th, .rm-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--admin-line, #e3e7ee); vertical-align: middle; }

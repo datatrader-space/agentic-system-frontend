@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   readyModelStart: vi.fn(),
   readyModelStop: vi.fn(),
   readyModelSetPrice: vi.fn(),
+  readyModelSetAdminOnly: vi.fn(),
   readyModelAcceptLicence: vi.fn(),
   readyModelCameraAdd: vi.fn(),
   readyModelCameraFetch: vi.fn(),
@@ -440,5 +441,27 @@ describe('AdminReadyModels', () => {
     await vi.advanceTimersByTimeAsync(500)
     await flushPromises()
     expect(add.find('[data-test="rm-found"]').exists()).toBe(true)
+  })
+
+  // Admin only (owner, 2026-11-26): everyone sees it in Ready to use; only platform administrators use it.
+  it('ticks Admin only with its own call, and a licence-locked model cannot be unticked', async () => {
+    api.readyModelSetAdminOnly.mockResolvedValueOnce({ data: sam({ admin_only: true }) })
+    await render()
+    const box = w.get('[data-test="rm-admin-only"]')
+    expect(box.element.checked).toBe(false)
+    await box.setValue(true)
+    await flushPromises()
+    expect(api.readyModelSetAdminOnly).toHaveBeenLastCalledWith('sam3', true)
+    expect(w.get('[data-test="rm-admin-only-help"]').text()).toContain('only platform administrators')
+    expect(w.get('[data-test="rm-admin-tag"]').text()).toBe('Admin only')
+  })
+
+  it('shows a non-commercial model as admin only, locked', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: payload(sam({ admin_only: true, admin_only_locked: true, for_sale: false })) })
+    await render()
+    const box = w.get('[data-test="rm-admin-only"]')
+    expect(box.element.checked).toBe(true)
+    expect(box.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="rm-admin-only-help"]').text()).toContain('stays admin only')
   })
 })

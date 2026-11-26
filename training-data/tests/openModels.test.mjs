@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   openModelsApi, cleanQuery, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge, anyFetching,
-  hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, KINDS, USES, QUERY_LIMIT, quoteLines, quoteNote, modelBadge,
+  hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, SEARCH_KINDS, SHOWN, QUERY_LIMIT, quoteLines, quoteNote, modelBadge,
   storageLine, placeChoices, quoteFor, placeLine,
 } from '../src/api/openModels.js';
 
@@ -22,15 +22,15 @@ async function capture(call) {
 
 test('the API helpers call the backend paths, with the query and the body the backend reads', async () => {
   const seen = await capture(async () => {
-    await openModelsApi.search({ q: '  small   qwen ', kind: 'chat', use: 'train', cursor: 'abc=' });
+    await openModelsApi.search({ q: '  small   qwen ', kind: 'chat', cursor: 'abc=' });
     await openModelsApi.search();
     await openModelsApi.list();
     await openModelsApi.add('Qwen/Qwen2.5-0.5B-Instruct', 'machines');
     await openModelsApi.remove(12);
     await openModelsApi.copy(12, 'platform');
   });
-  assert.equal(seen[0].url, '/api/training-data/app/open-models/?q=small+qwen&kind=chat&use=train&cursor=abc%3D');
-  assert.equal(seen[1].url, '/api/training-data/app/open-models/?kind=chat&use=train');
+  assert.equal(seen[0].url, '/api/training-data/app/open-models/?q=small+qwen&kind=chat&cursor=abc%3D');
+  assert.equal(seen[1].url, '/api/training-data/app/open-models/?kind=all');
   assert.equal(seen[2].url, '/api/training-data/app/workspace/open-models/');
   assert.equal(seen[3].url, '/api/training-data/app/workspace/open-models/');
   assert.equal(seen[3].init.method, 'POST');
@@ -51,8 +51,10 @@ test('the words are one line, and at most the limit', () => {
   assert.equal(cleanQuery(undefined), '');
   assert.equal(queryProblem('x'.repeat(QUERY_LIMIT)), '');
   assert.equal(queryProblem('x'.repeat(QUERY_LIMIT + 1)), `Search with at most ${QUERY_LIMIT} characters.`);
-  assert.deepEqual(KINDS.map(k => k.value), ['chat', 'photo']);
-  assert.deepEqual(USES.map(u => u.value), ['train', 'deploy']);
+  // The admin's kinds on the person's side (owner, 2026-11-26), 10 results at a time.
+  assert.deepEqual(SEARCH_KINDS.map(k => k.value),
+    ['all', 'chat', 'photo', 'image_generation', 'video_generation', 'video_understanding']);
+  assert.equal(SHOWN, 10);
 });
 
 test('a link to Hugging Face is built only from a checked repository name', () => {
@@ -251,4 +253,14 @@ test('the Add dialog waits for a place and sends it; Make a copy offers the two 
   assert.match(vue, /:disabled="!quote \|\| quoting \|\| !!adding \|\| !place"/);
   assert.match(vue, /place\.value = '';/);                         // nothing picked when the dialog opens
   assert.match(vue, /placeChoices\(copyQuote\.value, \{ only: \['platform', 'runpod'\] \}\)/);
+});
+
+
+// Owner, 2026-11-26: every model is listed; one this person may not add (not for commercial use, gated, no server yet)
+// says why, from the server; a platform administrator's results come addable.
+test('the server says per person whether a model may be added, and why not', () => {
+  assert.equal(addRefusal({ addable: false, why_not: 'Not for commercial use: only a platform administrator adds it.', uses: ['train'] },
+    { mayAdd: true }), 'Not for commercial use: only a platform administrator adds it.');
+  assert.equal(addRefusal({ addable: true, gated: true, uses: ['deploy'] }, { mayAdd: true, gatedEnabled: false }), '');
+  assert.equal(addRefusal({ addable: true, uses: ['deploy'] }, { mayAdd: false }), 'Adding a model needs the Train right in this workspace.');
 });

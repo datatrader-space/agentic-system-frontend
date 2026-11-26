@@ -13,16 +13,22 @@ const enc = encodeURIComponent;
 // The backend waits up to 25 s for the Hub; an add also reads the model from the Hub and starts a fetch.
 const SLOW = 45000;
 
-export const KINDS = [{ value: 'chat', label: 'Chat' }, { value: 'photo', label: 'Photo' }];
-export const USES = [{ value: 'train', label: 'Train' }, { value: 'deploy', label: 'Deploy as is' }];
+// The kinds the search looks for (owner, 2026-11-26: the admin's search on the person's side; open_models.ADMIN_KINDS).
+export const SEARCH_KINDS = [{ value: 'all', label: 'All models' }, { value: 'chat', label: 'Chat models' },
+  { value: 'photo', label: 'Photo models' }, { value: 'image_generation', label: 'Image generation' },
+  { value: 'video_generation', label: 'Video generation' }, { value: 'video_understanding', label: 'Video understanding' }];
+// How many results show at once; "Show more results" shows the next ones (owner, 2026-11-26: at most 10).
+export const SHOWN = 10;
+// The pause after the last key before the search is asked (search as you type).
+export const TYPE_PAUSE_MS = 350;
 export const QUERY_LIMIT = 100;
 export const REPO = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
 // While an added model is being fetched, the list is read again this often.
 export const POLL_MS = 5000;
 
 export const openModelsApi = {
-  search: ({ q = '', kind = 'chat', use = 'train', cursor = '' } = {}) =>
-    apiFetch(`${APP}/open-models/?${query({ q: cleanQuery(q), kind, use, cursor })}`, { timeoutMs: SLOW }),
+  search: ({ q = '', kind = 'all', cursor = '' } = {}) =>
+    apiFetch(`${APP}/open-models/?${query({ q: cleanQuery(q), kind, cursor })}`, { timeoutMs: SLOW }),
   list: () => apiFetch(`${APP}/workspace/open-models/`, { timeoutMs: SLOW }),
   // What adding a model costs, as the person pays it: worked out on the server (open_model_charges.py), never here.
   quote: repo => apiFetch(`${APP}/open-models/quote/?${query({ repo })}`, { timeoutMs: SLOW }),
@@ -85,6 +91,9 @@ export const anyFetching = models => (models || []).some(m => m.state === 'fetch
 // Why a result cannot be added now, in words; '' when it can. The backend decides again on add.
 export function addRefusal(row, { mayAdd = false, gatedEnabled = false } = {}) {
   if (!mayAdd) return 'Adding a model needs the Train right in this workspace.';
+  // The server says, for this person, whether it may be added and why not (open_models.person_search).
+  if (row && row.addable === false) return row.why_not || 'This model cannot be added.';
+  if (row && row.addable === true) return '';
   if (row?.gated && !gatedEnabled) return row.gated_note || 'Its publisher asks for its terms to be accepted first, and AADML\'s own Hugging Face access is not set up yet.';
   return (row?.uses || []).length ? '' : 'AADML can neither train nor serve this model.';
 }

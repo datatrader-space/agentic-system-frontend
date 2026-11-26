@@ -45,3 +45,12 @@ test('Use model gives a ready chat model the chat completions code', () => {
     assert.ok(!code.includes('room.jpg'), `${language}: a chat model is not sent a photo`);
   }
 });
+
+// Admin only (owner, 2026-11-26): listed for everyone in Ready to use, disabled with the reason for anyone but a
+// platform administrator (the server decides `usable`).
+test('an admin-only model is listed, marked, and its Use model and Try it are disabled for a normal user', () => {
+  assert.match(vue, /<UiBadge v-if="row\.admin_only" tone="amber">Admin only<\/UiBadge>/);
+  assert.match(vue, /<UiButton v-if="row\.use" variant="primary" :disabled="row\.usable === false"/);
+  assert.match(vue, /:disabled="!data\.may\.try\|\|!!row\.not_tried\|\|row\.usable === false"/);
+  assert.match(vue, /\{\{ row\.admin_only_said \}\}/);
+});
