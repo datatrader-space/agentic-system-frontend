@@ -84,9 +84,10 @@ export function labelsCard(action) {
 }
 
 // The person's own message, shown at once (before the server has it).
-// images: the photos sent with it, each { url, name } (a local preview while it is sent, the stored copy after).
-export function addUserMessage(state, text, images = []) {
-  state.messages.push({ id: localId('u'), role: 'user', text, images, steps: [], streaming: false });
+// images: the photos sent with it, each { url, name } (a local preview while it is sent, the stored copy after);
+// video: the one video sent with it, { url, name }, or null.
+export function addUserMessage(state, text, images = [], video = null) {
+  state.messages.push({ id: localId('u'), role: 'user', text, images, video, steps: [], streaming: false });
   state.running = true;
   state.error = '';
   return state;
@@ -226,6 +227,36 @@ export function titleFrom(text) {
   const cut = line.slice(0, 60);
   const space = cut.lastIndexOf(' ');
   return `${(space > 30 ? cut.slice(0, space) : cut).replace(/[\s,.;:!?-]+$/, '')}…`;
+}
+
+// What goes with the next message from the files the person picked, dropped or pasted: photos (JPEG, PNG or WebP, up
+// to MAX_PHOTOS) and, for a model that watches a video (acceptsVideo, a video-understanding model's Try), one MP4.
+// Each at most ATTACH_MAX_BYTES; one that does not fit is left out and said (error), never cut.
+// have: what is already waiting, { photos: count, video: whether one is }.
+export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
+export const MAX_PHOTOS = 4;
+export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const VIDEO_TYPE = 'video/mp4';
+export function sortPicked(files, have = {}, acceptsVideo = false) {
+  const photos = []; let video = null; let error = '';
+  let count = have.photos || 0; let hasVideo = !!have.video;
+  for (const file of files || []) {
+    const name = file.name || 'That file';
+    const isVideo = acceptsVideo && file.type === VIDEO_TYPE;
+    if (!isVideo && !PHOTO_TYPES.includes(file.type)) {
+      error = acceptsVideo ? `${name} is not a photo or an MP4 video: send a JPEG, PNG or WebP image, or an MP4.`
+        : `${name} is not a photo: send a JPEG, PNG or WebP image.`;
+      continue;
+    }
+    if (file.size > ATTACH_MAX_BYTES) { error = `${name} is larger than 20 MB.`; continue; }
+    if (isVideo) {
+      if (hasVideo) { error = 'One video goes with one message.'; continue; }
+      video = file; hasVideo = true; continue;
+    }
+    if (count >= MAX_PHOTOS) { error = `Up to ${MAX_PHOTOS} photos go with one message.`; continue; }
+    photos.push(file); count += 1;
+  }
+  return { photos, video, error };
 }
 
 export const assistantChat = {

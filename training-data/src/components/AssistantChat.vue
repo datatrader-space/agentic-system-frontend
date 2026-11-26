@@ -5,18 +5,20 @@
 // Before the first message the page's greeting and suggestions sit around one large message box (slots `intro` and
 // `below`); once a conversation has anything in it, the conversation fills the column and the box stays at its foot.
 // Photos go with a message (the + button, a drop or a paste): each is stored in the person's conversation and the
-// message names them by id, as AADML's chat does, so the agent sees exactly the photos sent with it.
+// message names them by id, as AADML's chat does, so the agent sees exactly the photos sent with it. A model that
+// watches a video (acceptsVideo: a video-understanding model's Try) also takes one MP4 with a message, the same way.
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { ArrowUp, Square, Check, X, Copy, ImagePlus, Loader2, CircleAlert, CircleCheck, ExternalLink } from 'lucide-vue-next';
+import { ArrowUp, Square, Check, X, Copy, ImagePlus, Loader2, CircleAlert, CircleCheck, ExternalLink, Film } from 'lucide-vue-next';
 import { safeMarkdown } from '../markdown.js';
-import { addUserMessage, applyEvent, assistantChat, emptyChat, fromHistory, splitThinking, stepLabel, titleFrom } from '../api/assistantChat.js';
+import { addUserMessage, applyEvent, assistantChat, emptyChat, fromHistory, MAX_PHOTOS, sortPicked, splitThinking, stepLabel, titleFrom, VIDEO_TYPE } from '../api/assistantChat.js';
 
 // startConversation: how a new conversation is made when the page makes it its own way (a model's Try: the Try agent
 // bound to the model, ADM-1365), returning { conversation_id, agent_id }; else the agent's own chat start.
 // assistantName: who answers, as the page names it (the screen reader's words and the message box's).
+// acceptsVideo: the model watches a video too (a video-understanding model's Try): one MP4 may go with a message.
 const props = defineProps({ agentId: { type: [Number, String], default: null }, requestContext: { type: String, default: '' },
   messagePlaceholder: { type: String, default: '' }, startConversation: { type: Function, default: null },
-  assistantName: { type: String, default: 'Training Assistant' } });
+  assistantName: { type: String, default: 'Training Assistant' }, acceptsVideo: { type: Boolean, default: false } });
 // started: a new conversation was made (the page lists it); conversation: the one shown now, or null for a new one;
 // empty: whether nothing is in the conversation yet (the page shows its start screen).
 const emit = defineEmits(['started', 'conversation', 'empty', 'settled']);
@@ -31,29 +33,31 @@ let connection = null;
 // The agent the conversation is with: the page's, or the one its own start gave (startConversation).
 const talkingTo = ref(props.agentId);
 
-// The photos waiting to go with the next message. Their previews stay valid while the conversation is shown and are
-// released when another one opens.
-const MAX_PHOTOS = 4;
-const MAX_BYTES = 20 * 1024 * 1024;
-const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// The photos (and the one video, for a model that watches one) waiting to go with the next message. Their previews
+// stay valid while the conversation is shown and are released when another one opens.
 const photos = ref([]);
+const video = ref(null);
 const previews = new Set();
 const dragging = ref(false);
+const accept = computed(() => `image/jpeg,image/png,image/webp${props.acceptsVideo ? `,${VIDEO_TYPE}` : ''}`);
+const attachWords = computed(() => (props.acceptsVideo ? 'Add a photo or a video' : 'Add a photo'));
+const attachFull = computed(() => photos.value.length >= MAX_PHOTOS && (!props.acceptsVideo || !!video.value));
 function preview(file) { const url = URL.createObjectURL(file); previews.add(url); return url; }
+function forget(url) { URL.revokeObjectURL(url); previews.delete(url); }
 function releasePreviews() { previews.forEach(url => URL.revokeObjectURL(url)); previews.clear(); }
 function addPhotos(files) {
-  for (const file of files) {
-    if (!PHOTO_TYPES.includes(file.type)) { chat.error = `${file.name || 'That file'} is not a photo: send a JPEG, PNG or WebP image.`; continue; }
-    if (file.size > MAX_BYTES) { chat.error = `${file.name} is larger than 20 MB.`; continue; }
-    if (photos.value.length >= MAX_PHOTOS) { chat.error = `Up to ${MAX_PHOTOS} photos go with one message.`; break; }
-    photos.value.push({ file, name: file.name, url: preview(file) });
-  }
+  const picked = sortPicked(files, { photos: photos.value.length, video: !!video.value }, props.acceptsVideo);
+  for (const file of picked.photos) photos.value.push({ file, name: file.name, url: preview(file) });
+  if (picked.video) video.value = { file: picked.video, name: picked.video.name, url: preview(picked.video) };
+  if (picked.error) chat.error = picked.error;
 }
-function removePhoto(i) { const [gone] = photos.value.splice(i, 1); if (gone) { URL.revokeObjectURL(gone.url); previews.delete(gone.url); } }
+function removePhoto(i) { const [gone] = photos.value.splice(i, 1); if (gone) forget(gone.url); }
+function removeVideo() { if (video.value) forget(video.value.url); video.value = null; }
 function onPick(event) { addPhotos([...(event.target.files || [])]); event.target.value = ''; input.value?.focus(); }
 function onDrop(event) { dragging.value = false; addPhotos([...(event.dataTransfer?.files || [])]); }
 function onPaste(event) {
-  const files = [...(event.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+  const files = [...(event.clipboardData?.files || [])]
+    .filter(f => f.type.startsWith('image/') || (props.acceptsVideo && f.type === VIDEO_TYPE));
   if (files.length) { event.preventDefault(); addPhotos(files); }
 }
 
@@ -70,6 +74,7 @@ function connect(conversationId) {
   connection?.close();
   releasePreviews();
   photos.value = [];
+  video.value = null;
   Object.assign(chat, emptyChat(conversationId));
   emit('conversation', conversationId);
   connection = assistantChat.connect(conversationId, {
@@ -102,12 +107,16 @@ async function send() {
       emit('started', chat.conversationId);
       emit('conversation', chat.conversationId);
     }
-    // Every photo is stored before the message goes; if one fails, nothing is sent and the photos stay to try again.
+    // Every photo (and the video) is stored before the message goes; if one fails, nothing is sent and they stay to
+    // try again.
     const sent = [...photos.value];
+    const clip = video.value;
     const attachmentIds = [];
     for (const photo of sent) attachmentIds.push(await assistantChat.upload(chat.conversationId, photo.file));
+    if (clip) attachmentIds.push(await assistantChat.upload(chat.conversationId, clip.file));
     photos.value = [];
-    addUserMessage(chat, text, sent.map(p => ({ url: p.url, name: p.name })));
+    video.value = null;
+    addUserMessage(chat, text, sent.map(p => ({ url: p.url, name: p.name })), clip ? { url: clip.url, name: clip.name } : null);
     draft.value = '';
     // Context is visible in the batch panel, sent only with an explicit user message, and conveys no authority.
     const context = props.requestContext.slice(0, 16000);
@@ -223,6 +232,8 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
         <div v-if="m.role === 'user' && m.images?.length" class="msg-photos">
           <a v-for="(img, i) in m.images" :key="i" :href="img.url" target="_blank" rel="noopener"><img :src="img.url" :alt="img.name || 'Photo sent with the message'" loading="lazy"></a>
         </div>
+        <video v-if="m.role === 'user' && m.video" class="msg-video" :src="m.video.url" controls preload="metadata"
+               :aria-label="m.video.name || 'Video sent with the message'"></video>
         <p v-if="m.role === 'user'" class="msg-text">{{ m.text }}</p>
         <p v-else-if="m.streaming" class="msg-text thinking"><Loader2 :size="14" class="spin" aria-hidden="true"/> Working…</p>
         <div v-if="m.role === 'assistant' && m.text && !m.streaming" class="msg-actions">
@@ -273,17 +284,21 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
 
     <form :class="['composer', { 'composer--drop': dragging }]" @submit.prevent="send" @click.self="input?.focus()"
           @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
-      <ul v-if="photos.length" class="pending" aria-label="Photos to send">
+      <ul v-if="photos.length || video" class="pending" :aria-label="video ? 'Photos and video to send' : 'Photos to send'">
         <li v-for="(p, i) in photos" :key="p.url"><img :src="p.url" :alt="p.name">
           <button type="button" :aria-label="`Remove ${p.name}`" title="Remove" @click="removePhoto(i)"><X :size="12"/></button></li>
+        <li v-if="video" :key="video.url" class="pending-video" data-test="pending-video">
+          <video :src="video.url" muted playsinline preload="metadata" :aria-label="`Video: ${video.name}`"></video>
+          <span class="pending-video-mark" aria-hidden="true"><Film :size="12"/></span>
+          <button type="button" :aria-label="`Remove ${video.name}`" title="Remove" @click="removeVideo"><X :size="12"/></button></li>
       </ul>
       <label class="sr-only" for="assistant-message">Message to the {{ assistantName }}</label>
       <textarea id="assistant-message" ref="input" v-model="draft" :rows="isEmpty ? 3 : 1" maxlength="8000"
                 :placeholder="messagePlaceholder || (isEmpty ? 'Describe what you want to train, measure or deploy, or add a photo…' : `Reply to the ${assistantName}…`)"
                 @keydown="onKey" @paste="onPaste"></textarea>
       <div class="composer-bar">
-        <input ref="picker" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple tabindex="-1" aria-hidden="true" @change="onPick">
-        <button class="attach" type="button" aria-label="Add a photo" title="Add a photo (JPEG, PNG or WebP)" :disabled="photos.length >= MAX_PHOTOS || sending"
+        <input ref="picker" class="sr-only" type="file" :accept="accept" multiple tabindex="-1" aria-hidden="true" @change="onPick">
+        <button class="attach" type="button" :aria-label="attachWords" :title="acceptsVideo ? 'Add a photo (JPEG, PNG or WebP) or a video (MP4, up to 20 MB)' : 'Add a photo (JPEG, PNG or WebP)'" :disabled="attachFull || sending"
                 @click="picker?.click()"><ImagePlus :size="18"/></button>
         <span class="composer-hint">Enter sends · Shift + Enter for a new line</span>
         <button v-if="chat.running" class="send send--stop" type="button" aria-label="Stop the assistant" title="Stop" @click="stop"><Square :size="14"/></button>
@@ -351,6 +366,9 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
 .pending img{width:100%;height:100%;object-fit:cover;border-radius:8px;border:1px solid #e1e4ea;display:block}
 .pending button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:1px solid #fff;background:#1d2a3d;color:#fff;display:grid;place-items:center;padding:0}
 .pending button::after{content:'';position:absolute;inset:-11px}
+.pending-video video{width:100%;height:100%;object-fit:cover;border-radius:8px;border:1px solid #e1e4ea;display:block;background:#1d2a3d}
+.pending-video-mark{position:absolute;left:4px;bottom:4px;width:20px;height:20px;border-radius:5px;background:#1d2a3dcc;color:#fff;display:grid;place-items:center}
+.msg-video{width:240px;max-width:100%;border-radius:10px;border:1px solid #e1e4ea;background:#1d2a3d;display:block}
 .labels-card{border:1px solid var(--aadml-outline);border-radius:12px;padding:12px 14px;margin-top:10px;background:#fff;display:flex;flex-direction:column;gap:10px;max-width:min(78ch,100%)}
 .labels-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .labels-head strong{font-size:13px;color:#1d2a3d}.labels-head span{font-size:12px;color:#4b5565}

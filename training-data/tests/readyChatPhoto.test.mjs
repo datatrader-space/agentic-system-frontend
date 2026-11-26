@@ -25,7 +25,10 @@ test('a ready chat model is tried in the existing chat, started as its own Try c
 
 test('every published model is tried in a side panel that closes on Escape and gives focus back', () => {
   assert.match(vue, /id="try-published" class="panel try-panel try-side"[\s\S]*?role="dialog" aria-modal="true" aria-labelledby="try-title"/);
-  assert.match(vue, /function onPanelKey\(event\) \{ if \(event\.key === 'Escape'\)/);
+  assert.match(vue, /function onPanelKey\(event\) \{\s+if \(event\.key !== 'Escape'/);
+  // Heard on the document while the panel is open, so Escape works wherever focus fell (live check, 2026-11-26).
+  assert.match(vue, /if \(open\) document\.addEventListener\('keydown', onPanelKey\); else document\.removeEventListener\('keydown', onPanelKey\)/);
+  assert.match(vue, /onUnmounted\(\(\) => document\.removeEventListener\('keydown', onPanelKey\)\)/);
   assert.match(vue, /nextTick\(\(\) => opener\?\.focus\?\.\(\)\)/);
   assert.match(vue, /\.try-side\{position:fixed/);
 });
