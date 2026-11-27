@@ -101,6 +101,8 @@ const findsByName = computed(() => onPlatform.value && state.value?.call === 'se
 const readyChat = computed(() => onPlatform.value && state.value?.call === 'chat');
 // A video-understanding chat model (its hosted row's ``video``): its Try chat also takes one MP4 with a message.
 const chatTakesVideo = computed(() => readyChat.value && (state.value?.video ?? trying.value?.video) === true);
+// A chat model that reads photos (its hosted row's ``vision``): only then does its Try chat offer photos and say so.
+const chatTakesPhotos = computed(() => readyChat.value && ((state.value?.vision ?? trying.value?.vision) === true || chatTakesVideo.value));
 const readyPipeline = computed(() => onPlatform.value && state.value?.call === 'pipeline');
 // A hosted image or video generation model (ADM-1365 phase 2c): its Try is a form of words (and a photo for an
 // image-to-* task) and the image or video it makes. Its row says so before the state is read.
@@ -438,7 +440,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <div v-if="trying&&!trying.repo" class="try-backdrop" aria-hidden="true" @click="close"></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel try-side" :class="{ 'try-side--chat': readyChat }"
                role="dialog" aria-modal="true" aria-labelledby="try-title">
-        <header class="try-head"><div><h2 id="try-title">Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&readyChat">{{ trying.name }} answers your messages, and sees the photos you add when it reads images. It runs on AADML, which alone starts and stops it; each message is a free try.</p><p v-else-if="readyMedia">{{ trying.name }} makes {{ isVideo ? 'a short video' : 'an image' }} from your words{{ needsPhoto(mediaTask) ? ' and a photo you choose' : '' }}. It runs on AADML, which alone starts and stops it.</p><p v-else-if="onPlatform">{{ readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
+        <header class="try-head"><div><h2 id="try-title">Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform&&readyChat">{{ trying.name }} answers your messages{{ chatTakesVideo ? ', and sees the photos or the video you add' : chatTakesPhotos ? ', and sees the photos you add' : '' }}. It runs on AADML, which alone starts and stops it; each message is a free try.</p><p v-else-if="readyMedia">{{ trying.name }} makes {{ isVideo ? 'a short video' : 'an image' }} from your words{{ needsPhoto(mediaTask) ? ' and a photo you choose' : '' }}. It runs on AADML, which alone starts and stops it.</p><p v-else-if="onPlatform">{{ readyPipeline ? `${trying.name} answers your photo as its Hugging Face pipeline does.` : findsByName ? `${trying.name} finds what you name in your photo.` : `${trying.name} marks ${trying.marks || 'walls, windows and doors'} in your photo.` }} It runs on AADML, which alone starts and stops it; trying it here is free.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button id="try-close" class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -474,7 +476,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             </template>
             <!-- A hosted chat or vision model: the existing chat, run as every agent's conversation (ADM-1365 step 4). -->
             <AssistantChat v-if="state && readyChat" class="try-chat" :key="trying.key" :start-conversation="openTryChat"
-                           :accepts-video="chatTakesVideo" :assistant-name="trying.name" :message-placeholder="`Message ${trying.name}…`" @settled="loadState"/>
+                           :accepts-video="chatTakesVideo" :accepts-photos="chatTakesPhotos" :assistant-name="trying.name" :message-placeholder="`Message ${trying.name}…`" @settled="loadState"/>
             <!-- A hosted image or video generation model (ADM-1365 phase 2c): words (and a photo) in, an image or a video out. -->
             <form v-else-if="state && readyMedia" class="gen-form" novalidate :aria-busy="generating" data-test="gen-form" @submit.prevent="generate">
               <label class="field-label" for="gen-prompt">Describe {{ isVideo ? 'the video' : 'the image' }}</label>

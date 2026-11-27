@@ -55,10 +55,21 @@ test('the sent message keeps its video to show', () => {
 test('the chat takes a video only when told, shows it as a chip, and uploads it with the photos', () => {
   assert.match(chatVue, /acceptsVideo: \{ type: Boolean, default: false \}/);
   assert.match(chatVue, /const accept = computed\(\(\) => `image\/jpeg,image\/png,image\/webp\$\{props\.acceptsVideo \? `,\$\{VIDEO_TYPE\}` : ''\}`\)/);
-  assert.match(chatVue, /<input ref="picker" class="sr-only" type="file" :accept="accept"/);
+  assert.match(chatVue, /<input v-if="acceptsPhotos" ref="picker" class="sr-only" type="file" :accept="accept"/);
   assert.match(chatVue, /<li v-if="video" :key="video\.url" class="pending-video" data-test="pending-video">\s*<video :src="video\.url" muted/);
   assert.match(chatVue, /if \(clip\) attachmentIds\.push\(await assistantChat\.upload\(chat\.conversationId, clip\.file\)\)/);
   assert.match(chatVue, /<video v-if="m\.role === 'user' && m\.video" class="msg-video"/);
+});
+
+test('a text-only chat model offers no photos and does not say it sees them (owner, 2026-11-27)', () => {
+  assert.match(chatVue, /acceptsPhotos: \{ type: Boolean, default: true \}/);
+  assert.match(chatVue, /<button v-if="acceptsPhotos" class="attach"/);
+  assert.match(chatVue, /function onPaste\(event\) \{\r?\n  if \(!props\.acceptsPhotos\) return;/);
+  assert.match(chatVue, /if \(props\.acceptsPhotos\) addPhotos\(\[\.\.\.\(event\.dataTransfer\?\.files/);
+  assert.match(modelsVue, /const chatTakesPhotos = computed\(\(\) => readyChat\.value && \(\(state\.value\?\.vision \?\? trying\.value\?\.vision\) === true \|\| chatTakesVideo\.value\)\)/);
+  assert.match(modelsVue, /:accepts-photos="chatTakesPhotos"/);
+  assert.doesNotMatch(modelsVue, /answers your messages, and sees the photos you add when it reads images/);
+  assert.match(modelsVue, /chatTakesPhotos \? ', and sees the photos you add' : ''/);
 });
 
 test('the Try panel tells the chat it takes a video for a model whose row or state says video', () => {

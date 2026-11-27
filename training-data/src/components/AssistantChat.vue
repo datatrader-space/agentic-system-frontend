@@ -18,7 +18,9 @@ import { addUserMessage, applyEvent, assistantChat, emptyChat, fromHistory, MAX_
 // acceptsVideo: the model watches a video too (a video-understanding model's Try): one MP4 may go with a message.
 const props = defineProps({ agentId: { type: [Number, String], default: null }, requestContext: { type: String, default: '' },
   messagePlaceholder: { type: String, default: '' }, startConversation: { type: Function, default: null },
-  assistantName: { type: String, default: 'Training Assistant' }, acceptsVideo: { type: Boolean, default: false } });
+  assistantName: { type: String, default: 'Training Assistant' }, acceptsVideo: { type: Boolean, default: false },
+  // A model that reads no photos (a text-only chat model's Try, owner 2026-11-27): no photo button, drop or paste.
+  acceptsPhotos: { type: Boolean, default: true } });
 // started: a new conversation was made (the page lists it); conversation: the one shown now, or null for a new one;
 // empty: whether nothing is in the conversation yet (the page shows its start screen).
 const emit = defineEmits(['started', 'conversation', 'empty', 'settled']);
@@ -54,8 +56,9 @@ function addPhotos(files) {
 function removePhoto(i) { const [gone] = photos.value.splice(i, 1); if (gone) forget(gone.url); }
 function removeVideo() { if (video.value) forget(video.value.url); video.value = null; }
 function onPick(event) { addPhotos([...(event.target.files || [])]); event.target.value = ''; input.value?.focus(); }
-function onDrop(event) { dragging.value = false; addPhotos([...(event.dataTransfer?.files || [])]); }
+function onDrop(event) { dragging.value = false; if (props.acceptsPhotos) addPhotos([...(event.dataTransfer?.files || [])]); }
 function onPaste(event) {
+  if (!props.acceptsPhotos) return;
   const files = [...(event.clipboardData?.files || [])]
     .filter(f => f.type.startsWith('image/') || (props.acceptsVideo && f.type === VIDEO_TYPE));
   if (files.length) { event.preventDefault(); addPhotos(files); }
@@ -283,7 +286,7 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
     <p v-if="chat.error" class="field-error chat-error" role="alert">{{ chat.error }}</p>
 
     <form :class="['composer', { 'composer--drop': dragging }]" @submit.prevent="send" @click.self="input?.focus()"
-          @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
+          @dragover.prevent="dragging = acceptsPhotos" @dragleave.self="dragging = false" @drop.prevent="onDrop">
       <ul v-if="photos.length || video" class="pending" :aria-label="video ? 'Photos and video to send' : 'Photos to send'">
         <li v-for="(p, i) in photos" :key="p.url"><img :src="p.url" :alt="p.name">
           <button type="button" :aria-label="`Remove ${p.name}`" title="Remove" @click="removePhoto(i)"><X :size="12"/></button></li>
@@ -297,8 +300,8 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
                 :placeholder="messagePlaceholder || (isEmpty ? 'Describe what you want to train, measure or deploy, or add a photo…' : `Reply to the ${assistantName}…`)"
                 @keydown="onKey" @paste="onPaste"></textarea>
       <div class="composer-bar">
-        <input ref="picker" class="sr-only" type="file" :accept="accept" multiple tabindex="-1" aria-hidden="true" @change="onPick">
-        <button class="attach" type="button" :aria-label="attachWords" :title="acceptsVideo ? 'Add a photo (JPEG, PNG or WebP) or a video (MP4, up to 20 MB)' : 'Add a photo (JPEG, PNG or WebP)'" :disabled="attachFull || sending"
+        <input v-if="acceptsPhotos" ref="picker" class="sr-only" type="file" :accept="accept" multiple tabindex="-1" aria-hidden="true" @change="onPick">
+        <button v-if="acceptsPhotos" class="attach" type="button" :aria-label="attachWords" :title="acceptsVideo ? 'Add a photo (JPEG, PNG or WebP) or a video (MP4, up to 20 MB)' : 'Add a photo (JPEG, PNG or WebP)'" :disabled="attachFull || sending"
                 @click="picker?.click()"><ImagePlus :size="18"/></button>
         <span class="composer-hint">Enter sends · Shift + Enter for a new line</span>
         <button v-if="chat.running" class="send send--stop" type="button" aria-label="Stop the assistant" title="Stop" @click="stop"><Square :size="14"/></button>
