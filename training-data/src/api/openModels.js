@@ -69,6 +69,19 @@ export function bytesText(bytes) {
   return `${Math.max(0, Math.round(n / 1024))} KB`;
 }
 
+// A model's kind as a badge says it (open_models_models.OpenModel.KIND_CHOICES).
+export const KIND_LABELS = { chat: 'Chat', photo: 'Photo', image_gen: 'Image generation', video_gen: 'Video generation' };
+export function kindLabel(kind) {
+  return KIND_LABELS[kind] || '';
+}
+
+// A result's size as the server worked it out (open_models.size_label: its parameters and its weights' GB, or "size
+// not known"); never "0". An older answer without it shows its parameter count, else "size not known".
+export function sizeShown(row) {
+  if (row?.size_label) return row.size_label;
+  return row?.size && row.size !== '0' ? row.size : 'size not known';
+}
+
 // What a result can be used for, in words.
 export function usesText(uses = []) {
   const train = uses.includes('train'); const deploy = uses.includes('deploy');

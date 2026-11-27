@@ -13,10 +13,10 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import {
-  openModelsApi, SEARCH_KINDS, SHOWN, TYPE_PAUSE_MS, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
+  openModelsApi, SEARCH_KINDS, SHOWN, TYPE_PAUSE_MS, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, usesText, stateBadge,
   anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
   placeChoices, quoteFor, placeLine,
-  trainNote, gpuFacts,
+  trainNote, gpuFacts, kindLabel, sizeShown,
 } from '../api/openModels.js';
 
 const props = defineProps({ usable: { type: Array, default: () => [] } });
@@ -160,7 +160,7 @@ function searchNow() { clearTimeout(pause); search(); }
   <div class="om-page">
     <DeploymentHeader title="Open Models" heading-id="open-heading" eyebrow="DISCOVER YOUR NEXT FOUNDATION." :icon="Globe" description="Find supported models on Hugging Face and add them to your workspace for training or deployment."/>
     <DeploymentMetrics :items="openMetrics" :loaded="!!added && !listError"/>
-    <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Only supported models with commercial-use licences, safetensors weights, and no custom code are shown.</p></div>
+    <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Every model the Hub returns is shown. Each card says whether you can add it and, if not, why: safetensors weights and no custom code are always required.</p></div>
 
     <section class="om-section" aria-labelledby="om-added">
       <div class="models-list-head"><div><h3 id="om-added">Workspace models <span class="models-count">{{ added ? added.length : '—' }}</span></h3><p>Models available to your workspace's training and deployment flows.</p></div><UiButton :disabled="listing" @click="loadAdded"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton></div>
@@ -171,7 +171,7 @@ function searchNow() { clearTimeout(pause); search(); }
         <li v-for="m in added" :key="m.id">
           <div class="om-row-head">
             <span class="model-row-icon" aria-hidden="true"><MessageSquareText v-if="m.kind==='chat'" :size="18"/><ImageIcon v-else :size="18"/></span>
-            <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }} · {{ m.kind === 'chat' ? 'Chat' : 'Photo' }} · {{ m.size }} · {{ bytesText(m.bytes) }} · commit {{ (m.revision || "").slice(0, 12) }}</small></div>
+            <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }} · {{ kindLabel(m.kind) }} · {{ sizeShown(m) }} · commit {{ (m.revision || "").slice(0, 12) }}</small></div>
             <div class="om-row-tags"><span class="om-added-licence"><Scale :size="14" aria-hidden="true"/>{{ m.licence_name }}</span><UiBadge :tone="modelBadge(m)[0]">{{ modelBadge(m)[1] }}</UiBadge></div>
           </div>
           <div class="om-row-notes">
@@ -229,11 +229,11 @@ function searchNow() { clearTimeout(pause); search(); }
       </div>
       <div class="om-grid">
         <article v-for="row in visible" :key="row.repo" class="panel om-card" :class="{ 'om-card--off': !row.added && !!cannotAdd(row) }" :data-test="`om-card-${row.repo}`">
-          <div class="om-card-head"><UiBadge v-if="row.kind">{{ row.kind === 'chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.commercial === false" tone="amber">Not for commercial use</UiBadge><UiBadge v-if="row.gated" tone="amber">Gated</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge v-if="row.added" :tone="stateBadge(row.added.state)[0]">{{ stateBadge(row.added.state)[1] }}</UiBadge></div>
+          <div class="om-card-head"><UiBadge v-if="row.kind">{{ kindLabel(row.kind) }}</UiBadge><UiBadge v-if="row.commercial === false" tone="amber">Not for commercial use</UiBadge><UiBadge v-if="row.gated" tone="amber">Gated</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge v-if="row.added" :tone="stateBadge(row.added.state)[0]">{{ stateBadge(row.added.state)[1] }}</UiBadge></div>
           <h3>{{ row.name }}</h3>
           <p class="om-publisher">{{ row.publisher }}</p>
           <dl class="om-facts">
-            <div><dt>Size</dt><dd>{{ row.size }}</dd></div>
+            <div><dt>Size</dt><dd>{{ sizeShown(row) }}</dd></div>
             <div><dt><Download :size="12" aria-hidden="true"/>Downloads</dt><dd>{{ shortCount(row.downloads) }}</dd></div>
             <div><dt><Heart :size="12" aria-hidden="true"/>Likes</dt><dd>{{ shortCount(row.likes) }}</dd></div>
             <div v-if="day(row.updated)"><dt>Updated</dt><dd>{{ day(row.updated) }}</dd></div>
@@ -245,6 +245,7 @@ function searchNow() { clearTimeout(pause); search(); }
           </div>
           <p v-if="row.gated" class="om-gated"><Lock :size="14" aria-hidden="true"/>{{ row.gated_note || 'Its publisher asks for its terms to be accepted before a download.' }}</p>
           <p class="om-uses">{{ usesText(row.uses) }}</p>
+          <p v-if="row.size_note" class="om-note" data-test="om-size-note">{{ row.size_note }}</p>
           <div class="om-card-actions">
             <UiButton v-if="!row.added" variant="primary" :disabled="!!cannotAdd(row) || adding===row.repo" :title="cannotAdd(row)" :aria-describedby="cannotAdd(row) ? `why-${row.repo}` : undefined" @click="askAdd(row)">
               <span v-if="adding===row.repo" class="om-spinner on-primary" aria-hidden="true"></span><Plus v-else :size="15" aria-hidden="true"/>{{ adding===row.repo ? 'Adding…' : 'Add to workspace' }}</UiButton>

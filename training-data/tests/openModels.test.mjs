@@ -264,3 +264,20 @@ test('the server says per person whether a model may be added, and why not', () 
   assert.equal(addRefusal({ addable: true, gated: true, uses: ['deploy'] }, { mayAdd: true, gatedEnabled: false }), '');
   assert.equal(addRefusal({ addable: true, uses: ['deploy'] }, { mayAdd: false }), 'Adding a model needs the Train right in this workspace.');
 });
+
+test('a card says its kind and its size in words, never "0", and an admin with addable true has Add', async () => {
+  const { kindLabel, sizeShown } = await import('../src/api/openModels.js');
+  assert.equal(kindLabel('image_gen'), 'Image generation');
+  assert.equal(kindLabel('video_gen'), 'Video generation');
+  assert.equal(kindLabel('chat'), 'Chat');
+  assert.equal(sizeShown({ size_label: '17.2 GB', size: '' }), '17.2 GB');
+  assert.equal(sizeShown({ size: '0' }), 'size not known');
+  assert.equal(sizeShown({ size: '' }), 'size not known');
+  assert.equal(sizeShown({ size: '12B' }), '12B');
+  const admin = { repo: 'Comfy-Org/Flux-1-Dev', addable: true, why_not: '', commercial: false, gated: false, uses: ['deploy'] };
+  assert.equal(addRefusal(admin, { mayAdd: true }), '');
+  const page = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
+  assert.match(page, /sizeShown\(row\)/);
+  assert.match(page, /kindLabel\(row\.kind\)/);
+  assert.doesNotMatch(page, /\{\{ row\.size \}\}/);
+});
