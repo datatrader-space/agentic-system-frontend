@@ -353,9 +353,41 @@ export const publishedApi = {
   tryConversation: key => apiFetch(`${APP}/published/${enc(key)}/try-conversation/`, { method: 'POST', body: {} }),
   // A hosted image or video generation model (ADM-1365 phase 2c): one image or one short video from the person's words
   // (and a photo for an image-to-* task). A video can take minutes, so the call waits up to 15 minutes.
-  generate: (key, body) => apiFetch(`${APP}/published/${enc(key)}/generate/`, { method: 'POST', body, timeoutMs: GENERATE_MS }),
+  // The request answers at once (202) with { generation_id, status: 'queued' } (ADM-1365 plan 8.3: a long one would
+  // pass nginx's 300 s); followGeneration asks for it until it is done or refused and returns the finished answer.
+  generate: async (key, body, { onState } = {}) => {
+    const asked = await apiFetch(`${APP}/published/${enc(key)}/generate/`, { method: 'POST', body, timeoutMs: 60000 });
+    return followGeneration(asked, { onState });
+  },
+  generation: id => apiFetch(`${APP}/generations/${enc(id)}/`),
 };
 const GENERATE_MS = 15 * 60 * 1000;
+//: How often a generation is asked for, and for how long at most (a video: up to 15 minutes, its queue a little more).
+export const GENERATION_POLL_MS = 2000;
+const GENERATION_WAIT_MS = GENERATE_MS + 5 * 60 * 1000;
+
+// Asks for a generation every GENERATION_POLL_MS until it is done (its images or video) or refused (its error, thrown
+// with the server's words and field). An answer that is already finished (an older server's) is returned as it is.
+export async function followGeneration(asked, { onState, wait = ms => new Promise(r => setTimeout(r, ms)), now = () => Date.now(),
+  ask = id => apiFetch(`${APP}/generations/${enc(id)}/`) } = {}) {
+  if (!asked || !asked.generation_id || asked.status === 'done' || asked.images || asked.video) return asked;
+  const id = asked.generation_id;
+  const until = now() + GENERATION_WAIT_MS;
+  let seen = asked;
+  for (;;) {
+    if (seen.status === 'done') return { ...asked, ...seen };
+    if (seen.status === 'refused') {
+      const error = new Error(seen.error?.message || 'Nothing was made.');
+      error.field = seen.error?.field || '';
+      error.code = seen.error?.code || 'refused';
+      throw error;
+    }
+    if (now() > until) throw new Error('The generation did not finish in time. Try again.');
+    if (onState) onState(seen.status);
+    await wait(GENERATION_POLL_MS);
+    seen = await ask(id);
+  }
+}
 
 // ── a generation model's Try (ADM-1365 phase 2c): the backend's media_task names what it makes ──
 const MEDIA_KINDS = { 'text-to-image': 'Image generation', 'image-to-image': 'Image generation', 'text-to-video': 'Video generation', 'image-to-video': 'Video generation' };

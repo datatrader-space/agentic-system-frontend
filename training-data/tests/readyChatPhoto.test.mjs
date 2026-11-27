@@ -61,9 +61,10 @@ test('an admin-only model is listed, marked, and its Use model and Try it are di
 
 // ADM-1365 phase 2c: a hosted image or video generation model is tried with a form of words (and a photo for an
 // image-to-* task) in the same side panel; the image or video it makes is shown with a download.
-test('a generation model is tried with the generate form, called with a long timeout', () => {
+test('a generation model is tried with the generate form, asked once and followed until it is made', () => {
   const api = readFileSync(new URL('../src/api/workspace.js', import.meta.url), 'utf8');
-  assert.match(api, /generate: \(key, body\) => apiFetch\(`\$\{APP\}\/published\/\$\{enc\(key\)\}\/generate\/`, \{ method: 'POST', body, timeoutMs: GENERATE_MS \}\)/);
+  // The request answers at once (202 queued); the long wait is the following (followGeneration), never one request.
+  assert.match(api, /const asked = await apiFetch\(`\$\{APP\}\/published\/\$\{enc\(key\)\}\/generate\/`, \{ method: 'POST', body, timeoutMs: 60000 \}\);\s*return followGeneration\(asked, \{ onState \}\);/);
   assert.match(api, /const GENERATE_MS = 15 \* 60 \* 1000;/);
   assert.match(vue, /const readyMedia = computed\(\(\) => \(state\.value\?\.call \|\| trying\.value\?\.call\) === 'media'\)/);
   assert.match(vue, /<form v-else-if="state && readyMedia" class="gen-form"[^>]*@submit\.prevent="generate">/);

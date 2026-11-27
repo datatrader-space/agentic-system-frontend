@@ -37,9 +37,9 @@ beforeEach(() => {
 })
 afterEach(() => { w?.unmount(); vi.useRealTimers() })
 
-// Only the model chosen is shown in the card (owner, 2026-11-26): choose it as the admin does, then read its card.
+// Only the model chosen is shown in the panel: choose it in the list as the admin does, then read its panel.
 async function showModel(key) {
-  await w.get('[data-test="rm-choose"]').setValue(key)
+  await w.get(`[data-test="rm-row-${key}"]`).trigger('click')
   return w.get(`[data-test="rm-model-${key}"]`)
 }
 async function render() { w = mount(AdminReadyModels, { attachTo: document.body }); await flushPromises(); return w }
@@ -233,7 +233,8 @@ describe('AdminReadyModels', () => {
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), walls()], machines: fitted, kinds } })
     await render()
     const card = (await showModel('segformer-b0'))
-    expect(card.get('[data-test="rm-files"]').text()).toBe('Its files are being made ready by AADML.')
+    expect(card.get('[data-test="rm-fetching"]').text()).toBe('Its files are being made ready by AADML.')
+    expect(card.get('[data-test="rm-files"]').text()).toBe('Being fetched (progress above)')
     expect(card.get('[data-test="rm-gpu"]').text()).toBe('None: it runs on a CPU too')
     expect(card.find('[data-test="rm-fetch"]').exists()).toBe(true)
     expect(card.find('[data-test="rm-remove"]').exists()).toBe(false)
@@ -408,20 +409,159 @@ describe('AdminReadyModels', () => {
     expect(add.get('[data-test="rm-search-said"]').text()).toContain('Qwen/Qwen3-0.6B is chosen')
   })
 
-  // The owner, 2026-11-26: one card for the model chosen, and a table of every model.
-  it('shows one card for the model chosen, a running one first, and a table of every model that opens a model', async () => {
+  // The owner, 2026-11-27: every model in one list; the chosen one opens its details beside it.
+  const shownRows = () => w.get('[data-test="rm-table"]').findAll('button[data-test^="rm-row-"]').map(r => r.attributes('data-test'))
+
+  it('shows one panel for the model chosen, a running one first, and a list of every model that opens a model', async () => {
     const on = qwen({ state: 'on', host: 'machine', machine: { id: 4, name: 'Studio PC' }, price_text: '$0.002 an image' })
     api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), on], machines: fitted, kinds } })
     await render()
     expect(w.findAll('[data-test^="rm-model-"]').length).toBe(1)
-    expect(w.get('[data-test="rm-choose"]').element.value).toBe('qwen3-vl-8b')          // the running one first
-    const rows = w.get('[data-test="rm-table"]').findAll('tbody tr')
-    expect(rows.map(r => r.attributes('data-test'))).toEqual(['rm-row-qwen3-vl-8b', 'rm-row-sam3'])
-    expect(rows[0].text()).toContain('$0.002 an image')
-    await w.get('[data-test="rm-row-sam3"] button').trigger('click')
-    expect(w.get('[data-test="rm-choose"]').element.value).toBe('sam3')
+    expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(true)                  // the running one first
+    expect(w.get('[data-test="rm-row-qwen3-vl-8b"]').attributes('aria-current')).toBe('true')
+    expect(shownRows()).toEqual(['rm-row-qwen3-vl-8b', 'rm-row-sam3'])
+    expect(w.get('[data-test="rm-row-qwen3-vl-8b"]').text()).toContain('$0.002 an image')
+    await w.get('[data-test="rm-row-sam3"]').trigger('click')
+    expect(w.get('[data-test="rm-row-sam3"]').attributes('aria-current')).toBe('true')
     expect(w.find('[data-test="rm-model-sam3"]').exists()).toBe(true)
     expect(w.find('[data-test="rm-model-qwen3-vl-8b"]').exists()).toBe(false)
+  })
+
+  it('lists every model with its state in words, and says how many of all run', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { machines: fitted, kinds, models: [
+      sam(), qwen({ state: 'on', host: 'runpod' }), qwen({ key: 'bad', name: 'Bad one', state: 'failed' }),
+      qwen({ key: 'warm', name: 'Warm one', state: 'starting', host: 'runpod' })] } })
+    await render()
+    const states = Object.fromEntries(['sam3', 'qwen3-vl-8b', 'bad', 'warm'].map(k =>
+      [k, w.get(`[data-test="rm-row-${k}"] [data-test="rm-row-state"]`).text()]))
+    expect(states).toEqual({ sam3: 'Off', 'qwen3-vl-8b': 'On', bad: 'Failed', warm: 'Starting' })
+    expect(w.get('[data-test="rm-running"]').text()).toBe('1 of 4 running')
+    expect(w.get('[data-test="rm-filter-failed"]').text()).toContain('1')
+  })
+
+  it('filters the list by state, kind and name, and offers to show every model when none matches', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { machines: fitted, kinds, models: [
+      sam({ kind: 'segment', kind_label: 'Outlines (SAM 3)' }), qwen({ state: 'on', host: 'runpod' }),
+      qwen({ key: 'bge', name: 'BGE small', kind: 'search', kind_label: 'Search embeddings' })] } })
+    await render()
+    await w.get('[data-test="rm-filter-on"]').trigger('click')
+    expect(w.get('[data-test="rm-filter-on"]').attributes('aria-pressed')).toBe('true')
+    expect(shownRows()).toEqual(['rm-row-qwen3-vl-8b'])
+    await w.get('[data-test="rm-filter-all"]').trigger('click')
+    await w.get('[data-test="rm-kind-filter"]').setValue('search')
+    expect(shownRows()).toEqual(['rm-row-bge'])
+    await w.get('[data-test="rm-kind-filter"]').setValue('')
+    await w.get('[data-test="rm-name-filter"]').setValue('sam')
+    expect(shownRows()).toEqual(['rm-row-sam3'])
+    await w.get('[data-test="rm-name-filter"]').setValue('nothing like it')
+    expect(w.get('[data-test="rm-none"]').text()).toContain('No model matches')
+    await w.get('[data-test="rm-none"] button').trigger('click')
+    expect(shownRows().length).toBe(3)
+  })
+
+  it("shows the fetch of a model's files as progress, with a bar when the server gives its share", async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { machines: fitted, kinds, models: [qwen({ files_ready: false,
+      files_text: 'Uploading its files to AADML from Studio PC: 1.8 of 5.1 GB (35%), 2.4 MB/s.' })] } })
+    await render()
+    const wait = w.get('[data-test="rm-fetching"]')
+    expect(wait.text()).toContain('1.8 of 5.1 GB (35%)')
+    expect(wait.get('[data-test="rm-files-bar"]').attributes('value')).toBe('35')
+    expect(w.get('[data-test="rm-row-qwen3-vl-8b"]').text()).toContain('Fetching its files')
+  })
+
+  it('polls every 5 seconds only while a model starts or its files are fetched, and stops when nothing is', async () => {
+    vi.useFakeTimers()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
+    await render()
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.readyModelsAdmin).toHaveBeenCalledTimes(1)                    // nothing in progress: no polling
+    w.unmount()
+    api.readyModelsAdmin.mockReset()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen({ files_ready: false, files_text: 'Fetching its files on Studio PC.' })],
+      machines: fitted, kinds } })
+    await render()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(api.readyModelsAdmin).toHaveBeenCalledTimes(2)
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(api.readyModelsAdmin).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.readyModelsAdmin).toHaveBeenCalledTimes(3)                    // files ready: no more polling
+    w.unmount()
+    api.readyModelsAdmin.mockReset()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [qwen({ files_ready: false,
+      files_text: 'Its files could not be fetched: the disk is full.' })], machines: fitted, kinds } })
+    await render()
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.readyModelsAdmin).toHaveBeenCalledTimes(1)                    // a failed fetch is not in progress
+    expect(w.get('[data-test="rm-files"]').text()).toContain('could not be fetched')
+  })
+
+  it('asks in a dialog before a remove, keeps the model on Keep it, and cannot remove a running one', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam(), qwen()], machines: fitted, kinds } })
+    await render()
+    await (await showModel('qwen3-vl-8b')).get('[data-test="rm-remove"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="rm-remove-confirm"]').attributes('role')).toBe('alertdialog')
+    expect(document.activeElement).toBe(w.get('[data-test="rm-remove-no"]').element)   // the safe choice first
+    await w.get('[data-test="rm-remove-no"]').trigger('click')
+    expect(w.find('[data-test="rm-remove-confirm"]').exists()).toBe(false)
+    expect(api.readyModelCameraRemove).not.toHaveBeenCalled()
+    w.unmount()
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [qwen({ state: 'on', host: 'runpod' })], machines: fitted, kinds } })
+    await render()
+    expect(w.get('[data-test="rm-remove"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="rm-model-qwen3-vl-8b"]').text()).toContain('Stop it first to remove it.')
+  })
+
+  it('says why Start cannot be pressed', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam({ platform_machine: { id: 5, name: 'Old box' } })], machines, kinds } })
+    await render()
+    expect(w.get('[data-test="rm-start"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="rm-host-help"]').text()).toBe('Choose where it runs to start it.')
+  })
+
+  it('fills the GPU memory from the search row, and never says a GPU kind runs on a CPU', async () => {
+    api.readyModelsAdmin.mockResolvedValue({ data: { models: [sam()], machines: fitted, kinds: allKinds } })
+    api.readyModelSearch.mockResolvedValue({ data: { results: [
+      { repo: 'Qwen/Qwen3-8B', name: 'Qwen3-8B', kind: 'chat', task: 'text-generation', addable: true, parameters: 8e9, need_gb_run: 20 },
+      { repo: 'acme/no-size', name: 'no-size', kind: 'chat', task: 'text-generation', addable: true }] } })
+    api.readyModelCameraAdd.mockResolvedValue({ data: qwen({ key: 'qwen3-8b', kind: 'chat' }) })
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    await add.get('[data-test="rm-search-q"]').setValue('qwen')
+    await add.get('form.rm-search').trigger('submit')
+    await flushPromises()
+    expect(add.get('[data-test="rm-found"]').text()).toContain('To run: about 20 GB GPU')
+    await add.get('[data-test="rm-found-use-Qwen/Qwen3-8B"]').trigger('click')
+    expect(add.get('[data-test="rm-add-gpu"]').element.value).toBe('20')
+    expect(add.get('[data-test="rm-add-gpu-help"]').text()).toContain('About 20 GB to run')
+    await add.get('form.rm-add-form').trigger('submit')
+    await flushPromises()
+    expect(api.readyModelCameraAdd.mock.calls[0][0]).toMatchObject({ key: 'qwen3-8b', kind: 'chat', gpu_gb: 20, task: 'text-generation' })
+    // No size in the row: the field stays empty (the server works it out), and its words never say a CPU will do.
+    await add.get('[data-test="rm-search-q"]').setValue('size')
+    await add.get('form.rm-search').trigger('submit')
+    await flushPromises()
+    await add.get('[data-test="rm-found-use-acme/no-size"]').trigger('click')
+    const gpu = add.get('[data-test="rm-add-gpu"]')
+    expect(gpu.element.value).toBe('')
+    expect(gpu.attributes('placeholder')).not.toContain('CPU')
+    await gpu.setValue('0')
+    expect(add.get('[data-test="rm-add-gpu-help"]').text()).toContain('runs only on a GPU')
+    await add.get('form.rm-add-form').trigger('submit')
+    expect(api.readyModelCameraAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks the key as the admin types it', async () => {
+    await render()
+    const add = w.get('[data-test="rm-add"]')
+    await add.get('[data-test="rm-add-key"]').setValue('Bad Key')
+    expect(add.get('[data-test="rm-add-key"]').attributes('aria-invalid')).toBe('true')
+    expect(add.get('[data-test="rm-add-key-help"]').text()).toContain('3 to 40 lowercase letters')
+    expect(add.get('[data-test="rm-add-key-help"]').classes()).toContain('rm-error')
+    await add.get('[data-test="rm-add-key"]').setValue('good-key')
+    expect(add.get('[data-test="rm-add-key"]').attributes('aria-invalid')).toBe('false')
   })
 
   it('shows at most 10 results, and opens the list again when the admin types', async () => {
