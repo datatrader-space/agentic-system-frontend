@@ -104,3 +104,24 @@ test('only Git Bash gets MSYS_NO_PATHCONV=1; cmd, PowerShell, the Docker termina
   assert.equal(defaultShell('MacIntel'), 'unix');
   assert.equal(defaultShell('Linux x86_64'), 'unix');
 });
+
+test('the agent log (agent 1.9.3): its route, its empty words and when it last came', async () => {
+  const { agentLogEmpty, agentLogUpdated, AGENT_LOG_LINES } = await import('../src/api/machines.js');
+  const seen = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url, init });
+    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ lines: [] }) };
+  };
+  try { await machinesApi.log(7); await machinesApi.log(7, 50); } finally { globalThis.fetch = original; }
+  assert.deepEqual(seen.map(s => [s.init.method, s.url]), [
+    ['GET', `/api/training-data/app/workspace/machines/7/log/?lines=${AGENT_LOG_LINES}`],
+    ['GET', '/api/training-data/app/workspace/machines/7/log/?lines=50'],
+  ]);
+  assert.match(agentLogEmpty({ lines: [] }, { agent_version: '1.9.2' }), /^This machine sends its log from agent 1\.9\.3\. It runs 1\.9\.2/);
+  assert.match(agentLogEmpty({ lines: [] }, { agent_version: '1.9.3' }), /next heartbeat/);
+  assert.equal(agentLogEmpty({ lines: ['x'] }, { agent_version: '1.9.3' }), '');
+  const now = Date.parse('2026-11-27T10:05:00Z');
+  assert.equal(agentLogUpdated('2026-11-27T10:03:00Z', now), 'Updated 2 minutes ago');
+  assert.equal(agentLogUpdated(null, now), '');
+});

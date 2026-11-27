@@ -9,6 +9,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import MachineConnection from './MachineConnection.vue';
 import MachineNeeds from './MachineNeeds.vue';
+import MachineAgentLog from './MachineAgentLog.vue';
 import { machinesApi, machineState, capabilityLine, lastSeen, projectsLine, MACHINE_COMMANDS, reachCommand } from '../api/machines.js';
 
 const props = defineProps({ embedded: Boolean });
@@ -102,6 +103,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(checkTime
           </div>
           <p>{{ capabilityLine(m.capabilities) }}</p>
           <p class="machine-meta">{{ lastSeen(m.last_seen_at, now) }}. {{ projectsLine(m) }}. {{ m.jobs ? `${m.jobs} job${m.jobs === 1 ? '' : 's'} now.` : 'No job now.' }}</p>
+          <MachineAgentLog v-if="data.may_manage" :machine="m" :now="now"/>
         </div>
         <UiButton v-if="data.may_manage" :aria-label="`Remove ${m.name}`" @click="removing = m; removeError = ''"><Trash2 :size="16" aria-hidden="true"/> Remove</UiButton>
       </li>
@@ -172,7 +174,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(checkTime
 .machines-empty{display:flex;flex-direction:column;align-items:center}
 .machine-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
 .machine-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px}
-.machine-main{min-width:0}
+.machine-main{min-width:0;flex:1}
 .machine-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .machine-title strong{font-size:14px;overflow-wrap:anywhere}
 .machine-row p{margin:4px 0 0}

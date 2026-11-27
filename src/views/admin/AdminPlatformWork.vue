@@ -84,14 +84,43 @@
         <p class="pw-help">If the chosen place cannot run it now, it is refused and says why; it is never moved to the other place.</p>
       </section>
 
+      <section class="pw-card admin-surface" aria-labelledby="pw-jobs-title" data-test="pw-jobs">
+        <h2 id="pw-jobs-title">Platform jobs</h2>
+        <p class="pw-help">
+          The platform's own jobs: image builds, tests, scans and signatures, preparations and downloads. While one runs,
+          its machine sends its stage, the build step and its container's last lines (agent 1.9.3), and this list is read
+          again every {{ JOBS_REFRESH_SECONDS }} seconds.
+        </p>
+        <p v-if="!jobs.length" class="pw-help" data-test="pw-jobs-empty">No platform job has run yet.</p>
+        <ul v-else class="pw-jobs">
+          <li v-for="j in jobs" :key="j.id" class="pw-job" :data-test="`pw-job-${j.id}`">
+            <div class="pw-job-head">
+              <strong>{{ jobWords(j) }}</strong>
+              <span class="pw-job-state" :class="`is-${j.state}`">{{ j.state_label }}</span>
+            </div>
+            <p class="pw-job-meta">
+              {{ j.machine?.name }}<template v-if="j.stage"> · stage {{ j.stage }}</template><template v-if="j.build_step"> · step {{ j.build_step }}</template><template v-if="j.reported_at"> · last report {{ new Date(j.reported_at).toLocaleTimeString() }}</template>
+            </p>
+            <p v-if="j.failure" class="pw-job-failure">{{ j.failure }}</p>
+            <template v-if="tailOf(j).length">
+              <button type="button" class="pw-fold" :aria-expanded="isOpen(j)" :aria-controls="`pw-job-log-${j.id}`" @click="toggle(j)">
+                <ChevronDown :size="15" aria-hidden="true" :class="{ 'is-open': isOpen(j) }" />
+                {{ j.log_tail?.length ? 'Last lines of its container' : 'The end of its log' }}
+              </button>
+              <pre v-if="isOpen(j)" :id="`pw-job-log-${j.id}`" class="pw-job-log" tabindex="0">{{ tailOf(j).join('\n') }}</pre>
+            </template>
+          </li>
+        </ul>
+      </section>
+
       <p v-if="settings.updated_by" class="pw-updated">Last changed by {{ settings.updated_by }}<template v-if="settings.updated_at">, {{ new Date(settings.updated_at).toLocaleString() }}</template>.</p>
     </template>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { CircleCheck, RefreshCw, Save, Server, TriangleAlert } from 'lucide-vue-next'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { ChevronDown, CircleCheck, RefreshCw, Save, Server, TriangleAlert } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 
@@ -103,11 +132,49 @@ const settings = ref({ places: [] })
 const machines = ref([])
 const machinePick = ref('')
 const saving = ref('')
+const jobs = ref([])
+const opened = ref(new Set())
+const JOBS_REFRESH_SECONDS = 10
+const ACTIVE = new Set(['queued', 'running', 'uploaded'])
+const KIND_WORDS = { image_build: 'Build', image_test: 'Test', image_scan: 'Scan', image_sign: 'Signature',
+  fetch: 'Download', preparation: 'Preparation' }
+
+function jobWords(j) {
+  const kind = KIND_WORDS[j.job_kind] || KIND_WORDS[j.kind] || j.kind
+  return j.family ? `${kind} of ${j.family}` : kind
+}
+// While a job runs, the last lines its machine sent; once it ended, the end of its log.
+function tailOf(j) {
+  if (j.log_tail?.length) return j.log_tail
+  return j.log_end ? j.log_end.split('\n') : []
+}
+const isOpen = j => opened.value.has(j.id)
+function toggle(j) {
+  const next = new Set(opened.value)
+  if (next.has(j.id)) next.delete(j.id); else next.add(j.id)
+  opened.value = next
+}
+
+let jobsTimer = null
+let gone = false
+function followJobs() {
+  clearTimeout(jobsTimer)
+  if (!gone && jobs.value.some(j => ACTIVE.has(j.state))) jobsTimer = setTimeout(refreshJobs, JOBS_REFRESH_SECONDS * 1000)
+}
+// Read the jobs again without touching the settings the admin may be choosing.
+async function refreshJobs() {
+  try {
+    jobs.value = (await api.platformWorkAdmin()).data?.jobs || []
+  } catch { /* the next refresh or the Refresh button tries again */ }
+  followJobs()
+}
 
 function apply(data) {
   settings.value = data
   machines.value = data.machines || []
   machinePick.value = data.machine ? String(data.machine.id) : ''
+  jobs.value = data.jobs || []
+  followJobs()
 }
 
 async function load() {
@@ -138,6 +205,7 @@ async function save(name, value) {
 }
 
 onMounted(load)
+onUnmounted(() => { gone = true; clearTimeout(jobsTimer) })
 </script>
 
 <style scoped>
@@ -162,5 +230,21 @@ onMounted(load)
 .pw-loading { display: grid; gap: 12px; margin-top: 16px; }
 .pw-skeleton { height: 120px; border-radius: 12px; background: #f1f5f9; }
 .pw-load-error { display: flex; gap: 10px; align-items: center; padding: 14px 16px; margin-top: 16px; color: #b91c1c; }
+.pw-jobs { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.pw-job { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
+.pw-job-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pw-job-state { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; }
+.pw-job-state.is-running, .pw-job-state.is-queued, .pw-job-state.is-uploaded { background: #eff6ff; color: #1d4ed8; }
+.pw-job-state.is-done { background: #ecfdf5; color: #047857; }
+.pw-job-state.is-failed { background: #fef2f2; color: #b91c1c; }
+.pw-job-meta { color: #64748b; font-size: 12px; margin: 4px 0 0; overflow-wrap: anywhere; }
+.pw-job-failure { color: #b91c1c; font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
+.pw-fold { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px; border: 0; background: none; color: #334155; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pw-fold:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 4px; }
+.pw-fold svg { transition: transform .15s; }
+.pw-fold svg.is-open { transform: rotate(180deg); }
+.pw-job-log { margin: 4px 0 0; max-height: 320px; overflow: auto; background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 12px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-job-log:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .pw-fold svg { transition: none; } }
 @media (max-width: 640px) { .pw-row { flex-direction: column; align-items: stretch; } .pw-select { min-width: 0; } }
 </style>

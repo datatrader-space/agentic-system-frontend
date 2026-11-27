@@ -61,6 +61,45 @@ describe('Platform work', () => {
     expect(notifyMock.success).toHaveBeenCalledWith('Models are prepared and downloaded on RunPod from now on.')
   })
 
+  it('shows each platform job with its live stage, build step and last lines, and reads them again while one runs', async () => {
+    vi.useFakeTimers()
+    try {
+      const running = { id: 41, kind: 'image_build', job_kind: 'image_build', family: 'chat-serve', state: 'running',
+        state_label: 'Running', machine: { id: 3, name: 'cd2ccc296f7f' }, stage: 'running', build_step: '12/40',
+        log_tail: ['INFO[0042] RUN pip install torch', 'Collecting torch'], failure: '', log_end: '', reported_at: null }
+      const failed = { id: 40, kind: 'image_build', job_kind: 'image_build', family: 'vision-serve', state: 'failed',
+        state_label: 'Failed', machine: { id: 3, name: 'cd2ccc296f7f' }, stage: 'running', build_step: '', log_tail: [],
+        failure: 'cd2ccc296f7f stopped answering: no heartbeat for 3 minutes.', log_end: 'last line', reported_at: null }
+      api.platformWorkAdmin.mockResolvedValue({ data: payload({ jobs: [running, failed] }) })
+      w = mount(AdminPlatformWork); await flushPromises()
+      const job = w.get('[data-test="pw-job-41"]')
+      expect(job.text()).toContain('Build of chat-serve')
+      expect(job.text()).toContain('stage running')
+      expect(job.text()).toContain('step 12/40')
+      const fold = job.get('button.pw-fold')
+      expect(fold.attributes('aria-expanded')).toBe('false')
+      await fold.trigger('click')
+      expect(fold.attributes('aria-expanded')).toBe('true')
+      expect(job.get('pre').text()).toBe('INFO[0042] RUN pip install torch\nCollecting torch')
+      const ended = w.get('[data-test="pw-job-40"]')
+      expect(ended.text()).toContain('stopped answering')
+      expect(ended.text()).toContain('The end of its log')
+      expect(api.platformWorkAdmin).toHaveBeenCalledTimes(1)
+      api.platformWorkAdmin.mockResolvedValue({ data: payload({ jobs: [{ ...running, state: 'done', state_label: 'Done', log_tail: [] }] }) })
+      await vi.advanceTimersByTimeAsync(10000); await flushPromises()
+      expect(api.platformWorkAdmin).toHaveBeenCalledTimes(2)                  // read again while one ran
+      expect(w.get('[data-test="pw-job-41"]').text()).toContain('Done')
+      await vi.advanceTimersByTimeAsync(30000); await flushPromises()
+      expect(api.platformWorkAdmin).toHaveBeenCalledTimes(2)                  // none runs: not read again
+    } finally { vi.useRealTimers() }
+  })
+
+  it('says when no platform job has run', async () => {
+    api.platformWorkAdmin.mockResolvedValue({ data: payload() })
+    w = mount(AdminPlatformWork); await flushPromises()
+    expect(w.get('[data-test="pw-jobs-empty"]').text()).toContain('No platform job has run yet.')
+  })
+
   it('says why the settings could not be read', async () => {
     api.platformWorkAdmin.mockRejectedValue({ response: { status: 403, data: { error: 'Platform administrators only.' } } })
     w = mount(AdminPlatformWork); await flushPromises()

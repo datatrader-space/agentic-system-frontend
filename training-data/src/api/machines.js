@@ -16,7 +16,28 @@ export const machinesApi = {
   // Look for cameras on the machine's network (an Admin; agent 1.6.0): one search a machine at a time, then its answer.
   discover: id => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/discover/`, { method: 'POST', body: {} }),
   discovery: (id, job) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/discover/${encodeURIComponent(job)}/`),
+  // The machine agent's own log (an Admin; agent 1.9.3): {id, name, lines, total, updated_at, agent_version}.
+  log: (id, lines = AGENT_LOG_LINES) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/log/?lines=${encodeURIComponent(lines)}`),
 };
+
+// ── the agent's own log (backend: machines.agent_log; agent 1.9.3 sends it with each heartbeat) ──────────────────
+export const AGENT_LOG_AGENT = '1.9.3';
+// How many of its newest lines the page asks for, and how often it reads them again while the fold is open.
+export const AGENT_LOG_LINES = 300;
+export const AGENT_LOG_REFRESH_MS = 10000;
+// What the fold says when the machine has sent no line ('' when it has some).
+export function agentLogEmpty(answer, machine) {
+  if (answer?.lines?.length) return '';
+  if (!agentAtLeast(machine?.agent_version || answer?.agent_version, AGENT_LOG_AGENT)) {
+    return `This machine sends its log from agent ${AGENT_LOG_AGENT}. It runs ${machine?.agent_version || answer?.agent_version || 'an older agent'}; it updates itself when it is idle.`;
+  }
+  return "No line of the agent's log has come yet. It comes with the machine's next heartbeat (every 30 seconds).";
+}
+// "Updated 2 minutes ago" for the log's newest heartbeat, or '' when none came.
+export function agentLogUpdated(iso, now = Date.now()) {
+  if (Number.isNaN(Date.parse(iso || ''))) return '';
+  return lastSeen(iso, now).replace(/^Seen/, 'Updated');
+}
 
 // ── finding cameras on a machine's network (backend: machines.camera_discover, discovery_row) ───────────────────────
 // The agent that looks for cameras (machines.CAMERA_DISCOVER_AGENT).
