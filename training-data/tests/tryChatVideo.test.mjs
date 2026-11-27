@@ -64,7 +64,7 @@ test('the chat takes a video only when told, shows it as a chip, and uploads it 
 test('a text-only chat model offers no photos and does not say it sees them (owner, 2026-11-27)', () => {
   assert.match(chatVue, /acceptsPhotos: \{ type: Boolean, default: true \}/);
   assert.match(chatVue, /<button v-if="acceptsPhotos" class="attach"/);
-  assert.match(chatVue, /function onPaste\(event\) \{\r?\n  if \(!props\.acceptsPhotos\) return;/);
+  assert.match(chatVue, /function onPaste\(event\) \{\r?\n {2}if \(!props\.acceptsPhotos\) return;/);
   assert.match(chatVue, /if \(props\.acceptsPhotos\) addPhotos\(\[\.\.\.\(event\.dataTransfer\?\.files/);
   assert.match(modelsVue, /const chatTakesPhotos = computed\(\(\) => readyChat\.value && \(\(state\.value\?\.vision \?\? trying\.value\?\.vision\) === true \|\| chatTakesVideo\.value\)\)/);
   assert.match(modelsVue, /:accepts-photos="chatTakesPhotos"/);
