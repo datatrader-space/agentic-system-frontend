@@ -10,6 +10,7 @@ import UiDialog from './UiDialog.vue';
 import MachineConnection from './MachineConnection.vue';
 import MachineNeeds from './MachineNeeds.vue';
 import MachineAgentLog from './MachineAgentLog.vue';
+import MachineDiagnostics from './MachineDiagnostics.vue';
 import { machinesApi, machineState, capabilityLine, lastSeen, projectsLine, MACHINE_COMMANDS, reachCommand } from '../api/machines.js';
 
 const props = defineProps({ embedded: Boolean });
@@ -104,6 +105,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(checkTime
           <p>{{ capabilityLine(m.capabilities) }}</p>
           <p class="machine-meta">{{ lastSeen(m.last_seen_at, now) }}. {{ projectsLine(m) }}. {{ m.jobs ? `${m.jobs} job${m.jobs === 1 ? '' : 's'} now.` : 'No job now.' }}</p>
           <MachineAgentLog v-if="data.may_manage" :machine="m" :now="now"/>
+          <MachineDiagnostics v-if="data.may_manage" :machine="m"/>
         </div>
         <UiButton v-if="data.may_manage" :aria-label="`Remove ${m.name}`" @click="removing = m; removeError = ''"><Trash2 :size="16" aria-hidden="true"/> Remove</UiButton>
       </li>

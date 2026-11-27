@@ -18,6 +18,10 @@ export const machinesApi = {
   discovery: (id, job) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/discover/${encodeURIComponent(job)}/`),
   // The machine agent's own log (an Admin; agent 1.9.3): {id, name, lines, total, updated_at, agent_version}.
   log: (id, lines = AGENT_LOG_LINES) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/log/?lines=${encodeURIComponent(lines)}`),
+  // Machine diagnostics (an Admin; agent 1.9.7, ADM-1394): one fixed read-only look, answered by the machine.
+  // POST -> 202 {request_id, request}; GET -> {request: {id, action, arguments, state, said, answer, ...}}.
+  diagnose: (id, action, args = {}) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/diagnose/`, { method: 'POST', body: { action, arguments: args } }),
+  diagnosis: (id, requestId) => apiFetch(`${APP}/workspace/machines/${encodeURIComponent(id)}/diagnose/${encodeURIComponent(requestId)}/`),
 };
 
 // ── the agent's own log (backend: machines.agent_log; agent 1.9.3 sends it with each heartbeat) ──────────────────
@@ -220,4 +224,89 @@ export function machinesLine(machines) {
   if (online.length === list.length) return ['done', list.length === 1 ? `${online[0].name} is online.` : `${online.length} machines are online.`];
   if (online.length) return ['done', `${online.length} of ${list.length} machines are online.`];
   return ['attention', list.length === 1 ? `${list[0].name} is offline.` : `${list.length} machines, all offline.`];
+}
+
+// ── machine diagnostics (backend: machine_diagnostics.py; agent 1.9.7: ml/machine_agent/diagnose.py) ─────────────
+// A FIXED read-only set: the machine's AADML containers, one's log tail, how one ended, the machine's figures, the
+// agent's own log. The backend checks every request again; these helpers only pick what to show and put it in words.
+export const DIAGNOSE_AGENT = '1.9.7';
+export const DIAGNOSE_LINES = [50, 200, 500, 2000];
+export const DIAGNOSE_DEFAULT_LINES = 200;
+// How often a request is read again while the machine answers, and how many times before the page stops waiting.
+export const DIAGNOSE_POLL_MS = 1000;
+export const DIAGNOSE_TRIES = 30;
+// Why the machine cannot be asked now, in words ('' when it can).
+export function diagnoseWhy(machine) {
+  if (!machine) return '';
+  if (machine.state !== 'online') return `${machine.name} is offline. Diagnostics work once it is back online.`;
+  if (!(machine.diagnostics ?? agentAtLeast(machine.agent_version, DIAGNOSE_AGENT))) {
+    const needs = machine.diagnostics_agent || DIAGNOSE_AGENT;
+    return `Diagnostics need agent ${needs}. ${machine.name} runs ${machine.agent_version || 'an older agent'}; it updates itself when it is idle.`;
+  }
+  return '';
+}
+// Ask the machine and wait for its answer: the request as the backend last said it (answered, refused, expired, or
+// still pending once the tries are used up). `sleep` is passed in so a test needs no clock.
+export async function runDiagnostic(api, machineId, action, args = {}, { sleep = ms => new Promise(r => setTimeout(r, ms)), tries = DIAGNOSE_TRIES, isGone = () => false } = {}) {
+  const made = await api.diagnose(machineId, action, args);
+  let request = made?.request || { id: made?.request_id, state: 'pending' };
+  for (let i = 0; i < tries && request?.state === 'pending' && !isGone(); i += 1) {
+    await sleep(DIAGNOSE_POLL_MS);
+    if (isGone()) break;
+    request = (await api.diagnosis(machineId, made.request_id))?.request || request;
+  }
+  return request;
+}
+// What a request that gave no answer says ('' once answered).
+export function diagnosticWords(request) {
+  if (!request || request.state === 'answered') return '';
+  if (request.state === 'pending') return 'The machine has not answered yet. It may be busy or its connection slow; try again.';
+  return String(request.said || (request.state === 'expired' ? 'The machine did not answer in time.' : 'The machine refused it.'));
+}
+// A container's state as a badge: [tone, words].
+export function containerState(container) {
+  const state = String(container?.state || '');
+  if (state === 'running') return ['green', 'Running'];
+  if (state === 'restarting') return ['purple', 'Restarting'];
+  if (state === 'exited' || state === 'dead') {
+    if (container?.oom_killed) return ['neutral', 'Out of memory'];
+    return ['neutral', Number.isInteger(container?.exit_code) ? `Exited (${container.exit_code})` : 'Exited'];
+  }
+  return ['neutral', state ? state[0].toUpperCase() + state.slice(1) : 'Unknown'];
+}
+// What a container is for, from the labels the agent set: "Model server, job 292".
+const KIND_WORDS = { try: 'Model server', serve: 'Served model', train: 'Training job', camera: 'Camera job', platform: 'Platform step', agent: 'Agent' };
+export function containerWhat(container) {
+  const labels = container?.labels || {};
+  const kind = KIND_WORDS[labels['aadml.kind']] || 'AADML container';
+  return labels['aadml.job'] ? `${kind}, job ${labels['aadml.job']}` : kind;
+}
+// How a container ended, in one line.
+export function endedLine(answer) {
+  const c = answer?.container || {};
+  if (answer?.said) return String(answer.said);
+  if (c.oom_killed) return 'The machine ran out of memory, so Docker stopped it.';
+  if (Number.isInteger(c.exit_code)) return c.exit_code === 0 ? 'It ended normally (exit code 0).' : `It ended with exit code ${c.exit_code}.`;
+  return 'Docker did not say how it ended.';
+}
+// The machine's figures in lines: GPUs, disk, memory, CPUs, the agent and Docker.
+export function systemLines(answer) {
+  if (!answer) return [];
+  const lines = [];
+  const gpus = Array.isArray(answer.gpus) ? answer.gpus : [];
+  if (!gpus.length) lines.push(['GPU', 'None the agent can use']);
+  gpus.forEach((g, i) => {
+    const parts = [g?.name || 'GPU'];
+    if (gb(g?.free_gb) && gb(g?.memory_gb)) parts.push(`${gb(g.free_gb)} free of ${gb(g.memory_gb)}`);
+    else if (gb(g?.memory_gb)) parts.push(gb(g.memory_gb));
+    if (Number.isInteger(g?.utilization_percent)) parts.push(`${g.utilization_percent}% busy`);
+    lines.push([gpus.length > 1 ? `GPU ${i + 1}` : 'GPU', parts.join(', ')]);
+  });
+  if (gb(answer.disk?.free_gb)) lines.push(['Disk', `${gb(answer.disk.free_gb)} free${gb(answer.disk?.total_gb) ? ` of ${gb(answer.disk.total_gb)}` : ''}`]);
+  if (gb(answer.memory?.total_gb)) lines.push(['Memory', `${gb(answer.memory.available_gb) || '0 GB'} available of ${gb(answer.memory.total_gb)}`]);
+  if (answer.cpus) lines.push(['CPUs', String(answer.cpus)]);
+  if (answer.agent?.version) lines.push(['Agent', answer.agent.version]);
+  const docker = answer.docker || {};
+  lines.push(['Docker', docker.answers ? `Answers, version ${docker.version?.Version || docker.info?.ServerVersion || 'unknown'}${docker.info?.OperatingSystem ? ` on ${docker.info.OperatingSystem}` : ''}` : `Does not answer${docker.error ? `: ${docker.error}` : ''}`]);
+  return lines;
 }
